@@ -1,0 +1,16 @@
+[package]
+name = "jwt-rs"
+version = "0.1.0"
+authors = ["Hidekatsu Izuno <hidekatsu.izuno@gmail.com>"]
+edition = "2018"
+keywords = ["jwt", "web"]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+thiserror = "1.0.16"
+anyhow = "1.0.28"
+serde_json = "1.0"
+base64 = "0.12.0"
+openssl-sys = "0.9"
+openssl = "0.10"
