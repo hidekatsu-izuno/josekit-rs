@@ -201,6 +201,13 @@ mod tests {
         let _ = EcdsaAlgorithm::new(HashAlgorithm::SHA256).signer_from_private_der(&key)?;
         Ok(())
     }
+    
+    #[test]
+    fn load_private_pk1_der() -> Result<()> {
+        let key = load_file("keys/ecdsa_p256_pk1_private.der")?;
+        let _ = EcdsaAlgorithm::new(HashAlgorithm::SHA256).signer_from_private_der(&key)?;
+        Ok(())
+    }
 
     #[test]
     fn load_public_der() -> Result<()> {

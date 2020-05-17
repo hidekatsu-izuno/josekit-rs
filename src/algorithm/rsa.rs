@@ -191,6 +191,13 @@ mod tests {
         let _ = RsaAlgorithm::new(HashAlgorithm::SHA256).signer_from_private_der(&key)?;
         Ok(())
     }
+    
+    #[test]
+    fn load_private_pk1_der() -> Result<()> {
+        let key = load_file("keys/rsa_2048_pk1_private.der")?;
+        let _ = RsaAlgorithm::new(HashAlgorithm::SHA256).signer_from_private_der(&key)?;
+        Ok(())
+    }
 
     #[test]
     fn load_public_der() -> Result<()> {

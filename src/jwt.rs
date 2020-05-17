@@ -9,14 +9,31 @@ use crate::algorithm::rsa::RsaAlgorithm;
 use crate::algorithm::ecdsa::EcdsaAlgorithm;
 use crate::error::JwtError;
 
+/// HMAC with SHA-256
 pub const HS256: HmacAlgorithm = HmacAlgorithm::new(HashAlgorithm::SHA256);
+
+/// HMAC with SHA-384
 pub const HS384: HmacAlgorithm = HmacAlgorithm::new(HashAlgorithm::SHA384);
+
+/// HMAC with SHA-512
 pub const HS512: HmacAlgorithm = HmacAlgorithm::new(HashAlgorithm::SHA512);
+
+/// RSASSA-PKCS1-v1_5 with SHA-256
 pub const RS256: RsaAlgorithm = RsaAlgorithm::new(HashAlgorithm::SHA256);
+
+/// RSASSA-PKCS1-v1_5 with SHA-384
 pub const RS384: RsaAlgorithm = RsaAlgorithm::new(HashAlgorithm::SHA384);
+
+/// RSASSA-PKCS1-v1_5 with SHA-512
 pub const RS512: RsaAlgorithm = RsaAlgorithm::new(HashAlgorithm::SHA512);
+
+/// ECDSA with curve P-256 and SHA-256
 pub const ES256: EcdsaAlgorithm = EcdsaAlgorithm::new(HashAlgorithm::SHA256);
+
+/// ECDSA with curve P-384 and SHA-384
 pub const ES384: EcdsaAlgorithm = EcdsaAlgorithm::new(HashAlgorithm::SHA384);
+
+/// ECDSA with curve P-521 and SHA-512
 pub const ES512: EcdsaAlgorithm = EcdsaAlgorithm::new(HashAlgorithm::SHA512);
 
 pub type Value = serde_json::Value;
@@ -31,7 +48,7 @@ impl Jwt {
     pub fn decode(input: &str, verifier: &dyn Verifier) -> Result<Jwt> {
         let parts: Vec<&str> = input.split('.').collect();
         if parts.len() != 3 {
-            bail!(JwtError::InvalidJwtFormat);
+            bail!(JwtError::InvalidJwtFormat(anyhow!("jwt must be two colon separated.")));
         }
 
         let header_base64 = parts.get(0).unwrap();
@@ -233,4 +250,11 @@ impl Jwt {
 
         Ok(format!("{}.{}.{}", header_base64, payload_base64, signature_base64))
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    
 }

@@ -3,17 +3,17 @@ use thiserror::Error;
 #[derive(Error, Debug)]
 pub enum JwtError {
     #[error("Unsupported signature algorithm: {0}")]
-    UnsupportedSignatureAlgorithm(String),
+    UnsupportedSignatureAlgorithm(#[source] anyhow::Error),
     
     #[error("Invalid json format: {0}")]
-    InvalidJsonFormat(anyhow::Error),
+    InvalidJsonFormat(#[source] anyhow::Error),
 
-    #[error("Invalid jwt format.")]
-    InvalidJwtFormat,
+    #[error("Invalid jwt format: {0}")]
+    InvalidJwtFormat(#[source] anyhow::Error),
 
     #[error("Invalid key format: {0}")]
-    InvalidKeyFormat(anyhow::Error),
+    InvalidKeyFormat(#[source] anyhow::Error),
 
     #[error("Invalid signature: {0}")]
-    InvalidSignature(anyhow::Error),
+    InvalidSignature(#[source] anyhow::Error),
 }
