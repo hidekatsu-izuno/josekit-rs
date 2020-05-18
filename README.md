@@ -26,6 +26,8 @@ This library depends on OpenSSL DLL. Read more about it [Crate openssl](https://
 |ES384|ECDSA with curve P-384 and SHA-384|
 |ES512|ECDSA with curve P-521 and SHA-512|
 
+PS256, PS384 and PS512 are currently not supported.
+
 ## Supported key formats for RSA/ECDSA sigining
 
 <table>
@@ -129,19 +131,19 @@ openssl pkey -in ecdsa_private.pem -pubout -outform PEM -out ecdsa_public.pem
 ```
 
 ```rust
-use jwt_rs::{ Jwt, RS256 };
+use jwt_rs::{ Jwt, ES256 };
 
 let mut jwt = Jwt::new();
 jwt.set_subject("user");
 
 // Signing JWT
 let private_key = load_from_file("ecdsa_private.pem")?;
-let signer = RS256.signer_from_private_pem(&private_key)?;
+let signer = ES256.signer_from_private_pem(&private_key)?;
 let encoded_jwt = from_jwt.encode_with_sign(&signer)?;
 
 // Verifing JWT
 let public_key = load_from_file("ecdsa_public.pem")?;
-let verifier = RS256.verifier_from_public_pem(&public_key)?;
+let verifier = ES256.verifier_from_public_pem(&public_key)?;
 let decoded_jwt = Jwt::decode_with_verify(&encoded_jwt, &verifier)?;
 ```
 

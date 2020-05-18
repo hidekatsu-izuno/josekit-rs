@@ -24,6 +24,14 @@ openssl pkey -in rsa_2048_private.pem -outform DER -out rsa_2048_pk1_private.der
 ### Convert RSA private key from PKCS#1 PEM to PKCS#8 PEM
 openssl pkcs8 -nocrypt -in rsa_2048_pk1_private.pem -topk8 -out rsa_2048_private.pem
 
+## RSA-PSS keypair
+
+### Create RSA-PSS PKCS#8 PEM private key
+openssl genpkey -algorithm RSA-PSS -pkeyopt rsa_keygen_bits:2048 -pkeyopt rsa_pss_keygen_md:sha256  -pkeyopt rsa_pss_keygen_mgf1_md:sha256 -out rsapss_2048_sha256_private.pem
+
+### Generate RSA PKCS#8 PEM public key from RSA PKCS#8 PEM private key
+openssl pkey -in rsapss_2048_sha256_private.pem -pubout -outform PEM -out rsapss_2048_sha256_public.pem
+
 ## ECDSA keypair
 
 ### Create ECDSA PKCS#8 PEM private key
