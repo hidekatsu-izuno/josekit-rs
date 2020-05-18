@@ -9,7 +9,7 @@ JWT (JSON Web Token) library for rust (based on OpenSSL).
 jwt_rs = "0.1.0"
 ```
 
-This library depends on OpenSSL DLL.
+This library depends on OpenSSL DLL. Read more about it [Crate openssl](https://docs.rs/openssl/0.10.29/openssl/). 
 
 ## Supported algorithms
 
@@ -158,6 +158,23 @@ jwt.set_subject("user");
 let encoded_jwt = jwt.encode_with_none()?;
 let decoded_jwt = Jwt::decode_with_none(&encoded_jwt)?;
 ```
+
+## License
+
+Licensed under either of
+
+ * Apache License, Version 2.0
+   ([LICENSE-APACHE](LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
+ * MIT license
+   ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT)
+
+at your option.
+
+## Contribution
+
+Unless you explicitly state otherwise, any contribution intentionally submitted
+for inclusion in the work by you, as defined in the Apache-2.0 license, shall be
+dual licensed as above, without any additional terms or conditions.
 
 ## References
 
