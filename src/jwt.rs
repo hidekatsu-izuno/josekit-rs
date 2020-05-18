@@ -55,7 +55,41 @@ impl Jwt {
         }
     }
 
-    pub fn decode<T: Algorithm>(input: &str, verifier: &impl Verifier<T>) -> Result<Self, JwtError> {
+    pub fn decode_with_none(input: &str) -> Result<Self, JwtError> {
+        (|| -> anyhow::Result<Self> {
+            let parts: Vec<&str> = input.split('.').collect();
+            if parts.len() != 2 {
+                bail!("JWT must be two parts separated by colon.");
+            }
+
+            let header_base64 = parts.get(0).unwrap();
+            let payload_base64 = parts.get(1).unwrap();
+            
+            let header_json = base64::decode_config(header_base64, base64::URL_SAFE_NO_PAD)?;
+            let mut header: Map<String, Value> = serde_json::from_slice(&header_json)?;
+
+            let payload_json = base64::decode_config(payload_base64, base64::URL_SAFE_NO_PAD)?;
+            let payload: Map<String, Value> = serde_json::from_slice(&payload_json)?;
+
+            if let Some(Value::String(expected_alg)) = header.remove("alg") {
+                let actual_alg = "none".to_string();
+                if expected_alg != actual_alg {
+                    bail!("JWT alg header parameter is mismatched: expected = {}, actual = {}", &expected_alg, &actual_alg);
+                }
+            } else {
+                bail!("JWT alg header parameter is missing.");
+            }
+
+            Ok(Jwt {
+                header,
+                payload
+            })
+        })().map_err(|err| {
+            JwtError::InvalidJwtFormat(err)
+        })
+    }
+
+    pub fn decode_with_verify<T: Algorithm>(input: &str, verifier: &impl Verifier<T>) -> Result<Self, JwtError> {
         let (
             header,
             payload,
@@ -276,7 +310,20 @@ impl Jwt {
         self
     }
 
-    pub fn encode<T: Algorithm>(&self, signer: &impl Signer<T>) -> Result<String, JwtError> {
+    pub fn encode_with_none(&self) -> Result<String, JwtError> {
+        let mut header = self.header.clone();
+        header.insert("alg".to_string(), Value::String("none".to_string()));
+
+        let header_json = serde_json::to_string(&header).unwrap();
+        let header_base64 = base64::encode_config(header_json, base64::URL_SAFE_NO_PAD);
+
+        let payload_json = serde_json::to_string(&self.payload).unwrap();
+        let payload_base64 = base64::encode_config(payload_json, base64::URL_SAFE_NO_PAD);
+
+        Ok(format!("{}.{}", header_base64, payload_base64))
+    }
+
+    pub fn encode_with_sign<T: Algorithm>(&self, signer: &impl Signer<T>) -> Result<String, JwtError> {
         let name = signer.algorithm().name();
 
         let mut header = self.header.clone();
@@ -289,8 +336,8 @@ impl Jwt {
         let payload_base64 = base64::encode_config(payload_json, base64::URL_SAFE_NO_PAD);
 
         let signature = signer.sign(&[header_base64.as_bytes(), b".", payload_base64.as_bytes()])?;
-        let signature_base64 = base64::encode_config(signature, base64::URL_SAFE_NO_PAD);
 
+        let signature_base64 = base64::encode_config(signature, base64::URL_SAFE_NO_PAD);
         Ok(format!("{}.{}.{}", header_base64, payload_base64, signature_base64))
     }
 }
@@ -305,15 +352,27 @@ mod tests {
     use anyhow::Result;
 
     #[test]
+    fn test_jwt_with_none() -> Result<()> {
+        let from_jwt = Jwt::new();
+
+        let jwt_string = from_jwt.encode_with_none()?;
+        let to_jwt = Jwt::decode_with_none(&jwt_string)?;
+
+        assert_eq!(from_jwt, to_jwt);
+
+        Ok(())
+    }
+
+    #[test]
     fn test_jwt_with_hmac() -> Result<()> {
         let from_jwt = Jwt::new();
 
         for alg in &[ HS256, HS384, HS512 ] {
             let private_key = b"quety12389";
             let signer = alg.signer_from_bytes(private_key)?;
-            let jwt_string = from_jwt.encode(&signer)?;
+            let jwt_string = from_jwt.encode_with_sign(&signer)?;
     
-            let to_jwt = Jwt::decode(&jwt_string, &signer)?;
+            let to_jwt = Jwt::decode_with_verify(&jwt_string, &signer)?;
 
             assert_eq!(from_jwt, to_jwt);
         }
@@ -328,11 +387,11 @@ mod tests {
         for alg in &[ RS256, RS384, RS512 ] {
             let private_key = load_file("keys/rsa_2048_private.pem")?;
             let signer = alg.signer_from_private_pem(&private_key)?;
-            let jwt_string = from_jwt.encode(&signer)?;
+            let jwt_string = from_jwt.encode_with_sign(&signer)?;
     
             let public_key = load_file("keys/rsa_2048_public.pem")?;
             let verifier = alg.verifier_from_public_pem(&public_key)?;
-            let to_jwt = Jwt::decode(&jwt_string, &verifier)?;
+            let to_jwt = Jwt::decode_with_verify(&jwt_string, &verifier)?;
 
             assert_eq!(from_jwt, to_jwt);
         }
@@ -347,11 +406,11 @@ mod tests {
         for alg in &[ RS256, RS384, RS512 ] {
             let private_key = load_file("keys/rsa_2048_private.der")?;
             let signer = alg.signer_from_private_der(&private_key)?;
-            let jwt_string = from_jwt.encode(&signer)?;
+            let jwt_string = from_jwt.encode_with_sign(&signer)?;
     
             let public_key = load_file("keys/rsa_2048_public.der")?;
             let verifier = alg.verifier_from_public_der(&public_key)?;
-            let to_jwt = Jwt::decode(&jwt_string, &verifier)?;
+            let to_jwt = Jwt::decode_with_verify(&jwt_string, &verifier)?;
 
             assert_eq!(from_jwt, to_jwt);
         }
@@ -366,11 +425,11 @@ mod tests {
         for alg in &[ ES256, ES384, ES512 ] {
             let private_key = load_file("keys/ecdsa_p256_private.pem")?;
             let signer = alg.signer_from_private_pem(&private_key)?;
-            let jwt_string = from_jwt.encode(&signer)?;
+            let jwt_string = from_jwt.encode_with_sign(&signer)?;
     
             let public_key = load_file("keys/ecdsa_p256_public.pem")?;
             let verifier = alg.verifier_from_public_pem(&public_key)?;
-            let to_jwt = Jwt::decode(&jwt_string, &verifier)?;
+            let to_jwt = Jwt::decode_with_verify(&jwt_string, &verifier)?;
 
             assert_eq!(from_jwt, to_jwt);
         }
@@ -385,11 +444,11 @@ mod tests {
         for alg in &[ ES256, ES384, ES512 ] {
             let private_key = load_file("keys/ecdsa_p256_private.der")?;
             let signer = alg.signer_from_private_der(&private_key)?;
-            let jwt_string = from_jwt.encode(&signer)?;
+            let jwt_string = from_jwt.encode_with_sign(&signer)?;
     
             let public_key = load_file("keys/ecdsa_p256_public.der")?;
             let verifier = alg.verifier_from_public_der(&public_key)?;
-            let to_jwt = Jwt::decode(&jwt_string, &verifier)?;
+            let to_jwt = Jwt::decode_with_verify(&jwt_string, &verifier)?;
 
             assert_eq!(from_jwt, to_jwt);
         }

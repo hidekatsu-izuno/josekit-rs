@@ -3,8 +3,8 @@ use openssl::rsa::Rsa;
 use openssl::hash::MessageDigest;
 use anyhow::{ anyhow, bail };
 
-use crate::error::JwtError;
 use crate::algorithm::{ HashAlgorithm, Algorithm, Signer, Verifier };
+use crate::error::JwtError;
 
 pub struct RsaAlgorithm {
     hash_algorithm: HashAlgorithm
