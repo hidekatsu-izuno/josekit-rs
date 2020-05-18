@@ -15,10 +15,14 @@ pub trait Algorithm {
     fn name(&self) -> &str;
 }
 
-pub trait Signer {
-    fn sign(&self, target: &[u8]) -> Result<Vec<u8>, JwtError>;
+pub trait Signer<T: Algorithm> {
+    fn algorithm(&self) -> &T;
+
+    fn sign(&self, data: &[&[u8]]) -> Result<Vec<u8>, JwtError>;
 }
 
-pub trait Verifier {
-    fn verify(&self, target: &[u8], signature: &[u8]) -> Result<(), JwtError>;
+pub trait Verifier<T: Algorithm> {
+    fn algorithm(&self) -> &T;
+
+    fn verify(&self, data: &[&[u8]], signature: &[u8]) -> Result<(), JwtError>;
 }

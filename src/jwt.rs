@@ -1,9 +1,9 @@
-use anyhow::{ Result, bail, anyhow };
-
-use std::collections::BTreeMap;
 use std::time::{ SystemTime, Duration };
 
-use crate::algorithm::{ Signer, Verifier, HashAlgorithm };
+use anyhow::{ bail };
+use serde_json::{ Map };
+
+use crate::algorithm::{ Signer, Verifier, Algorithm, HashAlgorithm };
 use crate::algorithm::hmac::HmacAlgorithm;
 use crate::algorithm::rsa::RsaAlgorithm;
 use crate::algorithm::ecdsa::EcdsaAlgorithm;
@@ -38,31 +38,67 @@ pub const ES512: EcdsaAlgorithm = EcdsaAlgorithm::new(HashAlgorithm::SHA512);
 
 pub type Value = serde_json::Value;
 
-#[derive(Debug, Eq, PartialEq, Default)]
+#[derive(Debug, Eq, PartialEq)]
 pub struct Jwt {
-    header: BTreeMap<String, Value>,
-    payload: BTreeMap<String, Value>
+    header: Map<String, Value>,
+    payload: Map<String, Value>
 }
 
 impl Jwt {
-    pub fn decode(input: &str, verifier: &dyn Verifier) -> Result<Jwt> {
-        let parts: Vec<&str> = input.split('.').collect();
-        if parts.len() != 3 {
-            bail!(JwtError::InvalidJwtFormat(anyhow!("jwt must be two colon separated.")));
+    pub fn new() -> Self {
+        let mut header = Map::default();
+        header.insert("typ".to_string(), Value::String("JWT".to_string()));
+
+        Self {
+            header,
+            payload: Map::default()
         }
+    }
 
-        let header_base64 = parts.get(0).unwrap();
-        let payload_base64 = parts.get(1).unwrap();
-        let signature_base64 = parts.get(2).unwrap();
+    pub fn decode<T: Algorithm>(input: &str, verifier: &impl Verifier<T>) -> Result<Self, JwtError> {
+        let (
+            header,
+            payload,
+            data,
+            signature
+        ) = (|| -> anyhow::Result<(Map<String, Value>, Map<String, Value>, [&[u8]; 3], Vec<u8>)> {
+            let parts: Vec<&str> = input.split('.').collect();
+            if parts.len() != 3 {
+                bail!("JWT must be three parts separated by colon.");
+            }
+    
+            let header_base64 = parts.get(0).unwrap();
+            let payload_base64 = parts.get(1).unwrap();
+            let signature_base64 = parts.get(2).unwrap();
+            
+            let header_json = base64::decode_config(header_base64, base64::URL_SAFE_NO_PAD)?;
+            let mut header: Map<String, Value> = serde_json::from_slice(&header_json)?;
 
-        let signature = base64::decode_config(signature_base64, base64::URL_SAFE_NO_PAD)?;
-        verifier.verify(format!("{}.{}", header_base64, payload_base64).as_bytes(), &signature)?;
+            let payload_json = base64::decode_config(payload_base64, base64::URL_SAFE_NO_PAD)?;
+            let payload: Map<String, Value> = serde_json::from_slice(&payload_json)?;
 
-        let header_json = base64::decode_config(header_base64, base64::URL_SAFE_NO_PAD)?;
-        let payload_json = base64::decode_config(payload_base64, base64::URL_SAFE_NO_PAD)?;
+            if let Some(Value::String(expected_alg)) = header.remove("alg") {
+                let actual_alg = verifier.algorithm().name();
+                if expected_alg != actual_alg {
+                    bail!("JWT alg header parameter is mismatched: expected = {}, actual = {}", &expected_alg, &actual_alg);
+                }
+            } else {
+                bail!("JWT alg header parameter is missing.");
+            }
+    
+            let signature = base64::decode_config(signature_base64, base64::URL_SAFE_NO_PAD)?;
 
-        let header: BTreeMap<String, Value> = serde_json::from_slice(&header_json)?;
-        let payload: BTreeMap<String, Value> = serde_json::from_slice(&payload_json)?;
+            Ok((
+                header,
+                payload,
+                [header_base64.as_bytes(), b".", payload_base64.as_bytes()],
+                signature
+            ))
+        })().map_err(|err| {
+            JwtError::InvalidJwtFormat(err)
+        })?;
+        
+        verifier.verify(&data, &signature)?;
 
         Ok(Jwt {
             header,
@@ -77,6 +113,13 @@ impl Jwt {
 
     pub fn token_type(&self) -> Option<&str> {
         match self.header.get("typ") {
+            Some(Value::String(val)) => Some(val),
+            _ => None
+        }
+    }
+
+    pub fn algorithm(&self) -> Option<&str> {
+        match self.header.get("alg") {
             Some(Value::String(val)) => Some(val),
             _ => None
         }
@@ -115,7 +158,7 @@ impl Jwt {
         self.header.get(key)
     }
 
-    pub fn remove_header_claim(mut self, key: &str) -> Self {
+    pub fn unset_header_claim(mut self, key: &str) -> Self {
         self.header.remove(key);
         self
     }
@@ -228,24 +271,24 @@ impl Jwt {
         self.payload.get(key)
     }
 
-    pub fn remove_payload_claim(mut self, key: &str) -> Self {
+    pub fn unset_payload_claim(mut self, key: &str) -> Self {
         self.payload.remove(key);
         self
     }
 
-    pub fn encode(&self, signer: &impl Signer) -> Result<String> {
-        let header_json = serde_json::to_string(&self.header).map_err(|err| {
-            JwtError::InvalidJsonFormat(anyhow!(err))
-        })?;
+    pub fn encode<T: Algorithm>(&self, signer: &impl Signer<T>) -> Result<String, JwtError> {
+        let name = signer.algorithm().name();
 
-        let payload_json = serde_json::to_string(&self.payload).map_err(|err| {
-            JwtError::InvalidJsonFormat(anyhow!(err))
-        })?;
+        let mut header = self.header.clone();
+        header.insert("alg".to_string(), Value::String(name.to_string()));
 
+        let header_json = serde_json::to_string(&header).unwrap();
         let header_base64 = base64::encode_config(header_json, base64::URL_SAFE_NO_PAD);
+
+        let payload_json = serde_json::to_string(&self.payload).unwrap();
         let payload_base64 = base64::encode_config(payload_json, base64::URL_SAFE_NO_PAD);
 
-        let signature = signer.sign(format!("{}.{}", header_base64, payload_base64).as_bytes())?;
+        let signature = signer.sign(&[header_base64.as_bytes(), b".", payload_base64.as_bytes()])?;
         let signature_base64 = base64::encode_config(signature, base64::URL_SAFE_NO_PAD);
 
         Ok(format!("{}.{}.{}", header_base64, payload_base64, signature_base64))
@@ -256,5 +299,112 @@ impl Jwt {
 mod tests {
     use super::*;
 
+    use std::fs::File;
+    use std::io::Read;
+    use std::path::PathBuf;
+    use anyhow::Result;
+
+    #[test]
+    fn test_jwt_with_hmac() -> Result<()> {
+        let from_jwt = Jwt::new();
+
+        for alg in &[ HS256, HS384, HS512 ] {
+            let private_key = b"quety12389";
+            let signer = alg.signer_from_bytes(private_key)?;
+            let jwt_string = from_jwt.encode(&signer)?;
     
+            let to_jwt = Jwt::decode(&jwt_string, &signer)?;
+
+            assert_eq!(from_jwt, to_jwt);
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_jwt_with_rsa_pem() -> Result<()> {
+        let from_jwt = Jwt::new();
+
+        for alg in &[ RS256, RS384, RS512 ] {
+            let private_key = load_file("keys/rsa_2048_private.pem")?;
+            let signer = alg.signer_from_private_pem(&private_key)?;
+            let jwt_string = from_jwt.encode(&signer)?;
+    
+            let public_key = load_file("keys/rsa_2048_public.pem")?;
+            let verifier = alg.verifier_from_public_pem(&public_key)?;
+            let to_jwt = Jwt::decode(&jwt_string, &verifier)?;
+
+            assert_eq!(from_jwt, to_jwt);
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_jwt_with_rsa_der() -> Result<()> {
+        let from_jwt = Jwt::new();
+
+        for alg in &[ RS256, RS384, RS512 ] {
+            let private_key = load_file("keys/rsa_2048_private.der")?;
+            let signer = alg.signer_from_private_der(&private_key)?;
+            let jwt_string = from_jwt.encode(&signer)?;
+    
+            let public_key = load_file("keys/rsa_2048_public.der")?;
+            let verifier = alg.verifier_from_public_der(&public_key)?;
+            let to_jwt = Jwt::decode(&jwt_string, &verifier)?;
+
+            assert_eq!(from_jwt, to_jwt);
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_jwt_with_ecdsa_pem() -> Result<()> {
+        let from_jwt = Jwt::new();
+
+        for alg in &[ ES256, ES384, ES512 ] {
+            let private_key = load_file("keys/ecdsa_p256_private.pem")?;
+            let signer = alg.signer_from_private_pem(&private_key)?;
+            let jwt_string = from_jwt.encode(&signer)?;
+    
+            let public_key = load_file("keys/ecdsa_p256_public.pem")?;
+            let verifier = alg.verifier_from_public_pem(&public_key)?;
+            let to_jwt = Jwt::decode(&jwt_string, &verifier)?;
+
+            assert_eq!(from_jwt, to_jwt);
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_jwt_with_ecdsa_der() -> Result<()> {
+        let from_jwt = Jwt::new();
+
+        for alg in &[ ES256, ES384, ES512 ] {
+            let private_key = load_file("keys/ecdsa_p256_private.der")?;
+            let signer = alg.signer_from_private_der(&private_key)?;
+            let jwt_string = from_jwt.encode(&signer)?;
+    
+            let public_key = load_file("keys/ecdsa_p256_public.der")?;
+            let verifier = alg.verifier_from_public_der(&public_key)?;
+            let to_jwt = Jwt::decode(&jwt_string, &verifier)?;
+
+            assert_eq!(from_jwt, to_jwt);
+        }
+
+        Ok(())
+    }
+    
+    fn load_file(path: &str) -> Result<Vec<u8>> {
+        let mut pb = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        pb.push("data");
+        pb.push(path);
+
+        let mut file = File::open(&pb)?;
+        let mut data = Vec::new();
+        file.read_to_end(&mut data)?;
+        Ok(data)
+    }
 }

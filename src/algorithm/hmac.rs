@@ -17,7 +17,7 @@ impl HmacAlgorithm {
         }
     }
 
-    pub fn signer_from_bytes<'a>(&'a self, data: &[u8]) -> Result<impl Signer + Verifier + 'a, JwtError> {
+    pub fn signer_from_bytes<'a>(&'a self, data: &[u8]) -> Result<impl Signer<HmacAlgorithm> + Verifier<HmacAlgorithm> + 'a, JwtError> {
         PKey::hmac(&data)
             .map_err(|err| {
                 JwtError::InvalidKeyFormat(anyhow!(err))
@@ -46,60 +46,58 @@ pub struct HmacSigner<'a> {
     private_key: PKey<Private>
 }
 
-impl<'a> Signer for HmacSigner<'a> {
-    fn sign(&self, target: &[u8]) -> Result<Vec<u8>, JwtError> {
-        let message_digest = match self.algorithm.hash_algorithm {
-            HashAlgorithm::SHA256 => MessageDigest::sha256(),
-            HashAlgorithm::SHA384 => MessageDigest::sha384(),
-            HashAlgorithm::SHA512 => MessageDigest::sha512()
-        };
+impl<'a> Signer<HmacAlgorithm> for HmacSigner<'a> {
+    fn algorithm(&self) -> &HmacAlgorithm {
+        &self.algorithm
+    }
 
-        openssl::sign::Signer::new(message_digest, &self.private_key)
-            .and_then(|mut signer| {
-                signer.update(target)
-                    .map(|_| signer)
-            })
-            .and_then(|signer| {
-                signer.sign_to_vec()
-            })
-            .map_err(|err| {
-                JwtError::InvalidSignature(anyhow!(err))
-            })
+    fn sign(&self, data: &[&[u8]]) -> Result<Vec<u8>, JwtError> {
+        (|| -> anyhow::Result<Vec<u8>> {
+            let message_digest = match self.algorithm.hash_algorithm {
+                HashAlgorithm::SHA256 => MessageDigest::sha256(),
+                HashAlgorithm::SHA384 => MessageDigest::sha384(),
+                HashAlgorithm::SHA512 => MessageDigest::sha512()
+            };
+
+            let mut signer = openssl::sign::Signer::new(message_digest, &self.private_key)?;
+            for part in data {
+                signer.update(part)?;
+            }
+            let signature = signer.sign_to_vec()?;
+            Ok(signature)
+        })().map_err(|err| {
+            JwtError::InvalidSignature(err)
+        })
     }
 }
 
-impl<'a> Verifier for HmacSigner<'a> {
-    fn verify(&self, target: &[u8], signature: &[u8]) -> Result<(), JwtError> {
-        let message_digest = match self.algorithm.hash_algorithm {
-            HashAlgorithm::SHA256 => MessageDigest::sha256(),
-            HashAlgorithm::SHA384 => MessageDigest::sha384(),
-            HashAlgorithm::SHA512 => MessageDigest::sha512()
-        };
+impl<'a> Verifier<HmacAlgorithm> for HmacSigner<'a> {
+    fn algorithm(&self) -> &HmacAlgorithm {
+        &self.algorithm
+    }
 
-        openssl::sign::Signer::new(message_digest, &self.private_key)
-            .map_err(|err| anyhow!(err))
-            .and_then(|mut signer| {
-                signer.update(target)
-                    .map_err(|err| anyhow!(err))
-                    .map(|_| signer)
-            })
-            .and_then(|signer| {
-                signer.sign_to_vec()
-                    .map_err(|err| anyhow!(err))
-            })
-            .and_then(|vec| {
-                if memcmp::eq(&vec, &signature) {
-                    Ok(())
-                } else {
-                    bail!("Fail to verify.")
-                }
-            })
-            .map_err(|err| {
-                JwtError::InvalidSignature(err)
-            })
+    fn verify(&self, data: &[&[u8]], signature: &[u8]) -> Result<(), JwtError> {
+        (|| -> anyhow::Result<()> {
+            let message_digest = match self.algorithm.hash_algorithm {
+                HashAlgorithm::SHA256 => MessageDigest::sha256(),
+                HashAlgorithm::SHA384 => MessageDigest::sha384(),
+                HashAlgorithm::SHA512 => MessageDigest::sha512()
+            };
+            
+            let mut signer = openssl::sign::Signer::new(message_digest, &self.private_key)?;
+            for part in data {
+                signer.update(part)?;
+            }
+            let new_signature = signer.sign_to_vec()?;
+            if !memcmp::eq(&new_signature, &signature) {
+                bail!("Failed to verify.")
+            }
+            Ok(())
+        })().map_err(|err| {
+            JwtError::InvalidSignature(err)
+        })
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -110,7 +108,7 @@ mod tests {
     #[test]
     fn sign_and_verify() -> Result<()> {
         let private_key = b"ABCDE12345";
-        let target = b"abcde12345";
+        let data = b"abcde12345";
 
         for hash in &[
             HashAlgorithm::SHA256,
@@ -120,8 +118,8 @@ mod tests {
             let alg = HmacAlgorithm::new(*hash);
 
             let signer = alg.signer_from_bytes(private_key)?;
-            let signature = signer.sign(target)?;
-            signer.verify(target, &signature)?;
+            let signature = signer.sign(&[data])?;
+            signer.verify(&[data], &signature)?;
         }
         
         Ok(())

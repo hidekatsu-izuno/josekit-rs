@@ -18,7 +18,7 @@ impl EcdsaAlgorithm {
         }
     }
 
-    pub fn signer_from_private_der<'a>(&'a self, data: &[u8]) -> Result<impl Signer + 'a, JwtError> {
+    pub fn signer_from_private_der<'a>(&'a self, data: &[u8]) -> Result<impl Signer<EcdsaAlgorithm> + 'a, JwtError> {
         PKey::private_key_from_der(&data)
             .or_else(|err| {
                 EcKey::private_key_from_der(&data)
@@ -37,7 +37,7 @@ impl EcdsaAlgorithm {
             })
     }
 
-    pub fn signer_from_private_pem<'a>(&'a self, data: &[u8]) -> Result<impl Signer + 'a, JwtError> {
+    pub fn signer_from_private_pem<'a>(&'a self, data: &[u8]) -> Result<impl Signer<EcdsaAlgorithm> + 'a, JwtError> {
         PKey::private_key_from_pem(&data)
             .or_else(|err| {
                 EcKey::private_key_from_pem(&data)
@@ -56,7 +56,7 @@ impl EcdsaAlgorithm {
             })
     }
 
-    pub fn verifier_from_public_der<'a>(&'a self, data: &[u8]) -> Result<impl Verifier + 'a, JwtError> {
+    pub fn verifier_from_public_der<'a>(&'a self, data: &[u8]) -> Result<impl Verifier<EcdsaAlgorithm> + 'a, JwtError> {
         PKey::public_key_from_der(&data)
             .map_err(|err| anyhow!(err))
             .and_then(Self::check_key)
@@ -71,7 +71,7 @@ impl EcdsaAlgorithm {
             })
     }
 
-    pub fn verifier_from_public_pem<'a>(&'a self, data: &[u8]) -> Result<impl Verifier + 'a, JwtError> {
+    pub fn verifier_from_public_pem<'a>(&'a self, data: &[u8]) -> Result<impl Verifier<EcdsaAlgorithm> + 'a, JwtError> {
         PKey::public_key_from_pem(&data)
             .map_err(|err| anyhow!(err))
             .and_then(Self::check_key)
@@ -115,25 +115,28 @@ pub struct EcdsaSigner<'a> {
     private_key: PKey<Private>
 }
 
-impl<'a> Signer for EcdsaSigner<'a> {
-    fn sign(&self, target: &[u8]) -> Result<Vec<u8>, JwtError> {
-        let message_digest = match self.algorithm.hash_algorithm {
-            HashAlgorithm::SHA256 => MessageDigest::sha256(),
-            HashAlgorithm::SHA384 => MessageDigest::sha384(),
-            HashAlgorithm::SHA512 => MessageDigest::sha512(),
-        };
-
-        openssl::sign::Signer::new(message_digest, &self.private_key)
-            .and_then(|mut signer| {
-                signer.update(target)
-                    .map(|_| signer)
-            })
-            .and_then(|signer| {
-                signer.sign_to_vec()
-            })
-            .map_err(|err| {
-                JwtError::InvalidSignature(anyhow!(err))
-            })
+impl<'a> Signer<EcdsaAlgorithm> for EcdsaSigner<'a> {
+    fn algorithm(&self) -> &EcdsaAlgorithm {
+        &self.algorithm
+    }
+    
+    fn sign(&self, data: &[&[u8]]) -> Result<Vec<u8>, JwtError> {
+        (|| -> anyhow::Result<Vec<u8>> {
+            let message_digest = match self.algorithm.hash_algorithm {
+                HashAlgorithm::SHA256 => MessageDigest::sha256(),
+                HashAlgorithm::SHA384 => MessageDigest::sha384(),
+                HashAlgorithm::SHA512 => MessageDigest::sha512(),
+            };
+            
+            let mut signer = openssl::sign::Signer::new(message_digest, &self.private_key)?;
+            for part in data {
+                signer.update(part)?;
+            }
+            let signature = signer.sign_to_vec()?;
+            Ok(signature)
+        })().map_err(|err| {
+            JwtError::InvalidSignature(err)
+        })
     }
 }
 
@@ -142,26 +145,28 @@ pub struct EcdsaVerifier<'a> {
     public_key: PKey<Public>
 }
 
-impl<'a> Verifier for EcdsaVerifier<'a> {
-    fn verify(&self, target: &[u8], signature: &[u8]) -> Result<(), JwtError> {
-        let message_digest = match self.algorithm.hash_algorithm {
-            HashAlgorithm::SHA256 => MessageDigest::sha256(),
-            HashAlgorithm::SHA384 => MessageDigest::sha384(),
-            HashAlgorithm::SHA512 => MessageDigest::sha512(),
-        };
-
-        openssl::sign::Verifier::new(message_digest, &self.public_key)
-            .and_then(|mut verifier| {
-                verifier.update(target)
-                    .map(|_| verifier)
-            })
-            .and_then(|verifier| {
-                verifier.verify(signature)
-                    .map(|_| ())
-            })
-            .map_err(|err| {
-                JwtError::InvalidSignature(anyhow!(err))
-            })
+impl<'a> Verifier<EcdsaAlgorithm> for EcdsaVerifier<'a> {
+    fn algorithm(&self) -> &EcdsaAlgorithm {
+        &self.algorithm
+    }
+    
+    fn verify(&self, data: &[&[u8]], signature: &[u8]) -> Result<(), JwtError> {
+        (|| -> anyhow::Result<()> {
+            let message_digest = match self.algorithm.hash_algorithm {
+                HashAlgorithm::SHA256 => MessageDigest::sha256(),
+                HashAlgorithm::SHA384 => MessageDigest::sha384(),
+                HashAlgorithm::SHA512 => MessageDigest::sha512(),
+            };
+            
+            let mut verifier = openssl::sign::Verifier::new(message_digest, &self.public_key)?;
+            for part in data {
+                verifier.update(part)?;
+            }
+            verifier.verify(signature)?;
+            Ok(())
+        })().map_err(|err| {
+            JwtError::InvalidSignature(err)
+        })
     }
 }
 
@@ -220,7 +225,7 @@ mod tests {
     fn sign_and_verify_pem() -> Result<()> {
         let private_key = load_file("keys/ecdsa_p256_private.pem")?;
         let public_key = load_file("keys/ecdsa_p256_public.pem")?;
-        let target = b"abcde12345";
+        let data = b"abcde12345";
 
         for hash in &[
             HashAlgorithm::SHA256,
@@ -230,10 +235,10 @@ mod tests {
             let alg = EcdsaAlgorithm::new(*hash);
 
             let signer = alg.signer_from_private_pem(&private_key)?;
-            let signature = signer.sign(target)?;
+            let signature = signer.sign(&[data])?;
 
             let verifier = alg.verifier_from_public_pem(&public_key)?;
-            verifier.verify(target, &signature)?;
+            verifier.verify(&[data], &signature)?;
         }
         
         Ok(())
@@ -243,7 +248,7 @@ mod tests {
     fn sign_and_verify_der() -> Result<()> {
         let private_key = load_file("keys/ecdsa_p256_private.der")?;
         let public_key = load_file("keys/ecdsa_p256_public.der")?;
-        let target = b"abcde12345";
+        let data = b"abcde12345";
 
         for hash in &[
             HashAlgorithm::SHA256,
@@ -253,10 +258,10 @@ mod tests {
             let alg = EcdsaAlgorithm::new(*hash);
 
             let signer = alg.signer_from_private_der(&private_key)?;
-            let signature = signer.sign(target)?;
+            let signature = signer.sign(&[data])?;
 
             let verifier = alg.verifier_from_public_der(&public_key)?;
-            verifier.verify(target, &signature)?;
+            verifier.verify(&[data], &signature)?;
         }
         
         Ok(())

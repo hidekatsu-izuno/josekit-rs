@@ -4,9 +4,6 @@ use thiserror::Error;
 pub enum JwtError {
     #[error("Unsupported signature algorithm: {0}")]
     UnsupportedSignatureAlgorithm(#[source] anyhow::Error),
-    
-    #[error("Invalid json format: {0}")]
-    InvalidJsonFormat(#[source] anyhow::Error),
 
     #[error("Invalid jwt format: {0}")]
     InvalidJwtFormat(#[source] anyhow::Error),
