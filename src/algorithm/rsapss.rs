@@ -1,81 +1,71 @@
 use anyhow::{anyhow, bail};
-use openssl::ec::EcKey;
 use openssl::hash::MessageDigest;
-use openssl::nid::Nid;
 use openssl::pkey::{HasPublic, PKey, Private, Public};
 
 use crate::algorithm::{Algorithm, HashAlgorithm, Signer, Verifier};
 use crate::error::JwtError;
 
 #[derive(Debug, Eq, PartialEq)]
-pub struct EcdsaAlgorithm {
+pub struct RsaPssAlgorithm {
     hash_algorithm: HashAlgorithm,
 }
 
-impl EcdsaAlgorithm {
+impl RsaPssAlgorithm {
     pub const fn new(hash_algorithm: HashAlgorithm) -> Self {
-        EcdsaAlgorithm { hash_algorithm }
-    }
-
-    pub fn signer_from_private_pem<'a>(
-        &'a self,
-        data: &[u8],
-    ) -> Result<impl Signer<EcdsaAlgorithm> + 'a, JwtError> {
-        PKey::private_key_from_pem(&data)
-            .or_else(|err| {
-                EcKey::private_key_from_pem(&data)
-                    .and_then(|val| PKey::from_ec_key(val))
-                    .map_err(|_| anyhow!(err))
-            })
-            .and_then(|pkey| (&self).check_key(pkey))
-            .map_err(|err| JwtError::InvalidKeyFormat(err))
-            .map(|val| EcdsaSigner {
-                algorithm: &self,
-                private_key: val,
-            })
+        RsaPssAlgorithm { hash_algorithm }
     }
 
     pub fn signer_from_private_der<'a>(
         &'a self,
         data: &[u8],
-    ) -> Result<impl Signer<EcdsaAlgorithm> + 'a, JwtError> {
+    ) -> Result<impl Signer<RsaPssAlgorithm> + 'a, JwtError> {
         PKey::private_key_from_der(&data)
-            .or_else(|err| {
-                EcKey::private_key_from_der(&data)
-                    .and_then(|val| PKey::from_ec_key(val))
-                    .map_err(|_| anyhow!(err))
-            })
+            .map_err(|err| anyhow!(err))
             .and_then(|pkey| (&self).check_key(pkey))
             .map_err(|err| JwtError::InvalidKeyFormat(err))
-            .map(|val| EcdsaSigner {
+            .map(|val| RsaPssSigner {
                 algorithm: &self,
                 private_key: val,
+            })
+    }
+
+    pub fn signer_from_private_pem<'a>(
+        &'a self,
+        data: &[u8],
+    ) -> Result<impl Signer<RsaPssAlgorithm> + 'a, JwtError> {
+        PKey::private_key_from_pem(&data)
+            .map_err(|err| anyhow!(err))
+            .and_then(|pkey| (&self).check_key(pkey))
+            .map_err(|err| JwtError::InvalidKeyFormat(err))
+            .map(|val| RsaPssSigner {
+                algorithm: &self,
+                private_key: val,
+            })
+    }
+
+    pub fn verifier_from_public_der<'a>(
+        &'a self,
+        data: &[u8],
+    ) -> Result<impl Verifier<RsaPssAlgorithm> + 'a, JwtError> {
+        PKey::public_key_from_der(&data)
+            .map_err(|err| anyhow!(err))
+            .and_then(|pkey| (&self).check_key(pkey))
+            .map_err(|err| JwtError::InvalidKeyFormat(err))
+            .map(|val| RsaPssVerifier {
+                algorithm: &self,
+                public_key: val,
             })
     }
 
     pub fn verifier_from_public_pem<'a>(
         &'a self,
         data: &[u8],
-    ) -> Result<impl Verifier<EcdsaAlgorithm> + 'a, JwtError> {
+    ) -> Result<impl Verifier<RsaPssAlgorithm> + 'a, JwtError> {
         PKey::public_key_from_pem(&data)
             .map_err(|err| anyhow!(err))
             .and_then(|pkey| (&self).check_key(pkey))
             .map_err(|err| JwtError::InvalidKeyFormat(err))
-            .map(|val| EcdsaVerifier {
-                algorithm: &self,
-                public_key: val,
-            })
-    }
-    
-    pub fn verifier_from_public_der<'a>(
-        &'a self,
-        data: &[u8],
-    ) -> Result<impl Verifier<EcdsaAlgorithm> + 'a, JwtError> {
-        PKey::public_key_from_der(&data)
-            .map_err(|err| anyhow!(err))
-            .and_then(|pkey| (&self).check_key(pkey))
-            .map_err(|err| JwtError::InvalidKeyFormat(err))
-            .map(|val| EcdsaVerifier {
+            .map(|val| RsaPssVerifier {
                 algorithm: &self,
                 public_key: val,
             })
@@ -85,40 +75,33 @@ impl EcdsaAlgorithm {
     where
         T: HasPublic,
     {
-        let ec_key = pkey.ec_key()?;
+        let rsa = pkey.rsa()?;
 
-        let curve_name = match self.hash_algorithm {
-            HashAlgorithm::SHA256 => Nid::X9_62_PRIME256V1,
-            HashAlgorithm::SHA384 => Nid::SECP384R1,
-            HashAlgorithm::SHA512 => Nid::SECP521R1,
-        };
-
-        match ec_key.group().curve_name() {
-            Some(val) if val == curve_name => {},
-            _ => bail!("Inappropriate curve: {:?}", curve_name)
+        if rsa.size() * 8 < 2048 {
+            bail!("key length must be 2048 or more.");
         }
 
         Ok(pkey)
     }
 }
 
-impl Algorithm for EcdsaAlgorithm {
+impl Algorithm for RsaPssAlgorithm {
     fn name(&self) -> &str {
         match self.hash_algorithm {
-            HashAlgorithm::SHA256 => "ES256",
-            HashAlgorithm::SHA384 => "ES384",
-            HashAlgorithm::SHA512 => "ES512",
+            HashAlgorithm::SHA256 => "PS256",
+            HashAlgorithm::SHA384 => "PS384",
+            HashAlgorithm::SHA512 => "PS512",
         }
     }
 }
 
-pub struct EcdsaSigner<'a> {
-    algorithm: &'a EcdsaAlgorithm,
+pub struct RsaPssSigner<'a> {
+    algorithm: &'a RsaPssAlgorithm,
     private_key: PKey<Private>,
 }
 
-impl<'a> Signer<EcdsaAlgorithm> for EcdsaSigner<'a> {
-    fn algorithm(&self) -> &EcdsaAlgorithm {
+impl<'a> Signer<RsaPssAlgorithm> for RsaPssSigner<'a> {
+    fn algorithm(&self) -> &RsaPssAlgorithm {
         &self.algorithm
     }
 
@@ -141,13 +124,13 @@ impl<'a> Signer<EcdsaAlgorithm> for EcdsaSigner<'a> {
     }
 }
 
-pub struct EcdsaVerifier<'a> {
-    algorithm: &'a EcdsaAlgorithm,
+pub struct RsaPssVerifier<'a> {
+    algorithm: &'a RsaPssAlgorithm,
     public_key: PKey<Public>,
 }
 
-impl<'a> Verifier<EcdsaAlgorithm> for EcdsaVerifier<'a> {
-    fn algorithm(&self) -> &EcdsaAlgorithm {
+impl<'a> Verifier<RsaPssAlgorithm> for RsaPssVerifier<'a> {
+    fn algorithm(&self) -> &RsaPssAlgorithm {
         &self.algorithm
     }
 
@@ -186,13 +169,13 @@ mod tests {
             HashAlgorithm::SHA384,
             HashAlgorithm::SHA512,
         ] {
-            let curve_name = curve_name(*hash);
-            let key = load_file(&format!("keys/ecdsa_{}_private.pem", curve_name))?;
-            let _ = EcdsaAlgorithm::new(*hash).signer_from_private_pem(&key)?;
+            let hash_name = hash_name(*hash);
+            let key = load_file(&format!("keys/rsapss_2048_{}_private.pem", hash_name))?;
+            let _ = RsaPssAlgorithm::new(HashAlgorithm::SHA256).signer_from_private_pem(&key)?;
         }
         Ok(())
     }
-
+    
     #[test]
     fn load_private_der() -> Result<()> {
         for hash in &[
@@ -200,37 +183,9 @@ mod tests {
             HashAlgorithm::SHA384,
             HashAlgorithm::SHA512,
         ] {
-            let curve_name = curve_name(*hash);
-            let key = load_file(&format!("keys/ecdsa_{}_private.der", curve_name))?;
-            let _ = EcdsaAlgorithm::new(*hash).signer_from_private_der(&key)?;
-        }
-        Ok(())
-    }
-
-    #[test]
-    fn load_private_pk1_pem() -> Result<()> {
-        for hash in &[
-            HashAlgorithm::SHA256,
-            HashAlgorithm::SHA384,
-            HashAlgorithm::SHA512,
-        ] {
-            let curve_name = curve_name(*hash);
-            let key = load_file(&format!("keys/ecdsa_{}_pk1_private.pem", curve_name))?;
-            let _ = EcdsaAlgorithm::new(*hash).signer_from_private_pem(&key)?;
-        }
-        Ok(())
-    }
-
-    #[test]
-    fn load_private_pk1_der() -> Result<()> {
-        for hash in &[
-            HashAlgorithm::SHA256,
-            HashAlgorithm::SHA384,
-            HashAlgorithm::SHA512,
-        ] {
-            let curve_name = curve_name(*hash);
-            let key = load_file(&format!("keys/ecdsa_{}_pk1_private.der", curve_name))?;
-            let _ = EcdsaAlgorithm::new(*hash).signer_from_private_der(&key)?;
+            let hash_name = hash_name(*hash);
+            let key = load_file(&format!("keys/rsapss_2048_{}_private.der", hash_name))?;
+            let _ = RsaPssAlgorithm::new(HashAlgorithm::SHA256).signer_from_private_der(&key)?;
         }
         Ok(())
     }
@@ -242,9 +197,9 @@ mod tests {
             HashAlgorithm::SHA384,
             HashAlgorithm::SHA512,
         ] {
-            let curve_name = curve_name(*hash);
-            let key = load_file(&format!("keys/ecdsa_{}_public.pem", curve_name))?;
-            let _ = EcdsaAlgorithm::new(*hash).verifier_from_public_pem(&key)?;
+            let hash_name = hash_name(*hash);
+            let key = load_file(&format!("keys/rsapss_2048_{}_public.pem", hash_name))?;
+            let _ = RsaPssAlgorithm::new(HashAlgorithm::SHA256).verifier_from_public_pem(&key)?;
         }
         Ok(())
     }
@@ -256,9 +211,9 @@ mod tests {
             HashAlgorithm::SHA384,
             HashAlgorithm::SHA512,
         ] {
-            let curve_name = curve_name(*hash);
-            let key = load_file(&format!("keys/ecdsa_{}_public.der", curve_name))?;
-            let _ = EcdsaAlgorithm::new(*hash).verifier_from_public_der(&key)?;
+            let hash_name = hash_name(*hash);
+            let key = load_file(&format!("keys/rsapss_2048_{}_public.der", hash_name))?;
+            let _ = RsaPssAlgorithm::new(HashAlgorithm::SHA256).verifier_from_public_der(&key)?;
         }
         Ok(())
     }
@@ -272,12 +227,11 @@ mod tests {
             HashAlgorithm::SHA384,
             HashAlgorithm::SHA512,
         ] {
-            let curve_name = curve_name(*hash);
+            let hash_name = hash_name(*hash);
+            let private_key = load_file(&format!("keys/rsapss_2048_{}_private.pem", hash_name))?;
+            let public_key = load_file(&format!("keys/rsapss_2048_{}_public.pem", hash_name))?;
 
-            let private_key = load_file(&format!("keys/ecdsa_{}_private.pem", curve_name))?;
-            let public_key = load_file(&format!("keys/ecdsa_{}_public.pem", curve_name))?;
-
-            let alg = EcdsaAlgorithm::new(*hash);
+            let alg = RsaPssAlgorithm::new(*hash);
 
             let signer = alg.signer_from_private_pem(&private_key)?;
             let signature = signer.sign(&[data])?;
@@ -298,12 +252,11 @@ mod tests {
             HashAlgorithm::SHA384,
             HashAlgorithm::SHA512,
         ] {
-            let curve_name = curve_name(*hash);
+            let hash_name = hash_name(*hash);
+            let private_key = load_file(&format!("keys/rsapss_2048_{}_private.der", hash_name))?;
+            let public_key = load_file(&format!("keys/rsapss_2048_{}_public.der", hash_name))?;
 
-            let private_key = load_file(&format!("keys/ecdsa_{}_private.der", curve_name))?;
-            let public_key = load_file(&format!("keys/ecdsa_{}_public.der", curve_name))?;
-
-            let alg = EcdsaAlgorithm::new(*hash);
+            let alg = RsaPssAlgorithm::new(*hash);
 
             let signer = alg.signer_from_private_der(&private_key)?;
             let signature = signer.sign(&[data])?;
@@ -315,11 +268,11 @@ mod tests {
         Ok(())
     }
 
-    fn curve_name(hash_algorithm: HashAlgorithm) -> &'static str {
+    fn hash_name(hash_algorithm: HashAlgorithm) -> &'static str {
         match hash_algorithm {
-            HashAlgorithm::SHA256 => "p256",
-            HashAlgorithm::SHA384 => "p384",
-            HashAlgorithm::SHA512 => "p521",
+            HashAlgorithm::SHA256 => "sha256",
+            HashAlgorithm::SHA384 => "sha384",
+            HashAlgorithm::SHA512 => "sha512",
         }
     }
 

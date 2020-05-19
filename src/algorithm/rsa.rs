@@ -1,84 +1,96 @@
-use openssl::pkey::{ PKey, Private, Public, HasPublic };
-use openssl::rsa::Rsa;
+use anyhow::{anyhow, bail};
 use openssl::hash::MessageDigest;
-use anyhow::{ anyhow, bail };
+use openssl::pkey::{HasPublic, PKey, Private, Public};
+use openssl::rsa::Rsa;
 
-use crate::algorithm::{ HashAlgorithm, Algorithm, Signer, Verifier };
+use crate::algorithm::{Algorithm, HashAlgorithm, Signer, Verifier};
 use crate::error::JwtError;
 
+#[derive(Debug, Eq, PartialEq)]
 pub struct RsaAlgorithm {
-    hash_algorithm: HashAlgorithm
+    hash_algorithm: HashAlgorithm,
 }
 
 impl RsaAlgorithm {
     pub const fn new(hash_algorithm: HashAlgorithm) -> Self {
-        RsaAlgorithm {
-            hash_algorithm
-        }
+        RsaAlgorithm { hash_algorithm }
     }
 
-    pub fn signer_from_private_der<'a>(&'a self, data: &[u8]) -> Result<impl Signer<RsaAlgorithm> + 'a, JwtError> {
-        PKey::private_key_from_der(&data)
-            .or_else(|err| {
-                Rsa::private_key_from_der(&data)
-                    .and_then(|val| PKey::from_rsa(val))
-                    .map_err(|_| anyhow!(err))
-            })
-            .and_then(Self::check_key)
-            .map_err(|err| {
-                JwtError::InvalidKeyFormat(err)
-            })
-            .map(|val| RsaSigner {
-                algorithm: &self,
-                private_key: val
-            })
-    }
-
-    pub fn signer_from_private_pem<'a>(&'a self, data: &[u8]) -> Result<impl Signer<RsaAlgorithm> + 'a, JwtError> {
+    pub fn signer_from_private_pem<'a>(
+        &'a self,
+        data: &[u8],
+    ) -> Result<impl Signer<RsaAlgorithm> + 'a, JwtError> {
         PKey::private_key_from_pem(&data)
             .or_else(|err| {
                 Rsa::private_key_from_pem(&data)
                     .and_then(|val| PKey::from_rsa(val))
                     .map_err(|_| anyhow!(err))
             })
-            .and_then(Self::check_key)
-            .map_err(|err| {
-                JwtError::InvalidKeyFormat(err)
-            })
+            .and_then(|pkey| (&self).check_key(pkey))
+            .map_err(|err| JwtError::InvalidKeyFormat(err))
             .map(|val| RsaSigner {
                 algorithm: &self,
-                private_key: val
+                private_key: val,
             })
     }
 
-    pub fn verifier_from_public_der<'a>(&'a self, data: &[u8]) -> Result<impl Verifier<RsaAlgorithm> + 'a, JwtError> {
-        PKey::public_key_from_der(&data)
-            .map_err(|err| anyhow!(err))
-            .and_then(Self::check_key)
-            .map_err(|err| {
-                JwtError::InvalidKeyFormat(err)
+    pub fn signer_from_private_der<'a>(
+        &'a self,
+        data: &[u8],
+    ) -> Result<impl Signer<RsaAlgorithm> + 'a, JwtError> {
+        PKey::private_key_from_der(&data)
+            .or_else(|err| {
+                Rsa::private_key_from_der(&data)
+                    .and_then(|val| PKey::from_rsa(val))
+                    .map_err(|_| anyhow!(err))
             })
-            .map(|val| RsaVerifier {
+            .and_then(|pkey| (&self).check_key(pkey))
+            .map_err(|err| JwtError::InvalidKeyFormat(err))
+            .map(|val| RsaSigner {
                 algorithm: &self,
-                public_key: val
+                private_key: val,
             })
     }
 
-    pub fn verifier_from_public_pem<'a>(&'a self, data: &[u8]) -> Result<impl Verifier<RsaAlgorithm> + 'a, JwtError> {
+    pub fn verifier_from_public_pem<'a>(
+        &'a self,
+        data: &[u8],
+    ) -> Result<impl Verifier<RsaAlgorithm> + 'a, JwtError> {
         PKey::public_key_from_pem(&data)
-            .map_err(|err| anyhow!(err))
-            .and_then(Self::check_key)
-            .map_err(|err| {
-                JwtError::InvalidKeyFormat(err)
+            .or_else(|err| {
+                Rsa::public_key_from_pem_pkcs1(&data)
+                    .and_then(|val| PKey::from_rsa(val))
+                    .map_err(|_| anyhow!(err))
             })
+            .and_then(|pkey| (&self).check_key(pkey))
+            .map_err(|err| JwtError::InvalidKeyFormat(err))
             .map(|val| RsaVerifier {
                 algorithm: &self,
-                public_key: val
+                public_key: val,
+            })
+    }
+    
+    pub fn verifier_from_public_der<'a>(
+        &'a self,
+        data: &[u8],
+    ) -> Result<impl Verifier<RsaAlgorithm> + 'a, JwtError> {
+        PKey::public_key_from_der(&data)
+            .or_else(|err| {
+                Rsa::public_key_from_der_pkcs1(&data)
+                    .and_then(|val| PKey::from_rsa(val))
+                    .map_err(|_| anyhow!(err))
+            })
+            .and_then(|pkey| (&self).check_key(pkey))
+            .map_err(|err| JwtError::InvalidKeyFormat(err))
+            .map(|val| RsaVerifier {
+                algorithm: &self,
+                public_key: val,
             })
     }
 
-    fn check_key<T>(pkey: PKey<T>) -> anyhow::Result<PKey<T>>
-        where T: HasPublic
+    fn check_key<T>(&self, pkey: PKey<T>) -> anyhow::Result<PKey<T>>
+    where
+        T: HasPublic,
     {
         let rsa = pkey.rsa()?;
 
@@ -102,7 +114,7 @@ impl Algorithm for RsaAlgorithm {
 
 pub struct RsaSigner<'a> {
     algorithm: &'a RsaAlgorithm,
-    private_key: PKey<Private>
+    private_key: PKey<Private>,
 }
 
 impl<'a> Signer<RsaAlgorithm> for RsaSigner<'a> {
@@ -117,22 +129,21 @@ impl<'a> Signer<RsaAlgorithm> for RsaSigner<'a> {
                 HashAlgorithm::SHA384 => MessageDigest::sha384(),
                 HashAlgorithm::SHA512 => MessageDigest::sha512(),
             };
-    
+
             let mut signer = openssl::sign::Signer::new(message_digest, &self.private_key)?;
             for part in data {
                 signer.update(part)?;
             }
             let signature = signer.sign_to_vec()?;
             Ok(signature)
-        })().map_err(|err| {
-            JwtError::InvalidSignature(err)
-        })
+        })()
+        .map_err(|err| JwtError::InvalidSignature(err))
     }
 }
 
 pub struct RsaVerifier<'a> {
     algorithm: &'a RsaAlgorithm,
-    public_key: PKey<Public>
+    public_key: PKey<Public>,
 }
 
 impl<'a> Verifier<RsaAlgorithm> for RsaVerifier<'a> {
@@ -147,16 +158,15 @@ impl<'a> Verifier<RsaAlgorithm> for RsaVerifier<'a> {
                 HashAlgorithm::SHA384 => MessageDigest::sha384(),
                 HashAlgorithm::SHA512 => MessageDigest::sha512(),
             };
-            
+
             let mut verifier = openssl::sign::Verifier::new(message_digest, &self.public_key)?;
             for part in data {
                 verifier.update(part)?;
             }
             verifier.verify(signature)?;
             Ok(())
-        })().map_err(|err| {
-            JwtError::InvalidSignature(err)
-        })
+        })()
+        .map_err(|err| JwtError::InvalidSignature(err))
     }
 }
 
@@ -164,22 +174,36 @@ impl<'a> Verifier<RsaAlgorithm> for RsaVerifier<'a> {
 mod tests {
     use super::*;
 
+    use anyhow::Result;
     use std::fs::File;
     use std::io::Read;
     use std::path::PathBuf;
-    use anyhow::Result;
-    
+
     #[test]
     fn load_private_pem() -> Result<()> {
         let key = load_file("keys/rsa_2048_private.pem")?;
         let _ = RsaAlgorithm::new(HashAlgorithm::SHA256).signer_from_private_pem(&key)?;
         Ok(())
     }
-        
+
+    #[test]
+    fn load_private_der() -> Result<()> {
+        let key = load_file("keys/rsa_2048_private.der")?;
+        let _ = RsaAlgorithm::new(HashAlgorithm::SHA256).signer_from_private_der(&key)?;
+        Ok(())
+    }
+
     #[test]
     fn load_private_pk1_pem() -> Result<()> {
         let key = load_file("keys/rsa_2048_pk1_private.pem")?;
         let _ = RsaAlgorithm::new(HashAlgorithm::SHA256).signer_from_private_pem(&key)?;
+        Ok(())
+    }
+
+    #[test]
+    fn load_private_pk1_der() -> Result<()> {
+        let key = load_file("keys/rsa_2048_pk1_private.der")?;
+        let _ = RsaAlgorithm::new(HashAlgorithm::SHA256).signer_from_private_der(&key)?;
         Ok(())
     }
 
@@ -191,22 +215,22 @@ mod tests {
     }
 
     #[test]
-    fn load_private_der() -> Result<()> {
-        let key = load_file("keys/rsa_2048_private.der")?;
-        let _ = RsaAlgorithm::new(HashAlgorithm::SHA256).signer_from_private_der(&key)?;
-        Ok(())
-    }
-    
-    #[test]
-    fn load_private_pk1_der() -> Result<()> {
-        let key = load_file("keys/rsa_2048_pk1_private.der")?;
-        let _ = RsaAlgorithm::new(HashAlgorithm::SHA256).signer_from_private_der(&key)?;
+    fn load_public_der() -> Result<()> {
+        let key = load_file("keys/rsa_2048_public.der")?;
+        let _ = RsaAlgorithm::new(HashAlgorithm::SHA256).verifier_from_public_der(&key)?;
         Ok(())
     }
 
     #[test]
-    fn load_public_der() -> Result<()> {
-        let key = load_file("keys/rsa_2048_public.der")?;
+    fn load_public_pk1_pem() -> Result<()> {
+        let key = load_file("keys/rsa_2048_pk1_public.pem")?;
+        let _ = RsaAlgorithm::new(HashAlgorithm::SHA256).verifier_from_public_pem(&key)?;
+        Ok(())
+    }
+    
+    #[test]
+    fn load_public_pk1_der() -> Result<()> {
+        let key = load_file("keys/rsa_2048_pk1_public.der")?;
         let _ = RsaAlgorithm::new(HashAlgorithm::SHA256).verifier_from_public_der(&key)?;
         Ok(())
     }
@@ -220,7 +244,7 @@ mod tests {
         for hash in &[
             HashAlgorithm::SHA256,
             HashAlgorithm::SHA384,
-            HashAlgorithm::SHA512
+            HashAlgorithm::SHA512,
         ] {
             let alg = RsaAlgorithm::new(*hash);
 
@@ -243,7 +267,7 @@ mod tests {
         for hash in &[
             HashAlgorithm::SHA256,
             HashAlgorithm::SHA384,
-            HashAlgorithm::SHA512
+            HashAlgorithm::SHA512,
         ] {
             let alg = RsaAlgorithm::new(*hash);
 
@@ -253,7 +277,53 @@ mod tests {
             let verifier = alg.verifier_from_public_der(&public_key)?;
             verifier.verify(&[data], &signature)?;
         }
-        
+
+        Ok(())
+    }
+
+    #[test]
+    fn sign_and_verify_pk1_pem() -> Result<()> {
+        let private_key = load_file("keys/rsa_2048_pk1_private.pem")?;
+        let public_key = load_file("keys/rsa_2048_pk1_public.pem")?;
+        let data = b"abcde12345";
+
+        for hash in &[
+            HashAlgorithm::SHA256,
+            HashAlgorithm::SHA384,
+            HashAlgorithm::SHA512,
+        ] {
+            let alg = RsaAlgorithm::new(*hash);
+
+            let signer = alg.signer_from_private_pem(&private_key)?;
+            let signature = signer.sign(&[data])?;
+
+            let verifier = alg.verifier_from_public_pem(&public_key)?;
+            verifier.verify(&[data], &signature)?;
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn sign_and_verify_pk1_der() -> Result<()> {
+        let private_key = load_file("keys/rsa_2048_pk1_private.der")?;
+        let public_key = load_file("keys/rsa_2048_pk1_public.der")?;
+        let data = b"abcde12345";
+
+        for hash in &[
+            HashAlgorithm::SHA256,
+            HashAlgorithm::SHA384,
+            HashAlgorithm::SHA512,
+        ] {
+            let alg = RsaAlgorithm::new(*hash);
+
+            let signer = alg.signer_from_private_der(&private_key)?;
+            let signature = signer.sign(&[data])?;
+
+            let verifier = alg.verifier_from_public_der(&public_key)?;
+            verifier.verify(&[data], &signature)?;
+        }
+
         Ok(())
     }
 

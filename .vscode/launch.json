@@ -4,16 +4,16 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug unit tests in executable 'jwt-rs'",
+            "name": "Debug unit tests in executable 'jwt_rs'",
             "cargo": {
                 "args": [
                     "test",
                     "--no-run",
-                    "--lib=jwt-rs",
-                    "--package=jwt-rs"
+                    "--lib=jwt_rs",
+                    "--package=jwt_rs"
                 ],
                 "filter": {
-                    "name": "jwt-rs",
+                    "name": "jwt_rs",
                     "kind": "lib"
                 }
             },

@@ -1,14 +1,15 @@
+pub mod ecdsa;
 pub mod hmac;
 pub mod rsa;
-pub mod ecdsa;
+pub mod rsapss;
 
 use crate::error::JwtError;
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum HashAlgorithm {
     SHA256,
     SHA384,
-    SHA512
+    SHA512,
 }
 
 pub trait Algorithm {

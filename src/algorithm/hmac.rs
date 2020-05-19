@@ -1,32 +1,30 @@
-use openssl::pkey::{ PKey, Private };
+use anyhow::{anyhow, bail};
 use openssl::hash::MessageDigest;
 use openssl::memcmp;
-use anyhow::{ anyhow, bail };
+use openssl::pkey::{PKey, Private};
 
-use crate::algorithm::{ HashAlgorithm, Algorithm, Signer, Verifier };
+use crate::algorithm::{Algorithm, HashAlgorithm, Signer, Verifier};
 use crate::error::JwtError;
 
+#[derive(Debug, Eq, PartialEq)]
 pub struct HmacAlgorithm {
-    hash_algorithm: HashAlgorithm
+    hash_algorithm: HashAlgorithm,
 }
 
 impl HmacAlgorithm {
     pub const fn new(hash_algorithm: HashAlgorithm) -> Self {
-        HmacAlgorithm {
-            hash_algorithm
-        }
+        HmacAlgorithm { hash_algorithm }
     }
 
-    pub fn signer_from_bytes<'a>(&'a self, data: &[u8]) -> Result<impl Signer<HmacAlgorithm> + Verifier<HmacAlgorithm> + 'a, JwtError> {
+    pub fn signer_from_bytes<'a>(
+        &'a self,
+        data: &[u8],
+    ) -> Result<impl Signer<HmacAlgorithm> + Verifier<HmacAlgorithm> + 'a, JwtError> {
         PKey::hmac(&data)
-            .map_err(|err| {
-                JwtError::InvalidKeyFormat(anyhow!(err))
-            })
-            .map(|val| {
-                HmacSigner {
-                    algorithm: &self,
-                    private_key: val
-                }
+            .map_err(|err| JwtError::InvalidKeyFormat(anyhow!(err)))
+            .map(|val| HmacSigner {
+                algorithm: &self,
+                private_key: val,
             })
     }
 }
@@ -43,7 +41,7 @@ impl Algorithm for HmacAlgorithm {
 
 pub struct HmacSigner<'a> {
     algorithm: &'a HmacAlgorithm,
-    private_key: PKey<Private>
+    private_key: PKey<Private>,
 }
 
 impl<'a> Signer<HmacAlgorithm> for HmacSigner<'a> {
@@ -56,7 +54,7 @@ impl<'a> Signer<HmacAlgorithm> for HmacSigner<'a> {
             let message_digest = match self.algorithm.hash_algorithm {
                 HashAlgorithm::SHA256 => MessageDigest::sha256(),
                 HashAlgorithm::SHA384 => MessageDigest::sha384(),
-                HashAlgorithm::SHA512 => MessageDigest::sha512()
+                HashAlgorithm::SHA512 => MessageDigest::sha512(),
             };
 
             let mut signer = openssl::sign::Signer::new(message_digest, &self.private_key)?;
@@ -65,9 +63,8 @@ impl<'a> Signer<HmacAlgorithm> for HmacSigner<'a> {
             }
             let signature = signer.sign_to_vec()?;
             Ok(signature)
-        })().map_err(|err| {
-            JwtError::InvalidSignature(err)
-        })
+        })()
+        .map_err(|err| JwtError::InvalidSignature(err))
     }
 }
 
@@ -81,9 +78,9 @@ impl<'a> Verifier<HmacAlgorithm> for HmacSigner<'a> {
             let message_digest = match self.algorithm.hash_algorithm {
                 HashAlgorithm::SHA256 => MessageDigest::sha256(),
                 HashAlgorithm::SHA384 => MessageDigest::sha384(),
-                HashAlgorithm::SHA512 => MessageDigest::sha512()
+                HashAlgorithm::SHA512 => MessageDigest::sha512(),
             };
-            
+
             let mut signer = openssl::sign::Signer::new(message_digest, &self.private_key)?;
             for part in data {
                 signer.update(part)?;
@@ -93,9 +90,8 @@ impl<'a> Verifier<HmacAlgorithm> for HmacSigner<'a> {
                 bail!("Failed to verify.")
             }
             Ok(())
-        })().map_err(|err| {
-            JwtError::InvalidSignature(err)
-        })
+        })()
+        .map_err(|err| JwtError::InvalidSignature(err))
     }
 }
 
@@ -113,7 +109,7 @@ mod tests {
         for hash in &[
             HashAlgorithm::SHA256,
             HashAlgorithm::SHA384,
-            HashAlgorithm::SHA512
+            HashAlgorithm::SHA512,
         ] {
             let alg = HmacAlgorithm::new(*hash);
 
@@ -121,7 +117,7 @@ mod tests {
             let signature = signer.sign(&[data])?;
             signer.verify(&[data], &signature)?;
         }
-        
+
         Ok(())
     }
 }
