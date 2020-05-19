@@ -6,7 +6,7 @@ JWT (JSON Web Token) library for rust (based on OpenSSL).
 
 ```toml
 [dependencies]
-jwt_rs = "0.1.0"
+jwt_rs = { git = "https://github.com/hidekatsu-izuno/jwt-rs" }
 ```
 
 This library depends on OpenSSL DLL. Read more about it [Crate openssl](https://docs.rs/openssl/0.10.29/openssl/). 
