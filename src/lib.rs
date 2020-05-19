@@ -1,5 +1,5 @@
 //! # JWT-RS
-//! 
+//!
 //! `jwt_rs` is a JWT (JSON Web Token) library (based on OpenSSL).
 pub mod algorithm;
 pub mod error;
@@ -9,9 +9,9 @@ use std::time::{Duration, SystemTime};
 use anyhow::bail;
 use serde_json::Map;
 
+use crate::algorithm::ecdsa::EcdsaAlgorithm;
 use crate::algorithm::hmac::HmacAlgorithm;
 use crate::algorithm::rsa::RsaAlgorithm;
-use crate::algorithm::ecdsa::EcdsaAlgorithm;
 use crate::algorithm::rsapss::RsaPssAlgorithm;
 use crate::algorithm::{Algorithm, HashAlgorithm, Signer, Verifier};
 use crate::error::JwtError;
@@ -75,71 +75,71 @@ impl Jwt {
             payload: Map::new(),
         }
     }
-/*
-    /// Return a JWT object that is decoded the input with a selected algorithm by a selector.
-    ///
-    /// # Arguments
-    /// * `input` - JWT text.
-    /// * `selector` - Verifier selector.
-    pub fn decode<T: Algorithm, F>(input: &str, selector: F) -> Result<Self, JwtError> 
-        where F: FnMut(mut header: Map<String, Value>) -> Box<&dyn Verifier<T>>
-    {
-        let (
-            header,
-            payload,
-            data,
-            signature,
-            verifier
-        ) = (|| -> anyhow::Result<(
-            Map<String, Value>,
-            Map<String, Value>,
-            [&[u8]; 3],
-            Vec<u8>,
-            Box<&dyn Verifier<T>>
-        )> {
-            let parts: Vec<&str> = input.split('.').collect();
-            if parts.len() != 3 {
-                bail!("JWT must be three parts separated by colon.");
-            }
-
-            let header_base64 = parts.get(0).unwrap();
-
-            let header_json = base64::decode_config(header_base64, base64::URL_SAFE_NO_PAD)?;
-            let mut header: Map<String, Value> = serde_json::from_slice(&header_json)?;
-
-            let verifier = selector(mut header);
-
-            if let Some(Value::String(expected_alg)) = header.remove("alg") {
-                let actual_alg = verifier.algorithm().name();
-                if expected_alg != actual_alg {
-                    bail!("JWT alg header parameter is mismatched: expected = {}, actual = {}", &expected_alg, &actual_alg);
-                }
-            } else {
-                bail!("JWT alg header parameter is missing.");
-            }
-
-            let payload_base64 = parts.get(1).unwrap();
-            let payload_json = base64::decode_config(payload_base64, base64::URL_SAFE_NO_PAD)?;
-            let payload: Map<String, Value> = serde_json::from_slice(&payload_json)?;
-
-            let signature_base64 = parts.get(2).unwrap();
-            let signature = base64::decode_config(signature_base64, base64::URL_SAFE_NO_PAD)?;
-
-            Ok((
+    /*
+        /// Return a JWT object that is decoded the input with a selected algorithm by a selector.
+        ///
+        /// # Arguments
+        /// * `input` - JWT text.
+        /// * `selector` - Verifier selector.
+        pub fn decode<T: Algorithm, F>(input: &str, selector: F) -> Result<Self, JwtError>
+            where F: FnMut(mut header: Map<String, Value>) -> Box<&dyn Verifier<T>>
+        {
+            let (
                 header,
                 payload,
-                [header_base64.as_bytes(), b".", payload_base64.as_bytes()],
+                data,
                 signature,
                 verifier
-            ))
-        })()
-            .map_err(|err| JwtError::InvalidJwtFormat(err))?;
+            ) = (|| -> anyhow::Result<(
+                Map<String, Value>,
+                Map<String, Value>,
+                [&[u8]; 3],
+                Vec<u8>,
+                Box<&dyn Verifier<T>>
+            )> {
+                let parts: Vec<&str> = input.split('.').collect();
+                if parts.len() != 3 {
+                    bail!("JWT must be three parts separated by colon.");
+                }
 
-        verifier.verify(&data, &signature)?;
+                let header_base64 = parts.get(0).unwrap();
 
-        Ok(Jwt { header, payload })
-    }
-*/
+                let header_json = base64::decode_config(header_base64, base64::URL_SAFE_NO_PAD)?;
+                let mut header: Map<String, Value> = serde_json::from_slice(&header_json)?;
+
+                let verifier = selector(mut header);
+
+                if let Some(Value::String(expected_alg)) = header.remove("alg") {
+                    let actual_alg = verifier.algorithm().name();
+                    if expected_alg != actual_alg {
+                        bail!("JWT alg header parameter is mismatched: expected = {}, actual = {}", &expected_alg, &actual_alg);
+                    }
+                } else {
+                    bail!("JWT alg header parameter is missing.");
+                }
+
+                let payload_base64 = parts.get(1).unwrap();
+                let payload_json = base64::decode_config(payload_base64, base64::URL_SAFE_NO_PAD)?;
+                let payload: Map<String, Value> = serde_json::from_slice(&payload_json)?;
+
+                let signature_base64 = parts.get(2).unwrap();
+                let signature = base64::decode_config(signature_base64, base64::URL_SAFE_NO_PAD)?;
+
+                Ok((
+                    header,
+                    payload,
+                    [header_base64.as_bytes(), b".", payload_base64.as_bytes()],
+                    signature,
+                    verifier
+                ))
+            })()
+                .map_err(|err| JwtError::InvalidJwtFormat(err))?;
+
+            verifier.verify(&data, &signature)?;
+
+            Ok(Jwt { header, payload })
+        }
+    */
     /// Return a JWT object that is decoded the input with a "none" algorithm.
     ///
     /// # Arguments
@@ -175,7 +175,7 @@ impl Jwt {
 
             Ok(Jwt { header, payload })
         })()
-            .map_err(|err| JwtError::InvalidJwtFormat(err))
+        .map_err(|err| JwtError::InvalidJwtFormat(err))
     }
 
     /// Return a JWT Object that is decoded the input with a signing algorithm.
@@ -202,7 +202,11 @@ impl Jwt {
             if let Some(Value::String(expected_alg)) = header.remove("alg") {
                 let actual_alg = verifier.algorithm().name();
                 if expected_alg != actual_alg {
-                    bail!("JWT alg header parameter is mismatched: expected = {}, actual = {}", &expected_alg, &actual_alg);
+                    bail!(
+                        "JWT alg header parameter is mismatched: expected = {}, actual = {}",
+                        &expected_alg,
+                        &actual_alg
+                    );
                 }
             } else {
                 bail!("JWT alg header parameter is missing.");
@@ -216,10 +220,13 @@ impl Jwt {
             let signature = base64::decode_config(signature_base64, base64::URL_SAFE_NO_PAD)?;
 
             Ok(verifier
-                .verify(&[header_base64.as_bytes(), b".", payload_base64.as_bytes()], &signature)
+                .verify(
+                    &[header_base64.as_bytes(), b".", payload_base64.as_bytes()],
+                    &signature,
+                )
                 .map(|_| Jwt { header, payload }))
         })()
-            .map_err(|err| JwtError::InvalidJwtFormat(err))?
+        .map_err(|err| JwtError::InvalidJwtFormat(err))?
     }
 
     /// Return a JWT Object that is decoded the input with a signing algorithm.
@@ -246,7 +253,11 @@ impl Jwt {
             if let Some(Value::String(expected_alg)) = header.remove("alg") {
                 let actual_alg = verifier.algorithm().name();
                 if expected_alg != actual_alg {
-                    bail!("JWT alg header parameter is mismatched: expected = {}, actual = {}", &expected_alg, &actual_alg);
+                    bail!(
+                        "JWT alg header parameter is mismatched: expected = {}, actual = {}",
+                        &expected_alg,
+                        &actual_alg
+                    );
                 }
             } else {
                 bail!("JWT alg header parameter is missing.");
@@ -260,10 +271,13 @@ impl Jwt {
             let signature = base64::decode_config(signature_base64, base64::URL_SAFE_NO_PAD)?;
 
             Ok(verifier
-                .verify(&[header_base64.as_bytes(), b".", payload_base64.as_bytes()], &signature)
+                .verify(
+                    &[header_base64.as_bytes(), b".", payload_base64.as_bytes()],
+                    &signature,
+                )
                 .map(|_| Jwt { header, payload }))
         })()
-            .map_err(|err| JwtError::InvalidJwtFormat(err))?
+        .map_err(|err| JwtError::InvalidJwtFormat(err))?
     }
 
     /// Set a value for token type header claim (typ).
@@ -703,7 +717,7 @@ mod tests {
             "ES256" => "p256",
             "ES384" => "p384",
             "ES512" => "p521",
-            _ => unreachable!()
+            _ => unreachable!(),
         }
     }
 

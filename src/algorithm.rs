@@ -27,7 +27,7 @@ pub trait Signer<T: Algorithm> {
     fn algorithm(&self) -> &T;
 
     /// Return a signature of the data.
-    /// 
+    ///
     /// # Arguments
     /// * `data` - The data to sign.
     fn sign(&self, data: &[&[u8]]) -> Result<Vec<u8>, JwtError>;
@@ -38,7 +38,7 @@ pub trait Verifier<T: Algorithm> {
     fn algorithm(&self) -> &T;
 
     /// Verify the data by the signature.
-    /// 
+    ///
     /// # Arguments
     /// * `data` - The data to verify.
     /// * `signature` - The signature data.

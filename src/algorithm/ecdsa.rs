@@ -14,7 +14,7 @@ pub struct EcdsaAlgorithm {
 
 impl EcdsaAlgorithm {
     /// Return a new instance.
-    /// 
+    ///
     /// # Arguments
     /// * `hash_algorithm` - A hash algorithm for digesting messege.
     pub const fn new(hash_algorithm: HashAlgorithm) -> Self {
@@ -22,7 +22,7 @@ impl EcdsaAlgorithm {
     }
 
     /// Return a signer from a private key of PKCS#1 or PKCS#8 PEM format.
-    /// 
+    ///
     /// # Arguments
     /// * `data` - A private key of PKCS#1 or PKCS#8 PEM format.
     pub fn signer_from_private_pem<'a>(
@@ -44,7 +44,7 @@ impl EcdsaAlgorithm {
     }
 
     /// Return a signer from a private key of PKCS#1 or PKCS#8 DER format.
-    /// 
+    ///
     /// # Arguments
     /// * `data` - A private key of PKCS#1 or PKCS#8 DER format.
     pub fn signer_from_private_der<'a>(
@@ -66,7 +66,7 @@ impl EcdsaAlgorithm {
     }
 
     /// Return a verifier from a public key of PKCS#8 PEM format.
-    /// 
+    ///
     /// # Arguments
     /// * `data` - A public key of PKCS#8 PEM format.
     pub fn verifier_from_public_pem<'a>(
@@ -82,9 +82,9 @@ impl EcdsaAlgorithm {
                 public_key: val,
             })
     }
-    
+
     /// Return a verifier from a public key of PKCS#8 DER format.
-    /// 
+    ///
     /// # Arguments
     /// * `data` - A public key of PKCS#8 DER format.
     pub fn verifier_from_public_der<'a>(
@@ -114,8 +114,8 @@ impl EcdsaAlgorithm {
         };
 
         match ec_key.group().curve_name() {
-            Some(val) if val == curve_name => {},
-            _ => bail!("Inappropriate curve: {:?}", curve_name)
+            Some(val) if val == curve_name => {}
+            _ => bail!("Inappropriate curve: {:?}", curve_name),
         }
 
         Ok(pkey)
