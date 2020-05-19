@@ -141,12 +141,12 @@ openssl pkey -in rsa_private.pem -pubout -outform PEM -out rsa_public.pem
 use jwt_rs::{ Jwt, RS256 };
 
 let mut jwt = Jwt::new();
-jwt.set_subject("user");
+jwt.set_subject("...");
 
 // Signing JWT
 let private_key = load_from_file("rsa_private.pem")?;
 let signer = RS256.signer_from_private_pem(&private_key)?;
-let encoded_jwt = from_jwt.encode_with_signer(&signer)?;
+let encoded_jwt = jwt.encode_with_signer(&signer)?;
 
 // Verifing JWT
 let public_key = load_from_file("rsa_public.pem")?;
@@ -180,12 +180,12 @@ openssl pkey -in ecdsa_private.pem -pubout -outform PEM -out ecdsa_public.pem
 use jwt_rs::{ Jwt, ES256 };
 
 let mut jwt = Jwt::new();
-jwt.set_subject("user");
+jwt.set_subject("...");
 
 // Signing JWT
 let private_key = load_from_file("ecdsa_private.pem")?;
 let signer = ES256.signer_from_private_pem(&private_key)?;
-let encoded_jwt = from_jwt.encode_with_signer(&signer)?;
+let encoded_jwt = jwt.encode_with_signer(&signer)?;
 
 // Verifing JWT
 let public_key = load_from_file("ecdsa_public.pem")?;
@@ -209,7 +209,7 @@ openssl genpkey -algorithm RSA-PSS -pkeyopt rsa_keygen_bits:2048 -pkeyopt rsa_ps
 openssl genpkey -algorithm RSA-PSS -pkeyopt rsa_keygen_bits:2048 -pkeyopt rsa_pss_keygen_md:sha384 -pkeyopt rsa_pss_keygen_mgf1_md:sha384 -out rsapss_private.pem
 
 # for PS512
-openssl genpkey -algorithm RSA-PSS -pkeyopt rsa_keygen_bits:2048 -pkeyopt rsa_pss_keygen_md:sha512  -pkeyopt rsa_pss_keygen_mgf1_md:sha512 -out rsapss_private.pem
+openssl genpkey -algorithm RSA-PSS -pkeyopt rsa_keygen_bits:2048 -pkeyopt rsa_pss_keygen_md:sha512 -pkeyopt rsa_pss_keygen_mgf1_md:sha512 -out rsapss_private.pem
 
 # Generate a public key from the private key.
 openssl pkey -in rsapss_private.pem -pubout -outform PEM -out rsapss_public.pem
@@ -219,12 +219,12 @@ openssl pkey -in rsapss_private.pem -pubout -outform PEM -out rsapss_public.pem
 use jwt_rs::{ Jwt, PS256 };
 
 let mut jwt = Jwt::new();
-jwt.set_subject("user");
+jwt.set_subject("...");
 
 // Signing JWT
 let private_key = load_from_file("rsapss_private.pem")?;
 let signer = PS256.signer_from_private_pem(&private_key)?;
-let encoded_jwt = from_jwt.encode_with_signer(&signer)?;
+let encoded_jwt = jwt.encode_with_signer(&signer)?;
 
 // Verifing JWT
 let public_key = load_from_file("rsapss_public.pem")?;
@@ -239,8 +239,10 @@ Not supported at this time.
 ### Unsecured JWT
 
 ```rust
+use jwt_rs::Jwt;
+
 let mut jwt = Jwt::new();
-jwt.set_subject("user");
+jwt.set_subject("...");
 
 let encoded_jwt = jwt.encode_with_none()?;
 let decoded_jwt = Jwt::decode_with_none(&encoded_jwt)?;
