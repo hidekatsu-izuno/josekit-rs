@@ -12,10 +12,18 @@ pub struct HmacAlgorithm {
 }
 
 impl HmacAlgorithm {
+    /// Return a new instance.
+    /// 
+    /// # Arguments
+    /// * `hash_algorithm` - A hash algorithm for digesting messege.
     pub const fn new(hash_algorithm: HashAlgorithm) -> Self {
         HmacAlgorithm { hash_algorithm }
     }
 
+    /// Return a signer from a private key.
+    /// 
+    /// # Arguments
+    /// * `data` - A private key.
     pub fn signer_from_bytes<'a>(
         &'a self,
         data: &[u8],

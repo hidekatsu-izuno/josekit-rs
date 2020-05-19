@@ -267,4 +267,5 @@ dual licensed as above, without any additional terms or conditions.
 
 ## References
 
+- [RFC7518: JSON Web Algorithms (JWA)](https://tools.ietf.org/html/rfc7518)
 - [RFC7519: JSON Web Token (JWT)](https://tools.ietf.org/html/rfc7519)
