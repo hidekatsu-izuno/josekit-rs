@@ -14,7 +14,7 @@ This library depends on OpenSSL DLL. Read more about it [Crate openssl](https://
 ## Supported algorithms
 
 |Name |Description                                   |
-|=====|==============================================|
+|-----|----------------------------------------------|
 |HS256|HMAC using SHA-256                            |
 |HS384|HMAC using SHA-384                            |
 |HS512|HMAC using SHA-512                            |
