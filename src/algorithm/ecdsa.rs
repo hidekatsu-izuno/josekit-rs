@@ -44,8 +44,9 @@ impl EcdsaAlgorithm {
             json_eq(&map, "kty", "EC")?;
             json_eq(&map, "use", "sig")?;
 
-            let ec_group = EcGroup::from_curve_name(Nid::X9_62_PRIME256V1)?;
-            let private_number = json_base64_num(&map, "n")?;
+            let crv = Self::curve(&map, "crv")?;
+            let ec_group = EcGroup::from_curve_name(crv)?;
+            let private_number = json_base64_num(&map, "d")?;
             let x = json_base64_num(&map, "x")?;
             let y = json_base64_num(&map, "y")?;
             let public_key = EcKey::from_public_key_affine_coordinates(
@@ -113,10 +114,46 @@ impl EcdsaAlgorithm {
             })
     }
 
-    /// Return a verifier from a public key of PKCS#8 PEM format.
+    /// Return a verifier from a key of JWK format.
     ///
     /// # Arguments
-    /// * `data` - A public key of PKCS#8 PEM format.
+    /// * `data` - A key of JWK format.
+    pub fn verifier_from_jwk<'a>(
+        &'a self,
+        data: &[u8],
+    ) -> Result<impl Verifier<EcdsaAlgorithm> + 'a, JwtError> {
+        (|| -> anyhow::Result<EcdsaVerifier> {
+            let map: Map<String, Value> = serde_json::from_slice(data)
+                .map_err(|err| anyhow!(err))?;
+
+            json_eq(&map, "alg", &self.name())?;
+            json_eq(&map, "kty", "EC")?;
+            json_eq(&map, "use", "sig")?;
+
+            let crv = Self::curve(&map, "crv")?;
+            let ec_group = EcGroup::from_curve_name(crv)?;
+            let x = json_base64_num(&map, "x")?;
+            let y = json_base64_num(&map, "y")?;
+
+            EcKey::from_public_key_affine_coordinates(
+                ec_group.as_ref(),
+                x.as_ref(),
+                y.as_ref()
+            )
+                .and_then(|val| PKey::from_ec_key(val))
+                .map_err(|err| anyhow!(err))
+                .map(|val| EcdsaVerifier {
+                    algorithm: &self,
+                    public_key: val,
+                })
+        })()
+        .map_err(|err| JwtError::InvalidKeyFormat(err))
+    }
+
+    /// Return a verifier from a key of PKCS#8 PEM format.
+    ///
+    /// # Arguments
+    /// * `data` - A key of PKCS#8 PEM format.
     pub fn verifier_from_pem<'a>(
         &'a self,
         data: &[u8],
@@ -131,10 +168,10 @@ impl EcdsaAlgorithm {
             })
     }
 
-    /// Return a verifier from a public key of PKCS#8 DER format.
+    /// Return a verifier from a key of PKCS#8 DER format.
     ///
     /// # Arguments
-    /// * `data` - A public key of PKCS#8 DER format.
+    /// * `data` - A key of PKCS#8 DER format.
     pub fn verifier_from_der<'a>(
         &'a self,
         data: &[u8],
@@ -167,6 +204,20 @@ impl EcdsaAlgorithm {
         }
 
         Ok(pkey)
+    }
+
+    fn curve(map: &Map<String, Value>, key: &str) -> anyhow::Result<Nid> {
+        if let Some(Value::String(val)) = map.get(key) {
+            match val.as_str() {
+                "P-256" => Ok(Nid::X9_62_PRIME256V1),
+                "P-384" => Ok(Nid::SECP384R1),
+                "P-521" => Ok(Nid::SECP521R1),
+                "secp256k1" => Ok(Nid::SECP256K1),
+                _ => bail!("Unsupported curve: {}", val)
+            }
+        } else {
+            bail!("Key crv is missing.");
+        }
     }
 }
 
@@ -244,97 +295,41 @@ mod tests {
     use std::path::PathBuf;
 
     #[test]
-    fn load_private_pem() -> Result<()> {
+    fn sign_and_verify_jwt() -> Result<()> {
+        let data = b"abcde12345";
+
         for name in &[
             "ES256",
             "ES384",
             "ES512",
-        ] {
-            let curve_name = curve_name(name);
-            let key = load_file(&format!("keys/ecdsa_{}_private.pem", curve_name))?;
+         ] {
             let alg = EcdsaAlgorithm::new(name, hash_algorithm(name));
-            let _ = alg.signer_from_pem(&key)?;
+
+            let private_key = load_file(match *name {
+                "ES256" => "jwk/es256_private.jwk",
+                "ES384" => "jwk/es384_private.jwk",
+                "ES512" => "jwk/es512_private.jwk",
+                _ => unreachable!()
+            })?;
+            let public_key = load_file(match *name {
+                "ES256" => "jwk/es256_public.jwk",
+                "ES384" => "jwk/es384_public.jwk",
+                "ES512" => "jwk/es512_public.jwk",
+                _ => unreachable!()
+            })?;
+
+            let signer = alg.signer_from_jwk(&private_key)?;
+            let signature = signer.sign(&[data])?;
+
+            let verifier = alg.verifier_from_jwk(&public_key)?;
+            verifier.verify(&[data], &signature)?;
         }
+
         Ok(())
     }
-
+    
     #[test]
-    fn load_private_der() -> Result<()> {
-        for name in &[
-            "ES256",
-            "ES384",
-            "ES512",
-        ] {
-            let curve_name = curve_name(name);
-            let key = load_file(&format!("keys/ecdsa_{}_private.der", curve_name))?;
-            let alg = EcdsaAlgorithm::new(name, hash_algorithm(name));
-            let _ = alg.signer_from_der(&key)?;
-        }
-        Ok(())
-    }
-
-    #[test]
-    fn load_private_pk1_pem() -> Result<()> {
-        for name in &[
-            "ES256",
-            "ES384",
-            "ES512",
-        ] {
-            let curve_name = curve_name(name);
-            let key = load_file(&format!("keys/ecdsa_{}_pk1_private.pem", curve_name))?;
-            let alg = EcdsaAlgorithm::new(name, hash_algorithm(name));
-            let _ = alg.signer_from_pem(&key)?;
-        }
-        Ok(())
-    }
-
-    #[test]
-    fn load_private_pk1_der() -> Result<()> {
-        for name in &[
-            "ES256",
-            "ES384",
-            "ES512",
-        ] {
-            let curve_name = curve_name(name);
-            let key = load_file(&format!("keys/ecdsa_{}_pk1_private.der", curve_name))?;
-            let alg = EcdsaAlgorithm::new(name, hash_algorithm(name));
-            let _ = alg.signer_from_der(&key)?;
-        }
-        Ok(())
-    }
-
-    #[test]
-    fn load_public_pem() -> Result<()> {
-        for name in &[
-            "ES256",
-            "ES384",
-            "ES512",
-        ] {
-            let curve_name = curve_name(name);
-            let key = load_file(&format!("keys/ecdsa_{}_public.pem", curve_name))?;
-            let alg = EcdsaAlgorithm::new(name, hash_algorithm(name));
-            let _ = alg.verifier_from_pem(&key)?;
-        }
-        Ok(())
-    }
-
-    #[test]
-    fn load_public_der() -> Result<()> {
-        for name in &[
-            "ES256",
-            "ES384",
-            "ES512",
-        ] {
-            let curve_name = curve_name(name);
-            let key = load_file(&format!("keys/ecdsa_{}_public.der", curve_name))?;
-            let alg = EcdsaAlgorithm::new(name, hash_algorithm(name));
-            let _ = alg.verifier_from_der(&key)?;
-        }
-        Ok(())
-    }
-
-    #[test]
-    fn sign_and_verify_pem() -> Result<()> {
+    fn sign_and_verify_pkcs8_pem() -> Result<()> {
         let data = b"abcde12345";
 
         for name in &[
@@ -342,17 +337,25 @@ mod tests {
             "ES384",
             "ES512",
         ] {
-            let curve_name = curve_name(name);
-
-            let private_key = load_file(&format!("keys/ecdsa_{}_private.pem", curve_name))?;
-            let public_key = load_file(&format!("keys/ecdsa_{}_public.pem", curve_name))?;
+            let private_key = load_file(match *name {
+                "ES256" => "pem/ecdsa_p256_pkcs8_private.pem",
+                "ES384" => "pem/ecdsa_p384_pkcs8_private.pem",
+                "ES512" => "pem/ecdsa_p521_pkcs8_private.pem",
+                _ => unreachable!()
+            })?;
+            let public_key = load_file(match *name {
+                "ES256" => "pem/ecdsa_p256_pkcs8_public.pem",
+                "ES384" => "pem/ecdsa_p384_pkcs8_public.pem",
+                "ES512" => "pem/ecdsa_p521_pkcs8_public.pem",
+                _ => unreachable!()
+            })?;
 
             let alg = EcdsaAlgorithm::new(name, hash_algorithm(name));
 
-            let signer = alg.signer_from_pem(&private_key)?;
+            let signer = alg.signer_from_der(&private_key)?;
             let signature = signer.sign(&[data])?;
 
-            let verifier = alg.verifier_from_pem(&public_key)?;
+            let verifier = alg.verifier_from_der(&public_key)?;
             verifier.verify(&[data], &signature)?;
         }
 
@@ -360,7 +363,7 @@ mod tests {
     }
 
     #[test]
-    fn sign_and_verify_der() -> Result<()> {
+    fn sign_and_verify_pkcs8_der() -> Result<()> {
         let data = b"abcde12345";
 
         for name in &[
@@ -368,10 +371,18 @@ mod tests {
             "ES384",
             "ES512",
         ] {
-            let curve_name = curve_name(name);
-
-            let private_key = load_file(&format!("keys/ecdsa_{}_private.der", curve_name))?;
-            let public_key = load_file(&format!("keys/ecdsa_{}_public.der", curve_name))?;
+            let private_key = load_file(match *name {
+                "ES256" => "der/ecdsa_p256_pkcs8_private.der",
+                "ES384" => "der/ecdsa_p384_pkcs8_private.der",
+                "ES512" => "der/ecdsa_p521_pkcs8_private.der",
+                _ => unreachable!()
+            })?;
+            let public_key = load_file(match *name {
+                "ES256" => "der/ecdsa_p256_pkcs8_public.der",
+                "ES384" => "der/ecdsa_p384_pkcs8_public.der",
+                "ES512" => "der/ecdsa_p521_pkcs8_public.der",
+                _ => unreachable!()
+            })?;
 
             let alg = EcdsaAlgorithm::new(name, hash_algorithm(name));
 
@@ -390,15 +401,6 @@ mod tests {
             "ES256" => HashAlgorithm::SHA256,
             "ES384" => HashAlgorithm::SHA384,
             "ES512" => HashAlgorithm::SHA512,
-            _ => unreachable!()
-        }
-    }
-
-    fn curve_name(name: &str) -> &'static str {
-        match name {
-            "ES256" => "p256",
-            "ES384" => "p384",
-            "ES512" => "p521",
             _ => unreachable!()
         }
     }

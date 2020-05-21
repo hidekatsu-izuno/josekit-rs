@@ -680,11 +680,11 @@ mod tests {
         let from_jwt = Jwt::new();
 
         for alg in &[RS256, RS384, RS512] {
-            let private_key = load_file("keys/rsa_2048_private.pem")?;
+            let private_key = load_file("pem/rsa_2048_pkcs8_private.pem")?;
             let signer = alg.signer_from_pem(&private_key)?;
             let jwt_string = from_jwt.encode_with_signer(&signer)?;
 
-            let public_key = load_file("keys/rsa_2048_public.pem")?;
+            let public_key = load_file("pem/rsa_2048_pkcs8_public.pem")?;
             let verifier = alg.verifier_from_pem(&public_key)?;
             let mut to_jwt = Jwt::decode_with_verifier(&jwt_string, &verifier)?;
             to_jwt.unset_header_claim("alg");
@@ -700,11 +700,11 @@ mod tests {
         let from_jwt = Jwt::new();
 
         for alg in &[RS256, RS384, RS512] {
-            let private_key = load_file("keys/rsa_2048_private.der")?;
+            let private_key = load_file("der/rsa_2048_pkcs8_private.der")?;
             let signer = alg.signer_from_der(&private_key)?;
             let jwt_string = from_jwt.encode_with_signer(&signer)?;
 
-            let public_key = load_file("keys/rsa_2048_public.der")?;
+            let public_key = load_file("der/rsa_2048_pkcs8_public.der")?;
             let verifier = alg.verifier_from_der(&public_key)?;
             let mut to_jwt = Jwt::decode_with_verifier(&jwt_string, &verifier)?;
             to_jwt.unset_header_claim("alg");
@@ -720,10 +720,18 @@ mod tests {
         let from_jwt = Jwt::new();
 
         for alg in &[ES256, ES384, ES512] {
-            let curve_name = curve_name(alg.name());
-
-            let private_key = load_file(&format!("keys/ecdsa_{}_private.pem", curve_name))?;
-            let public_key = load_file(&format!("keys/ecdsa_{}_public.pem", curve_name))?;
+            let private_key = load_file(match alg.name() {
+                "ES256" => "pem/ecdsa_p256_pkcs8_private.pem",
+                "ES384" => "pem/ecdsa_p384_pkcs8_private.pem",
+                "ES512" => "pem/ecdsa_p521_pkcs8_private.pem",
+                _ => unreachable!()
+            })?;
+            let public_key = load_file(match alg.name() {
+                "ES256" => "pem/ecdsa_p256_pkcs8_public.pem",
+                "ES384" => "pem/ecdsa_p384_pkcs8_public.pem",
+                "ES512" => "pem/ecdsa_p521_pkcs8_public.pem",
+                _ => unreachable!()
+            })?;
 
             let signer = alg.signer_from_pem(&private_key)?;
             let jwt_string = from_jwt.encode_with_signer(&signer)?;
@@ -743,10 +751,18 @@ mod tests {
         let from_jwt = Jwt::new();
 
         for alg in &[ES256, ES384, ES512] {
-            let curve_name = curve_name(alg.name());
-
-            let private_key = load_file(&format!("keys/ecdsa_{}_private.der", curve_name))?;
-            let public_key = load_file(&format!("keys/ecdsa_{}_public.der", curve_name))?;
+            let private_key = load_file(match alg.name() {
+                "ES256" => "der/ecdsa_p256_pkcs8_private.der",
+                "ES384" => "der/ecdsa_p384_pkcs8_private.der",
+                "ES512" => "der/ecdsa_p521_pkcs8_private.der",
+                _ => unreachable!()
+            })?;
+            let public_key = load_file(match alg.name() {
+                "ES256" => "der/ecdsa_p256_pkcs8_public.der",
+                "ES384" => "der/ecdsa_p384_pkcs8_public.der",
+                "ES512" => "der/ecdsa_p521_pkcs8_public.der",
+                _ => unreachable!()
+            })?;
 
             let signer = alg.signer_from_der(&private_key)?;
             let jwt_string = from_jwt.encode_with_signer(&signer)?;
@@ -759,15 +775,6 @@ mod tests {
         }
 
         Ok(())
-    }
-
-    fn curve_name(name: &str) -> &'static str {
-        match name {
-            "ES256" => "p256",
-            "ES384" => "p384",
-            "ES512" => "p521",
-            _ => unreachable!(),
-        }
     }
 
     fn load_file(path: &str) -> Result<Vec<u8>> {
