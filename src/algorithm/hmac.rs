@@ -5,7 +5,7 @@ use openssl::pkey::{PKey, Private};
 use serde_json::{Map, Value};
 
 use crate::algorithm::{Algorithm, HashAlgorithm, Signer, Verifier};
-use crate::algorithm::openssl::{json_eq, json_base64_bytes};
+use crate::algorithm::util::{json_eq, json_base64_bytes};
 use crate::error::JwtError;
 
 #[derive(Debug, Eq, PartialEq)]
@@ -35,15 +35,13 @@ impl HmacAlgorithm {
         jwk_str: &[u8],
     ) -> Result<impl Signer<HmacAlgorithm> + Verifier<HmacAlgorithm> + 'a, JwtError> {
         let key_data = (|| -> anyhow::Result<Vec<u8>> {
-            let map: Map<String, Value> = serde_json::from_slice(jwk_str)
-                .map_err(|err| anyhow!(err))?;
+            let map: Map<String, Value> = serde_json::from_slice(jwk_str)?;
 
             json_eq(&map, "alg", &self.name())?;
             json_eq(&map, "kty", "oct")?;
             json_eq(&map, "use", "sig")?;
-
-            let key_data = json_base64_bytes(&map, "k")
-                .map_err(|err| anyhow!(err))?;
+            let key_data = json_base64_bytes(&map, "k")?;
+            
             Ok(key_data)
         })()
         .map_err(|err| JwtError::InvalidKeyFormat(err))?;

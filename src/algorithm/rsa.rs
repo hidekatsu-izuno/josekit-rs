@@ -2,10 +2,11 @@ use anyhow::{anyhow, bail};
 use openssl::hash::MessageDigest;
 use openssl::pkey::{HasPublic, PKey, Private, Public};
 use openssl::rsa::Rsa;
+use openssl::bn::BigNum;
 use serde_json::{Map, Value};
 
 use crate::algorithm::{Algorithm, HashAlgorithm, Signer, Verifier};
-use crate::algorithm::openssl::{json_eq, json_base64_num};
+use crate::algorithm::util::{json_eq, json_base64_bytes};
 use crate::error::JwtError;
 
 #[derive(Debug, Eq, PartialEq)]
@@ -36,22 +37,29 @@ impl RsaAlgorithm {
         data: &[u8],
     ) -> Result<impl Signer<RsaAlgorithm> + 'a, JwtError> {
         (|| -> anyhow::Result<RsaSigner> {
-            let map: Map<String, Value> = serde_json::from_slice(data)
-                .map_err(|err| anyhow!(err))?;
+            let map: Map<String, Value> = serde_json::from_slice(data)?;
 
             json_eq(&map, "alg", &self.name())?;
             json_eq(&map, "kty", "RSA")?;
             json_eq(&map, "use", "sig")?;
+            let n = json_base64_bytes(&map, "n")?;
+            let e = json_base64_bytes(&map, "e")?;
+            let d = json_base64_bytes(&map, "d")?;
+            let p = json_base64_bytes(&map, "p")?;
+            let q = json_base64_bytes(&map, "q")?;
+            let dp = json_base64_bytes(&map, "dp")?;
+            let dq = json_base64_bytes(&map, "dq")?;
+            let qi = json_base64_bytes(&map, "qi")?;
 
             Rsa::from_private_components(
-                json_base64_num(&map, "n")?,
-                json_base64_num(&map, "e")?,
-                json_base64_num(&map, "d")?,
-                json_base64_num(&map, "p")?,
-                json_base64_num(&map, "q")?,
-                json_base64_num(&map, "dp")?,
-                json_base64_num(&map, "dq")?,
-                json_base64_num(&map, "qi")?
+                BigNum::from_slice(&n)?,
+                BigNum::from_slice(&e)?,
+                BigNum::from_slice(&d)?,
+                BigNum::from_slice(&p)?,
+                BigNum::from_slice(&q)?,
+                BigNum::from_slice(&dp)?,
+                BigNum::from_slice(&dq)?,
+                BigNum::from_slice(&qi)?
             )
                 .and_then(|val| PKey::from_rsa(val))
                 .map_err(|err| anyhow!(err))
@@ -122,10 +130,12 @@ impl RsaAlgorithm {
             json_eq(&map, "alg", &self.name())?;
             json_eq(&map, "kty", "RSA")?;
             json_eq(&map, "use", "sig")?;
+            let n = json_base64_bytes(&map, "n")?;
+            let e = json_base64_bytes(&map, "e")?;
 
             Rsa::from_public_components(
-                json_base64_num(&map, "n")?,
-                json_base64_num(&map, "e")?
+                BigNum::from_slice(&n)?,
+                BigNum::from_slice(&e)?,
             )
                 .and_then(|val| PKey::from_rsa(val))
                 .map_err(|err| anyhow!(err))

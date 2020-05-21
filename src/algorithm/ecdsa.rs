@@ -3,10 +3,11 @@ use openssl::ec::{EcKey, EcGroup};
 use openssl::hash::MessageDigest;
 use openssl::nid::Nid;
 use openssl::pkey::{HasPublic, PKey, Private, Public};
+use openssl::bn::BigNum;
 use serde_json::{Map, Value};
 
 use crate::algorithm::{Algorithm, HashAlgorithm, Signer, Verifier};
-use crate::algorithm::openssl::{json_eq, json_base64_num};
+use crate::algorithm::util::{json_eq, json_base64_bytes};
 use crate::error::JwtError;
 
 #[derive(Debug, Eq, PartialEq)]
@@ -37,27 +38,26 @@ impl EcdsaAlgorithm {
         data: &[u8],
     ) -> Result<impl Signer<EcdsaAlgorithm> + 'a, JwtError> {
         (|| -> anyhow::Result<EcdsaSigner> {
-            let map: Map<String, Value> = serde_json::from_slice(data)
-                .map_err(|err| anyhow!(err))?;
+            let map: Map<String, Value> = serde_json::from_slice(data)?;
 
             json_eq(&map, "alg", &self.name())?;
             json_eq(&map, "kty", "EC")?;
             json_eq(&map, "use", "sig")?;
+            let d = json_base64_bytes(&map, "d")?;
+            let x = json_base64_bytes(&map, "x")?;
+            let y = json_base64_bytes(&map, "y")?;
 
             let crv = Self::curve(&map, "crv")?;
             let ec_group = EcGroup::from_curve_name(crv)?;
-            let private_number = json_base64_num(&map, "d")?;
-            let x = json_base64_num(&map, "x")?;
-            let y = json_base64_num(&map, "y")?;
             let public_key = EcKey::from_public_key_affine_coordinates(
                 ec_group.as_ref(),
-                x.as_ref(),
-                y.as_ref()
+                BigNum::from_slice(&x)?.as_ref(),
+                BigNum::from_slice(&y)?.as_ref()
             )?;
 
             EcKey::from_private_components(
                 ec_group.as_ref(),
-                private_number.as_ref(),
+                BigNum::from_slice(&d)?.as_ref(),
                 public_key.public_key()
             )
                 .and_then(|val| PKey::from_ec_key(val))
@@ -129,16 +129,16 @@ impl EcdsaAlgorithm {
             json_eq(&map, "alg", &self.name())?;
             json_eq(&map, "kty", "EC")?;
             json_eq(&map, "use", "sig")?;
+            let x = json_base64_bytes(&map, "x")?;
+            let y = json_base64_bytes(&map, "y")?;
 
             let crv = Self::curve(&map, "crv")?;
             let ec_group = EcGroup::from_curve_name(crv)?;
-            let x = json_base64_num(&map, "x")?;
-            let y = json_base64_num(&map, "y")?;
 
             EcKey::from_public_key_affine_coordinates(
                 ec_group.as_ref(),
-                x.as_ref(),
-                y.as_ref()
+                BigNum::from_slice(&x)?.as_ref(),
+                BigNum::from_slice(&y)?.as_ref()
             )
                 .and_then(|val| PKey::from_ec_key(val))
                 .map_err(|err| anyhow!(err))

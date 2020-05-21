@@ -1,7 +1,7 @@
 pub mod ecdsa;
 pub mod hmac;
 pub mod rsa;
-mod openssl;
+mod util;
 
 use crate::error::JwtError;
 
