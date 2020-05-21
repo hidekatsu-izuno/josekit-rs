@@ -1,14 +1,17 @@
 use anyhow::{anyhow, bail};
-use openssl::ec::EcKey;
+use openssl::ec::{EcKey, EcGroup};
 use openssl::hash::MessageDigest;
 use openssl::nid::Nid;
 use openssl::pkey::{HasPublic, PKey, Private, Public};
+use serde_json::{Map, Value};
 
 use crate::algorithm::{Algorithm, HashAlgorithm, Signer, Verifier};
+use crate::algorithm::openssl::{json_eq, json_base64_num};
 use crate::error::JwtError;
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct EcdsaAlgorithm {
+    name: &'static str,
     hash_algorithm: HashAlgorithm,
 }
 
@@ -16,16 +19,61 @@ impl EcdsaAlgorithm {
     /// Return a new instance.
     ///
     /// # Arguments
-    /// * `hash_algorithm` - A hash algorithm for digesting messege.
-    pub const fn new(hash_algorithm: HashAlgorithm) -> Self {
-        EcdsaAlgorithm { hash_algorithm }
+    /// * `name` - A algrithm name.
+    /// * `hash_algorithm` - A algrithm name.
+    pub const fn new(name: &'static str, hash_algorithm: HashAlgorithm) -> Self {
+        EcdsaAlgorithm {
+            name,
+            hash_algorithm
+        }
+    }
+
+    /// Return a signer from a private key of JWK format.
+    ///
+    /// # Arguments
+    /// * `data` - A private key of JWK format.
+    pub fn signer_from_jwk<'a>(
+        &'a self,
+        data: &[u8],
+    ) -> Result<impl Signer<EcdsaAlgorithm> + 'a, JwtError> {
+        (|| -> anyhow::Result<EcdsaSigner> {
+            let map: Map<String, Value> = serde_json::from_slice(data)
+                .map_err(|err| anyhow!(err))?;
+
+            json_eq(&map, "alg", &self.name())?;
+            json_eq(&map, "kty", "EC")?;
+            json_eq(&map, "use", "sig")?;
+
+            let ec_group = EcGroup::from_curve_name(Nid::X9_62_PRIME256V1)?;
+            let private_number = json_base64_num(&map, "n")?;
+            let x = json_base64_num(&map, "x")?;
+            let y = json_base64_num(&map, "y")?;
+            let public_key = EcKey::from_public_key_affine_coordinates(
+                ec_group.as_ref(),
+                x.as_ref(),
+                y.as_ref()
+            )?;
+
+            EcKey::from_private_components(
+                ec_group.as_ref(),
+                private_number.as_ref(),
+                public_key.public_key()
+            )
+                .and_then(|val| PKey::from_ec_key(val))
+                .map_err(|err| anyhow!(err))
+                .map(|val| EcdsaSigner {
+                    algorithm: &self,
+                    private_key: val,
+                })
+        })()
+        .map_err(|err| JwtError::InvalidKeyFormat(err))
     }
 
     /// Return a signer from a private key of PKCS#1 or PKCS#8 PEM format.
     ///
     /// # Arguments
     /// * `data` - A private key of PKCS#1 or PKCS#8 PEM format.
-    pub fn signer_from_private_pem<'a>(
+    pub fn signer_from_pem<'a>(
         &'a self,
         data: &[u8],
     ) -> Result<impl Signer<EcdsaAlgorithm> + 'a, JwtError> {
@@ -47,7 +95,7 @@ impl EcdsaAlgorithm {
     ///
     /// # Arguments
     /// * `data` - A private key of PKCS#1 or PKCS#8 DER format.
-    pub fn signer_from_private_der<'a>(
+    pub fn signer_from_der<'a>(
         &'a self,
         data: &[u8],
     ) -> Result<impl Signer<EcdsaAlgorithm> + 'a, JwtError> {
@@ -69,7 +117,7 @@ impl EcdsaAlgorithm {
     ///
     /// # Arguments
     /// * `data` - A public key of PKCS#8 PEM format.
-    pub fn verifier_from_public_pem<'a>(
+    pub fn verifier_from_pem<'a>(
         &'a self,
         data: &[u8],
     ) -> Result<impl Verifier<EcdsaAlgorithm> + 'a, JwtError> {
@@ -87,7 +135,7 @@ impl EcdsaAlgorithm {
     ///
     /// # Arguments
     /// * `data` - A public key of PKCS#8 DER format.
-    pub fn verifier_from_public_der<'a>(
+    pub fn verifier_from_der<'a>(
         &'a self,
         data: &[u8],
     ) -> Result<impl Verifier<EcdsaAlgorithm> + 'a, JwtError> {
@@ -124,11 +172,7 @@ impl EcdsaAlgorithm {
 
 impl Algorithm for EcdsaAlgorithm {
     fn name(&self) -> &str {
-        match self.hash_algorithm {
-            HashAlgorithm::SHA256 => "ES256",
-            HashAlgorithm::SHA384 => "ES384",
-            HashAlgorithm::SHA512 => "ES512",
-        }
+        self.name
     }
 }
 
@@ -201,84 +245,90 @@ mod tests {
 
     #[test]
     fn load_private_pem() -> Result<()> {
-        for hash in &[
-            HashAlgorithm::SHA256,
-            HashAlgorithm::SHA384,
-            HashAlgorithm::SHA512,
+        for name in &[
+            "ES256",
+            "ES384",
+            "ES512",
         ] {
-            let curve_name = curve_name(*hash);
+            let curve_name = curve_name(name);
             let key = load_file(&format!("keys/ecdsa_{}_private.pem", curve_name))?;
-            let _ = EcdsaAlgorithm::new(*hash).signer_from_private_pem(&key)?;
+            let alg = EcdsaAlgorithm::new(name, hash_algorithm(name));
+            let _ = alg.signer_from_pem(&key)?;
         }
         Ok(())
     }
 
     #[test]
     fn load_private_der() -> Result<()> {
-        for hash in &[
-            HashAlgorithm::SHA256,
-            HashAlgorithm::SHA384,
-            HashAlgorithm::SHA512,
+        for name in &[
+            "ES256",
+            "ES384",
+            "ES512",
         ] {
-            let curve_name = curve_name(*hash);
+            let curve_name = curve_name(name);
             let key = load_file(&format!("keys/ecdsa_{}_private.der", curve_name))?;
-            let _ = EcdsaAlgorithm::new(*hash).signer_from_private_der(&key)?;
+            let alg = EcdsaAlgorithm::new(name, hash_algorithm(name));
+            let _ = alg.signer_from_der(&key)?;
         }
         Ok(())
     }
 
     #[test]
     fn load_private_pk1_pem() -> Result<()> {
-        for hash in &[
-            HashAlgorithm::SHA256,
-            HashAlgorithm::SHA384,
-            HashAlgorithm::SHA512,
+        for name in &[
+            "ES256",
+            "ES384",
+            "ES512",
         ] {
-            let curve_name = curve_name(*hash);
+            let curve_name = curve_name(name);
             let key = load_file(&format!("keys/ecdsa_{}_pk1_private.pem", curve_name))?;
-            let _ = EcdsaAlgorithm::new(*hash).signer_from_private_pem(&key)?;
+            let alg = EcdsaAlgorithm::new(name, hash_algorithm(name));
+            let _ = alg.signer_from_pem(&key)?;
         }
         Ok(())
     }
 
     #[test]
     fn load_private_pk1_der() -> Result<()> {
-        for hash in &[
-            HashAlgorithm::SHA256,
-            HashAlgorithm::SHA384,
-            HashAlgorithm::SHA512,
+        for name in &[
+            "ES256",
+            "ES384",
+            "ES512",
         ] {
-            let curve_name = curve_name(*hash);
+            let curve_name = curve_name(name);
             let key = load_file(&format!("keys/ecdsa_{}_pk1_private.der", curve_name))?;
-            let _ = EcdsaAlgorithm::new(*hash).signer_from_private_der(&key)?;
+            let alg = EcdsaAlgorithm::new(name, hash_algorithm(name));
+            let _ = alg.signer_from_der(&key)?;
         }
         Ok(())
     }
 
     #[test]
     fn load_public_pem() -> Result<()> {
-        for hash in &[
-            HashAlgorithm::SHA256,
-            HashAlgorithm::SHA384,
-            HashAlgorithm::SHA512,
+        for name in &[
+            "ES256",
+            "ES384",
+            "ES512",
         ] {
-            let curve_name = curve_name(*hash);
+            let curve_name = curve_name(name);
             let key = load_file(&format!("keys/ecdsa_{}_public.pem", curve_name))?;
-            let _ = EcdsaAlgorithm::new(*hash).verifier_from_public_pem(&key)?;
+            let alg = EcdsaAlgorithm::new(name, hash_algorithm(name));
+            let _ = alg.verifier_from_pem(&key)?;
         }
         Ok(())
     }
 
     #[test]
     fn load_public_der() -> Result<()> {
-        for hash in &[
-            HashAlgorithm::SHA256,
-            HashAlgorithm::SHA384,
-            HashAlgorithm::SHA512,
+        for name in &[
+            "ES256",
+            "ES384",
+            "ES512",
         ] {
-            let curve_name = curve_name(*hash);
+            let curve_name = curve_name(name);
             let key = load_file(&format!("keys/ecdsa_{}_public.der", curve_name))?;
-            let _ = EcdsaAlgorithm::new(*hash).verifier_from_public_der(&key)?;
+            let alg = EcdsaAlgorithm::new(name, hash_algorithm(name));
+            let _ = alg.verifier_from_der(&key)?;
         }
         Ok(())
     }
@@ -287,22 +337,22 @@ mod tests {
     fn sign_and_verify_pem() -> Result<()> {
         let data = b"abcde12345";
 
-        for hash in &[
-            HashAlgorithm::SHA256,
-            HashAlgorithm::SHA384,
-            HashAlgorithm::SHA512,
+        for name in &[
+            "ES256",
+            "ES384",
+            "ES512",
         ] {
-            let curve_name = curve_name(*hash);
+            let curve_name = curve_name(name);
 
             let private_key = load_file(&format!("keys/ecdsa_{}_private.pem", curve_name))?;
             let public_key = load_file(&format!("keys/ecdsa_{}_public.pem", curve_name))?;
 
-            let alg = EcdsaAlgorithm::new(*hash);
+            let alg = EcdsaAlgorithm::new(name, hash_algorithm(name));
 
-            let signer = alg.signer_from_private_pem(&private_key)?;
+            let signer = alg.signer_from_pem(&private_key)?;
             let signature = signer.sign(&[data])?;
 
-            let verifier = alg.verifier_from_public_pem(&public_key)?;
+            let verifier = alg.verifier_from_pem(&public_key)?;
             verifier.verify(&[data], &signature)?;
         }
 
@@ -313,33 +363,43 @@ mod tests {
     fn sign_and_verify_der() -> Result<()> {
         let data = b"abcde12345";
 
-        for hash in &[
-            HashAlgorithm::SHA256,
-            HashAlgorithm::SHA384,
-            HashAlgorithm::SHA512,
+        for name in &[
+            "ES256",
+            "ES384",
+            "ES512",
         ] {
-            let curve_name = curve_name(*hash);
+            let curve_name = curve_name(name);
 
             let private_key = load_file(&format!("keys/ecdsa_{}_private.der", curve_name))?;
             let public_key = load_file(&format!("keys/ecdsa_{}_public.der", curve_name))?;
 
-            let alg = EcdsaAlgorithm::new(*hash);
+            let alg = EcdsaAlgorithm::new(name, hash_algorithm(name));
 
-            let signer = alg.signer_from_private_der(&private_key)?;
+            let signer = alg.signer_from_der(&private_key)?;
             let signature = signer.sign(&[data])?;
 
-            let verifier = alg.verifier_from_public_der(&public_key)?;
+            let verifier = alg.verifier_from_der(&public_key)?;
             verifier.verify(&[data], &signature)?;
         }
 
         Ok(())
     }
 
-    fn curve_name(hash_algorithm: HashAlgorithm) -> &'static str {
-        match hash_algorithm {
-            HashAlgorithm::SHA256 => "p256",
-            HashAlgorithm::SHA384 => "p384",
-            HashAlgorithm::SHA512 => "p521",
+    fn hash_algorithm(name: &str) -> HashAlgorithm {
+        match name {
+            "ES256" => HashAlgorithm::SHA256,
+            "ES384" => HashAlgorithm::SHA384,
+            "ES512" => HashAlgorithm::SHA512,
+            _ => unreachable!()
+        }
+    }
+
+    fn curve_name(name: &str) -> &'static str {
+        match name {
+            "ES256" => "p256",
+            "ES384" => "p384",
+            "ES512" => "p521",
+            _ => unreachable!()
         }
     }
 

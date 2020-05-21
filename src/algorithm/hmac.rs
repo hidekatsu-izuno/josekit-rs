@@ -2,12 +2,15 @@ use anyhow::{anyhow, bail};
 use openssl::hash::MessageDigest;
 use openssl::memcmp;
 use openssl::pkey::{PKey, Private};
+use serde_json::{Map, Value};
 
 use crate::algorithm::{Algorithm, HashAlgorithm, Signer, Verifier};
+use crate::algorithm::openssl::{json_eq, json_base64_bytes};
 use crate::error::JwtError;
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct HmacAlgorithm {
+    name: &'static str,
     hash_algorithm: HashAlgorithm,
 }
 
@@ -15,16 +18,44 @@ impl HmacAlgorithm {
     /// Return a new instance.
     ///
     /// # Arguments
-    /// * `hash_algorithm` - A hash algorithm for digesting messege.
-    pub const fn new(hash_algorithm: HashAlgorithm) -> Self {
-        HmacAlgorithm { hash_algorithm }
+    /// * `hash_algorithm` - A algrithm name.
+    pub const fn new(name: &'static str, hash_algorithm: HashAlgorithm) -> Self {
+        HmacAlgorithm {
+            name,
+            hash_algorithm
+        }
+    }
+
+    /// Return a signer from a private key of JWK format.
+    ///
+    /// # Arguments
+    /// * `data` - A private key.
+    pub fn signer_from_jwk<'a>(
+        &'a self,
+        jwk_str: &[u8],
+    ) -> Result<impl Signer<HmacAlgorithm> + Verifier<HmacAlgorithm> + 'a, JwtError> {
+        let key_data = (|| -> anyhow::Result<Vec<u8>> {
+            let map: Map<String, Value> = serde_json::from_slice(jwk_str)
+                .map_err(|err| anyhow!(err))?;
+
+            json_eq(&map, "alg", &self.name())?;
+            json_eq(&map, "kty", "oct")?;
+            json_eq(&map, "use", "sig")?;
+
+            let key_data = json_base64_bytes(&map, "k")
+                .map_err(|err| anyhow!(err))?;
+            Ok(key_data)
+        })()
+        .map_err(|err| JwtError::InvalidKeyFormat(err))?;
+
+        self.signer_from_slice(&key_data)
     }
 
     /// Return a signer from a private key.
     ///
     /// # Arguments
     /// * `data` - A private key.
-    pub fn signer_from_bytes<'a>(
+    pub fn signer_from_slice<'a>(
         &'a self,
         data: &[u8],
     ) -> Result<impl Signer<HmacAlgorithm> + Verifier<HmacAlgorithm> + 'a, JwtError> {
@@ -39,11 +70,7 @@ impl HmacAlgorithm {
 
 impl Algorithm for HmacAlgorithm {
     fn name(&self) -> &str {
-        match self.hash_algorithm {
-            HashAlgorithm::SHA256 => "HS256",
-            HashAlgorithm::SHA384 => "HS384",
-            HashAlgorithm::SHA512 => "HS512",
-        }
+        self.name
     }
 }
 
@@ -114,18 +141,27 @@ mod tests {
         let private_key = b"ABCDE12345";
         let data = b"abcde12345";
 
-        for hash in &[
-            HashAlgorithm::SHA256,
-            HashAlgorithm::SHA384,
-            HashAlgorithm::SHA512,
+        for name in &[
+            "HS256",
+            "HS384",
+            "HS512",
         ] {
-            let alg = HmacAlgorithm::new(*hash);
+            let alg = HmacAlgorithm::new(name, hash_algorithm(name));
 
-            let signer = alg.signer_from_bytes(private_key)?;
+            let signer = alg.signer_from_slice(private_key)?;
             let signature = signer.sign(&[data])?;
             signer.verify(&[data], &signature)?;
         }
 
         Ok(())
+    }
+
+    fn hash_algorithm(name: &str) -> HashAlgorithm {
+        match name {
+            "HS256" => HashAlgorithm::SHA256,
+            "HS384" => HashAlgorithm::SHA384,
+            "HS512" => HashAlgorithm::SHA512,
+            _ => unreachable!()
+        }
     }
 }

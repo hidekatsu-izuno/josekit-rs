@@ -61,7 +61,7 @@ openssl pkcs8 -nocrypt -in ecdsa_p256_pk1_private.pem -topk8 -out ecdsa_p256_pri
 ## RSA-PSS keypair
 
 ### Create RSA-PSS PKCS#8 PEM private key
-openssl genpkey -algorithm RSA-PSS -pkeyopt rsa_keygen_bits:2048 -pkeyopt rsa_pss_keygen_md:sha256 -pkeyopt rsa_pss_keygen_mgf1_md:sha256 -out rsapss_2048_sha256_private.pem
+openssl genpkey -algorithm RSA-PSS -pkeyopt rsa_keygen_bits:2048 -pkeyopt rsa_pss_keygen_md:sha256 -pkeyopt rsa_pss_keygen_mgf1_md:sha256 -pkeyopt rsa_pss_keygen_saltlen:32 -out rsapss_2048_sha256_private.pem
 openssl genpkey -algorithm RSA-PSS -pkeyopt rsa_keygen_bits:2048 -pkeyopt rsa_pss_keygen_md:sha384 -pkeyopt rsa_pss_keygen_mgf1_md:sha384 -out rsapss_2048_sha384_private.pem
 openssl genpkey -algorithm RSA-PSS -pkeyopt rsa_keygen_bits:2048 -pkeyopt rsa_pss_keygen_md:sha512  -pkeyopt rsa_pss_keygen_mgf1_md:sha512 -out rsapss_2048_sha512_private.pem
 
