@@ -352,10 +352,10 @@ mod tests {
 
             let alg = EcdsaAlgorithm::new(name, hash_algorithm(name));
 
-            let signer = alg.signer_from_der(&private_key)?;
+            let signer = alg.signer_from_pem(&private_key)?;
             let signature = signer.sign(&[data])?;
 
-            let verifier = alg.verifier_from_der(&public_key)?;
+            let verifier = alg.verifier_from_pem(&public_key)?;
             verifier.verify(&[data], &signature)?;
         }
 
