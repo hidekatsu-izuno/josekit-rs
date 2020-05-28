@@ -2,25 +2,35 @@ use anyhow::{anyhow, bail};
 use openssl::hash::MessageDigest;
 use openssl::memcmp;
 use openssl::pkey::{PKey, Private};
+use openssl::sign::Signer;
 use serde_json::{Map, Value};
 
-use crate::algorithm::{Algorithm, HashAlgorithm, Signer, Verifier};
-use crate::algorithm::util::{json_eq, json_base64_bytes};
+use crate::jws::{JwsAlgorithm, HashAlgorithm, JwsSigner, JwsVerifier};
+use crate::jws::util::{json_eq, json_base64_bytes};
 use crate::error::JwtError;
 
+/// HMAC using SHA-256
+pub const HS256: HmacJwsAlgorithm = HmacJwsAlgorithm::new("HS256", HashAlgorithm::SHA256);
+
+/// HMAC using SHA-384
+pub const HS384: HmacJwsAlgorithm = HmacJwsAlgorithm::new("HS384", HashAlgorithm::SHA384);
+
+/// HMAC using SHA-512
+pub const HS512: HmacJwsAlgorithm = HmacJwsAlgorithm::new("HS512", HashAlgorithm::SHA512);
+
 #[derive(Debug, Eq, PartialEq)]
-pub struct HmacAlgorithm {
+pub struct HmacJwsAlgorithm {
     name: &'static str,
     hash_algorithm: HashAlgorithm,
 }
 
-impl HmacAlgorithm {
+impl HmacJwsAlgorithm {
     /// Return a new instance.
     ///
     /// # Arguments
     /// * `hash_algorithm` - A algrithm name.
     pub const fn new(name: &'static str, hash_algorithm: HashAlgorithm) -> Self {
-        HmacAlgorithm {
+        HmacJwsAlgorithm {
             name,
             hash_algorithm
         }
@@ -33,7 +43,7 @@ impl HmacAlgorithm {
     pub fn signer_from_jwk<'a>(
         &'a self,
         jwk_str: &[u8],
-    ) -> Result<impl Signer<HmacAlgorithm> + Verifier<HmacAlgorithm> + 'a, JwtError> {
+    ) -> Result<impl JwsSigner<Self> + JwsVerifier<Self> + 'a, JwtError> {
         let key_data = (|| -> anyhow::Result<Vec<u8>> {
             let map: Map<String, Value> = serde_json::from_slice(jwk_str)?;
 
@@ -56,29 +66,29 @@ impl HmacAlgorithm {
     pub fn signer_from_slice<'a>(
         &'a self,
         data: &[u8],
-    ) -> Result<impl Signer<HmacAlgorithm> + Verifier<HmacAlgorithm> + 'a, JwtError> {
+    ) -> Result<impl JwsSigner<Self> + JwsVerifier<Self> + 'a, JwtError> {
         PKey::hmac(&data)
             .map_err(|err| JwtError::InvalidKeyFormat(anyhow!(err)))
-            .map(|val| HmacSigner {
+            .map(|val| HmacJwsSigner {
                 algorithm: &self,
                 private_key: val,
             })
     }
 }
 
-impl Algorithm for HmacAlgorithm {
+impl JwsAlgorithm for HmacJwsAlgorithm {
     fn name(&self) -> &str {
         self.name
     }
 }
 
-pub struct HmacSigner<'a> {
-    algorithm: &'a HmacAlgorithm,
+pub struct HmacJwsSigner<'a> {
+    algorithm: &'a HmacJwsAlgorithm,
     private_key: PKey<Private>,
 }
 
-impl<'a> Signer<HmacAlgorithm> for HmacSigner<'a> {
-    fn algorithm(&self) -> &HmacAlgorithm {
+impl<'a> JwsSigner<HmacJwsAlgorithm> for HmacJwsSigner<'a> {
+    fn algorithm(&self) -> &HmacJwsAlgorithm {
         &self.algorithm
     }
 
@@ -90,7 +100,7 @@ impl<'a> Signer<HmacAlgorithm> for HmacSigner<'a> {
                 HashAlgorithm::SHA512 => MessageDigest::sha512(),
             };
 
-            let mut signer = openssl::sign::Signer::new(message_digest, &self.private_key)?;
+            let mut signer = Signer::new(message_digest, &self.private_key)?;
             for part in data {
                 signer.update(part)?;
             }
@@ -101,8 +111,8 @@ impl<'a> Signer<HmacAlgorithm> for HmacSigner<'a> {
     }
 }
 
-impl<'a> Verifier<HmacAlgorithm> for HmacSigner<'a> {
-    fn algorithm(&self) -> &HmacAlgorithm {
+impl<'a> JwsVerifier<HmacJwsAlgorithm> for HmacJwsSigner<'a> {
+    fn algorithm(&self) -> &HmacJwsAlgorithm {
         &self.algorithm
     }
 
@@ -114,7 +124,7 @@ impl<'a> Verifier<HmacAlgorithm> for HmacSigner<'a> {
                 HashAlgorithm::SHA512 => MessageDigest::sha512(),
             };
 
-            let mut signer = openssl::sign::Signer::new(message_digest, &self.private_key)?;
+            let mut signer = Signer::new(message_digest, &self.private_key)?;
             for part in data {
                 signer.update(part)?;
             }
@@ -146,7 +156,7 @@ mod tests {
             "HS384",
             "HS512",
         ] {
-            let alg = HmacAlgorithm::new(name, hash_algorithm(name));
+            let alg = HmacJwsAlgorithm::new(name, hash_algorithm(name));
 
             let private_key = load_file(match *name {
                 "HS256" => "jwk/hs256_private.jwk",
@@ -173,7 +183,7 @@ mod tests {
             "HS384",
             "HS512",
         ] {
-            let alg = HmacAlgorithm::new(name, hash_algorithm(name));
+            let alg = HmacJwsAlgorithm::new(name, hash_algorithm(name));
 
             let signer = alg.signer_from_slice(private_key)?;
             let signature = signer.sign(&[data])?;

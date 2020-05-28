@@ -3,27 +3,37 @@ use openssl::ec::{EcKey, EcGroup};
 use openssl::hash::MessageDigest;
 use openssl::nid::Nid;
 use openssl::pkey::{HasPublic, PKey, Private, Public};
+use openssl::sign::{Signer, Verifier};
 use openssl::bn::BigNum;
 use serde_json::{Map, Value};
 
-use crate::algorithm::{Algorithm, HashAlgorithm, Signer, Verifier};
-use crate::algorithm::util::{json_eq, json_base64_bytes};
+use crate::jws::{JwsAlgorithm, HashAlgorithm, JwsSigner, JwsVerifier};
+use crate::jws::util::{json_eq, json_base64_bytes};
 use crate::error::JwtError;
 
+/// ECDSA using P-256 and SHA-256
+pub const ES256: EcdsaJwsAlgorithm = EcdsaJwsAlgorithm::new("ES256", HashAlgorithm::SHA256);
+
+/// ECDSA using P-384 and SHA-384
+pub const ES384: EcdsaJwsAlgorithm = EcdsaJwsAlgorithm::new("ES384", HashAlgorithm::SHA384);
+
+/// ECDSA using P-521 and SHA-512
+pub const ES512: EcdsaJwsAlgorithm = EcdsaJwsAlgorithm::new("ES512", HashAlgorithm::SHA512);
+
 #[derive(Debug, Eq, PartialEq)]
-pub struct EcdsaAlgorithm {
+pub struct EcdsaJwsAlgorithm {
     name: &'static str,
     hash_algorithm: HashAlgorithm,
 }
 
-impl EcdsaAlgorithm {
+impl EcdsaJwsAlgorithm {
     /// Return a new instance.
     ///
     /// # Arguments
     /// * `name` - A algrithm name.
     /// * `hash_algorithm` - A algrithm name.
     pub const fn new(name: &'static str, hash_algorithm: HashAlgorithm) -> Self {
-        EcdsaAlgorithm {
+        EcdsaJwsAlgorithm {
             name,
             hash_algorithm
         }
@@ -36,8 +46,8 @@ impl EcdsaAlgorithm {
     pub fn signer_from_jwk<'a>(
         &'a self,
         data: &[u8],
-    ) -> Result<impl Signer<EcdsaAlgorithm> + 'a, JwtError> {
-        (|| -> anyhow::Result<EcdsaSigner> {
+    ) -> Result<impl JwsSigner<EcdsaJwsAlgorithm> + 'a, JwtError> {
+        (|| -> anyhow::Result<EcdsaJwsSigner> {
             let map: Map<String, Value> = serde_json::from_slice(data)?;
 
             json_eq(&map, "alg", &self.name())?;
@@ -62,7 +72,7 @@ impl EcdsaAlgorithm {
             )
                 .and_then(|val| PKey::from_ec_key(val))
                 .map_err(|err| anyhow!(err))
-                .map(|val| EcdsaSigner {
+                .map(|val| EcdsaJwsSigner {
                     algorithm: &self,
                     private_key: val,
                 })
@@ -77,7 +87,7 @@ impl EcdsaAlgorithm {
     pub fn signer_from_pem<'a>(
         &'a self,
         data: &[u8],
-    ) -> Result<impl Signer<EcdsaAlgorithm> + 'a, JwtError> {
+    ) -> Result<impl JwsSigner<Self> + 'a, JwtError> {
         PKey::private_key_from_pem(&data)
             .or_else(|err| {
                 EcKey::private_key_from_pem(&data)
@@ -86,7 +96,7 @@ impl EcdsaAlgorithm {
             })
             .and_then(|pkey| (&self).check_key(pkey))
             .map_err(|err| JwtError::InvalidKeyFormat(err))
-            .map(|val| EcdsaSigner {
+            .map(|val| EcdsaJwsSigner {
                 algorithm: &self,
                 private_key: val,
             })
@@ -99,7 +109,7 @@ impl EcdsaAlgorithm {
     pub fn signer_from_der<'a>(
         &'a self,
         data: &[u8],
-    ) -> Result<impl Signer<EcdsaAlgorithm> + 'a, JwtError> {
+    ) -> Result<impl JwsSigner<Self> + 'a, JwtError> {
         PKey::private_key_from_der(&data)
             .or_else(|err| {
                 EcKey::private_key_from_der(&data)
@@ -108,7 +118,7 @@ impl EcdsaAlgorithm {
             })
             .and_then(|pkey| (&self).check_key(pkey))
             .map_err(|err| JwtError::InvalidKeyFormat(err))
-            .map(|val| EcdsaSigner {
+            .map(|val| EcdsaJwsSigner {
                 algorithm: &self,
                 private_key: val,
             })
@@ -121,8 +131,8 @@ impl EcdsaAlgorithm {
     pub fn verifier_from_jwk<'a>(
         &'a self,
         data: &[u8],
-    ) -> Result<impl Verifier<EcdsaAlgorithm> + 'a, JwtError> {
-        (|| -> anyhow::Result<EcdsaVerifier> {
+    ) -> Result<impl JwsVerifier<Self> + 'a, JwtError> {
+        (|| -> anyhow::Result<EcdsaJwsVerifier> {
             let map: Map<String, Value> = serde_json::from_slice(data)
                 .map_err(|err| anyhow!(err))?;
 
@@ -142,7 +152,7 @@ impl EcdsaAlgorithm {
             )
                 .and_then(|val| PKey::from_ec_key(val))
                 .map_err(|err| anyhow!(err))
-                .map(|val| EcdsaVerifier {
+                .map(|val| EcdsaJwsVerifier {
                     algorithm: &self,
                     public_key: val,
                 })
@@ -157,12 +167,12 @@ impl EcdsaAlgorithm {
     pub fn verifier_from_pem<'a>(
         &'a self,
         data: &[u8],
-    ) -> Result<impl Verifier<EcdsaAlgorithm> + 'a, JwtError> {
+    ) -> Result<impl JwsVerifier<Self> + 'a, JwtError> {
         PKey::public_key_from_pem(&data)
             .map_err(|err| anyhow!(err))
             .and_then(|pkey| (&self).check_key(pkey))
             .map_err(|err| JwtError::InvalidKeyFormat(err))
-            .map(|val| EcdsaVerifier {
+            .map(|val| EcdsaJwsVerifier {
                 algorithm: &self,
                 public_key: val,
             })
@@ -175,21 +185,18 @@ impl EcdsaAlgorithm {
     pub fn verifier_from_der<'a>(
         &'a self,
         data: &[u8],
-    ) -> Result<impl Verifier<EcdsaAlgorithm> + 'a, JwtError> {
+    ) -> Result<impl JwsVerifier<Self> + 'a, JwtError> {
         PKey::public_key_from_der(&data)
             .map_err(|err| anyhow!(err))
             .and_then(|pkey| (&self).check_key(pkey))
             .map_err(|err| JwtError::InvalidKeyFormat(err))
-            .map(|val| EcdsaVerifier {
+            .map(|val| EcdsaJwsVerifier {
                 algorithm: &self,
                 public_key: val,
             })
     }
 
-    fn check_key<T>(&self, pkey: PKey<T>) -> anyhow::Result<PKey<T>>
-    where
-        T: HasPublic,
-    {
+    fn check_key<T: HasPublic>(&self, pkey: PKey<T>) -> anyhow::Result<PKey<T>> {
         let ec_key = pkey.ec_key()?;
 
         let curve_name = match self.hash_algorithm {
@@ -221,19 +228,19 @@ impl EcdsaAlgorithm {
     }
 }
 
-impl Algorithm for EcdsaAlgorithm {
+impl JwsAlgorithm for EcdsaJwsAlgorithm {
     fn name(&self) -> &str {
         self.name
     }
 }
 
-pub struct EcdsaSigner<'a> {
-    algorithm: &'a EcdsaAlgorithm,
+pub struct EcdsaJwsSigner<'a> {
+    algorithm: &'a EcdsaJwsAlgorithm,
     private_key: PKey<Private>,
 }
 
-impl<'a> Signer<EcdsaAlgorithm> for EcdsaSigner<'a> {
-    fn algorithm(&self) -> &EcdsaAlgorithm {
+impl<'a> JwsSigner<EcdsaJwsAlgorithm> for EcdsaJwsSigner<'a> {
+    fn algorithm(&self) -> &EcdsaJwsAlgorithm {
         &self.algorithm
     }
 
@@ -245,7 +252,7 @@ impl<'a> Signer<EcdsaAlgorithm> for EcdsaSigner<'a> {
                 HashAlgorithm::SHA512 => MessageDigest::sha512(),
             };
 
-            let mut signer = openssl::sign::Signer::new(message_digest, &self.private_key)?;
+            let mut signer = Signer::new(message_digest, &self.private_key)?;
             for part in data {
                 signer.update(part)?;
             }
@@ -256,13 +263,13 @@ impl<'a> Signer<EcdsaAlgorithm> for EcdsaSigner<'a> {
     }
 }
 
-pub struct EcdsaVerifier<'a> {
-    algorithm: &'a EcdsaAlgorithm,
+pub struct EcdsaJwsVerifier<'a> {
+    algorithm: &'a EcdsaJwsAlgorithm,
     public_key: PKey<Public>,
 }
 
-impl<'a> Verifier<EcdsaAlgorithm> for EcdsaVerifier<'a> {
-    fn algorithm(&self) -> &EcdsaAlgorithm {
+impl<'a> JwsVerifier<EcdsaJwsAlgorithm> for EcdsaJwsVerifier<'a> {
+    fn algorithm(&self) -> &EcdsaJwsAlgorithm {
         &self.algorithm
     }
 
@@ -274,7 +281,7 @@ impl<'a> Verifier<EcdsaAlgorithm> for EcdsaVerifier<'a> {
                 HashAlgorithm::SHA512 => MessageDigest::sha512(),
             };
 
-            let mut verifier = openssl::sign::Verifier::new(message_digest, &self.public_key)?;
+            let mut verifier = Verifier::new(message_digest, &self.public_key)?;
             for part in data {
                 verifier.update(part)?;
             }
@@ -303,7 +310,7 @@ mod tests {
             "ES384",
             "ES512",
          ] {
-            let alg = EcdsaAlgorithm::new(name, hash_algorithm(name));
+            let alg = EcdsaJwsAlgorithm::new(name, hash_algorithm(name));
 
             let private_key = load_file(match *name {
                 "ES256" => "jwk/es256_private.jwk",
@@ -350,7 +357,7 @@ mod tests {
                 _ => unreachable!()
             })?;
 
-            let alg = EcdsaAlgorithm::new(name, hash_algorithm(name));
+            let alg = EcdsaJwsAlgorithm::new(name, hash_algorithm(name));
 
             let signer = alg.signer_from_pem(&private_key)?;
             let signature = signer.sign(&[data])?;
@@ -384,7 +391,7 @@ mod tests {
                 _ => unreachable!()
             })?;
 
-            let alg = EcdsaAlgorithm::new(name, hash_algorithm(name));
+            let alg = EcdsaJwsAlgorithm::new(name, hash_algorithm(name));
 
             let signer = alg.signer_from_der(&private_key)?;
             let signature = signer.sign(&[data])?;

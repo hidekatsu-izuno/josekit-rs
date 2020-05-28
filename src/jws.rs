@@ -1,9 +1,23 @@
 pub mod ecdsa;
 pub mod hmac;
 pub mod rsa;
+mod der;
 mod util;
 
 use crate::error::JwtError;
+
+pub use crate::jws::hmac::HS256;
+pub use crate::jws::hmac::HS384;
+pub use crate::jws::hmac::HS512;
+pub use crate::jws::rsa::RS256;
+pub use crate::jws::rsa::RS384;
+pub use crate::jws::rsa::RS512;
+pub use crate::jws::rsa::PS256;
+pub use crate::jws::rsa::PS384;
+pub use crate::jws::rsa::PS512;
+pub use crate::jws::ecdsa::ES256;
+pub use crate::jws::ecdsa::ES384;
+pub use crate::jws::ecdsa::ES512;
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum HashAlgorithm {
@@ -17,12 +31,12 @@ pub enum HashAlgorithm {
     SHA512,
 }
 
-pub trait Algorithm {
-    /// Return the "alg" (Algorithm) header parameter value of JWE.
+pub trait JwsAlgorithm {
+    /// Return the "alg" (JwsAlgorithm) header parameter value of JWE.
     fn name(&self) -> &str;
 }
 
-pub trait Signer<T: Algorithm> {
+pub trait JwsSigner<T: JwsAlgorithm> {
     /// Return the source algrithm instance.
     fn algorithm(&self) -> &T;
 
@@ -33,7 +47,7 @@ pub trait Signer<T: Algorithm> {
     fn sign(&self, data: &[&[u8]]) -> Result<Vec<u8>, JwtError>;
 }
 
-pub trait Verifier<T: Algorithm> {
+pub trait JwsVerifier<T: JwsAlgorithm> {
     /// Return the source algrithm instance.
     fn algorithm(&self) -> &T;
 

@@ -3,26 +3,45 @@ use openssl::hash::MessageDigest;
 use openssl::pkey::{HasPublic, PKey, Private, Public};
 use openssl::rsa::Rsa;
 use openssl::bn::BigNum;
+use openssl::sign::{Signer, Verifier};
 use serde_json::{Map, Value};
 
-use crate::algorithm::{Algorithm, HashAlgorithm, Signer, Verifier};
-use crate::algorithm::util::{json_eq, json_base64_bytes};
+use crate::jws::{JwsAlgorithm, HashAlgorithm, JwsSigner, JwsVerifier};
+use crate::jws::util::{json_eq, json_base64_bytes};
 use crate::error::JwtError;
 
+/// RSASSA-PKCS1-v1_5 using SHA-256
+pub const RS256: RsaJwsAlgorithm = RsaJwsAlgorithm::new("RS256", HashAlgorithm::SHA256);
+
+/// RSASSA-PKCS1-v1_5 using SHA-384
+pub const RS384: RsaJwsAlgorithm = RsaJwsAlgorithm::new("RS384", HashAlgorithm::SHA384);
+
+/// RSASSA-PKCS1-v1_5 using SHA-512
+pub const RS512: RsaJwsAlgorithm = RsaJwsAlgorithm::new("RS512", HashAlgorithm::SHA512);
+
+/// RSASSA-PSS using SHA-256 and MGF1 with SHA-256
+pub const PS256: RsaJwsAlgorithm = RsaJwsAlgorithm::new("PS256", HashAlgorithm::SHA256);
+
+/// RSASSA-PSS using SHA-384 and MGF1 with SHA-384
+pub const PS384: RsaJwsAlgorithm = RsaJwsAlgorithm::new("PS384", HashAlgorithm::SHA384);
+
+/// RSASSA-PSS using SHA-512 and MGF1 with SHA-512
+pub const PS512: RsaJwsAlgorithm = RsaJwsAlgorithm::new("PS512", HashAlgorithm::SHA512);
+
 #[derive(Debug, Eq, PartialEq)]
-pub struct RsaAlgorithm {
+pub struct RsaJwsAlgorithm {
     name: &'static str,
     hash_algorithm: HashAlgorithm,
 }
 
-impl RsaAlgorithm {
+impl RsaJwsAlgorithm {
     /// Return a new instance.
     ///
     /// # Arguments
     /// * `name` - A algrithm name.
     /// * `hash_algorithm` - A algrithm name.
     pub const fn new(name: &'static str, hash_algorithm: HashAlgorithm) -> Self {
-        RsaAlgorithm {
+        RsaJwsAlgorithm {
             name,
             hash_algorithm
         }
@@ -35,8 +54,8 @@ impl RsaAlgorithm {
     pub fn signer_from_jwk<'a>(
         &'a self,
         data: &[u8],
-    ) -> Result<impl Signer<RsaAlgorithm> + 'a, JwtError> {
-        (|| -> anyhow::Result<RsaSigner> {
+    ) -> Result<impl JwsSigner<Self> + 'a, JwtError> {
+        (|| -> anyhow::Result<RsaJwsSigner> {
             let map: Map<String, Value> = serde_json::from_slice(data)?;
 
             json_eq(&map, "alg", &self.name())?;
@@ -63,7 +82,7 @@ impl RsaAlgorithm {
             )
                 .and_then(|val| PKey::from_rsa(val))
                 .map_err(|err| anyhow!(err))
-                .map(|val| RsaSigner {
+                .map(|val| RsaJwsSigner {
                     algorithm: &self,
                     private_key: val,
                 })
@@ -78,7 +97,7 @@ impl RsaAlgorithm {
     pub fn signer_from_pem<'a>(
         &'a self,
         data: &[u8],
-    ) -> Result<impl Signer<RsaAlgorithm> + 'a, JwtError> {
+    ) -> Result<impl JwsSigner<Self> + 'a, JwtError> {
         PKey::private_key_from_pem(&data)
             .or_else(|err| {
                 Rsa::private_key_from_pem(&data)
@@ -87,7 +106,7 @@ impl RsaAlgorithm {
             })
             .and_then(|pkey| (&self).check_key(pkey))
             .map_err(|err| JwtError::InvalidKeyFormat(err))
-            .map(|val| RsaSigner {
+            .map(|val| RsaJwsSigner {
                 algorithm: &self,
                 private_key: val,
             })
@@ -100,7 +119,7 @@ impl RsaAlgorithm {
     pub fn signer_from_der<'a>(
         &'a self,
         data: &[u8],
-    ) -> Result<impl Signer<RsaAlgorithm> + 'a, JwtError> {
+    ) -> Result<impl JwsSigner<Self> + 'a, JwtError> {
         PKey::private_key_from_der(&data)
             .or_else(|err| {
                 Rsa::private_key_from_der(&data)
@@ -109,7 +128,7 @@ impl RsaAlgorithm {
             })
             .and_then(|pkey| (&self).check_key(pkey))
             .map_err(|err| JwtError::InvalidKeyFormat(err))
-            .map(|val| RsaSigner {
+            .map(|val| RsaJwsSigner {
                 algorithm: &self,
                 private_key: val,
             })
@@ -122,10 +141,9 @@ impl RsaAlgorithm {
     pub fn verifier_from_jwk<'a>(
         &'a self,
         data: &[u8],
-    ) -> Result<impl Verifier<RsaAlgorithm> + 'a, JwtError> {
-        (|| -> anyhow::Result<RsaVerifier> {
-            let map: Map<String, Value> = serde_json::from_slice(data)
-                .map_err(|err| anyhow!(err))?;
+    ) -> Result<impl JwsVerifier<Self> + 'a, JwtError> {
+        (|| -> anyhow::Result<RsaJwsVerifier> {
+            let map: Map<String, Value> = serde_json::from_slice(data)?;
 
             json_eq(&map, "alg", &self.name())?;
             json_eq(&map, "kty", "RSA")?;
@@ -139,7 +157,7 @@ impl RsaAlgorithm {
             )
                 .and_then(|val| PKey::from_rsa(val))
                 .map_err(|err| anyhow!(err))
-                .map(|val| RsaVerifier {
+                .map(|val| RsaJwsVerifier {
                     algorithm: &self,
                     public_key: val,
                 })
@@ -154,7 +172,7 @@ impl RsaAlgorithm {
     pub fn verifier_from_pem<'a>(
         &'a self,
         data: &[u8],
-    ) -> Result<impl Verifier<RsaAlgorithm> + 'a, JwtError> {
+    ) -> Result<impl JwsVerifier<Self> + 'a, JwtError> {
         PKey::public_key_from_pem(&data)
             .or_else(|err| {
                 Rsa::public_key_from_pem_pkcs1(&data)
@@ -163,7 +181,7 @@ impl RsaAlgorithm {
             })
             .and_then(|pkey| (&self).check_key(pkey))
             .map_err(|err| JwtError::InvalidKeyFormat(err))
-            .map(|val| RsaVerifier {
+            .map(|val| RsaJwsVerifier {
                 algorithm: &self,
                 public_key: val,
             })
@@ -176,7 +194,7 @@ impl RsaAlgorithm {
     pub fn verifier_from_der<'a>(
         &'a self,
         data: &[u8],
-    ) -> Result<impl Verifier<RsaAlgorithm> + 'a, JwtError> {
+    ) -> Result<impl JwsVerifier<Self> + 'a, JwtError> {
         PKey::public_key_from_der(&data)
             .or_else(|err| {
                 Rsa::public_key_from_der_pkcs1(&data)
@@ -185,7 +203,7 @@ impl RsaAlgorithm {
             })
             .and_then(|pkey| (&self).check_key(pkey))
             .map_err(|err| JwtError::InvalidKeyFormat(err))
-            .map(|val| RsaVerifier {
+            .map(|val| RsaJwsVerifier {
                 algorithm: &self,
                 public_key: val,
             })
@@ -205,19 +223,19 @@ impl RsaAlgorithm {
     }
 }
 
-impl Algorithm for RsaAlgorithm {
+impl JwsAlgorithm for RsaJwsAlgorithm {
     fn name(&self) -> &str {
         self.name
     }
 }
 
-pub struct RsaSigner<'a> {
-    algorithm: &'a RsaAlgorithm,
+pub struct RsaJwsSigner<'a> {
+    algorithm: &'a RsaJwsAlgorithm,
     private_key: PKey<Private>,
 }
 
-impl<'a> Signer<RsaAlgorithm> for RsaSigner<'a> {
-    fn algorithm(&self) -> &RsaAlgorithm {
+impl<'a> JwsSigner<RsaJwsAlgorithm> for RsaJwsSigner<'a> {
+    fn algorithm(&self) -> &RsaJwsAlgorithm {
         &self.algorithm
     }
 
@@ -229,7 +247,7 @@ impl<'a> Signer<RsaAlgorithm> for RsaSigner<'a> {
                 HashAlgorithm::SHA512 => MessageDigest::sha512(),
             };
 
-            let mut signer = openssl::sign::Signer::new(message_digest, &self.private_key)?;
+            let mut signer = Signer::new(message_digest, &self.private_key)?;
             for part in data {
                 signer.update(part)?;
             }
@@ -240,13 +258,13 @@ impl<'a> Signer<RsaAlgorithm> for RsaSigner<'a> {
     }
 }
 
-pub struct RsaVerifier<'a> {
-    algorithm: &'a RsaAlgorithm,
+pub struct RsaJwsVerifier<'a> {
+    algorithm: &'a RsaJwsAlgorithm,
     public_key: PKey<Public>,
 }
 
-impl<'a> Verifier<RsaAlgorithm> for RsaVerifier<'a> {
-    fn algorithm(&self) -> &RsaAlgorithm {
+impl<'a> JwsVerifier<RsaJwsAlgorithm> for RsaJwsVerifier<'a> {
+    fn algorithm(&self) -> &RsaJwsAlgorithm {
         &self.algorithm
     }
 
@@ -258,7 +276,7 @@ impl<'a> Verifier<RsaAlgorithm> for RsaVerifier<'a> {
                 HashAlgorithm::SHA512 => MessageDigest::sha512(),
             };
 
-            let mut verifier = openssl::sign::Verifier::new(message_digest, &self.public_key)?;
+            let mut verifier = Verifier::new(message_digest, &self.public_key)?;
             for part in data {
                 verifier.update(part)?;
             }
@@ -290,7 +308,7 @@ mod tests {
             "PS384",
             "PS512",
          ] {
-            let alg = RsaAlgorithm::new(name, hash_algorithm(name));
+            let alg = RsaJwsAlgorithm::new(name, hash_algorithm(name));
 
             let private_key = load_file(match *name {
                 "RS256" => "jwk/rs256_private.jwk",
@@ -333,7 +351,7 @@ mod tests {
             "PS384",
             "PS512",
          ] {
-            let alg = RsaAlgorithm::new(name, hash_algorithm(name));
+            let alg = RsaJwsAlgorithm::new(name, hash_algorithm(name));
 
             let private_key = load_file(match *name {
                 "PS256" => "pem/rsapss_2048_sha256_pkcs8_private.pem",
@@ -370,7 +388,7 @@ mod tests {
             "PS384",
             "PS512",
          ] {
-            let alg = RsaAlgorithm::new(name, hash_algorithm(name));
+            let alg = RsaJwsAlgorithm::new(name, hash_algorithm(name));
 
             let private_key = load_file(match *name {
                 "PS256" => "der/rsapss_2048_sha256_pkcs8_private.der",
@@ -407,7 +425,7 @@ mod tests {
             //"PS384",
             //"PS512",
          ] {
-            let alg = RsaAlgorithm::new(name, hash_algorithm(name));
+            let alg = RsaJwsAlgorithm::new(name, hash_algorithm(name));
 
             let private_key = load_file(match *name {
                 "PS256" => "pem/rsapss_2048_sha256_pkcs1_private.pem",
@@ -444,7 +462,7 @@ mod tests {
             //"PS384",
             //"PS512",
          ] {
-            let alg = RsaAlgorithm::new(name, hash_algorithm(name));
+            let alg = RsaJwsAlgorithm::new(name, hash_algorithm(name));
 
             let private_key = load_file(match *name {
                 "PS256" => "der/rsapss_2048_sha256_pkcs1_private.der",
