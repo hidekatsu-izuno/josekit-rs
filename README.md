@@ -1,4 +1,4 @@
-# JWS-RS
+# JWT-RS
 
 JWT (JSON Web Token) library for rust (based on OpenSSL).
 
@@ -10,6 +10,14 @@ jwt_rs = { git = "https://github.com/hidekatsu-izuno/jwt-rs" }
 ```
 
 This library depends on OpenSSL DLL. Read more about it [Crate openssl](https://docs.rs/openssl/0.10.29/openssl/). 
+
+## Build
+
+```sh
+sudo apt install build-essential pkg-config libssl-dev
+cd jwt-rs
+cargo build
+```
 
 ## Supported algorithms
 
