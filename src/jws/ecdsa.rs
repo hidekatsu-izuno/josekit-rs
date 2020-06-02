@@ -9,7 +9,7 @@ use serde_json::{Map, Value};
 
 use crate::jws::{JwsAlgorithm, HashAlgorithm, JwsSigner, JwsVerifier};
 use crate::jws::util::{json_eq, json_base64_bytes};
-use crate::error::JwtError;
+use crate::error::JoseError;
 
 /// ECDSA using P-256 and SHA-256
 pub const ES256: EcdsaJwsAlgorithm = EcdsaJwsAlgorithm::new("ES256", HashAlgorithm::SHA256);
@@ -46,7 +46,7 @@ impl EcdsaJwsAlgorithm {
     pub fn signer_from_jwk<'a>(
         &'a self,
         data: &[u8],
-    ) -> Result<impl JwsSigner<EcdsaJwsAlgorithm> + 'a, JwtError> {
+    ) -> Result<impl JwsSigner<EcdsaJwsAlgorithm> + 'a, JoseError> {
         (|| -> anyhow::Result<EcdsaJwsSigner> {
             let map: Map<String, Value> = serde_json::from_slice(data)?;
 
@@ -65,19 +65,20 @@ impl EcdsaJwsAlgorithm {
                 BigNum::from_slice(&y)?.as_ref()
             )?;
 
-            EcKey::from_private_components(
+            let pkey = EcKey::from_private_components(
                 ec_group.as_ref(),
                 BigNum::from_slice(&d)?.as_ref(),
                 public_key.public_key()
-            )
-                .and_then(|val| PKey::from_ec_key(val))
-                .map_err(|err| anyhow!(err))
-                .map(|val| EcdsaJwsSigner {
-                    algorithm: &self,
-                    private_key: val,
-                })
+            ).and_then(|val| PKey::from_ec_key(val))?;
+
+            self.check_key(&pkey)?;
+
+            Ok(EcdsaJwsSigner {
+                algorithm: &self,
+                private_key: pkey,
+            })
         })()
-        .map_err(|err| JwtError::InvalidKeyFormat(err))
+        .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
     /// Return a signer from a private key of PKCS#1 or PKCS#8 PEM format.
@@ -87,19 +88,22 @@ impl EcdsaJwsAlgorithm {
     pub fn signer_from_pem<'a>(
         &'a self,
         data: &[u8],
-    ) -> Result<impl JwsSigner<Self> + 'a, JwtError> {
-        PKey::private_key_from_pem(&data)
-            .or_else(|err| {
-                EcKey::private_key_from_pem(&data)
-                    .and_then(|val| PKey::from_ec_key(val))
-                    .map_err(|_| anyhow!(err))
-            })
-            .and_then(|pkey| (&self).check_key(pkey))
-            .map_err(|err| JwtError::InvalidKeyFormat(err))
-            .map(|val| EcdsaJwsSigner {
+    ) -> Result<impl JwsSigner<Self> + 'a, JoseError> {
+        (|| -> anyhow::Result<EcdsaJwsSigner> {
+            let pkey = PKey::private_key_from_pem(&data)
+                .or_else(|err| {
+                    EcKey::private_key_from_pem(&data)
+                        .and_then(|val| PKey::from_ec_key(val))
+                        .map_err(|_| err)
+                })?;
+            
+            self.check_key(&pkey)?;
+
+            Ok(EcdsaJwsSigner {
                 algorithm: &self,
-                private_key: val,
+                private_key: pkey,
             })
+        })().map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
     /// Return a signer from a private key of PKCS#1 or PKCS#8 DER format.
@@ -109,19 +113,22 @@ impl EcdsaJwsAlgorithm {
     pub fn signer_from_der<'a>(
         &'a self,
         data: &[u8],
-    ) -> Result<impl JwsSigner<Self> + 'a, JwtError> {
-        PKey::private_key_from_der(&data)
-            .or_else(|err| {
-                EcKey::private_key_from_der(&data)
-                    .and_then(|val| PKey::from_ec_key(val))
-                    .map_err(|_| anyhow!(err))
-            })
-            .and_then(|pkey| (&self).check_key(pkey))
-            .map_err(|err| JwtError::InvalidKeyFormat(err))
-            .map(|val| EcdsaJwsSigner {
+    ) -> Result<impl JwsSigner<Self> + 'a, JoseError> {
+        (|| -> anyhow::Result<EcdsaJwsSigner> {
+            let pkey = PKey::private_key_from_der(&data)
+                .or_else(|err| {
+                    EcKey::private_key_from_der(&data)
+                        .and_then(|val| PKey::from_ec_key(val))
+                        .map_err(|_| err)
+                })?;
+            
+            self.check_key(&pkey)?;
+
+            Ok(EcdsaJwsSigner {
                 algorithm: &self,
-                private_key: val,
+                private_key: pkey,
             })
+        })().map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
     /// Return a verifier from a key of JWK format.
@@ -131,7 +138,7 @@ impl EcdsaJwsAlgorithm {
     pub fn verifier_from_jwk<'a>(
         &'a self,
         data: &[u8],
-    ) -> Result<impl JwsVerifier<Self> + 'a, JwtError> {
+    ) -> Result<impl JwsVerifier<Self> + 'a, JoseError> {
         (|| -> anyhow::Result<EcdsaJwsVerifier> {
             let map: Map<String, Value> = serde_json::from_slice(data)
                 .map_err(|err| anyhow!(err))?;
@@ -145,19 +152,19 @@ impl EcdsaJwsAlgorithm {
             let crv = Self::curve(&map, "crv")?;
             let ec_group = EcGroup::from_curve_name(crv)?;
 
-            EcKey::from_public_key_affine_coordinates(
+            let pkey = EcKey::from_public_key_affine_coordinates(
                 ec_group.as_ref(),
                 BigNum::from_slice(&x)?.as_ref(),
                 BigNum::from_slice(&y)?.as_ref()
-            )
-                .and_then(|val| PKey::from_ec_key(val))
-                .map_err(|err| anyhow!(err))
-                .map(|val| EcdsaJwsVerifier {
-                    algorithm: &self,
-                    public_key: val,
-                })
-        })()
-        .map_err(|err| JwtError::InvalidKeyFormat(err))
+            ).and_then(|val| PKey::from_ec_key(val))?;
+
+            self.check_key(&pkey)?;
+
+            Ok(EcdsaJwsVerifier {
+                algorithm: &self,
+                public_key: pkey,
+            })
+        })().map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
     /// Return a verifier from a key of PKCS#8 PEM format.
@@ -167,15 +174,17 @@ impl EcdsaJwsAlgorithm {
     pub fn verifier_from_pem<'a>(
         &'a self,
         data: &[u8],
-    ) -> Result<impl JwsVerifier<Self> + 'a, JwtError> {
-        PKey::public_key_from_pem(&data)
-            .map_err(|err| anyhow!(err))
-            .and_then(|pkey| (&self).check_key(pkey))
-            .map_err(|err| JwtError::InvalidKeyFormat(err))
-            .map(|val| EcdsaJwsVerifier {
+    ) -> Result<impl JwsVerifier<Self> + 'a, JoseError> {
+        (|| -> anyhow::Result<EcdsaJwsVerifier> {
+            let pkey = PKey::public_key_from_pem(&data)?;
+
+            self.check_key(&pkey)?;
+
+            Ok(EcdsaJwsVerifier {
                 algorithm: &self,
-                public_key: val,
+                public_key: pkey,
             })
+        })().map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
     /// Return a verifier from a key of PKCS#8 DER format.
@@ -185,18 +194,20 @@ impl EcdsaJwsAlgorithm {
     pub fn verifier_from_der<'a>(
         &'a self,
         data: &[u8],
-    ) -> Result<impl JwsVerifier<Self> + 'a, JwtError> {
-        PKey::public_key_from_der(&data)
-            .map_err(|err| anyhow!(err))
-            .and_then(|pkey| (&self).check_key(pkey))
-            .map_err(|err| JwtError::InvalidKeyFormat(err))
-            .map(|val| EcdsaJwsVerifier {
+    ) -> Result<impl JwsVerifier<Self> + 'a, JoseError> {
+        (|| -> anyhow::Result<EcdsaJwsVerifier> {
+            let pkey = PKey::public_key_from_der(&data)?;
+
+            self.check_key(&pkey)?;
+
+            Ok(EcdsaJwsVerifier {
                 algorithm: &self,
-                public_key: val,
+                public_key: pkey,
             })
+        })().map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
-    fn check_key<T: HasPublic>(&self, pkey: PKey<T>) -> anyhow::Result<PKey<T>> {
+    fn check_key<T: HasPublic>(&self, pkey: &PKey<T>) -> anyhow::Result<()> {
         let ec_key = pkey.ec_key()?;
 
         let curve_name = match self.hash_algorithm {
@@ -210,7 +221,7 @@ impl EcdsaJwsAlgorithm {
             _ => bail!("Inappropriate curve: {:?}", curve_name),
         }
 
-        Ok(pkey)
+        Ok(())
     }
 
     fn curve(map: &Map<String, Value>, key: &str) -> anyhow::Result<Nid> {
@@ -244,7 +255,7 @@ impl<'a> JwsSigner<EcdsaJwsAlgorithm> for EcdsaJwsSigner<'a> {
         &self.algorithm
     }
 
-    fn sign(&self, data: &[&[u8]]) -> Result<Vec<u8>, JwtError> {
+    fn sign(&self, data: &[&[u8]]) -> Result<Vec<u8>, JoseError> {
         (|| -> anyhow::Result<Vec<u8>> {
             let message_digest = match self.algorithm.hash_algorithm {
                 HashAlgorithm::SHA256 => MessageDigest::sha256(),
@@ -259,7 +270,7 @@ impl<'a> JwsSigner<EcdsaJwsAlgorithm> for EcdsaJwsSigner<'a> {
             let signature = signer.sign_to_vec()?;
             Ok(signature)
         })()
-        .map_err(|err| JwtError::InvalidSignature(err))
+        .map_err(|err| JoseError::InvalidSignature(err))
     }
 }
 
@@ -273,7 +284,7 @@ impl<'a> JwsVerifier<EcdsaJwsAlgorithm> for EcdsaJwsVerifier<'a> {
         &self.algorithm
     }
 
-    fn verify(&self, data: &[&[u8]], signature: &[u8]) -> Result<(), JwtError> {
+    fn verify(&self, data: &[&[u8]], signature: &[u8]) -> Result<(), JoseError> {
         (|| -> anyhow::Result<()> {
             let message_digest = match self.algorithm.hash_algorithm {
                 HashAlgorithm::SHA256 => MessageDigest::sha256(),
@@ -288,7 +299,7 @@ impl<'a> JwsVerifier<EcdsaJwsAlgorithm> for EcdsaJwsVerifier<'a> {
             verifier.verify(signature)?;
             Ok(())
         })()
-        .map_err(|err| JwtError::InvalidSignature(err))
+        .map_err(|err| JoseError::InvalidSignature(err))
     }
 }
 

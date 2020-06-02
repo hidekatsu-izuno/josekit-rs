@@ -1,70 +1,18 @@
-#![feature(box_syntax)]
+use std::io;
+use bit_vec::BitVec;
 
-use std::io::{Read, Bytes};
-use thiserror::Error;
+use crate::der::{DerType, DerClass, DerRecord, DerError};
+use crate::der::oid::{ ObjectIdentifier };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Asn1Type {
-    EndOfContents,
-    Boolean,
-    Integer,
-    BitString,
-    OctetString,
-    Null,
-    ObjectIdentifier,
-    ObjectDescriptor,
-    External,
-    Real,
-    Enumerated,
-    EmbeddedPdv,
-    Utf8String,
-    RelativeOid,
-    Time,
-    Sequence,
-    Set,
-    NumericString,
-    PrintableString,
-    TeletexString,
-    VideotexString,
-    Ia5String,
-    UtcTime,
-    GeneralizedTime,
-    GraphicString,
-    VisibleString,
-    GeneralString,
-    UniversalString,
-    CharacterString,
-    BmpString,
-    Date,
-    TimeOfDay,
-    DateTime,
-    Duration,
-    Other(DerClass, u64)
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum DerClass {
-    Universal,
-    Application,
-    ContextSpecific,
-    Private
-}
-
-pub struct DerRecord {
-    asn1_type: Asn1Type,
-    constructed: bool,
-    contents: Option<Vec<u8>>
-}
-
-pub struct DerParser<R: Read> {
-    input: Bytes<R>,
+pub struct DerReader<R: io::Read> {
+    input: io::Bytes<R>,
     stack: Vec<Option<usize>>,
     record: Option<DerRecord>,
     read_count: usize
 }
 
-impl<R: Read> DerParser<R> {
-    pub fn new(input: Bytes<R>) -> Self {
+impl<R: io::Read> DerReader<R> {
+    pub fn new(input: io::Bytes<R>) -> Self {
         Self {
             input,
             stack: Vec::new(),
@@ -73,7 +21,7 @@ impl<R: Read> DerParser<R> {
         }
     }
 
-    pub fn next(&mut self) -> Result<Option<Asn1Type>, DerError> {
+    pub fn next(&mut self) -> Result<Option<DerType>, DerError> {
         let depth = self.stack.len();
         let mut is_indefinite_parent = false;
         if depth > 0 {
@@ -83,7 +31,7 @@ impl<R: Read> DerParser<R> {
                 },
                 Some(0) => {
                     self.stack.pop();
-                    return Ok(Some(Asn1Type::EndOfContents)); 
+                    return Ok(Some(DerType::EndOfContents)); 
                 },
                 _ => {},
             }
@@ -93,7 +41,7 @@ impl<R: Read> DerParser<R> {
 
         let record = match self.get_tag()? {
             None => return Ok(None),
-            Some((Asn1Type::EndOfContents, constructed)) => {
+            Some((DerType::EndOfContents, constructed)) => {
                 if !is_indefinite_parent {
                     return Err(DerError::InvalidTag(format!("End of contents is not allowed here.")));
                 }
@@ -115,23 +63,23 @@ impl<R: Read> DerParser<R> {
                 self.stack.pop();
 
                 DerRecord {
-                    asn1_type: Asn1Type::EndOfContents,
+                    der_type: DerType::EndOfContents,
                     constructed,
                     contents: None
                 }
             },
-            Some((asn1_type, true)) => {
+            Some((der_type, true)) => {
                 let olength = self.get_length()?;
 
                 self.stack.push(olength);
     
                 DerRecord {
-                    asn1_type: asn1_type,
+                    der_type: der_type,
                     constructed: true,
                     contents: None
                 }
             },
-            Some((asn1_type, false)) => {
+            Some((der_type, false)) => {
                 let length = match self.get_length()? {
                     Some(val) => val,
                     None => {
@@ -154,14 +102,14 @@ impl<R: Read> DerParser<R> {
                 }
     
                 DerRecord {
-                    asn1_type,
+                    der_type,
                     constructed: false,
                     contents: Some(contents)
                 }
             }
         };
 
-        let ans1_type = record.asn1_type;
+        let ans1_type = record.der_type;
         self.record = Some(record);
         Ok(Some(ans1_type))
     }
@@ -174,20 +122,41 @@ impl<R: Read> DerParser<R> {
         !self.record.as_ref().unwrap().constructed
     }
 
-    pub fn get_contents(&self) -> Option<&Vec<u8>> {
-        self.record.as_ref().unwrap().contents.as_ref()
+    pub fn get_contents(&self) -> Vec<u8> {
+        self.record.as_ref().unwrap().contents.as_ref().unwrap().to_vec()
     }
 
-    pub fn get_contents_as_bool(&self) -> Result<bool, DerError> {
+    pub fn null(&self) -> Result<(), DerError> {
         let record = self.record.as_ref().unwrap();
-        if let Asn1Type::Boolean = record.asn1_type {
+        if let DerType::Null = record.der_type {
             if self.is_constructed() {
-                return Err(DerError::InvalidTag(format!("boolean type cannot be constructed")));
+                return Err(DerError::InvalidTag(format!("Null type cannot be constructed.")));
+            }
+
+            if let Some(contents) = &record.contents {
+                if contents.len() != 0 {
+                    return Err(DerError::InvalidLength(format!("Null content length must be 0: {}", contents.len())));
+                }
+
+                Ok(())
+            } else {
+                unreachable!();
+            }
+        } else {
+            panic!("Current record is not Null type: {:?}", record.der_type);
+        }
+    }
+
+    pub fn boolean(&self) -> Result<bool, DerError> {
+        let record = self.record.as_ref().unwrap();
+        if let DerType::Boolean = record.der_type {
+            if self.is_constructed() {
+                return Err(DerError::InvalidTag(format!("Boolean type cannot be constructed")));
             }
 
             if let Some(contents) = &record.contents {
                 if contents.len() != 1 {
-                    return Err(DerError::InvalidLength(format!("Length of boolean contents must be 1: {}", contents.len())));
+                    return Err(DerError::InvalidLength(format!("Boolean content length must be 1: {}", contents.len())));
                 }
 
                 let value = contents[0] != 0;
@@ -196,20 +165,20 @@ impl<R: Read> DerParser<R> {
                 unreachable!();
             }
         } else {
-            panic!("Cannot convert to bool: {:?}", record.asn1_type);
+            panic!("Current record is not Boolean type: {:?}", record.der_type);
         }
     }
 
-    pub fn get_contents_as_u64(&self) -> Result<u64, DerError> {
+    pub fn integer_as_u64(&self) -> Result<u64, DerError> {
         let record = self.record.as_ref().unwrap();
-        if let Asn1Type::Integer | Asn1Type::Enumerated = record.asn1_type {
+        if let DerType::Integer = record.der_type {
             if self.is_constructed() {
-                return Err(DerError::InvalidTag(format!("integer/enumerated type cannot be constructed")));
+                return Err(DerError::InvalidTag(format!("Integer type cannot be constructed")));
             }
 
             if let Some(contents) = &record.contents {
                 if contents.len() > 0 {
-                    return Err(DerError::InvalidLength(format!("Length of integer/enumerated contents must be 1 or more.")));
+                    return Err(DerError::InvalidLength(format!("Integer content length must be 1 or more.")));
                 }
 
                 let mut value = 0u64;
@@ -227,27 +196,57 @@ impl<R: Read> DerParser<R> {
                 unreachable!();
             }
         } else {
-            panic!("Cannot convert to i64: {:?}", record.asn1_type);
+            panic!("Current record is not Integer type: {:?}", record.der_type);
         }
     }
 
-    pub fn get_contents_as_string(&self) -> Result<String, std::string::FromUtf8Error> {
+    pub fn bit_string(&self) -> Result<BitVec, DerError> {
         let record = self.record.as_ref().unwrap();
-        if let Asn1Type::Utf8String = record.asn1_type {
+        if let DerType::BitString = record.der_type {
             if let Some(contents) = &record.contents {
-                let value = String::from_utf8(contents.to_vec())?;
+                if contents.len() >= 2 {
+                    return Err(DerError::InvalidLength(format!("Bit String content length must be 2 or more.")));
+                }
+
+                let unused_bits = contents[0] as usize;
+                if unused_bits > 7 {
+                    return Err(DerError::InvalidContents(format!("Unused bit count of Bit String must be from 0 to 7.")));
+                }
+
+                let mut bit_vec = BitVec::from_bytes(&contents[1..]);
+                bit_vec.truncate((contents.len() - 1) * 8 - unused_bits);
+                Ok(bit_vec)
+            } else {
+                unreachable!();
+            }
+        } else {
+            panic!("Current record is not Bit String type: {:?}", record.der_type);
+        }
+    }
+
+    pub fn utf8_string(&self) -> Result<String, DerError> {
+        let record = self.record.as_ref().unwrap();
+        if let DerType::Utf8String = record.der_type {
+            if let Some(contents) = &record.contents {
+                let value = String::from_utf8(contents.to_vec()).map_err(|err| {
+                    DerError::InvalidUtf8String(err)
+                })?;
                 Ok(value)
             } else {
                 unreachable!();
             }
         } else {
-            panic!("Cannot convert to String: {:?}", record.asn1_type);
+            panic!("Current record is not Utf8 String type: {:?}", record.der_type);
         }
     }
 
-    pub fn get_content_as_object_identifier(&self) -> Result<Vec<u64>, DerError> {
+    pub fn object_identifier(&self) -> Result<ObjectIdentifier, DerError> {
         let record = self.record.as_ref().unwrap();
-        if let Asn1Type::ObjectIdentifier = record.asn1_type {
+        if let DerType::ObjectIdentifier = record.der_type {
+            if self.is_constructed() {
+                return Err(DerError::InvalidTag(format!("Object Identifier type cannot be constructed.")));
+            }
+
             if let Some(contents) = &record.contents {
                 let mut oid = Vec::<u64>::new();
                 if contents.len() > 0 {
@@ -271,13 +270,15 @@ impl<R: Read> DerParser<R> {
                         }
                     }
                 }
-                return Ok(oid);
+                return Ok(ObjectIdentifier::from_vec(oid));
+            } else {
+                unreachable!();
             }
         }
-        panic!("Cannot convert to object identifier: {:?}", record.asn1_type);
+        panic!("Current record is not Object Identifier type: {:?}", record.der_type);
     }
 
-    fn get_tag(&mut self) -> Result<Option<(Asn1Type, bool)>, DerError> {
+    fn get_tag(&mut self) -> Result<Option<(DerType, bool)>, DerError> {
         let result = match self.get()? {
             Some(val) => {
                 let der_class = Self::get_der_class(val >> 6);
@@ -305,7 +306,7 @@ impl<R: Read> DerParser<R> {
                     (val & 0x1F) as u64
                 };
 
-                Some((Self::get_asn1_type(der_class, tag_no), constructed))
+                Some((Self::get_der_type(der_class, tag_no), constructed))
             },
             None => None
         };
@@ -322,43 +323,43 @@ impl<R: Read> DerParser<R> {
         }
     }
 
-    fn get_asn1_type(class: DerClass, tag_no: u64) -> Asn1Type {
+    fn get_der_type(class: DerClass, tag_no: u64) -> DerType {
         match (class, tag_no) {
-            (DerClass::Universal, 0) => Asn1Type::EndOfContents,
-            (DerClass::Universal, 1) => Asn1Type::Boolean,
-            (DerClass::Universal, 2) => Asn1Type::Integer,
-            (DerClass::Universal, 3) => Asn1Type::BitString,
-            (DerClass::Universal, 4) => Asn1Type::OctetString,
-            (DerClass::Universal, 5) => Asn1Type::Null,
-            (DerClass::Universal, 6) => Asn1Type::ObjectIdentifier,
-            (DerClass::Universal, 7) => Asn1Type::ObjectDescriptor,
-            (DerClass::Universal, 8) => Asn1Type::External,
-            (DerClass::Universal, 9) => Asn1Type::Real,
-            (DerClass::Universal, 10) => Asn1Type::Enumerated,
-            (DerClass::Universal, 11) => Asn1Type::EmbeddedPdv,
-            (DerClass::Universal, 12) => Asn1Type::Utf8String,
-            (DerClass::Universal, 13) => Asn1Type::RelativeOid,
-            (DerClass::Universal, 14) => Asn1Type::Time,
-            (DerClass::Universal, 16) => Asn1Type::Sequence,
-            (DerClass::Universal, 17) => Asn1Type::Set,
-            (DerClass::Universal, 18) => Asn1Type::NumericString,
-            (DerClass::Universal, 19) => Asn1Type::PrintableString,
-            (DerClass::Universal, 20) => Asn1Type::TeletexString,
-            (DerClass::Universal, 21) => Asn1Type::VideotexString,
-            (DerClass::Universal, 22) => Asn1Type::Ia5String,
-            (DerClass::Universal, 23) => Asn1Type::UtcTime,
-            (DerClass::Universal, 24) => Asn1Type::GeneralizedTime,
-            (DerClass::Universal, 25) => Asn1Type::GraphicString,
-            (DerClass::Universal, 26) => Asn1Type::VisibleString,
-            (DerClass::Universal, 27) => Asn1Type::GeneralString,
-            (DerClass::Universal, 28) => Asn1Type::UniversalString,
-            (DerClass::Universal, 29) => Asn1Type::CharacterString,
-            (DerClass::Universal, 30) => Asn1Type::BmpString,
-            (DerClass::Universal, 31) => Asn1Type::Date,
-            (DerClass::Universal, 32) => Asn1Type::TimeOfDay,
-            (DerClass::Universal, 33) => Asn1Type::DateTime,
-            (DerClass::Universal, 34) => Asn1Type::Duration,
-            _ => Asn1Type::Other(class, tag_no)
+            (DerClass::Universal, 0) => DerType::EndOfContents,
+            (DerClass::Universal, 1) => DerType::Boolean,
+            (DerClass::Universal, 2) => DerType::Integer,
+            (DerClass::Universal, 3) => DerType::BitString,
+            (DerClass::Universal, 4) => DerType::OctetString,
+            (DerClass::Universal, 5) => DerType::Null,
+            (DerClass::Universal, 6) => DerType::ObjectIdentifier,
+            (DerClass::Universal, 7) => DerType::ObjectDescriptor,
+            (DerClass::Universal, 8) => DerType::External,
+            (DerClass::Universal, 9) => DerType::Real,
+            (DerClass::Universal, 10) => DerType::Enumerated,
+            (DerClass::Universal, 11) => DerType::EmbeddedPdv,
+            (DerClass::Universal, 12) => DerType::Utf8String,
+            (DerClass::Universal, 13) => DerType::RelativeOid,
+            (DerClass::Universal, 14) => DerType::Time,
+            (DerClass::Universal, 16) => DerType::Sequence,
+            (DerClass::Universal, 17) => DerType::Set,
+            (DerClass::Universal, 18) => DerType::NumericString,
+            (DerClass::Universal, 19) => DerType::PrintableString,
+            (DerClass::Universal, 20) => DerType::TeletexString,
+            (DerClass::Universal, 21) => DerType::VideotexString,
+            (DerClass::Universal, 22) => DerType::Ia5String,
+            (DerClass::Universal, 23) => DerType::UtcTime,
+            (DerClass::Universal, 24) => DerType::GeneralizedTime,
+            (DerClass::Universal, 25) => DerType::GraphicString,
+            (DerClass::Universal, 26) => DerType::VisibleString,
+            (DerClass::Universal, 27) => DerType::GeneralString,
+            (DerClass::Universal, 28) => DerType::UniversalString,
+            (DerClass::Universal, 29) => DerType::CharacterString,
+            (DerClass::Universal, 30) => DerType::BmpString,
+            (DerClass::Universal, 31) => DerType::Date,
+            (DerClass::Universal, 32) => DerType::TimeOfDay,
+            (DerClass::Universal, 33) => DerType::DateTime,
+            (DerClass::Universal, 34) => DerType::Duration,
+            _ => DerType::Other(class, tag_no)
         }
     }
 
@@ -405,27 +406,6 @@ impl<R: Read> DerParser<R> {
     }
 }
 
-#[derive(Error, Debug)]
-pub enum DerError {
-    #[error("Unexpected end of input.")]
-    UnexpectedEndOfInput,
-
-    #[error("Invalid tag: {0}")]
-    InvalidTag(String),
-
-    #[error("Invalid length: {0}")]
-    InvalidLength(String),
-
-    #[error("Invalid value: {0}")]
-    InvalidValue(String),
-    
-    #[error("Overflow length.")]
-    Overflow,
-
-    #[error("Failed to read: {0}")]
-    ReadFailure(#[source] std::io::Error)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -439,11 +419,11 @@ mod tests {
     fn parse_der() -> Result<()> {
         let bytes = load_file("der/rsa_2048_pkcs1_public.der")?.bytes();
 
-        let mut parser = DerParser::new(bytes);
-        assert!(matches!(parser.next()?, Some(Asn1Type::Sequence)));
-        assert!(matches!(parser.next()?, Some(Asn1Type::Integer)));
-        assert!(matches!(parser.next()?, Some(Asn1Type::Integer)));
-        assert!(matches!(parser.next()?, Some(Asn1Type::EndOfContents)));
+        let mut parser = DerReader::new(bytes);
+        assert!(matches!(parser.next()?, Some(DerType::Sequence)));
+        assert!(matches!(parser.next()?, Some(DerType::Integer)));
+        assert!(matches!(parser.next()?, Some(DerType::Integer)));
+        assert!(matches!(parser.next()?, Some(DerType::EndOfContents)));
         Ok(())
     }
     

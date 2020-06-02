@@ -6,7 +6,7 @@ use serde_json::{json, Map};
 use chrono::{DateTime, Utc};
 
 use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier };
-use crate::error::JwtError;
+use crate::error::JoseError;
 
 /// Represents any valid JSON value.
 ///
@@ -36,7 +36,7 @@ impl Jwt {
     ///
     /// # Arguments
     /// * `input` - JWT text.
-    pub fn decode_with_none(input: &str) -> Result<Self, JwtError> {
+    pub fn decode_with_none(input: &str) -> Result<Self, JoseError> {
         (|| -> anyhow::Result<Self> {
             let parts: Vec<&str> = input.split('.').collect();
             if parts.len() != 2 {
@@ -68,7 +68,7 @@ impl Jwt {
 
             Ok(jwt)
         })()
-        .map_err(|err| JwtError::InvalidJwtFormat(err))
+        .map_err(|err| JoseError::InvalidJwtFormat(err))
     }
 
     /// Return a JWT Object that is decoded the input with a signing algorithm.
@@ -79,8 +79,8 @@ impl Jwt {
     pub fn decode_with_verifier<T: JwsAlgorithm>(
         input: &str,
         verifier: &impl JwsVerifier<T>,
-    ) -> Result<Self, JwtError> {
-        (|| -> anyhow::Result<Result<Jwt, JwtError>> {
+    ) -> Result<Self, JoseError> {
+        (|| -> anyhow::Result<Result<Jwt, JoseError>> {
             let parts: Vec<&str> = input.split('.').collect();
             if parts.len() != 3 {
                 bail!("JWT must be three parts separated by colon.");
@@ -119,7 +119,7 @@ impl Jwt {
                 )
                 .map(|_| jwt))
         })()
-        .map_err(|err| JwtError::InvalidJwtFormat(err))?
+        .map_err(|err| JoseError::InvalidJwtFormat(err))?
     }
 
     /// Return a JWT Object that is decoded the input with a signing algorithm.
@@ -130,12 +130,12 @@ impl Jwt {
     pub fn decode_with_verifier_selector<'a, T, F>(
         input: &str,
         verifier_selector: F,
-    ) -> Result<Self, JwtError>
+    ) -> Result<Self, JoseError>
     where
         T: JwsAlgorithm + 'a,
         F: FnOnce(&Jwt) -> Box<&'a dyn JwsVerifier<T>>,
     {
-        (|| -> anyhow::Result<Result<Jwt, JwtError>> {
+        (|| -> anyhow::Result<Result<Jwt, JoseError>> {
             let parts: Vec<&str> = input.split('.').collect();
             if parts.len() != 2 && parts.len() != 3 {
                 bail!("JWT must be two or three parts separated by colon.");
@@ -190,7 +190,7 @@ impl Jwt {
                 )
                 .map(|_| jwt))
         })()
-        .map_err(|err| JwtError::InvalidJwtFormat(err))?
+        .map_err(|err| JoseError::InvalidJwtFormat(err))?
     }
 
     /// Set a value for token type header claim (typ).
@@ -531,7 +531,7 @@ impl Jwt {
     }
 
     /// Return a JWT text that is decoded with a "none" algorithm.
-    pub fn encode_with_none(&self) -> Result<String, JwtError> {
+    pub fn encode_with_none(&self) -> Result<String, JoseError> {
         let alg_key = "alg".to_string();
         let mut new_header;
         let header = match &self.header.get(&alg_key) {
@@ -560,7 +560,7 @@ impl Jwt {
     pub fn encode_with_signer<T: JwsAlgorithm>(
         &self,
         signer: &impl JwsSigner<T>,
-    ) -> Result<String, JwtError> {
+    ) -> Result<String, JoseError> {
         let name = signer.algorithm().name();
 
         let mut header = self.header.clone();
@@ -803,7 +803,7 @@ impl JwtValidator {
     ///
     /// # Arguments
     /// * `jwt` - A decoded JWT
-    pub fn validate(&self, jwt: &Jwt) -> Result<(), JwtError> {
+    pub fn validate(&self, jwt: &Jwt) -> Result<(), JoseError> {
         (|| -> anyhow::Result<()> {
             let now = SystemTime::now();
             let current_time = self.base_time().unwrap_or(now);
@@ -844,7 +844,7 @@ impl JwtValidator {
 
             Ok(())
         })()
-        .map_err(|err| JwtError::InvalidClaim(err))
+        .map_err(|err| JoseError::InvalidClaim(err))
     }
 }
 

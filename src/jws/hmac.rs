@@ -7,7 +7,7 @@ use serde_json::{Map, Value};
 
 use crate::jws::{JwsAlgorithm, HashAlgorithm, JwsSigner, JwsVerifier};
 use crate::jws::util::{json_eq, json_base64_bytes};
-use crate::error::JwtError;
+use crate::error::JoseError;
 
 /// HMAC using SHA-256
 pub const HS256: HmacJwsAlgorithm = HmacJwsAlgorithm::new("HS256", HashAlgorithm::SHA256);
@@ -43,7 +43,7 @@ impl HmacJwsAlgorithm {
     pub fn signer_from_jwk<'a>(
         &'a self,
         jwk_str: &[u8],
-    ) -> Result<impl JwsSigner<Self> + JwsVerifier<Self> + 'a, JwtError> {
+    ) -> Result<impl JwsSigner<Self> + JwsVerifier<Self> + 'a, JoseError> {
         let key_data = (|| -> anyhow::Result<Vec<u8>> {
             let map: Map<String, Value> = serde_json::from_slice(jwk_str)?;
 
@@ -54,7 +54,7 @@ impl HmacJwsAlgorithm {
             
             Ok(key_data)
         })()
-        .map_err(|err| JwtError::InvalidKeyFormat(err))?;
+        .map_err(|err| JoseError::InvalidKeyFormat(err))?;
 
         self.signer_from_slice(&key_data)
     }
@@ -66,9 +66,9 @@ impl HmacJwsAlgorithm {
     pub fn signer_from_slice<'a>(
         &'a self,
         data: &[u8],
-    ) -> Result<impl JwsSigner<Self> + JwsVerifier<Self> + 'a, JwtError> {
+    ) -> Result<impl JwsSigner<Self> + JwsVerifier<Self> + 'a, JoseError> {
         PKey::hmac(&data)
-            .map_err(|err| JwtError::InvalidKeyFormat(anyhow!(err)))
+            .map_err(|err| JoseError::InvalidKeyFormat(anyhow!(err)))
             .map(|val| HmacJwsSigner {
                 algorithm: &self,
                 private_key: val,
@@ -92,7 +92,7 @@ impl<'a> JwsSigner<HmacJwsAlgorithm> for HmacJwsSigner<'a> {
         &self.algorithm
     }
 
-    fn sign(&self, data: &[&[u8]]) -> Result<Vec<u8>, JwtError> {
+    fn sign(&self, data: &[&[u8]]) -> Result<Vec<u8>, JoseError> {
         (|| -> anyhow::Result<Vec<u8>> {
             let message_digest = match self.algorithm.hash_algorithm {
                 HashAlgorithm::SHA256 => MessageDigest::sha256(),
@@ -107,7 +107,7 @@ impl<'a> JwsSigner<HmacJwsAlgorithm> for HmacJwsSigner<'a> {
             let signature = signer.sign_to_vec()?;
             Ok(signature)
         })()
-        .map_err(|err| JwtError::InvalidSignature(err))
+        .map_err(|err| JoseError::InvalidSignature(err))
     }
 }
 
@@ -116,7 +116,7 @@ impl<'a> JwsVerifier<HmacJwsAlgorithm> for HmacJwsSigner<'a> {
         &self.algorithm
     }
 
-    fn verify(&self, data: &[&[u8]], signature: &[u8]) -> Result<(), JwtError> {
+    fn verify(&self, data: &[&[u8]], signature: &[u8]) -> Result<(), JoseError> {
         (|| -> anyhow::Result<()> {
             let message_digest = match self.algorithm.hash_algorithm {
                 HashAlgorithm::SHA256 => MessageDigest::sha256(),
@@ -134,7 +134,7 @@ impl<'a> JwsVerifier<HmacJwsAlgorithm> for HmacJwsSigner<'a> {
             }
             Ok(())
         })()
-        .map_err(|err| JwtError::InvalidSignature(err))
+        .map_err(|err| JoseError::InvalidSignature(err))
     }
 }
 

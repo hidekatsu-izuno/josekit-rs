@@ -1,10 +1,9 @@
 pub mod ecdsa;
 pub mod hmac;
 pub mod rsa;
-mod der;
 mod util;
 
-use crate::error::JwtError;
+use crate::error::JoseError;
 
 pub use crate::jws::hmac::HS256;
 pub use crate::jws::hmac::HS384;
@@ -44,7 +43,7 @@ pub trait JwsSigner<T: JwsAlgorithm> {
     ///
     /// # Arguments
     /// * `data` - The data to sign.
-    fn sign(&self, data: &[&[u8]]) -> Result<Vec<u8>, JwtError>;
+    fn sign(&self, data: &[&[u8]]) -> Result<Vec<u8>, JoseError>;
 }
 
 pub trait JwsVerifier<T: JwsAlgorithm> {
@@ -56,5 +55,5 @@ pub trait JwsVerifier<T: JwsAlgorithm> {
     /// # Arguments
     /// * `data` - The data to verify.
     /// * `signature` - The signature data.
-    fn verify(&self, data: &[&[u8]], signature: &[u8]) -> Result<(), JwtError>;
+    fn verify(&self, data: &[&[u8]], signature: &[u8]) -> Result<(), JoseError>;
 }

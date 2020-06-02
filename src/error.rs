@@ -1,7 +1,7 @@
 use thiserror::Error;
 
 #[derive(Error, Debug)]
-pub enum JwtError {
+pub enum JoseError {
     #[error("Unsupported signature algorithm: {0}")]
     UnsupportedSignatureAlgorithm(#[source] anyhow::Error),
 

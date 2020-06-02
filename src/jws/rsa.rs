@@ -1,4 +1,4 @@
-use anyhow::{anyhow, bail};
+use anyhow::bail;
 use openssl::hash::MessageDigest;
 use openssl::pkey::{HasPublic, PKey, Private, Public};
 use openssl::rsa::Rsa;
@@ -8,7 +8,7 @@ use serde_json::{Map, Value};
 
 use crate::jws::{JwsAlgorithm, HashAlgorithm, JwsSigner, JwsVerifier};
 use crate::jws::util::{json_eq, json_base64_bytes};
-use crate::error::JwtError;
+use crate::error::JoseError;
 
 /// RSASSA-PKCS1-v1_5 using SHA-256
 pub const RS256: RsaJwsAlgorithm = RsaJwsAlgorithm::new("RS256", HashAlgorithm::SHA256);
@@ -54,7 +54,7 @@ impl RsaJwsAlgorithm {
     pub fn signer_from_jwk<'a>(
         &'a self,
         data: &[u8],
-    ) -> Result<impl JwsSigner<Self> + 'a, JwtError> {
+    ) -> Result<impl JwsSigner<Self> + 'a, JoseError> {
         (|| -> anyhow::Result<RsaJwsSigner> {
             let map: Map<String, Value> = serde_json::from_slice(data)?;
 
@@ -70,7 +70,7 @@ impl RsaJwsAlgorithm {
             let dq = json_base64_bytes(&map, "dq")?;
             let qi = json_base64_bytes(&map, "qi")?;
 
-            Rsa::from_private_components(
+            let pkey = Rsa::from_private_components(
                 BigNum::from_slice(&n)?,
                 BigNum::from_slice(&e)?,
                 BigNum::from_slice(&d)?,
@@ -79,15 +79,15 @@ impl RsaJwsAlgorithm {
                 BigNum::from_slice(&dp)?,
                 BigNum::from_slice(&dq)?,
                 BigNum::from_slice(&qi)?
-            )
-                .and_then(|val| PKey::from_rsa(val))
-                .map_err(|err| anyhow!(err))
-                .map(|val| RsaJwsSigner {
-                    algorithm: &self,
-                    private_key: val,
-                })
-        })()
-        .map_err(|err| JwtError::InvalidKeyFormat(err))
+            ).and_then(|val| PKey::from_rsa(val))?;
+
+            self.check_key(&pkey)?;
+
+            Ok(RsaJwsSigner {
+                algorithm: &self,
+                private_key: pkey,
+            })
+        })().map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
     /// Return a signer from a private key of PKCS#1 or PKCS#8 PEM format.
@@ -97,19 +97,22 @@ impl RsaJwsAlgorithm {
     pub fn signer_from_pem<'a>(
         &'a self,
         data: &[u8],
-    ) -> Result<impl JwsSigner<Self> + 'a, JwtError> {
-        PKey::private_key_from_pem(&data)
-            .or_else(|err| {
-                Rsa::private_key_from_pem(&data)
-                    .and_then(|val| PKey::from_rsa(val))
-                    .map_err(|_| anyhow!(err))
-            })
-            .and_then(|pkey| (&self).check_key(pkey))
-            .map_err(|err| JwtError::InvalidKeyFormat(err))
-            .map(|val| RsaJwsSigner {
+    ) -> Result<impl JwsSigner<Self> + 'a, JoseError> {
+        (|| -> anyhow::Result<RsaJwsSigner> {
+            let pkey = PKey::private_key_from_pem(&data)
+                .or_else(|err| {
+                    Rsa::private_key_from_pem(&data)
+                        .and_then(|val| PKey::from_rsa(val))
+                        .map_err(|_| err)
+                })?;
+
+            self.check_key(&pkey)?;
+
+            Ok(RsaJwsSigner {
                 algorithm: &self,
-                private_key: val,
+                private_key: pkey,
             })
+        })().map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
     /// Return a signer from a private key of PKCS#1 or PKCS#8 DER format.
@@ -119,19 +122,22 @@ impl RsaJwsAlgorithm {
     pub fn signer_from_der<'a>(
         &'a self,
         data: &[u8],
-    ) -> Result<impl JwsSigner<Self> + 'a, JwtError> {
-        PKey::private_key_from_der(&data)
-            .or_else(|err| {
-                Rsa::private_key_from_der(&data)
-                    .and_then(|val| PKey::from_rsa(val))
-                    .map_err(|_| anyhow!(err))
-            })
-            .and_then(|pkey| (&self).check_key(pkey))
-            .map_err(|err| JwtError::InvalidKeyFormat(err))
-            .map(|val| RsaJwsSigner {
+    ) -> Result<impl JwsSigner<Self> + 'a, JoseError> {
+        (|| -> anyhow::Result<RsaJwsSigner> {
+            let pkey = PKey::private_key_from_der(&data)
+                .or_else(|err| {
+                    Rsa::private_key_from_der(&data)
+                        .and_then(|val| PKey::from_rsa(val))
+                        .map_err(|_| err)
+                })?;
+
+            self.check_key(&pkey)?;
+
+            Ok(RsaJwsSigner {
                 algorithm: &self,
-                private_key: val,
+                private_key: pkey,
             })
+        })().map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
     /// Return a verifier from a key of JWK format.
@@ -141,7 +147,7 @@ impl RsaJwsAlgorithm {
     pub fn verifier_from_jwk<'a>(
         &'a self,
         data: &[u8],
-    ) -> Result<impl JwsVerifier<Self> + 'a, JwtError> {
+    ) -> Result<impl JwsVerifier<Self> + 'a, JoseError> {
         (|| -> anyhow::Result<RsaJwsVerifier> {
             let map: Map<String, Value> = serde_json::from_slice(data)?;
 
@@ -151,18 +157,18 @@ impl RsaJwsAlgorithm {
             let n = json_base64_bytes(&map, "n")?;
             let e = json_base64_bytes(&map, "e")?;
 
-            Rsa::from_public_components(
+            let pkey = Rsa::from_public_components(
                 BigNum::from_slice(&n)?,
                 BigNum::from_slice(&e)?,
-            )
-                .and_then(|val| PKey::from_rsa(val))
-                .map_err(|err| anyhow!(err))
-                .map(|val| RsaJwsVerifier {
-                    algorithm: &self,
-                    public_key: val,
-                })
-        })()
-        .map_err(|err| JwtError::InvalidKeyFormat(err))
+            ).and_then(|val| PKey::from_rsa(val))?;
+
+            self.check_key(&pkey)?;
+
+            Ok(RsaJwsVerifier {
+                algorithm: &self,
+                public_key: pkey,
+            })
+        })().map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
     /// Return a verifier from a public key of PKCS#1 or PKCS#8 PEM format.
@@ -172,19 +178,22 @@ impl RsaJwsAlgorithm {
     pub fn verifier_from_pem<'a>(
         &'a self,
         data: &[u8],
-    ) -> Result<impl JwsVerifier<Self> + 'a, JwtError> {
-        PKey::public_key_from_pem(&data)
-            .or_else(|err| {
-                Rsa::public_key_from_pem_pkcs1(&data)
-                    .and_then(|val| PKey::from_rsa(val))
-                    .map_err(|_| anyhow!(err))
-            })
-            .and_then(|pkey| (&self).check_key(pkey))
-            .map_err(|err| JwtError::InvalidKeyFormat(err))
-            .map(|val| RsaJwsVerifier {
+    ) -> Result<impl JwsVerifier<Self> + 'a, JoseError> {
+        (|| -> anyhow::Result<RsaJwsVerifier> {
+            let pkey = PKey::public_key_from_pem(&data)
+                .or_else(|err| {
+                    Rsa::public_key_from_pem_pkcs1(&data)
+                        .and_then(|val| PKey::from_rsa(val))
+                        .map_err(|_| err)
+                })?;
+
+            self.check_key(&pkey)?;
+
+            Ok(RsaJwsVerifier {
                 algorithm: &self,
-                public_key: val,
+                public_key: pkey,
             })
+        })().map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
     /// Return a verifier from a public key of PKCS#1 or PKCS#8 DER format.
@@ -194,22 +203,25 @@ impl RsaJwsAlgorithm {
     pub fn verifier_from_der<'a>(
         &'a self,
         data: &[u8],
-    ) -> Result<impl JwsVerifier<Self> + 'a, JwtError> {
-        PKey::public_key_from_der(&data)
-            .or_else(|err| {
-                Rsa::public_key_from_der_pkcs1(&data)
-                    .and_then(|val| PKey::from_rsa(val))
-                    .map_err(|_| anyhow!(err))
-            })
-            .and_then(|pkey| (&self).check_key(pkey))
-            .map_err(|err| JwtError::InvalidKeyFormat(err))
-            .map(|val| RsaJwsVerifier {
+    ) -> Result<impl JwsVerifier<Self> + 'a, JoseError> {
+        (|| -> anyhow::Result<RsaJwsVerifier> {
+            let pkey = PKey::public_key_from_der(&data)
+                .or_else(|err| {
+                    Rsa::public_key_from_der_pkcs1(&data)
+                        .and_then(|val| PKey::from_rsa(val))
+                        .map_err(|_| err)
+                })?;
+
+            self.check_key(&pkey)?;
+
+            Ok(RsaJwsVerifier {
                 algorithm: &self,
-                public_key: val,
+                public_key: pkey,
             })
+        })().map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
-    fn check_key<T>(&self, pkey: PKey<T>) -> anyhow::Result<PKey<T>>
+    fn check_key<T>(&self, pkey: &PKey<T>) -> anyhow::Result<()>
     where
         T: HasPublic,
     {
@@ -219,7 +231,7 @@ impl RsaJwsAlgorithm {
             bail!("key length must be 2048 or more.");
         }
 
-        Ok(pkey)
+        Ok(())
     }
 }
 
@@ -239,7 +251,7 @@ impl<'a> JwsSigner<RsaJwsAlgorithm> for RsaJwsSigner<'a> {
         &self.algorithm
     }
 
-    fn sign(&self, data: &[&[u8]]) -> Result<Vec<u8>, JwtError> {
+    fn sign(&self, data: &[&[u8]]) -> Result<Vec<u8>, JoseError> {
         (|| -> anyhow::Result<Vec<u8>> {
             let message_digest = match self.algorithm.hash_algorithm {
                 HashAlgorithm::SHA256 => MessageDigest::sha256(),
@@ -254,7 +266,7 @@ impl<'a> JwsSigner<RsaJwsAlgorithm> for RsaJwsSigner<'a> {
             let signature = signer.sign_to_vec()?;
             Ok(signature)
         })()
-        .map_err(|err| JwtError::InvalidSignature(err))
+        .map_err(|err| JoseError::InvalidSignature(err))
     }
 }
 
@@ -268,7 +280,7 @@ impl<'a> JwsVerifier<RsaJwsAlgorithm> for RsaJwsVerifier<'a> {
         &self.algorithm
     }
 
-    fn verify(&self, data: &[&[u8]], signature: &[u8]) -> Result<(), JwtError> {
+    fn verify(&self, data: &[&[u8]], signature: &[u8]) -> Result<(), JoseError> {
         (|| -> anyhow::Result<()> {
             let message_digest = match self.algorithm.hash_algorithm {
                 HashAlgorithm::SHA256 => MessageDigest::sha256(),
@@ -283,7 +295,7 @@ impl<'a> JwsVerifier<RsaJwsAlgorithm> for RsaJwsVerifier<'a> {
             verifier.verify(signature)?;
             Ok(())
         })()
-        .map_err(|err| JwtError::InvalidSignature(err))
+        .map_err(|err| JoseError::InvalidSignature(err))
     }
 }
 
