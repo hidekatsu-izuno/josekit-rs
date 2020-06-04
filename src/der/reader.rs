@@ -7,7 +7,9 @@ use crate::der::oid::{ ObjectIdentifier };
 pub struct DerReader<R: io::Read> {
     input: io::Bytes<R>,
     stack: Vec<Option<usize>>,
-    record: Option<DerRecord>,
+    der_type: DerType,
+    constructed: bool,
+    contents: Option<Vec<u8>>,
     read_count: usize
 }
 
@@ -16,7 +18,9 @@ impl<R: io::Read> DerReader<R> {
         Self {
             input,
             stack: Vec::new(),
-            record: None,
+            der_type: DerType::EndOfContents,
+            constructed: false,
+            contents: None,
             read_count: 0
         }
     }
@@ -47,7 +51,7 @@ impl<R: io::Read> DerReader<R> {
                 }
 
                 if constructed {
-                    return Err(DerError::InvalidTag(format!("End of contents type must not be constructed.")));
+                    return Err(DerError::InvalidTag(format!("End of contents type cannot be constructed.")));
                 }
                 
                 match self.get_length()? {
@@ -69,6 +73,10 @@ impl<R: io::Read> DerReader<R> {
                 }
             },
             Some((der_type, true)) => {
+                if !der_type.can_constructed() {
+                    return Err(DerError::InvalidTag(format!("{} type cannot be constructed.", der_type)));
+                }
+
                 let olength = self.get_length()?;
 
                 self.stack.push(olength);
@@ -80,6 +88,10 @@ impl<R: io::Read> DerReader<R> {
                 }
             },
             Some((der_type, false)) => {
+                if !der_type.can_primitive() {
+                    return Err(DerError::InvalidTag(format!("{} type cannot be primitive.", der_type)));
+                }
+
                 let length = match self.get_length()? {
                     Some(val) => val,
                     None => {
@@ -109,31 +121,30 @@ impl<R: io::Read> DerReader<R> {
             }
         };
 
-        let ans1_type = record.der_type;
-        self.record = Some(record);
-        Ok(Some(ans1_type))
+        self.der_type = record.der_type;
+        self.constructed = record.constructed;
+        self.contents = record.contents;
+        Ok(Some(self.der_type))
     }
 
     pub fn is_constructed(&self) -> bool {
-        self.record.as_ref().unwrap().constructed
+        self.constructed
     }
 
     pub fn is_primitive(&self) -> bool {
-        !self.record.as_ref().unwrap().constructed
+        !self.constructed
     }
 
-    pub fn to_vec(&self) -> Vec<u8> {
-        self.record.as_ref().unwrap().contents.as_ref().unwrap().to_vec()
+    pub fn contents(&self) -> Option<&[u8]> {
+        match &self.contents {
+            Some(val) => Some(val),
+            None => None
+        }
     }
 
     pub fn to_null(&self) -> Result<(), DerError> {
-        let record = self.record.as_ref().unwrap();
-        if let DerType::Null = record.der_type {
-            if self.is_constructed() {
-                return Err(DerError::InvalidTag(format!("Null type cannot be constructed.")));
-            }
-
-            if let Some(contents) = &record.contents {
+        if let DerType::Null = self.der_type {
+            if let Some(contents) = &self.contents {
                 if contents.len() != 0 {
                     return Err(DerError::InvalidLength(format!("Null content length must be 0: {}", contents.len())));
                 }
@@ -143,18 +154,13 @@ impl<R: io::Read> DerReader<R> {
                 unreachable!();
             }
         } else {
-            panic!("{} type is not supported to convert to null.", record.der_type);
+            panic!("{} type is not supported to convert to null.", self.der_type);
         }
     }
 
     pub fn to_boolean(&self) -> Result<bool, DerError> {
-        let record = self.record.as_ref().unwrap();
-        if let DerType::Boolean = record.der_type {
-            if self.is_constructed() {
-                return Err(DerError::InvalidTag(format!("Boolean type cannot be constructed")));
-            }
-
-            if let Some(contents) = &record.contents {
+        if let DerType::Boolean = self.der_type {
+            if let Some(contents) = &self.contents {
                 if contents.len() != 1 {
                     return Err(DerError::InvalidLength(format!("Boolean content length must be 1: {}", contents.len())));
                 }
@@ -165,20 +171,15 @@ impl<R: io::Read> DerReader<R> {
                 unreachable!();
             }
         } else {
-            panic!("{} type is not supported to convert to bool.", record.der_type);
+            panic!("{} type is not supported to convert to bool.", self.der_type);
         }
     }
 
     pub fn to_u64(&self) -> Result<u64, DerError> {
-        let record = self.record.as_ref().unwrap();
-        if let DerType::Integer | DerType::Enumerated = record.der_type {
-            if self.is_constructed() {
-                return Err(DerError::InvalidTag(format!("{} type cannot be constructed", record.der_type)));
-            }
-
-            if let Some(contents) = &record.contents {
+        if let DerType::Integer | DerType::Enumerated = self.der_type {
+            if let Some(contents) = &self.contents {
                 if contents.len() > 0 {
-                    return Err(DerError::InvalidLength(format!("{} content length must be 1 or more.", record.der_type)));
+                    return Err(DerError::InvalidLength(format!("{} content length must be 1 or more.", self.der_type)));
                 }
 
                 let mut value = 0u64;
@@ -196,14 +197,13 @@ impl<R: io::Read> DerReader<R> {
                 unreachable!();
             }
         } else {
-            panic!("{} type is not supported to convert to u64.", record.der_type);
+            panic!("{} type is not supported to convert to u64.", self.der_type);
         }
     }
 
     pub fn to_bit_vec(&self) -> Result<BitVec, DerError> {
-        let record = self.record.as_ref().unwrap();
-        if let DerType::BitString = record.der_type {
-            if let Some(contents) = &record.contents {
+        if let DerType::BitString = self.der_type {
+            if let Some(contents) = &self.contents {
                 if contents.len() >= 2 {
                     return Err(DerError::InvalidLength(format!("Bit String content length must be 2 or more.")));
                 }
@@ -220,14 +220,13 @@ impl<R: io::Read> DerReader<R> {
                 unreachable!();
             }
         } else {
-            panic!("{} type is not supported to convert to BitVec", record.der_type);
+            panic!("{} type is not supported to convert to BitVec", self.der_type);
         }
     }
 
     pub fn to_string(&self) -> Result<String, DerError> {
-        let record = self.record.as_ref().unwrap();
-        if let DerType::Utf8String = record.der_type {
-            if let Some(contents) = &record.contents {
+        if let DerType::Utf8String = self.der_type {
+            if let Some(contents) = &self.contents {
                 let value = String::from_utf8(contents.to_vec()).map_err(|err| {
                     DerError::InvalidUtf8String(err)
                 })?;
@@ -236,18 +235,13 @@ impl<R: io::Read> DerReader<R> {
                 unreachable!();
             }
         } else {
-            panic!("{} type is not supported to convert to String.", record.der_type);
+            panic!("{} type is not supported to convert to String.", self.der_type);
         }
     }
 
     pub fn to_object_identifier(&self) -> Result<ObjectIdentifier, DerError> {
-        let record = self.record.as_ref().unwrap();
-        if let DerType::ObjectIdentifier = record.der_type {
-            if self.is_constructed() {
-                return Err(DerError::InvalidTag(format!("Object Identifier type cannot be constructed.")));
-            }
-
-            if let Some(contents) = &record.contents {
+        if let DerType::ObjectIdentifier = self.der_type {
+            if let Some(contents) = &self.contents {
                 let mut oid = Vec::<u64>::new();
                 if contents.len() > 0 {
                     let b0 = contents[0];
@@ -275,7 +269,7 @@ impl<R: io::Read> DerReader<R> {
                 unreachable!();
             }
         }
-        panic!("{} type is not supported to convert to ObjectIdentifier.", record.der_type);
+        panic!("{} type is not supported to convert to ObjectIdentifier.", self.der_type);
     }
 
     fn get_tag(&mut self) -> Result<Option<(DerType, bool)>, DerError> {

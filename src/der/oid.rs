@@ -21,6 +21,28 @@ impl ObjectIdentifier {
     }
 }
 
+impl PartialEq<&str> for ObjectIdentifier {
+    fn eq(&self, other: &&str) -> bool {
+        let mut vec: Vec<u64> = Vec::new();
+        for val in other.split(".") {
+            match val.parse() {
+                Ok(nval) => vec.push(nval),
+                Err(_) => return false
+            }
+        }
+        self.vec == vec
+    }
+}
+
+impl std::fmt::Display for ObjectIdentifier {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}", self.vec.iter()
+            .map(|val| val.to_string())
+            .collect::<Vec<String>>()
+            .join("."))
+    }
+}
+
 #[macro_export]
 macro_rules! oid {
     ( $( $x:expr ),* ) => {

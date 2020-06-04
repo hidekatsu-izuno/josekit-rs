@@ -1,4 +1,5 @@
 use anyhow::bail;
+use std::io::Read;
 use openssl::hash::MessageDigest;
 use openssl::pkey::{HasPublic, PKey, Private, Public};
 use openssl::rsa::Rsa;
@@ -8,6 +9,7 @@ use serde_json::{Map, Value};
 
 use crate::jws::{JwsAlgorithm, HashAlgorithm, JwsSigner, JwsVerifier};
 use crate::jws::util::{json_eq, json_base64_bytes};
+use crate::der::{DerReader, DerType, DerError};
 use crate::error::JoseError;
 
 /// RSASSA-PKCS1-v1_5 using SHA-256
@@ -121,16 +123,18 @@ impl RsaJwsAlgorithm {
     /// * `data` - A private key of PKCS#1 or PKCS#8 DER format.
     pub fn signer_from_der<'a>(
         &'a self,
-        data: &[u8],
+        data: &'a [u8],
     ) -> Result<impl JwsSigner<Self> + 'a, JoseError> {
         (|| -> anyhow::Result<RsaJwsSigner> {
-            let pkey = PKey::private_key_from_der(&data)
-                .or_else(|err| {
-                    Rsa::private_key_from_der(&data)
-                        .and_then(|val| PKey::from_rsa(val))
-                        .map_err(|_| err)
-                })?;
+            let tmp_data;
+            let input = if Self::is_pkcs8(data) {
+                data
+            } else {
+                tmp_data = Self::to_pkcs8(data);
+                &tmp_data
+            };
 
+            let pkey = PKey::private_key_from_der(&input)?;
             self.check_key(&pkey)?;
 
             Ok(RsaJwsSigner {
@@ -205,13 +209,15 @@ impl RsaJwsAlgorithm {
         data: &[u8],
     ) -> Result<impl JwsVerifier<Self> + 'a, JoseError> {
         (|| -> anyhow::Result<RsaJwsVerifier> {
-            let pkey = PKey::public_key_from_der(&data)
-                .or_else(|err| {
-                    Rsa::public_key_from_der_pkcs1(&data)
-                        .and_then(|val| PKey::from_rsa(val))
-                        .map_err(|_| err)
-                })?;
+            let tmp_data;
+            let input = if Self::is_pkcs8(data) {
+                data
+            } else {
+                tmp_data = Self::to_pkcs8(data);
+                &tmp_data
+            };
 
+            let pkey = PKey::public_key_from_der(&input)?;
             self.check_key(&pkey)?;
 
             Ok(RsaJwsVerifier {
@@ -232,6 +238,48 @@ impl RsaJwsAlgorithm {
         }
 
         Ok(())
+    }
+
+    fn is_pkcs8(input: &[u8]) -> bool {
+        let mut reader = DerReader::new(input.bytes());
+
+        (|| -> Result<bool, DerError> {
+            match reader.next()? {
+                Some(DerType::Sequence) => {},
+                _ => return Ok(false)
+            }
+
+            // Version
+            match reader.next()? {
+                Some(DerType::Integer) => {},
+                _ => return Ok(false)
+            }
+
+            match reader.next()? {
+                Some(DerType::Sequence) => {},
+                _ => return Ok(false)
+            }
+
+            match reader.next()? {
+                Some(DerType::ObjectIdentifier) => {
+                    match reader.to_object_identifier() {
+                        Ok(val) => {
+                            if val != "1.2.840.113549.1.1.1" {
+                                return Ok(false)
+                            }
+                        },
+                        Err(_) => return Ok(false)
+                    }
+                },
+                _ => return Ok(false)
+            }
+
+            Ok(true)
+        })().unwrap_or(false)
+    }
+
+    fn to_pkcs8(data: &[u8]) -> Vec<u8> {
+        Vec::new()
     }
 }
 
