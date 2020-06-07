@@ -1,6 +1,7 @@
-pub mod ecdsa;
 pub mod hmac;
 pub mod rsa;
+pub mod ecdsa;
+pub mod eddsa;
 mod util;
 
 use crate::error::JoseError;
@@ -17,18 +18,7 @@ pub use crate::jws::rsa::PS512;
 pub use crate::jws::ecdsa::ES256;
 pub use crate::jws::ecdsa::ES384;
 pub use crate::jws::ecdsa::ES512;
-
-#[derive(Debug, Eq, PartialEq, Copy, Clone)]
-pub enum HashAlgorithm {
-    /// SHA-256
-    SHA256,
-
-    /// SHA-384
-    SHA384,
-
-    /// SHA-512
-    SHA512,
-}
+pub use crate::jws::eddsa::EDDSA;
 
 pub trait JwsAlgorithm {
     /// Return the "alg" (JwsAlgorithm) header parameter value of JWE.

@@ -7,23 +7,25 @@ use openssl::sign::{Signer, Verifier};
 use openssl::bn::BigNum;
 use serde_json::{Map, Value};
 
-use crate::jws::{JwsAlgorithm, HashAlgorithm, JwsSigner, JwsVerifier};
+use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier};
 use crate::jws::util::{json_eq, json_base64_bytes};
 use crate::error::JoseError;
 
 /// ECDSA using P-256 and SHA-256
-pub const ES256: EcdsaJwsAlgorithm = EcdsaJwsAlgorithm::new("ES256", HashAlgorithm::SHA256);
+pub const ES256: EcdsaJwsAlgorithm = EcdsaJwsAlgorithm::new("ES256");
 
 /// ECDSA using P-384 and SHA-384
-pub const ES384: EcdsaJwsAlgorithm = EcdsaJwsAlgorithm::new("ES384", HashAlgorithm::SHA384);
+pub const ES384: EcdsaJwsAlgorithm = EcdsaJwsAlgorithm::new("ES384");
 
 /// ECDSA using P-521 and SHA-512
-pub const ES512: EcdsaJwsAlgorithm = EcdsaJwsAlgorithm::new("ES512", HashAlgorithm::SHA512);
+pub const ES512: EcdsaJwsAlgorithm = EcdsaJwsAlgorithm::new("ES512");
+
+// ECDSA using secp256k1 curve and SHA-256
+pub const ES256K: EcdsaJwsAlgorithm = EcdsaJwsAlgorithm::new("ES256K");
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct EcdsaJwsAlgorithm {
     name: &'static str,
-    hash_algorithm: HashAlgorithm,
 }
 
 impl EcdsaJwsAlgorithm {
@@ -31,11 +33,9 @@ impl EcdsaJwsAlgorithm {
     ///
     /// # Arguments
     /// * `name` - A algrithm name.
-    /// * `hash_algorithm` - A algrithm name.
-    pub const fn new(name: &'static str, hash_algorithm: HashAlgorithm) -> Self {
+    const fn new(name: &'static str) -> Self {
         EcdsaJwsAlgorithm {
             name,
-            hash_algorithm
         }
     }
 
@@ -210,10 +210,12 @@ impl EcdsaJwsAlgorithm {
     fn check_key<T: HasPublic>(&self, pkey: &PKey<T>) -> anyhow::Result<()> {
         let ec_key = pkey.ec_key()?;
 
-        let curve_name = match self.hash_algorithm {
-            HashAlgorithm::SHA256 => Nid::X9_62_PRIME256V1,
-            HashAlgorithm::SHA384 => Nid::SECP384R1,
-            HashAlgorithm::SHA512 => Nid::SECP521R1,
+        let curve_name = match self.name {
+            "ES256" => Nid::X9_62_PRIME256V1,
+            "ES384" => Nid::SECP384R1,
+            "ES512" => Nid::SECP521R1,
+            "ES256K" => Nid::SECP256K1,
+            _ => unimplemented!()
         };
 
         match ec_key.group().curve_name() {
@@ -257,10 +259,11 @@ impl<'a> JwsSigner<EcdsaJwsAlgorithm> for EcdsaJwsSigner<'a> {
 
     fn sign(&self, data: &[&[u8]]) -> Result<Vec<u8>, JoseError> {
         (|| -> anyhow::Result<Vec<u8>> {
-            let message_digest = match self.algorithm.hash_algorithm {
-                HashAlgorithm::SHA256 => MessageDigest::sha256(),
-                HashAlgorithm::SHA384 => MessageDigest::sha384(),
-                HashAlgorithm::SHA512 => MessageDigest::sha512(),
+            let message_digest = match self.algorithm.name {
+                "ES256" | "ES256K" => MessageDigest::sha256(),
+                "ES384" => MessageDigest::sha384(),
+                "ES512" => MessageDigest::sha512(),
+                _ => unreachable!(),
             };
 
             let mut signer = Signer::new(message_digest, &self.private_key)?;
@@ -286,10 +289,11 @@ impl<'a> JwsVerifier<EcdsaJwsAlgorithm> for EcdsaJwsVerifier<'a> {
 
     fn verify(&self, data: &[&[u8]], signature: &[u8]) -> Result<(), JoseError> {
         (|| -> anyhow::Result<()> {
-            let message_digest = match self.algorithm.hash_algorithm {
-                HashAlgorithm::SHA256 => MessageDigest::sha256(),
-                HashAlgorithm::SHA384 => MessageDigest::sha384(),
-                HashAlgorithm::SHA512 => MessageDigest::sha512(),
+            let message_digest = match self.algorithm.name {
+                "ES256" | "ES256K" => MessageDigest::sha256(),
+                "ES384" => MessageDigest::sha384(),
+                "ES512" => MessageDigest::sha512(),
+                _ => unreachable!(),
             };
 
             let mut verifier = Verifier::new(message_digest, &self.public_key)?;
@@ -321,7 +325,7 @@ mod tests {
             "ES384",
             "ES512",
          ] {
-            let alg = EcdsaJwsAlgorithm::new(name, hash_algorithm(name));
+            let alg = EcdsaJwsAlgorithm::new(name);
 
             let private_key = load_file(match *name {
                 "ES256" => "jwk/es256_private.jwk",
@@ -368,7 +372,7 @@ mod tests {
                 _ => unreachable!()
             })?;
 
-            let alg = EcdsaJwsAlgorithm::new(name, hash_algorithm(name));
+            let alg = EcdsaJwsAlgorithm::new(name);
 
             let signer = alg.signer_from_pem(&private_key)?;
             let signature = signer.sign(&[data])?;
@@ -402,7 +406,7 @@ mod tests {
                 _ => unreachable!()
             })?;
 
-            let alg = EcdsaJwsAlgorithm::new(name, hash_algorithm(name));
+            let alg = EcdsaJwsAlgorithm::new(name);
 
             let signer = alg.signer_from_der(&private_key)?;
             let signature = signer.sign(&[data])?;
@@ -412,15 +416,6 @@ mod tests {
         }
 
         Ok(())
-    }
-
-    fn hash_algorithm(name: &str) -> HashAlgorithm {
-        match name {
-            "ES256" => HashAlgorithm::SHA256,
-            "ES384" => HashAlgorithm::SHA384,
-            "ES512" => HashAlgorithm::SHA512,
-            _ => unreachable!()
-        }
     }
 
     fn load_file(path: &str) -> Result<Vec<u8>> {

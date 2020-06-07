@@ -5,34 +5,32 @@ use openssl::pkey::{PKey, Private};
 use openssl::sign::Signer;
 use serde_json::{Map, Value};
 
-use crate::jws::{JwsAlgorithm, HashAlgorithm, JwsSigner, JwsVerifier};
+use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier};
 use crate::jws::util::{json_eq, json_base64_bytes};
 use crate::error::JoseError;
 
 /// HMAC using SHA-256
-pub const HS256: HmacJwsAlgorithm = HmacJwsAlgorithm::new("HS256", HashAlgorithm::SHA256);
+pub const HS256: HmacJwsAlgorithm = HmacJwsAlgorithm::new("HS256");
 
 /// HMAC using SHA-384
-pub const HS384: HmacJwsAlgorithm = HmacJwsAlgorithm::new("HS384", HashAlgorithm::SHA384);
+pub const HS384: HmacJwsAlgorithm = HmacJwsAlgorithm::new("HS384");
 
 /// HMAC using SHA-512
-pub const HS512: HmacJwsAlgorithm = HmacJwsAlgorithm::new("HS512", HashAlgorithm::SHA512);
+pub const HS512: HmacJwsAlgorithm = HmacJwsAlgorithm::new("HS512");
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct HmacJwsAlgorithm {
     name: &'static str,
-    hash_algorithm: HashAlgorithm,
 }
 
 impl HmacJwsAlgorithm {
     /// Return a new instance.
     ///
     /// # Arguments
-    /// * `hash_algorithm` - A algrithm name.
-    pub const fn new(name: &'static str, hash_algorithm: HashAlgorithm) -> Self {
+    /// * `name` - A algrithm name.
+    const fn new(name: &'static str) -> Self {
         HmacJwsAlgorithm {
             name,
-            hash_algorithm
         }
     }
 
@@ -94,10 +92,11 @@ impl<'a> JwsSigner<HmacJwsAlgorithm> for HmacJwsSigner<'a> {
 
     fn sign(&self, data: &[&[u8]]) -> Result<Vec<u8>, JoseError> {
         (|| -> anyhow::Result<Vec<u8>> {
-            let message_digest = match self.algorithm.hash_algorithm {
-                HashAlgorithm::SHA256 => MessageDigest::sha256(),
-                HashAlgorithm::SHA384 => MessageDigest::sha384(),
-                HashAlgorithm::SHA512 => MessageDigest::sha512(),
+            let message_digest = match self.algorithm.name {
+                "HS256" => MessageDigest::sha256(),
+                "HS384" => MessageDigest::sha384(),
+                "HS512" => MessageDigest::sha512(),
+                _ => unreachable!(),
             };
 
             let mut signer = Signer::new(message_digest, &self.private_key)?;
@@ -118,10 +117,11 @@ impl<'a> JwsVerifier<HmacJwsAlgorithm> for HmacJwsSigner<'a> {
 
     fn verify(&self, data: &[&[u8]], signature: &[u8]) -> Result<(), JoseError> {
         (|| -> anyhow::Result<()> {
-            let message_digest = match self.algorithm.hash_algorithm {
-                HashAlgorithm::SHA256 => MessageDigest::sha256(),
-                HashAlgorithm::SHA384 => MessageDigest::sha384(),
-                HashAlgorithm::SHA512 => MessageDigest::sha512(),
+            let message_digest = match self.algorithm.name {
+                "HS256" => MessageDigest::sha256(),
+                "HS384" => MessageDigest::sha384(),
+                "HS512" => MessageDigest::sha512(),
+                _ => unreachable!(),
             };
 
             let mut signer = Signer::new(message_digest, &self.private_key)?;
@@ -156,7 +156,7 @@ mod tests {
             "HS384",
             "HS512",
         ] {
-            let alg = HmacJwsAlgorithm::new(name, hash_algorithm(name));
+            let alg = HmacJwsAlgorithm::new(name);
 
             let private_key = load_file(match *name {
                 "HS256" => "jwk/hs256_private.jwk",
@@ -183,7 +183,7 @@ mod tests {
             "HS384",
             "HS512",
         ] {
-            let alg = HmacJwsAlgorithm::new(name, hash_algorithm(name));
+            let alg = HmacJwsAlgorithm::new(name);
 
             let signer = alg.signer_from_slice(private_key)?;
             let signature = signer.sign(&[data])?;
@@ -202,14 +202,5 @@ mod tests {
         let mut data = Vec::new();
         file.read_to_end(&mut data)?;
         Ok(data)
-    }
-
-    fn hash_algorithm(name: &str) -> HashAlgorithm {
-        match name {
-            "HS256" => HashAlgorithm::SHA256,
-            "HS384" => HashAlgorithm::SHA384,
-            "HS512" => HashAlgorithm::SHA512,
-            _ => unreachable!()
-        }
     }
 }

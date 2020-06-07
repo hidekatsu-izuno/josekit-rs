@@ -7,33 +7,32 @@ use openssl::bn::BigNum;
 use openssl::sign::{Signer, Verifier};
 use serde_json::{Map, Value};
 
-use crate::jws::{JwsAlgorithm, HashAlgorithm, JwsSigner, JwsVerifier};
+use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier};
 use crate::jws::util::{json_eq, json_base64_bytes};
 use crate::der::{DerReader, DerType, DerError};
 use crate::error::JoseError;
 
 /// RSASSA-PKCS1-v1_5 using SHA-256
-pub const RS256: RsaJwsAlgorithm = RsaJwsAlgorithm::new("RS256", HashAlgorithm::SHA256);
+pub const RS256: RsaJwsAlgorithm = RsaJwsAlgorithm::new("RS256");
 
 /// RSASSA-PKCS1-v1_5 using SHA-384
-pub const RS384: RsaJwsAlgorithm = RsaJwsAlgorithm::new("RS384", HashAlgorithm::SHA384);
+pub const RS384: RsaJwsAlgorithm = RsaJwsAlgorithm::new("RS384");
 
 /// RSASSA-PKCS1-v1_5 using SHA-512
-pub const RS512: RsaJwsAlgorithm = RsaJwsAlgorithm::new("RS512", HashAlgorithm::SHA512);
+pub const RS512: RsaJwsAlgorithm = RsaJwsAlgorithm::new("RS512");
 
 /// RSASSA-PSS using SHA-256 and MGF1 with SHA-256
-pub const PS256: RsaJwsAlgorithm = RsaJwsAlgorithm::new("PS256", HashAlgorithm::SHA256);
+pub const PS256: RsaJwsAlgorithm = RsaJwsAlgorithm::new("PS256");
 
 /// RSASSA-PSS using SHA-384 and MGF1 with SHA-384
-pub const PS384: RsaJwsAlgorithm = RsaJwsAlgorithm::new("PS384", HashAlgorithm::SHA384);
+pub const PS384: RsaJwsAlgorithm = RsaJwsAlgorithm::new("PS384");
 
 /// RSASSA-PSS using SHA-512 and MGF1 with SHA-512
-pub const PS512: RsaJwsAlgorithm = RsaJwsAlgorithm::new("PS512", HashAlgorithm::SHA512);
+pub const PS512: RsaJwsAlgorithm = RsaJwsAlgorithm::new("PS512");
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct RsaJwsAlgorithm {
     name: &'static str,
-    hash_algorithm: HashAlgorithm,
 }
 
 impl RsaJwsAlgorithm {
@@ -41,11 +40,9 @@ impl RsaJwsAlgorithm {
     ///
     /// # Arguments
     /// * `name` - A algrithm name.
-    /// * `hash_algorithm` - A algrithm name.
-    pub const fn new(name: &'static str, hash_algorithm: HashAlgorithm) -> Self {
+    const fn new(name: &'static str) -> Self {
         RsaJwsAlgorithm {
             name,
-            hash_algorithm
         }
     }
 
@@ -301,10 +298,11 @@ impl<'a> JwsSigner<RsaJwsAlgorithm> for RsaJwsSigner<'a> {
 
     fn sign(&self, data: &[&[u8]]) -> Result<Vec<u8>, JoseError> {
         (|| -> anyhow::Result<Vec<u8>> {
-            let message_digest = match self.algorithm.hash_algorithm {
-                HashAlgorithm::SHA256 => MessageDigest::sha256(),
-                HashAlgorithm::SHA384 => MessageDigest::sha384(),
-                HashAlgorithm::SHA512 => MessageDigest::sha512(),
+            let message_digest = match self.algorithm.name {
+                "RS256" | "PS256" => MessageDigest::sha256(),
+                "RS384" | "PS384" => MessageDigest::sha384(),
+                "RS512" | "PS512" => MessageDigest::sha512(),
+                _ => unreachable!(),
             };
 
             let mut signer = Signer::new(message_digest, &self.private_key)?;
@@ -330,10 +328,11 @@ impl<'a> JwsVerifier<RsaJwsAlgorithm> for RsaJwsVerifier<'a> {
 
     fn verify(&self, data: &[&[u8]], signature: &[u8]) -> Result<(), JoseError> {
         (|| -> anyhow::Result<()> {
-            let message_digest = match self.algorithm.hash_algorithm {
-                HashAlgorithm::SHA256 => MessageDigest::sha256(),
-                HashAlgorithm::SHA384 => MessageDigest::sha384(),
-                HashAlgorithm::SHA512 => MessageDigest::sha512(),
+            let message_digest = match self.algorithm.name {
+                "RS256" | "PS256" => MessageDigest::sha256(),
+                "RS384" | "PS384" => MessageDigest::sha384(),
+                "RS512" | "PS512" => MessageDigest::sha512(),
+                _ => unreachable!(),
             };
 
             let mut verifier = Verifier::new(message_digest, &self.public_key)?;
@@ -368,7 +367,7 @@ mod tests {
             "PS384",
             "PS512",
          ] {
-            let alg = RsaJwsAlgorithm::new(name, hash_algorithm(name));
+            let alg = RsaJwsAlgorithm::new(name);
 
             let private_key = load_file(match *name {
                 "RS256" => "jwk/rs256_private.jwk",
@@ -411,7 +410,7 @@ mod tests {
             "PS384",
             "PS512",
          ] {
-            let alg = RsaJwsAlgorithm::new(name, hash_algorithm(name));
+            let alg = RsaJwsAlgorithm::new(name);
 
             let private_key = load_file(match *name {
                 "PS256" => "pem/rsapss_2048_sha256_pkcs8_private.pem",
@@ -448,7 +447,7 @@ mod tests {
             "PS384",
             "PS512",
          ] {
-            let alg = RsaJwsAlgorithm::new(name, hash_algorithm(name));
+            let alg = RsaJwsAlgorithm::new(name);
 
             let private_key = load_file(match *name {
                 "PS256" => "der/rsapss_2048_sha256_pkcs8_private.der",
@@ -485,7 +484,7 @@ mod tests {
             //"PS384",
             //"PS512",
          ] {
-            let alg = RsaJwsAlgorithm::new(name, hash_algorithm(name));
+            let alg = RsaJwsAlgorithm::new(name);
 
             let private_key = load_file(match *name {
                 "PS256" => "pem/rsapss_2048_sha256_pkcs1_private.pem",
@@ -522,7 +521,7 @@ mod tests {
             //"PS384",
             //"PS512",
          ] {
-            let alg = RsaJwsAlgorithm::new(name, hash_algorithm(name));
+            let alg = RsaJwsAlgorithm::new(name);
 
             let private_key = load_file(match *name {
                 "PS256" => "der/rsapss_2048_sha256_pkcs1_private.der",
@@ -556,14 +555,5 @@ mod tests {
         let mut data = Vec::new();
         file.read_to_end(&mut data)?;
         Ok(data)
-    }
-
-    fn hash_algorithm(name: &str) -> HashAlgorithm {
-        match name {
-            "RS256" | "PS256" => HashAlgorithm::SHA256,
-            "RS384" | "PS384" => HashAlgorithm::SHA384,
-            "RS512" | "PS512" => HashAlgorithm::SHA512,
-            _ => unreachable!()
-        }
     }
 }
