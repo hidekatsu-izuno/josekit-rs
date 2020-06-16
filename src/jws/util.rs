@@ -25,11 +25,11 @@ pub fn json_base64_bytes(map: &Map<String, Value>, key: &str) -> Result<Vec<u8>>
 
 pub fn parse_pem(input: &[u8]) -> Result<(String, Vec<u8>)> {
     static RE_PEM: Lazy<Regex> = Lazy::new(|| {
-        Regex::new(concat!(
-            "-----BEGIN ([A-Z0-9 ]+)-----",
-            "([\t\r\n a-zA-Z0-9+/=]+)",
-            "-----END ([A-Z0-9 ]+)-----",
-            )).unwrap()
+        Regex::new(concat!(r"^",
+            r"-----BEGIN ([A-Z0-9 -]+)-----[\t ]*(?:\r\n|[\r\n])",
+            r"([\t\r\n a-zA-Z0-9+/=]+)",
+            r"-----END ([A-Z0-9 -]+)-----[\t ]*(?:\r\n|[\r\n])?",
+            r"$")).unwrap()
     });
 
     static RE_FILTER: Lazy<Regex> = Lazy::new(|| {
