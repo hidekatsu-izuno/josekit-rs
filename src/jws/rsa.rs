@@ -280,7 +280,7 @@ impl RsaJwsAlgorithm {
         })().unwrap_or(false)
     }
 
-    fn to_pkcs8_private_der(data: &[u8]) -> Vec<u8> {
+    fn to_pkcs8_private_der(input: &[u8]) -> Vec<u8> {
         let mut builder = DerBuilder::new();
         builder.begin(DerType::Sequence);
         {
@@ -292,7 +292,7 @@ impl RsaJwsAlgorithm {
             }
             builder.end();
         }
-        builder.append_octed_string_from_slice(data);
+        builder.append_octed_string_from_slice(input);
         builder.end();
         builder.build()
     }
@@ -325,7 +325,7 @@ impl RsaJwsAlgorithm {
         })().unwrap_or(false)
     }
 
-    fn to_pkcs8_public_der(data: &[u8]) -> Vec<u8> {
+    fn to_pkcs8_public_der(input: &[u8]) -> Vec<u8> {
         let mut builder = DerBuilder::new();
         builder.begin(DerType::Sequence);
         {
@@ -336,7 +336,7 @@ impl RsaJwsAlgorithm {
             }
             builder.end();
         }
-        builder.append_bit_string_from_slice(data, 0);
+        builder.append_bit_string_from_slice(input, 0);
         builder.end();
         builder.build()
     }
@@ -358,7 +358,7 @@ impl<'a> JwsSigner<RsaJwsAlgorithm> for RsaJwsSigner<'a> {
         &self.algorithm
     }
 
-    fn sign(&self, data: &[&[u8]]) -> Result<Vec<u8>, JoseError> {
+    fn sign(&self, input: &[&[u8]]) -> Result<Vec<u8>, JoseError> {
         (|| -> anyhow::Result<Vec<u8>> {
             let message_digest = match self.algorithm.name {
                 "RS256" => MessageDigest::sha256(),
@@ -368,7 +368,7 @@ impl<'a> JwsSigner<RsaJwsAlgorithm> for RsaJwsSigner<'a> {
             };
 
             let mut signer = Signer::new(message_digest, &self.private_key)?;
-            for part in data {
+            for part in input {
                 signer.update(part)?;
             }
             let signature = signer.sign_to_vec()?;
@@ -388,7 +388,7 @@ impl<'a> JwsVerifier<RsaJwsAlgorithm> for RsaJwsVerifier<'a> {
         &self.algorithm
     }
 
-    fn verify(&self, data: &[&[u8]], signature: &[u8]) -> Result<(), JoseError> {
+    fn verify(&self, input: &[&[u8]], signature: &[u8]) -> Result<(), JoseError> {
         (|| -> anyhow::Result<()> {
             let message_digest = match self.algorithm.name {
                 "RS256" => MessageDigest::sha256(),
@@ -398,7 +398,7 @@ impl<'a> JwsVerifier<RsaJwsAlgorithm> for RsaJwsVerifier<'a> {
             };
 
             let mut verifier = Verifier::new(message_digest, &self.public_key)?;
-            for part in data {
+            for part in input {
                 verifier.update(part)?;
             }
             verifier.verify(signature)?;

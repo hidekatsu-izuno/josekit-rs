@@ -46,13 +46,13 @@ impl RsaPssJwsAlgorithm {
     /// Return a signer from a private key of JWK format.
     ///
     /// # Arguments
-    /// * `data` - A private key of JWK format.
+    /// * `input` - A private key of JWK format.
     pub fn signer_from_jwk<'a>(
         &'a self,
-        data: &[u8],
+        input: &[u8],
     ) -> Result<impl JwsSigner<Self> + 'a, JoseError> {
         (|| -> anyhow::Result<RsaPssJwsSigner> {
-            let map: Map<String, Value> = serde_json::from_slice(data)?;
+            let map: Map<String, Value> = serde_json::from_slice(input)?;
 
             json_eq(&map, "alg", &self.name())?;
             json_eq(&map, "kty", "RSA")?;
@@ -89,15 +89,15 @@ impl RsaPssJwsAlgorithm {
     /// Return a signer from a private key of PKCS#1 or PKCS#8 PEM format.
     ///
     /// # Arguments
-    /// * `data` - A private key of PKCS#1 or PKCS#8 PEM format.
+    /// * `input` - A private key of PKCS#1 or PKCS#8 PEM format.
     pub fn signer_from_pem<'a>(
         &'a self,
-        data: &[u8],
+        input: &[u8],
     ) -> Result<impl JwsSigner<Self> + 'a, JoseError> {
         (|| -> anyhow::Result<RsaPssJwsSigner> {
-            let pkey = PKey::private_key_from_pem(&data)
+            let pkey = PKey::private_key_from_pem(&input)
                 .or_else(|err| {
-                    Rsa::private_key_from_pem(&data)
+                    Rsa::private_key_from_pem(&input)
                         .and_then(|val| PKey::from_rsa(val))
                         .map_err(|_| err)
                 })?;
@@ -114,18 +114,18 @@ impl RsaPssJwsAlgorithm {
     /// Return a signer from a private key of PKCS#1 or PKCS#8 DER format.
     ///
     /// # Arguments
-    /// * `data` - A private key of PKCS#1 or PKCS#8 DER format.
+    /// * `input` - A private key of PKCS#1 or PKCS#8 DER format.
     pub fn signer_from_der<'a>(
         &'a self,
-        data: &'a [u8],
+        input: &'a [u8],
     ) -> Result<impl JwsSigner<Self> + 'a, JoseError> {
         (|| -> anyhow::Result<RsaPssJwsSigner> {
-            let tmp_data;
-            let input = if Self::is_private_pkcs8(data) {
-                data
+            let tmp_input;
+            let input = if Self::is_private_pkcs8(input) {
+                input
             } else {
-                tmp_data = Self::to_private_pkcs8(data);
-                &tmp_data
+                tmp_input = Self::to_private_pkcs8(input);
+                &tmp_input
             };
 
             let pkey = PKey::private_key_from_der(&input)?;
@@ -141,13 +141,13 @@ impl RsaPssJwsAlgorithm {
     /// Return a verifier from a key of JWK format.
     ///
     /// # Arguments
-    /// * `data` - A key of JWK format.
+    /// * `input` - A key of JWK format.
     pub fn verifier_from_jwk<'a>(
         &'a self,
-        data: &[u8],
+        input: &[u8],
     ) -> Result<impl JwsVerifier<Self> + 'a, JoseError> {
         (|| -> anyhow::Result<RsaPssJwsVerifier> {
-            let map: Map<String, Value> = serde_json::from_slice(data)?;
+            let map: Map<String, Value> = serde_json::from_slice(input)?;
 
             json_eq(&map, "alg", &self.name())?;
             json_eq(&map, "kty", "RSA")?;
@@ -172,15 +172,15 @@ impl RsaPssJwsAlgorithm {
     /// Return a verifier from a public key of PKCS#1 or PKCS#8 PEM format.
     ///
     /// # Arguments
-    /// * `data` - A public key of PKCS#1 or PKCS#8 PEM format.
+    /// * `input` - A public key of PKCS#1 or PKCS#8 PEM format.
     pub fn verifier_from_pem<'a>(
         &'a self,
-        data: &[u8],
+        input: &[u8],
     ) -> Result<impl JwsVerifier<Self> + 'a, JoseError> {
         (|| -> anyhow::Result<RsaPssJwsVerifier> {
-            let pkey = PKey::public_key_from_pem(&data)
+            let pkey = PKey::public_key_from_pem(&input)
                 .or_else(|err| {
-                    Rsa::public_key_from_pem_pkcs1(&data)
+                    Rsa::public_key_from_pem_pkcs1(&input)
                         .and_then(|val| PKey::from_rsa(val))
                         .map_err(|_| err)
                 })?;
@@ -197,18 +197,18 @@ impl RsaPssJwsAlgorithm {
     /// Return a verifier from a public key of PKCS#1 or PKCS#8 DER format.
     ///
     /// # Arguments
-    /// * `data` - A public key of PKCS#1 or PKCS#8 DER format.
+    /// * `input` - A public key of PKCS#1 or PKCS#8 DER format.
     pub fn verifier_from_der<'a>(
         &'a self,
-        data: &[u8],
+        input: &[u8],
     ) -> Result<impl JwsVerifier<Self> + 'a, JoseError> {
         (|| -> anyhow::Result<RsaPssJwsVerifier> {
-            let tmp_data;
-            let input = if Self::is_public_pkcs8(data) {
-                data
+            let tmp_input;
+            let input = if Self::is_public_pkcs8(input) {
+                input
             } else {
-                tmp_data = Self::to_public_pkcs8(data);
-                &tmp_data
+                tmp_input = Self::to_public_pkcs8(input);
+                &tmp_input
             };
 
             let pkey = PKey::public_key_from_der(&input)?;
@@ -273,7 +273,7 @@ impl RsaPssJwsAlgorithm {
         })().unwrap_or(false)
     }
 
-    fn to_private_pkcs8(data: &[u8]) -> Vec<u8> {
+    fn to_private_pkcs8(input: &[u8]) -> Vec<u8> {
         let mut builder = DerBuilder::new();
         builder.begin(DerType::Sequence);
         {
@@ -285,7 +285,7 @@ impl RsaPssJwsAlgorithm {
             }
             builder.end();
         }
-        builder.append_octed_string_from_slice(data);
+        builder.append_octed_string_from_slice(input);
         builder.end();
         builder.build()
     }
@@ -318,7 +318,7 @@ impl RsaPssJwsAlgorithm {
         })().unwrap_or(false)
     }
 
-    fn to_public_pkcs8(data: &[u8]) -> Vec<u8> {
+    fn to_public_pkcs8(input: &[u8]) -> Vec<u8> {
         let mut builder = DerBuilder::new();
         builder.begin(DerType::Sequence);
         {
@@ -329,7 +329,7 @@ impl RsaPssJwsAlgorithm {
             }
             builder.end();
         }
-        builder.append_bit_string_from_slice(data, 0);
+        builder.append_bit_string_from_slice(input, 0);
         builder.end();
         builder.build()
     }
@@ -351,7 +351,7 @@ impl<'a> JwsSigner<RsaPssJwsAlgorithm> for RsaPssJwsSigner<'a> {
         &self.algorithm
     }
 
-    fn sign(&self, data: &[&[u8]]) -> Result<Vec<u8>, JoseError> {
+    fn sign(&self, input: &[&[u8]]) -> Result<Vec<u8>, JoseError> {
         (|| -> anyhow::Result<Vec<u8>> {
             let message_digest = match self.algorithm.name {
                 "RS256" | "PS256" => MessageDigest::sha256(),
@@ -361,7 +361,7 @@ impl<'a> JwsSigner<RsaPssJwsAlgorithm> for RsaPssJwsSigner<'a> {
             };
 
             let mut signer = Signer::new(message_digest, &self.private_key)?;
-            for part in data {
+            for part in input {
                 signer.update(part)?;
             }
             let signature = signer.sign_to_vec()?;
@@ -381,7 +381,7 @@ impl<'a> JwsVerifier<RsaPssJwsAlgorithm> for RsaPssJwsVerifier<'a> {
         &self.algorithm
     }
 
-    fn verify(&self, data: &[&[u8]], signature: &[u8]) -> Result<(), JoseError> {
+    fn verify(&self, input: &[&[u8]], signature: &[u8]) -> Result<(), JoseError> {
         (|| -> anyhow::Result<()> {
             let message_digest = match self.algorithm.name {
                 "RS256" | "PS256" => MessageDigest::sha256(),
@@ -391,7 +391,7 @@ impl<'a> JwsVerifier<RsaPssJwsAlgorithm> for RsaPssJwsVerifier<'a> {
             };
 
             let mut verifier = Verifier::new(message_digest, &self.public_key)?;
-            for part in data {
+            for part in input {
                 verifier.update(part)?;
             }
             verifier.verify(signature)?;
