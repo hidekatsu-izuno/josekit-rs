@@ -85,3 +85,42 @@ Unknown
 
 ### Convert ECDSA private key from PKCS#1 PEM to PKCS#8 PEM
 openssl pkcs8 -nocrypt -in rsapss_2048_sha256_pk1_private.pem -topk8 -out rsapss_2048_sha256_private.pem
+
+
+PrivateKeyInfo ::= SEQUENCE {
+    version             INTEGER,
+    privateKeyAlgorithm AlgorithmIdentifier,
+    privateKey          OCTET STRING,
+    attributes          SET OF Attribute OPTIONAL
+}
+
+https://tools.ietf.org/html/rfc8017#appendix-A.1.2
+RSAPrivateKey SEQUENCE {
+    version           INTEGER,  -- 0
+    modulus           INTEGER,  -- n
+    publicExponent    INTEGER,  -- e
+    privateExponent   INTEGER,  -- d
+    prime1            INTEGER,  -- p
+    prime2            INTEGER,  -- q
+    exponent1         INTEGER,  -- d mod (p-1)
+    exponent2         INTEGER,  -- d mod (q-1)
+    coefficient       INTEGER,  -- (inverse of q) mod p
+    otherPrimeInfos   SEQUENCE OPTIONAL {
+        prime             INTEGER,  -- ri
+        exponent          INTEGER,  -- di
+        coefficient       INTEGER   -- ti
+    }
+}
+
+SubjectPublicKeyInfo  ::=  SEQUENCE {
+   algorithm            AlgorithmIdentifier,
+   subjectPublicKey     BIT STRING
+}
+
+https://tools.ietf.org/html/rfc8017#appendix-A.1.1
+RSAPublicKey ::= SEQUENCE {
+    modulus           INTEGER,  -- n
+    publicExponent    INTEGER   -- e
+}
+
+https://tools.ietf.org/html/rfc7468

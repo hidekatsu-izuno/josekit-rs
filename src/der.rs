@@ -1,10 +1,10 @@
 pub mod oid;
 mod reader;
-mod writer;
+mod builder;
 mod error;
 
 pub use crate::der::reader::DerReader;
-pub use crate::der::writer::DerWriter;
+pub use crate::der::builder::DerBuilder;
 pub use crate::der::error::DerError;
 
 use std::fmt;
@@ -186,10 +186,4 @@ impl fmt::Display for DerClass {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{:?}", self)
     }
-}
-
-pub struct DerRecord {
-    der_type: DerType,
-    constructed: bool,
-    contents: Option<Vec<u8>>
 }

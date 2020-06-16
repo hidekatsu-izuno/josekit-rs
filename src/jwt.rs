@@ -894,18 +894,39 @@ mod tests {
     fn test_jwt_with_rsa_pem() -> Result<()> {
         let from_jwt = Jwt::new();
 
-        for alg in &[RS256, RS384, RS512, PS256, PS384, PS512] {
+        for alg in &[RS256, RS384, RS512] {
+            let private_key = load_file("pem/rsa_2048_pkcs8_private.pem")?;
+            let public_key = load_file("pem/rsa_2048_pkcs8_public.pem")?;
+
+            let signer = alg.signer_from_pem(&private_key)?;
+            let jwt_string = from_jwt.encode_with_signer(&signer)?;
+
+            let verifier = alg.verifier_from_pem(&public_key)?;
+            let mut to_jwt = Jwt::decode_with_verifier(&jwt_string, &verifier)?;
+            to_jwt.unset_header_claim("alg");
+
+            assert_eq!(from_jwt, to_jwt);
+        }
+
+        Ok(())
+    }
+    
+    #[test]
+    fn test_jwt_with_rsapss_pem() -> Result<()> {
+        let from_jwt = Jwt::new();
+
+        for alg in &[PS256, PS384, PS512] {
             let private_key = load_file(match alg.name() {
                 "PS256" => "pem/rsapss_2048_sha256_pkcs8_private.pem",
                 "PS384" => "pem/rsapss_2048_sha384_pkcs8_private.pem",
                 "PS512" => "pem/rsapss_2048_sha512_pkcs8_private.pem",
-                _ => "pem/rsa_2048_pkcs8_private.pem"
+                _ => unreachable!()
             })?;
             let public_key = load_file(match alg.name() {
                 "PS256" => "pem/rsapss_2048_sha256_pkcs8_public.pem",
                 "PS384" => "pem/rsapss_2048_sha384_pkcs8_public.pem",
                 "PS512" => "pem/rsapss_2048_sha512_pkcs8_public.pem",
-                _ => "pem/rsa_2048_pkcs8_public.pem"
+                _ => unreachable!()
             })?;
 
             let signer = alg.signer_from_pem(&private_key)?;
@@ -926,18 +947,8 @@ mod tests {
         let from_jwt = Jwt::new();
 
         for alg in &[RS256, RS384, RS512] {
-            let private_key = load_file(match alg.name() {
-                "PS256" => "der/rsapss_2048_sha256_pkcs8_private.der",
-                "PS384" => "der/rsapss_2048_sha384_pkcs8_private.der",
-                "PS512" => "der/rsapss_2048_sha512_pkcs8_private.der",
-                _ => "der/rsa_2048_pkcs8_private.der"
-            })?;
-            let public_key = load_file(match alg.name() {
-                "PS256" => "der/rsapss_2048_sha256_pkcs8_public.der",
-                "PS384" => "der/rsapss_2048_sha384_pkcs8_public.der",
-                "PS512" => "der/rsapss_2048_sha512_pkcs8_public.der",
-                _ => "der/rsa_2048_pkcs8_public.der"
-            })?;
+            let private_key = load_file("der/rsa_2048_pkcs8_private.der")?;
+            let public_key = load_file("der/rsa_2048_pkcs8_public.der")?;
 
             let signer = alg.signer_from_der(&private_key)?;
             let jwt_string = from_jwt.encode_with_signer(&signer)?;

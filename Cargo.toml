@@ -1,5 +1,5 @@
 [package]
-name = "jose_rs"
+name = "jwt_rs"
 version = "0.1.0"
 description = "JOSE (Javascript Object Signing and Encryption) library for rust (based on OpenSSL)."
 homepage = "https://github.com/hidekatsu-izuno/jwt-rs"
@@ -16,6 +16,7 @@ edition = "2018"
 [dependencies]
 thiserror = "1"
 anyhow = "1"
+once_cell = "1"
 regex = "1"
 bit-vec = "0.6"
 serde = { version = "1", features = ["derive"] }

@@ -1,7 +1,7 @@
 use std::io;
 use bit_vec::BitVec;
 
-use crate::der::{DerType, DerClass, DerRecord, DerError};
+use crate::der::{DerType, DerClass, DerError};
 use crate::der::oid::{ ObjectIdentifier };
 
 pub struct DerReader<R: io::Read> {
@@ -43,7 +43,7 @@ impl<R: io::Read> DerReader<R> {
 
         let start_read_count = self.read_count;
 
-        let record = match self.get_tag()? {
+        match self.get_tag()? {
             None => return Ok(None),
             Some((DerType::EndOfContents, constructed)) => {
                 if !is_indefinite_parent {
@@ -66,11 +66,9 @@ impl<R: io::Read> DerReader<R> {
                 
                 self.stack.pop();
 
-                DerRecord {
-                    der_type: DerType::EndOfContents,
-                    constructed,
-                    contents: None
-                }
+                self.der_type = DerType::EndOfContents;
+                self.constructed = constructed;
+                self.contents = None;
             },
             Some((der_type, true)) => {
                 if !der_type.can_constructed() {
@@ -81,11 +79,9 @@ impl<R: io::Read> DerReader<R> {
 
                 self.stack.push(olength);
     
-                DerRecord {
-                    der_type: der_type,
-                    constructed: true,
-                    contents: None
-                }
+                self.der_type = der_type;
+                self.constructed = true;
+                self.contents = None;
             },
             Some((der_type, false)) => {
                 if !der_type.can_primitive() {
@@ -112,18 +108,13 @@ impl<R: io::Read> DerReader<R> {
                         self.stack[depth - 1] = Some(val - (self.read_count - start_read_count));
                     }
                 }
-    
-                DerRecord {
-                    der_type,
-                    constructed: false,
-                    contents: Some(contents)
-                }
-            }
-        };
 
-        self.der_type = record.der_type;
-        self.constructed = record.constructed;
-        self.contents = record.contents;
+                self.der_type = der_type;
+                self.constructed = false;
+                self.contents = Some(contents);
+            }
+        }
+
         Ok(Some(self.der_type))
     }
 
@@ -175,16 +166,36 @@ impl<R: io::Read> DerReader<R> {
         }
     }
 
+    pub fn to_u8(&self) -> Result<u8, DerError> {
+        if let DerType::Integer | DerType::Enumerated = self.der_type {
+            if let Some(contents) = &self.contents {
+                if contents.len() == 0 {
+                    return Err(DerError::InvalidLength(format!("{} content length must be 1 or more.", self.der_type)));
+                }
+
+                if contents.len() > 1 {
+                    return Err(DerError::Overflow);
+                }
+
+                Ok(contents[0])
+            } else {
+                unreachable!();
+            }
+        } else {
+            panic!("{} type is not supported to convert to u8.", self.der_type);
+        }
+    }
+
     pub fn to_u64(&self) -> Result<u64, DerError> {
         if let DerType::Integer | DerType::Enumerated = self.der_type {
             if let Some(contents) = &self.contents {
-                if contents.len() > 0 {
+                if contents.len() == 0 {
                     return Err(DerError::InvalidLength(format!("{} content length must be 1 or more.", self.der_type)));
                 }
 
                 let mut value = 0u64;
                 let mut shift_count = 0u8;
-                for i in 1..contents.len() {
+                for i in 0..contents.len() {
                     let b = contents[i];
                     shift_count += 8;
                     if shift_count > 64 {
@@ -264,7 +275,7 @@ impl<R: io::Read> DerReader<R> {
                         }
                     }
                 }
-                return Ok(ObjectIdentifier::from_vec(oid));
+                return Ok(ObjectIdentifier::from_slice(&oid));
             } else {
                 unreachable!();
             }
@@ -275,7 +286,7 @@ impl<R: io::Read> DerReader<R> {
     fn get_tag(&mut self) -> Result<Option<(DerType, bool)>, DerError> {
         let result = match self.get()? {
             Some(val) => {
-                let der_class = Self::get_der_class(val >> 6);
+                let der_class = Self::lookup_der_class(val >> 6);
                 let constructed = ((val >> 5) & 0x01) != 0;
                 let tag_no = if (val & 0x1F) > 30 {
                     let mut buf = 0u64;
@@ -300,14 +311,14 @@ impl<R: io::Read> DerReader<R> {
                     (val & 0x1F) as u64
                 };
 
-                Some((Self::get_der_type(der_class, tag_no), constructed))
+                Some((Self::lookup_der_type(der_class, tag_no), constructed))
             },
             None => None
         };
         Ok(result)
     }
 
-    fn get_der_class(class_no: u8) -> DerClass {
+    fn lookup_der_class(class_no: u8) -> DerClass {
         match class_no {
             0b00 => DerClass::Universal,
             0b01 => DerClass::Application,
@@ -317,7 +328,7 @@ impl<R: io::Read> DerReader<R> {
         }
     }
 
-    fn get_der_type(class: DerClass, tag_no: u64) -> DerType {
+    fn lookup_der_type(class: DerClass, tag_no: u64) -> DerType {
         match (class, tag_no) {
             (DerClass::Universal, 0) => DerType::EndOfContents,
             (DerClass::Universal, 1) => DerType::Boolean,
@@ -362,10 +373,9 @@ impl<R: io::Read> DerReader<R> {
             Some(val) if val == 0xFF => {
                 return Err(DerError::InvalidLength(format!("Length 0x{:X} is reserved for possible future extension.", val)));
             },
-            Some(val) if val < 0x08 => {
-                Some(val as usize)
-            },
-            Some(val) if val > 0x08 => {
+            Some(val) if val == 0x80 => None,
+            Some(val) if val < 0x80 => Some(val as usize),
+            Some(val) => {
                 let len_size = (val & 0x7F) as usize;
                 if len_size > std::mem::size_of::<usize>() {
                     return Err(DerError::Overflow);
@@ -381,7 +391,6 @@ impl<R: io::Read> DerReader<R> {
                 }
                 Some(num)
             },
-            Some(_) => None,
             None => return Err(DerError::UnexpectedEndOfInput)
         };
         Ok(result)
