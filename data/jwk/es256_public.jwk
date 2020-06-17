@@ -3,6 +3,5 @@
     "use": "sig",
     "crv": "P-256",
     "x": "o7ZaJluYNqfDnFSUNFeF3nA5Po6Nn1s_qo7welsU6fc",
-    "y": "I4RMKdKUifuV-ht0ty0gll7LYH5hna-dtQ3qfznIgF4",
-    "alg": "ES256"
+    "y": "I4RMKdKUifuV-ht0ty0gll7LYH5hna-dtQ3qfznIgF4"
 }

@@ -2,6 +2,5 @@
     "kty": "RSA",
     "e": "AQAB",
     "use": "sig",
-    "alg": "RS512",
     "n": "gS276ALvDfctvoJiu0H3cF2l6p6ylNByMVrppgU3iCCUI2VElK9vXeGD9kR2nx7EuKs0dhrum691Qfyg43bHSHKhaYBOpbF98A9qf8Mvk19_n2Q5TV0XTWwpWgcXL_IL4OYyZ8Cghbk2dkImajo72IWyhc79W_bVELM6d5-1A3zhUyEY_9Be8VYLPw_Ira0cayYqqwiuX0XefwvirPsHssjQbiR86di-FisVNUAaREf-O4IQ4_ul-WZK6td7G-W5x-FTws1v4LdRGVzwoMoMBC7LZEDrElb3cCF9bw8AvrwE7A7B8LSXJw8kDK5b6cg7U1r04DyeVpzG58N2lwixWw"
 }

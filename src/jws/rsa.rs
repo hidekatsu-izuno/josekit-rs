@@ -1,4 +1,4 @@
-use anyhow::bail;
+use anyhow::{bail, ensure};
 use std::io::Read;
 use openssl::hash::MessageDigest;
 use openssl::pkey::{HasPublic, PKey, Private, Public};
@@ -52,9 +52,9 @@ impl RsaJwsAlgorithm {
         (|| -> anyhow::Result<RsaJwsSigner> {
             let map: Map<String, Value> = serde_json::from_slice(input)?;
 
-            json_eq(&map, "alg", self.name())?;
-            json_eq(&map, "kty", "RSA")?;
-            json_eq(&map, "use", "sig")?;
+            json_eq(&map, "alg", self.name(), false)?;
+            json_eq(&map, "kty", "RSA", true)?;
+            json_eq(&map, "use", "sig", false)?;
             let n = json_base64_bytes(&map, "n")?;
             let e = json_base64_bytes(&map, "e")?;
             let d = json_base64_bytes(&map, "d")?;
@@ -103,7 +103,7 @@ impl RsaJwsAlgorithm {
             let der = match alg.as_str() {
                 "PRIVATE KEY" => data,
                 "RSA PRIVATE KEY" => Self::to_pkcs8_private_der(&data),
-                alg => bail!("Invalid algorithm: {}", alg)
+                alg => bail!("Inappropriate algorithm: {}", alg)
             };
 
             let pkey = PKey::private_key_from_der(&der)?;
@@ -125,7 +125,7 @@ impl RsaJwsAlgorithm {
         input: &'a [u8],
     ) -> Result<impl JwsSigner<Self> + 'a, JoseError> {
         (|| -> anyhow::Result<RsaJwsSigner> {
-            let pkey = if Self::is_pkcs8_private_der(input) {
+            let pkey = if Self::detect_pkcs8_private_der(input)? {
                 PKey::private_key_from_der(input)?
             } else {
                 let der = Self::to_pkcs8_private_der(input);
@@ -152,9 +152,9 @@ impl RsaJwsAlgorithm {
         (|| -> anyhow::Result<RsaJwsVerifier> {
             let map: Map<String, Value> = serde_json::from_slice(input)?;
 
-            json_eq(&map, "alg", &self.name())?;
-            json_eq(&map, "kty", "RSA")?;
-            json_eq(&map, "use", "sig")?;
+            json_eq(&map, "alg", &self.name(), false)?;
+            json_eq(&map, "kty", "RSA", true)?;
+            json_eq(&map, "use", "sig", false)?;
             let n = json_base64_bytes(&map, "n")?;
             let e = json_base64_bytes(&map, "e")?;
     
@@ -190,7 +190,7 @@ impl RsaJwsAlgorithm {
             let der = match alg.as_str() {
                 "PUBLIC KEY" => data,
                 "RSA PUBLIC KEY" => Self::to_pkcs8_public_der(&data),
-                alg => bail!("Invalid algorithm: {}", alg)
+                alg => bail!("Inappropriate algorithm: {}", alg)
             };
 
             let pkey = PKey::public_key_from_der(&der)?;
@@ -212,7 +212,7 @@ impl RsaJwsAlgorithm {
         input: &[u8],
     ) -> Result<impl JwsVerifier<Self> + 'a, JoseError> {
         (|| -> anyhow::Result<RsaJwsVerifier> {
-            let pkey = if Self::is_pkcs8_public_der(input) {
+            let pkey = if Self::detect_pkcs8_public_der(input)? {
                 PKey::public_key_from_der(input)?
             } else {
                 let der = Self::to_pkcs8_public_der(input);
@@ -241,43 +241,41 @@ impl RsaJwsAlgorithm {
         Ok(())
     }
 
-    fn is_pkcs8_private_der(input: &[u8]) -> bool {
+    fn detect_pkcs8_private_der(input: &[u8]) -> anyhow::Result<bool> {
         let mut reader = DerReader::new(input.bytes());
 
-        (|| -> Result<bool, DerError> {
-            match reader.next()? {
-                Some(DerType::Sequence) => {},
-                _ => return Ok(false)
-            }
+        match reader.next() {
+            Ok(Some(DerType::Sequence)) => {},
+            _ => return Ok(false)
+        }
 
-            // Version
-            match reader.next()? {
-                Some(DerType::Integer) => {
-                    match reader.to_u8() {
-                        Ok(val) if val == 0 => {},
-                        _ => return Ok(false)
-                    }
-                },
-                _ => return Ok(false)
-            }
+        // Version
+        match reader.next() {
+            Ok(Some(DerType::Integer)) => {
+                match reader.to_u8() {
+                    Ok(val) => ensure!(val == 0, "Unrecognized version: {}", val),
+                    _ => return Ok(false)
+                }
+            },
+            _ => return Ok(false)
+        }
 
-            match reader.next()? {
-                Some(DerType::Sequence) => {},
-                _ => return Ok(false)
-            }
+        match reader.next() {
+            Ok(Some(DerType::Sequence)) => {},
+            _ => return Ok(false)
+        }
 
-            match reader.next()? {
-                Some(DerType::ObjectIdentifier) => {
-                    match reader.to_object_identifier() {
-                        Ok(val) if val == *OID_RSA_ENCRYPTION => {},
-                        _ => return Ok(false)
-                    }
-                },
-                _ => return Ok(false)
-            }
+        match reader.next() {
+            Ok(Some(DerType::ObjectIdentifier)) => {
+                match reader.to_object_identifier() {
+                    Ok(val) => ensure!(val == *OID_RSA_ENCRYPTION, "Incompatible oid: {}", val),
+                    _ => return Ok(false)
+                }
+            },
+            _ => return Ok(false)
+        }
 
-            Ok(true)
-        })().unwrap_or(false)
+        Ok(true)
     }
 
     fn to_pkcs8_private_der(input: &[u8]) -> Vec<u8> {
@@ -297,32 +295,30 @@ impl RsaJwsAlgorithm {
         builder.build()
     }
 
-    fn is_pkcs8_public_der(input: &[u8]) -> bool {
+    fn detect_pkcs8_public_der(input: &[u8]) -> anyhow::Result<bool> {
         let mut reader = DerReader::new(input.bytes());
 
-        (|| -> Result<bool, DerError> {
-            match reader.next()? {
-                Some(DerType::Sequence) => {},
-                _ => return Ok(false)
-            }
+        match reader.next() {
+            Ok(Some(DerType::Sequence)) => {},
+            _ => return Ok(false)
+        }
 
-            match reader.next()? {
-                Some(DerType::Sequence) => {},
-                _ => return Ok(false)
-            }
+        match reader.next() {
+            Ok(Some(DerType::Sequence)) => {},
+            _ => return Ok(false)
+        }
 
-            match reader.next()? {
-                Some(DerType::ObjectIdentifier) => {
-                    match reader.to_object_identifier() {
-                        Ok(val) if val == *OID_RSA_ENCRYPTION => {},
-                        _ => return Ok(false)
-                    }
-                },
-                _ => return Ok(false)
-            }
+        match reader.next() {
+            Ok(Some(DerType::ObjectIdentifier)) => {
+                match reader.to_object_identifier() {
+                    Ok(val) => ensure!(val == *OID_RSA_ENCRYPTION, "Incompatible oid: {}", val),
+                    _ => return Ok(false)
+                }
+            },
+            _ => return Ok(false)
+        }
 
-            Ok(true)
-        })().unwrap_or(false)
+        Ok(true)
     }
 
     fn to_pkcs8_public_der(input: &[u8]) -> Vec<u8> {

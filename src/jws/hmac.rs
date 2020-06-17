@@ -45,9 +45,9 @@ impl HmacJwsAlgorithm {
         let key_data = (|| -> anyhow::Result<Vec<u8>> {
             let map: Map<String, Value> = serde_json::from_slice(jwk_str)?;
 
-            json_eq(&map, "alg", &self.name())?;
-            json_eq(&map, "kty", "oct")?;
-            json_eq(&map, "use", "sig")?;
+            json_eq(&map, "alg", &self.name(), false)?;
+            json_eq(&map, "kty", "oct", true)?;
+            json_eq(&map, "use", "sig", false)?;
             let key_data = json_base64_bytes(&map, "k")?;
             
             Ok(key_data)

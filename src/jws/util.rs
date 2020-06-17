@@ -3,11 +3,16 @@ use serde_json::{Map, Value};
 use once_cell::sync::Lazy;
 use regex::bytes::{ Regex, NoExpand };
 
-pub fn json_eq(map: &Map<String, Value>, key: &str, value: &str) -> Result<()>  {
+pub fn json_eq(map: &Map<String, Value>, key: &str, value: &str, required: bool) -> Result<()>  {
     match map.get(key) {
         Some(val) if val == value => Ok(()),
         Some(val) => bail!("{} must be {}: {}", key, value, val),
-        None => bail!("Key {} is missing.")
+        None => {
+            if required {
+                bail!("Key {} is missing.", key);
+            }
+            Ok(())
+        }
     }
 }
 

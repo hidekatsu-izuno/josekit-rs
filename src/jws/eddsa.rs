@@ -29,6 +29,8 @@ impl EddsaJwsAlgorithm {
             name
         }
     }
+
+    
 }
 
 impl JwsAlgorithm for EddsaJwsAlgorithm {

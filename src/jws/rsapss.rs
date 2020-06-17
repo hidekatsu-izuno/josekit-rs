@@ -9,7 +9,7 @@ use serde_json::{Map, Value};
 use once_cell::sync::Lazy;
 
 use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier};
-use crate::jws::util::{json_eq, json_base64_bytes};
+use crate::jws::util::{json_eq, json_base64_bytes, parse_pem};
 use crate::der::{DerReader, DerBuilder, DerType, DerError};
 use crate::der::oid::{ObjectIdentifier};
 use crate::error::JoseError;
@@ -54,9 +54,9 @@ impl RsaPssJwsAlgorithm {
         (|| -> anyhow::Result<RsaPssJwsSigner> {
             let map: Map<String, Value> = serde_json::from_slice(input)?;
 
-            json_eq(&map, "alg", &self.name())?;
-            json_eq(&map, "kty", "RSA")?;
-            json_eq(&map, "use", "sig")?;
+            json_eq(&map, "alg", &self.name(), false)?;
+            json_eq(&map, "kty", "RSA", true)?;
+            json_eq(&map, "use", "sig", false)?;
             let n = json_base64_bytes(&map, "n")?;
             let e = json_base64_bytes(&map, "e")?;
             let d = json_base64_bytes(&map, "d")?;
@@ -65,18 +65,23 @@ impl RsaPssJwsAlgorithm {
             let dp = json_base64_bytes(&map, "dp")?;
             let dq = json_base64_bytes(&map, "dq")?;
             let qi = json_base64_bytes(&map, "qi")?;
+            let mut builder = DerBuilder::new();
+            builder.begin(DerType::Sequence);
+            {
+                builder.append_integer_from_u8(0); // version
+                builder.append_integer_from_be_slice(&n); // n
+                builder.append_integer_from_be_slice(&e); // e
+                builder.append_integer_from_be_slice(&d); // d
+                builder.append_integer_from_be_slice(&p); // p
+                builder.append_integer_from_be_slice(&q); // q
+                builder.append_integer_from_be_slice(&dp); // d mod (p-1)
+                builder.append_integer_from_be_slice(&dq); // d mod (q-1)
+                builder.append_integer_from_be_slice(&qi); // (inverse of q) mod p
+            }
+            builder.end();
 
-            let pkey = Rsa::from_private_components(
-                BigNum::from_slice(&n)?,
-                BigNum::from_slice(&e)?,
-                BigNum::from_slice(&d)?,
-                BigNum::from_slice(&p)?,
-                BigNum::from_slice(&q)?,
-                BigNum::from_slice(&dp)?,
-                BigNum::from_slice(&dq)?,
-                BigNum::from_slice(&qi)?
-            ).and_then(|val| PKey::from_rsa(val))?;
-
+            let der = Self::to_pkcs8_private_der(&builder.build());
+            let pkey = PKey::private_key_from_der(&der)?;
             self.check_key(&pkey)?;
 
             Ok(RsaPssJwsSigner {
@@ -95,13 +100,14 @@ impl RsaPssJwsAlgorithm {
         input: &[u8],
     ) -> Result<impl JwsSigner<Self> + 'a, JoseError> {
         (|| -> anyhow::Result<RsaPssJwsSigner> {
-            let pkey = PKey::private_key_from_pem(&input)
-                .or_else(|err| {
-                    Rsa::private_key_from_pem(&input)
-                        .and_then(|val| PKey::from_rsa(val))
-                        .map_err(|_| err)
-                })?;
+            let (alg, data) = parse_pem(input)?;
+            let der = match alg.as_str() {
+                "PRIVATE KEY" => data,
+                "RSA-PSS PRIVATE KEY" => Self::to_pkcs8_private_der(&data),
+                alg => bail!("Inappropriate algorithm: {}", alg)
+            };
 
+            let pkey = PKey::private_key_from_der(&der)?;
             self.check_key(&pkey)?;
 
             Ok(RsaPssJwsSigner {
@@ -120,15 +126,13 @@ impl RsaPssJwsAlgorithm {
         input: &'a [u8],
     ) -> Result<impl JwsSigner<Self> + 'a, JoseError> {
         (|| -> anyhow::Result<RsaPssJwsSigner> {
-            let tmp_input;
-            let input = if Self::is_private_pkcs8(input) {
-                input
+            let pkey = if Self::is_pkcs8_private_der(input) {
+                PKey::private_key_from_der(input)?
             } else {
-                tmp_input = Self::to_private_pkcs8(input);
-                &tmp_input
+                let der = Self::to_pkcs8_private_der(input);
+                PKey::private_key_from_der(&der)?
             };
 
-            let pkey = PKey::private_key_from_der(&input)?;
             self.check_key(&pkey)?;
 
             Ok(RsaPssJwsSigner {
@@ -149,9 +153,9 @@ impl RsaPssJwsAlgorithm {
         (|| -> anyhow::Result<RsaPssJwsVerifier> {
             let map: Map<String, Value> = serde_json::from_slice(input)?;
 
-            json_eq(&map, "alg", &self.name())?;
-            json_eq(&map, "kty", "RSA")?;
-            json_eq(&map, "use", "sig")?;
+            json_eq(&map, "alg", &self.name(), false)?;
+            json_eq(&map, "kty", "RSA", true)?;
+            json_eq(&map, "use", "sig", false)?;
             let n = json_base64_bytes(&map, "n")?;
             let e = json_base64_bytes(&map, "e")?;
 

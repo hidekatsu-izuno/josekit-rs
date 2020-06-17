@@ -2,6 +2,5 @@
     "kty": "RSA",
     "e": "AQAB",
     "use": "sig",
-    "alg": "PS384",
     "n": "mcSZ35KBG_g0n7PmHgKFso_WZYp692RmSpWFIpnNlgIoF2obh0fu6nYNBjuG-QCp6VvxEaOypgVvrS_kTwpWZrh1mEO6Hz1fzRYBFtVColsBD2xE2uiKTDNOMJ8loJJdIKYHtmKaKfWoKdyoZUynuZZObJYjkMAGgp6DMl501vU98kNyOa1TRtTcIv69rfptj7hn0NYz08Dbeje2m7ny1PvBJcSftqxnGWID9Ard8dUPnPIPgLI8a5mqSuucrUFdycWHg9_ZG8EU3z-3UQFibp_8A-v0pSPkY0mGjQEs32_HxEQkalVz9IQPw8OJoXpxerUWx-WEx_Lt9e5mPi4JZQ"
 }

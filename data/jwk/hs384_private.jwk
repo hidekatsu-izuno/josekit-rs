@@ -1,6 +1,5 @@
 {
     "kty": "oct",
     "use": "sig",
-    "k": "ldqjyc-CCSR_qr_lWKxw8AY_kWA3jDf7kSFIurk6f1-Epoj-mZYZw5Nm3QdznCTbT5_ZZxjhkbZ_C28qEWpPWszzUoxoyZNWfsQ0wRWFX6XC2_9xm-9ziLbhrMmoDq4k93EpwnHot5rrXhW8joGhRpCfNAKNjS6Pk3VQpKslOQ9t2_Ur-LE8WidXRlgvF3aCRzcQvTVBBgMUsrN8mr7_PaiyYwGTAm1MfiFEuGMBQwRvpJDMP0rWpnvvUbNjdeaoxyKqkZYEW83h4Qjeid8MYnwzMDY_7tGcFHaBZ0Bklsexxsue_ax7D0_OSus1xWDVsBt8oOYKtPgtBjWwRppDlw",
-    "alg": "HS384"
+    "k": "ldqjyc-CCSR_qr_lWKxw8AY_kWA3jDf7kSFIurk6f1-Epoj-mZYZw5Nm3QdznCTbT5_ZZxjhkbZ_C28qEWpPWszzUoxoyZNWfsQ0wRWFX6XC2_9xm-9ziLbhrMmoDq4k93EpwnHot5rrXhW8joGhRpCfNAKNjS6Pk3VQpKslOQ9t2_Ur-LE8WidXRlgvF3aCRzcQvTVBBgMUsrN8mr7_PaiyYwGTAm1MfiFEuGMBQwRvpJDMP0rWpnvvUbNjdeaoxyKqkZYEW83h4Qjeid8MYnwzMDY_7tGcFHaBZ0Bklsexxsue_ax7D0_OSus1xWDVsBt8oOYKtPgtBjWwRppDlw"
 }

@@ -74,18 +74,34 @@ openssl pkcs8 -nocrypt -in rsapss_2048_sha256_private.pem -topk8 -outform DER -o
 ### Generate RSA-PSS PKCS#8 DER public key from RSA-PSS PKCS#8 PEM private key
 openssl pkey -in rsapss_2048_sha256_private.pem -pubout -outform DER -out rsapss_2048_sha256_public.der
 
-### Convert ECDSA private key from PKCS#8 DER to PKCS#8 PEM
+### Convert RSA-PSS private key from PKCS#8 DER to PKCS#8 PEM
 openssl pkey -inform DER -in rsapss_2048_sha256_private.der -out rsapss_2048_sha256_private.pem
 
-### Convert ECDSA private key from PKCS#8 PEM to PKCS#1 PEM
-openssl pkcs8 -nocrypt -in rsapss_2048_sha256_private.pem -traditional -out rsapss_2048_sha256_pk1_private.pem
+### Convert RSA-PSS private key from PKCS#8 PEM to PKCS#1 PEM
+openssl pkcs8 -nocrypt -in rsapss_2048_sha256_pkcs8_private.pem -traditional -out rsapss_2048_sha256_pkcs1_private.pem
 
-### Convert RSA private key from PKCS#8 PEM to PKCS#1 DER
+### Convert RSA-PSS private key from PKCS#8 PEM to PKCS#1 DER
 Unknown
 
-### Convert ECDSA private key from PKCS#1 PEM to PKCS#8 PEM
-openssl pkcs8 -nocrypt -in rsapss_2048_sha256_pk1_private.pem -topk8 -out rsapss_2048_sha256_private.pem
+### Convert RSA-PSS private key from PKCS#1 PEM to PKCS#8 PEM
+openssl pkcs8 -nocrypt -in rsapss_2048_sha256_pkcs1_private.pem -topk8 -out rsapss_2048_sha256_pkcs8_private.pem
 
+## EdDSA keypair
+
+### Create EdDSA PKCS#8 PEM private key
+openssl genpkey -algorithm X25519 -out eddsa_pkcs8_private.pem
+
+### Generate EdDSA PKCS#8 PEM public key from EdDSA PKCS#8 PEM private key
+openssl pkey -in eddsa_pkcs8_private.pem -pubout -outform PEM -out eddsa_pkcs8_public.pem
+
+### Convert EdDSA private key from PKCS#8 PEM to PKCS#8 DER
+openssl pkcs8 -nocrypt -in eddsa_pkcs8_private.pem -topk8 -outform DER -out eddsa_pkcs8_private.der
+
+### Generate EdDSA PKCS#8 DER public key from EdDSA PKCS#8 PEM private key
+openssl pkey -in eddsa_pkcs8_private.pem -pubout -outform DER -out eddsa_pkcs8_public.der
+
+### Convert EdDSA private key from PKCS#8 PEM to PKCS#1 PEM
+openssl pkcs8 -nocrypt -in eddsa_pkcs8_private.pem -traditional -out eddsa_pkcs1_private.pem
 
 PrivateKeyInfo ::= SEQUENCE {
     version             INTEGER,
