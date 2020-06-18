@@ -79,6 +79,7 @@ impl RsaPssJwsAlgorithm {
             let dp = json_base64_bytes(&map, "dp")?;
             let dq = json_base64_bytes(&map, "dq")?;
             let qi = json_base64_bytes(&map, "qi")?;
+
             let mut builder = DerBuilder::new();
             builder.begin(DerType::Sequence);
             {
@@ -470,6 +471,7 @@ impl RsaPssJwsAlgorithm {
                             {
                                 builder.append_object_identifier(sha_oid);
                             }
+                            builder.end();
                         }
                         builder.end();
                     }
@@ -479,6 +481,7 @@ impl RsaPssJwsAlgorithm {
                     {
                         builder.append_integer_from_u8(salt_len);
                     }
+                    builder.end();
                 }
                 builder.end();
             }
