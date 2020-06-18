@@ -1,12 +1,12 @@
 use std::time::{Duration, SystemTime};
 
 use anyhow::bail;
+use chrono::{DateTime, Utc};
 use serde_json::map::Entry;
 use serde_json::{json, Map};
-use chrono::{DateTime, Utc};
 
-use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier };
 use crate::error::JoseError;
+use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier};
 
 /// Represents any valid JSON value.
 ///
@@ -157,13 +157,13 @@ impl Jwt {
                         bail!("JWT must not have signature part when alg = \"none\".");
                     }
                     alg
-                },
+                }
                 Some(alg) => {
                     if parts.len() != 3 {
                         bail!("JWT must have signature part when alg != \"none\".");
                     }
                     alg
-                },
+                }
                 None => {
                     bail!("JWT alg header claim is required.");
                 }
@@ -274,7 +274,7 @@ impl Jwt {
     ///
     /// # Arguments
     /// * `key` - A key name of a header claim
-    pub fn unset_header_claim(&mut self, key: &str) -> &mut Self{
+    pub fn unset_header_claim(&mut self, key: &str) -> &mut Self {
         self.header.remove(key);
         self
     }
@@ -620,7 +620,7 @@ impl JwtValidator {
     pub fn min_issued_time(&self) -> Option<SystemTime> {
         self.min_issued_time
     }
-    
+
     /// Set a maximum time for a issued at payload claim (iat) validation.
     ///
     /// # Arguments
@@ -763,7 +763,7 @@ impl JwtValidator {
             _ => None,
         }
     }
-    
+
     /// Set a value for a jwt id payload claim (jti) validation.
     ///
     /// # Arguments
@@ -812,23 +812,35 @@ impl JwtValidator {
 
             if let Some(not_before) = jwt.not_before() {
                 if not_before > current_time {
-                    bail!("The token is not yet valid: {}", DateTime::<Utc>::from(not_before));
+                    bail!(
+                        "The token is not yet valid: {}",
+                        DateTime::<Utc>::from(not_before)
+                    );
                 }
             }
 
             if let Some(expires_at) = jwt.expires_at() {
                 if expires_at <= current_time {
-                    bail!("The token has expired: {}", DateTime::<Utc>::from(expires_at));
+                    bail!(
+                        "The token has expired: {}",
+                        DateTime::<Utc>::from(expires_at)
+                    );
                 }
             }
 
             if let Some(issued_at) = jwt.issued_at() {
                 if issued_at < min_issued_time {
-                    bail!("The issued time is too old: {}", DateTime::<Utc>::from(issued_at));
+                    bail!(
+                        "The issued time is too old: {}",
+                        DateTime::<Utc>::from(issued_at)
+                    );
                 }
 
                 if issued_at < max_issued_time {
-                    bail!("The issued time is too new: {}", DateTime::<Utc>::from(issued_at));
+                    bail!(
+                        "The issued time is too new: {}",
+                        DateTime::<Utc>::from(issued_at)
+                    );
                 }
             }
 
@@ -857,7 +869,9 @@ mod tests {
     use std::io::Read;
     use std::path::PathBuf;
 
-    use crate::jws::{HS256, HS384, HS512, RS256, RS384, RS512, ES256, ES384, ES512, PS256, PS384, PS512};
+    use crate::jws::{
+        ES256, ES384, ES512, HS256, HS384, HS512, PS256, PS384, PS512, RS256, RS384, RS512,
+    };
 
     #[test]
     fn test_jwt_with_none() -> Result<()> {
@@ -910,7 +924,7 @@ mod tests {
 
         Ok(())
     }
-    
+
     #[test]
     fn test_jwt_with_rsapss_pem() -> Result<()> {
         let from_jwt = Jwt::new();
@@ -920,13 +934,13 @@ mod tests {
                 "PS256" => "pem/rsapss_2048_sha256_pkcs8_private.pem",
                 "PS384" => "pem/rsapss_2048_sha384_pkcs8_private.pem",
                 "PS512" => "pem/rsapss_2048_sha512_pkcs8_private.pem",
-                _ => unreachable!()
+                _ => unreachable!(),
             })?;
             let public_key = load_file(match alg.name() {
                 "PS256" => "pem/rsapss_2048_sha256_pkcs8_public.pem",
                 "PS384" => "pem/rsapss_2048_sha384_pkcs8_public.pem",
                 "PS512" => "pem/rsapss_2048_sha512_pkcs8_public.pem",
-                _ => unreachable!()
+                _ => unreachable!(),
             })?;
 
             let signer = alg.signer_from_pem(&private_key)?;
@@ -972,13 +986,13 @@ mod tests {
                 "ES256" => "pem/ecdsa_p256_pkcs8_private.pem",
                 "ES384" => "pem/ecdsa_p384_pkcs8_private.pem",
                 "ES512" => "pem/ecdsa_p521_pkcs8_private.pem",
-                _ => unreachable!()
+                _ => unreachable!(),
             })?;
             let public_key = load_file(match alg.name() {
                 "ES256" => "pem/ecdsa_p256_pkcs8_public.pem",
                 "ES384" => "pem/ecdsa_p384_pkcs8_public.pem",
                 "ES512" => "pem/ecdsa_p521_pkcs8_public.pem",
-                _ => unreachable!()
+                _ => unreachable!(),
             })?;
 
             let signer = alg.signer_from_pem(&private_key)?;
@@ -1003,13 +1017,13 @@ mod tests {
                 "ES256" => "der/ecdsa_p256_pkcs8_private.der",
                 "ES384" => "der/ecdsa_p384_pkcs8_private.der",
                 "ES512" => "der/ecdsa_p521_pkcs8_private.der",
-                _ => unreachable!()
+                _ => unreachable!(),
             })?;
             let public_key = load_file(match alg.name() {
                 "ES256" => "der/ecdsa_p256_pkcs8_public.der",
                 "ES384" => "der/ecdsa_p384_pkcs8_public.der",
                 "ES512" => "der/ecdsa_p521_pkcs8_public.der",
-                _ => unreachable!()
+                _ => unreachable!(),
             })?;
 
             let signer = alg.signer_from_der(&private_key)?;

@@ -16,10 +16,10 @@ pub enum DerError {
 
     #[error("Invalid Utf8 String: {0}")]
     InvalidUtf8String(#[source] std::string::FromUtf8Error),
-    
+
     #[error("Overflow length.")]
     Overflow,
 
     #[error("Failed to read: {0}")]
-    ReadFailure(#[source] std::io::Error)
+    ReadFailure(#[source] std::io::Error),
 }

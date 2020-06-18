@@ -1,26 +1,25 @@
 use anyhow::bail;
-use std::io::Read;
+use once_cell::sync::Lazy;
 use openssl::pkey::{PKey, Private, Public};
 use openssl::sign::{Signer, Verifier};
 use serde_json::{Map, Value};
-use once_cell::sync::Lazy;
+use std::io::Read;
 
-use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier};
-use crate::jws::util::{json_eq, json_base64_bytes, parse_pem};
-use crate::der::{DerReader, DerBuilder, DerType};
 use crate::der::oid::ObjectIdentifier;
+use crate::der::{DerBuilder, DerReader, DerType};
 use crate::error::JoseError;
+use crate::jws::util::{json_base64_bytes, json_eq, parse_pem};
+use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier};
 
 /// EdDSA
 pub const EDDSA: EddsaJwsAlgorithm = EddsaJwsAlgorithm::new("EdDSA");
 
-static OID_X25519: Lazy<ObjectIdentifier> = Lazy::new(|| {
-    ObjectIdentifier::from_slice(&[1, 3, 101, 110])
-});
+static OID_X25519: Lazy<ObjectIdentifier> =
+    Lazy::new(|| ObjectIdentifier::from_slice(&[1, 3, 101, 110]));
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct EddsaJwsAlgorithm {
-    name: &'static str
+    name: &'static str,
 }
 
 impl EddsaJwsAlgorithm {
@@ -30,11 +29,9 @@ impl EddsaJwsAlgorithm {
     /// * `name` - A algrithm name.
     /// * `hash_algorithm` - A algrithm name.
     const fn new(name: &'static str) -> Self {
-        EddsaJwsAlgorithm {
-            name
-        }
+        EddsaJwsAlgorithm { name }
     }
-    
+
     /// Return a signer from a private key of JWK format.
     ///
     /// # Arguments
@@ -79,17 +76,18 @@ impl EddsaJwsAlgorithm {
                         bail!("Invalid PEM contents.");
                     }
                     PKey::private_key_from_der(&data)?
-                },
-                alg => bail!("Inappropriate algorithm: {}", alg)
+                }
+                alg => bail!("Inappropriate algorithm: {}", alg),
             };
 
             Ok(EddsaJwsSigner {
                 algorithm: &self,
                 private_key: pkey,
             })
-        })().map_err(|err| JoseError::InvalidKeyFormat(err))
+        })()
+        .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
-    
+
     /// Return a signer from a private key of PKCS#1 or PKCS#8 DER format.
     ///
     /// # Arguments
@@ -110,7 +108,8 @@ impl EddsaJwsAlgorithm {
                 algorithm: &self,
                 private_key: pkey,
             })
-        })().map_err(|err| JoseError::InvalidKeyFormat(err))
+        })()
+        .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
     /// Return a verifier from a key of JWK format.
@@ -129,7 +128,7 @@ impl EddsaJwsAlgorithm {
             json_eq(&map, "use", "sig", false)?;
             json_eq(&map, "crv", "Ed25519", true)?;
             let x = json_base64_bytes(&map, "x")?;
-            
+
             let pkcs8 = self.to_pkcs8(&x, true);
             let pkey = PKey::public_key_from_der(&pkcs8)?;
 
@@ -137,9 +136,10 @@ impl EddsaJwsAlgorithm {
                 algorithm: &self,
                 public_key: pkey,
             })
-        })().map_err(|err| JoseError::InvalidKeyFormat(err))
+        })()
+        .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
-    
+
     /// Return a verifier from a key of PKCS#8 PEM format.
     ///
     /// # Arguments
@@ -156,15 +156,16 @@ impl EddsaJwsAlgorithm {
                         bail!("Invalid PEM contents.");
                     }
                     PKey::public_key_from_der(&data)?
-                },
-                alg => bail!("Inappropriate algorithm: {}", alg)
+                }
+                alg => bail!("Inappropriate algorithm: {}", alg),
             };
 
             Ok(EddsaJwsVerifier {
                 algorithm: &self,
                 public_key: pkey,
             })
-        })().map_err(|err| JoseError::InvalidKeyFormat(err))
+        })()
+        .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
     /// Return a verifier from a key of PKCS#8 DER format.
@@ -187,53 +188,50 @@ impl EddsaJwsAlgorithm {
                 algorithm: &self,
                 public_key: pkey,
             })
-        })().map_err(|err| JoseError::InvalidKeyFormat(err))
+        })()
+        .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
-    
-    fn detect_pkcs8(&self, input: &[u8], is_public:bool) -> anyhow::Result<bool> {
+
+    fn detect_pkcs8(&self, input: &[u8], is_public: bool) -> anyhow::Result<bool> {
         let mut reader = DerReader::new(input.bytes());
 
         match reader.next() {
-            Ok(Some(DerType::Sequence)) => {},
-            _ => return Ok(false)
+            Ok(Some(DerType::Sequence)) => {}
+            _ => return Ok(false),
         }
 
         {
             if !is_public {
                 // Version
                 match reader.next() {
-                    Ok(Some(DerType::Integer)) => {
-                        match reader.to_u8() {
-                            Ok(val) => {
-                                if val != 0 {
-                                    bail!("Unrecognized version: {}", val);
-                                }
-                            },
-                            _ => return Ok(false)
+                    Ok(Some(DerType::Integer)) => match reader.to_u8() {
+                        Ok(val) => {
+                            if val != 0 {
+                                bail!("Unrecognized version: {}", val);
+                            }
                         }
+                        _ => return Ok(false),
                     },
-                    _ => return Ok(false)
+                    _ => return Ok(false),
                 }
             }
 
             match reader.next() {
-                Ok(Some(DerType::Sequence)) => {},
-                _ => return Ok(false)
+                Ok(Some(DerType::Sequence)) => {}
+                _ => return Ok(false),
             }
 
             {
                 match reader.next() {
-                    Ok(Some(DerType::ObjectIdentifier)) => {
-                        match reader.to_object_identifier() {
-                            Ok(val) => {
-                                if val != *OID_X25519 {
-                                    bail!("Incompatible oid: {}", val);
-                                }
-                            },
-                            _ => return Ok(false)
+                    Ok(Some(DerType::ObjectIdentifier)) => match reader.to_object_identifier() {
+                        Ok(val) => {
+                            if val != *OID_X25519 {
+                                bail!("Incompatible oid: {}", val);
+                            }
                         }
+                        _ => return Ok(false),
                     },
-                    _ => return Ok(false)
+                    _ => return Ok(false),
                 }
             }
         }
@@ -345,7 +343,7 @@ mod tests {
 
         Ok(())
     }
-    
+
     #[test]
     fn sign_and_verify_eddsa_pkcs8_pem() -> Result<()> {
         let data = b"abcde12345";

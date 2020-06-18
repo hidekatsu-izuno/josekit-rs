@@ -1,8 +1,8 @@
-use std::io;
 use bit_vec::BitVec;
+use std::io;
 
-use crate::der::{DerType, DerClass, DerError};
-use crate::der::oid::{ ObjectIdentifier };
+use crate::der::oid::ObjectIdentifier;
+use crate::der::{DerClass, DerError, DerType};
 
 pub struct DerReader<R: io::Read> {
     input: io::Bytes<R>,
@@ -10,7 +10,7 @@ pub struct DerReader<R: io::Read> {
     der_type: DerType,
     constructed: bool,
     contents: Option<Vec<u8>>,
-    read_count: usize
+    read_count: usize,
 }
 
 impl<R: io::Read> DerReader<R> {
@@ -21,7 +21,7 @@ impl<R: io::Read> DerReader<R> {
             der_type: DerType::EndOfContents,
             constructed: false,
             contents: None,
-            read_count: 0
+            read_count: 0,
         }
     }
 
@@ -32,12 +32,12 @@ impl<R: io::Read> DerReader<R> {
             match self.stack[depth - 1] {
                 None => {
                     is_indefinite_parent = true;
-                },
+                }
                 Some(0) => {
                     self.stack.pop();
-                    return Ok(Some(DerType::EndOfContents)); 
-                },
-                _ => {},
+                    return Ok(Some(DerType::EndOfContents));
+                }
+                _ => {}
             }
         }
 
@@ -47,62 +47,79 @@ impl<R: io::Read> DerReader<R> {
             None => return Ok(None),
             Some((DerType::EndOfContents, constructed)) => {
                 if !is_indefinite_parent {
-                    return Err(DerError::InvalidTag(format!("End of contents type is not allowed here.")));
+                    return Err(DerError::InvalidTag(format!(
+                        "End of contents type is not allowed here."
+                    )));
                 }
 
                 if constructed {
-                    return Err(DerError::InvalidTag(format!("End of contents type cannot be constructed.")));
+                    return Err(DerError::InvalidTag(format!(
+                        "End of contents type cannot be constructed."
+                    )));
                 }
-                
+
                 match self.get_length()? {
-                    Some(0) => {},
+                    Some(0) => {}
                     Some(val) => {
-                        return Err(DerError::InvalidLength(format!("End of contents content length must be 0: {}", val)));
-                    },
+                        return Err(DerError::InvalidLength(format!(
+                            "End of contents content length must be 0: {}",
+                            val
+                        )));
+                    }
                     None => {
-                        return Err(DerError::InvalidLength(format!("End of contents content length must be 0: indefinite")));
+                        return Err(DerError::InvalidLength(format!(
+                            "End of contents content length must be 0: indefinite"
+                        )));
                     }
                 }
-                
+
                 self.stack.pop();
 
                 self.der_type = DerType::EndOfContents;
                 self.constructed = constructed;
                 self.contents = None;
-            },
+            }
             Some((der_type, true)) => {
                 if !der_type.can_constructed() {
-                    return Err(DerError::InvalidTag(format!("{} type cannot be constructed.", der_type)));
+                    return Err(DerError::InvalidTag(format!(
+                        "{} type cannot be constructed.",
+                        der_type
+                    )));
                 }
 
                 let olength = self.get_length()?;
 
                 self.stack.push(olength);
-    
+
                 self.der_type = der_type;
                 self.constructed = true;
                 self.contents = None;
-            },
+            }
             Some((der_type, false)) => {
                 if !der_type.can_primitive() {
-                    return Err(DerError::InvalidTag(format!("{} type cannot be primitive.", der_type)));
+                    return Err(DerError::InvalidTag(format!(
+                        "{} type cannot be primitive.",
+                        der_type
+                    )));
                 }
 
                 let length = match self.get_length()? {
                     Some(val) => val,
                     None => {
-                        return Err(DerError::InvalidLength(format!("Primitive type content length cannot be indefinite.")));
+                        return Err(DerError::InvalidLength(format!(
+                            "Primitive type content length cannot be indefinite."
+                        )));
                     }
                 };
-    
+
                 let mut contents = Vec::with_capacity(length);
                 for _ in 0..length {
                     match self.get()? {
                         Some(val) => contents.push(val),
-                        None => return Err(DerError::UnexpectedEndOfInput)
+                        None => return Err(DerError::UnexpectedEndOfInput),
                     }
                 }
-    
+
                 if depth > 0 {
                     if let Some(val) = self.stack[depth - 1] {
                         self.stack[depth - 1] = Some(val - (self.read_count - start_read_count));
@@ -129,7 +146,7 @@ impl<R: io::Read> DerReader<R> {
     pub fn contents(&self) -> Option<&[u8]> {
         match &self.contents {
             Some(val) => Some(val),
-            None => None
+            None => None,
         }
     }
 
@@ -137,7 +154,10 @@ impl<R: io::Read> DerReader<R> {
         if let DerType::Null = self.der_type {
             if let Some(contents) = &self.contents {
                 if contents.len() != 0 {
-                    return Err(DerError::InvalidLength(format!("Null content length must be 0: {}", contents.len())));
+                    return Err(DerError::InvalidLength(format!(
+                        "Null content length must be 0: {}",
+                        contents.len()
+                    )));
                 }
 
                 Ok(())
@@ -145,7 +165,10 @@ impl<R: io::Read> DerReader<R> {
                 unreachable!();
             }
         } else {
-            panic!("{} type is not supported to convert to null.", self.der_type);
+            panic!(
+                "{} type is not supported to convert to null.",
+                self.der_type
+            );
         }
     }
 
@@ -153,7 +176,10 @@ impl<R: io::Read> DerReader<R> {
         if let DerType::Boolean = self.der_type {
             if let Some(contents) = &self.contents {
                 if contents.len() != 1 {
-                    return Err(DerError::InvalidLength(format!("Boolean content length must be 1: {}", contents.len())));
+                    return Err(DerError::InvalidLength(format!(
+                        "Boolean content length must be 1: {}",
+                        contents.len()
+                    )));
                 }
 
                 let value = contents[0] != 0;
@@ -162,7 +188,10 @@ impl<R: io::Read> DerReader<R> {
                 unreachable!();
             }
         } else {
-            panic!("{} type is not supported to convert to bool.", self.der_type);
+            panic!(
+                "{} type is not supported to convert to bool.",
+                self.der_type
+            );
         }
     }
 
@@ -170,7 +199,10 @@ impl<R: io::Read> DerReader<R> {
         if let DerType::Integer | DerType::Enumerated = self.der_type {
             if let Some(contents) = &self.contents {
                 if contents.len() == 0 {
-                    return Err(DerError::InvalidLength(format!("{} content length must be 1 or more.", self.der_type)));
+                    return Err(DerError::InvalidLength(format!(
+                        "{} content length must be 1 or more.",
+                        self.der_type
+                    )));
                 }
 
                 if contents.len() > 1 {
@@ -190,7 +222,10 @@ impl<R: io::Read> DerReader<R> {
         if let DerType::Integer | DerType::Enumerated = self.der_type {
             if let Some(contents) = &self.contents {
                 if contents.len() == 0 {
-                    return Err(DerError::InvalidLength(format!("{} content length must be 1 or more.", self.der_type)));
+                    return Err(DerError::InvalidLength(format!(
+                        "{} content length must be 1 or more.",
+                        self.der_type
+                    )));
                 }
 
                 let mut value = 0u64;
@@ -216,12 +251,16 @@ impl<R: io::Read> DerReader<R> {
         if let DerType::BitString = self.der_type {
             if let Some(contents) = &self.contents {
                 if contents.len() >= 2 {
-                    return Err(DerError::InvalidLength(format!("Bit String content length must be 2 or more.")));
+                    return Err(DerError::InvalidLength(format!(
+                        "Bit String content length must be 2 or more."
+                    )));
                 }
 
                 let unused_bits = contents[0] as usize;
                 if unused_bits > 7 {
-                    return Err(DerError::InvalidContents(format!("Unused bit count of Bit String must be from 0 to 7.")));
+                    return Err(DerError::InvalidContents(format!(
+                        "Unused bit count of Bit String must be from 0 to 7."
+                    )));
                 }
 
                 let mut bit_vec = BitVec::from_bytes(&contents[1..]);
@@ -231,22 +270,27 @@ impl<R: io::Read> DerReader<R> {
                 unreachable!();
             }
         } else {
-            panic!("{} type is not supported to convert to BitVec", self.der_type);
+            panic!(
+                "{} type is not supported to convert to BitVec",
+                self.der_type
+            );
         }
     }
 
     pub fn to_string(&self) -> Result<String, DerError> {
         if let DerType::Utf8String = self.der_type {
             if let Some(contents) = &self.contents {
-                let value = String::from_utf8(contents.to_vec()).map_err(|err| {
-                    DerError::InvalidUtf8String(err)
-                })?;
+                let value = String::from_utf8(contents.to_vec())
+                    .map_err(|err| DerError::InvalidUtf8String(err))?;
                 Ok(value)
             } else {
                 unreachable!();
             }
         } else {
-            panic!("{} type is not supported to convert to String.", self.der_type);
+            panic!(
+                "{} type is not supported to convert to String.",
+                self.der_type
+            );
         }
     }
 
@@ -258,7 +302,7 @@ impl<R: io::Read> DerReader<R> {
                     let b0 = contents[0];
                     oid.push((b0 / 40) as u64);
                     oid.push((b0 % 40) as u64);
-        
+
                     let mut buf = 0u64;
                     let mut shift_count = 0u8;
                     for i in 1..contents.len() {
@@ -280,7 +324,10 @@ impl<R: io::Read> DerReader<R> {
                 unreachable!();
             }
         }
-        panic!("{} type is not supported to convert to ObjectIdentifier.", self.der_type);
+        panic!(
+            "{} type is not supported to convert to ObjectIdentifier.",
+            self.der_type
+        );
     }
 
     fn get_tag(&mut self) -> Result<Option<(DerType, bool)>, DerError> {
@@ -303,7 +350,7 @@ impl<R: io::Read> DerReader<R> {
                                     break;
                                 }
                             }
-                            None => return Err(DerError::UnexpectedEndOfInput)
+                            None => return Err(DerError::UnexpectedEndOfInput),
                         }
                     }
                     buf
@@ -312,8 +359,8 @@ impl<R: io::Read> DerReader<R> {
                 };
 
                 Some((Self::lookup_der_type(der_class, tag_no), constructed))
-            },
-            None => None
+            }
+            None => None,
         };
         Ok(result)
     }
@@ -324,7 +371,7 @@ impl<R: io::Read> DerReader<R> {
             0b01 => DerClass::Application,
             0b10 => DerClass::ContextSpecific,
             0b11 => DerClass::Private,
-            _ => unreachable!()
+            _ => unreachable!(),
         }
     }
 
@@ -364,15 +411,18 @@ impl<R: io::Read> DerReader<R> {
             (DerClass::Universal, 32) => DerType::TimeOfDay,
             (DerClass::Universal, 33) => DerType::DateTime,
             (DerClass::Universal, 34) => DerType::Duration,
-            _ => DerType::Other(class, tag_no)
+            _ => DerType::Other(class, tag_no),
         }
     }
 
     fn get_length(&mut self) -> Result<Option<usize>, DerError> {
         let result = match self.get()? {
             Some(val) if val == 0xFF => {
-                return Err(DerError::InvalidLength(format!("Length 0x{:X} is reserved for possible future extension.", val)));
-            },
+                return Err(DerError::InvalidLength(format!(
+                    "Length 0x{:X} is reserved for possible future extension.",
+                    val
+                )));
+            }
             Some(val) if val == 0x80 => None,
             Some(val) if val < 0x80 => Some(val as usize),
             Some(val) => {
@@ -385,25 +435,25 @@ impl<R: io::Read> DerReader<R> {
                     match self.get()? {
                         Some(val) => {
                             num = num << 8 | val as usize;
-                        },
-                        None => return Err(DerError::UnexpectedEndOfInput)
+                        }
+                        None => return Err(DerError::UnexpectedEndOfInput),
                     }
                 }
                 Some(num)
-            },
-            None => return Err(DerError::UnexpectedEndOfInput)
+            }
+            None => return Err(DerError::UnexpectedEndOfInput),
         };
         Ok(result)
     }
-    
+
     fn get(&mut self) -> Result<Option<u8>, DerError> {
         let result = match self.input.next() {
             Some(Ok(val)) => {
-                self.read_count += 1; 
+                self.read_count += 1;
                 Some(val)
-            },
+            }
             Some(Err(err)) => return Err(DerError::ReadFailure(err)),
-            None => None
+            None => None,
         };
         Ok(result)
     }
@@ -429,7 +479,7 @@ mod tests {
         assert!(matches!(parser.next()?, Some(DerType::EndOfContents)));
         Ok(())
     }
-    
+
     fn load_file(path: &str) -> Result<File> {
         let mut pb = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         pb.push("data");

@@ -1,12 +1,16 @@
+pub mod ecdsa;
+pub mod eddsa;
 pub mod hmac;
 pub mod rsa;
 pub mod rsapss;
-pub mod ecdsa;
-pub mod eddsa;
 mod util;
 
 use crate::error::JoseError;
 
+pub use crate::jws::ecdsa::ES256;
+pub use crate::jws::ecdsa::ES384;
+pub use crate::jws::ecdsa::ES512;
+pub use crate::jws::eddsa::EDDSA;
 pub use crate::jws::hmac::HS256;
 pub use crate::jws::hmac::HS384;
 pub use crate::jws::hmac::HS512;
@@ -16,10 +20,6 @@ pub use crate::jws::rsa::RS512;
 pub use crate::jws::rsapss::PS256;
 pub use crate::jws::rsapss::PS384;
 pub use crate::jws::rsapss::PS512;
-pub use crate::jws::ecdsa::ES256;
-pub use crate::jws::ecdsa::ES384;
-pub use crate::jws::ecdsa::ES512;
-pub use crate::jws::eddsa::EDDSA;
 
 pub trait JwsAlgorithm {
     /// Return the "alg" (JwsAlgorithm) header parameter value of JWE.

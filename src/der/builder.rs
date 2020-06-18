@@ -1,18 +1,16 @@
 use bit_vec::BitVec;
 
-use crate::der::{ DerType };
 use crate::der::oid::ObjectIdentifier;
+use crate::der::DerType;
 
 pub struct DerBuilder {
-    stack: Vec<Vec<u8>>
+    stack: Vec<Vec<u8>>,
 }
 
 impl DerBuilder {
     pub fn new() -> Self {
         Self {
-            stack: vec![
-                Vec::new()
-            ]
+            stack: vec![Vec::new()],
         }
     }
 
@@ -40,7 +38,7 @@ impl DerBuilder {
     }
 
     pub fn append_integer_from_u8(&mut self, value: u8) {
-        self.append(DerType::Integer, &[ value ]);
+        self.append(DerType::Integer, &[value]);
     }
 
     pub fn append_integer_from_u64(&mut self, value: u64) {
@@ -189,12 +187,10 @@ mod tests {
     fn write_integer() -> Result<()> {
         let mut builder = DerBuilder::new();
         builder.append_integer_from_u64(1);
-        assert_eq!(builder.build(), vec![
-            2, 1, 1
-        ]);
+        assert_eq!(builder.build(), vec![2, 1, 1]);
         Ok(())
     }
-    
+
     #[test]
     fn write_sequence_of_integer() -> Result<()> {
         let mut builder = DerBuilder::new();
@@ -204,14 +200,10 @@ mod tests {
             builder.append_integer_from_u64(2);
         }
         builder.end();
-        assert_eq!(builder.build(), vec![
-            48, 6, 
-                2, 1, 1,
-                2, 1, 2,
-        ]);
+        assert_eq!(builder.build(), vec![48, 6, 2, 1, 1, 2, 1, 2,]);
         Ok(())
     }
-    
+
     #[test]
     fn write_sequence_of_rsa_public_key() -> Result<()> {
         let mut builder = DerBuilder::new();
@@ -227,13 +219,23 @@ mod tests {
         }
         builder.append_bit_string_from_slice(&vec![1; 270], 0);
         builder.end();
-        assert_eq!(builder.build(), vec![
-            48, 0x82, 0x01, 0x22, 
-                48, 13,
-                    6, 9, 0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x01, 0x01,
-                    5, 0,
-                3, 0x82, 0x01, 0x0F, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1
-        ]);
+        assert_eq!(
+            builder.build(),
+            vec![
+                48, 0x82, 0x01, 0x22, 48, 13, 6, 9, 0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x01,
+                0x01, 5, 0, 3, 0x82, 0x01, 0x0F, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                1, 1
+            ]
+        );
         Ok(())
     }
 }

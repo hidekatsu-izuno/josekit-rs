@@ -1,16 +1,16 @@
 use anyhow::bail;
-use std::io::Read;
+use once_cell::sync::Lazy;
 use openssl::hash::MessageDigest;
 use openssl::pkey::{PKey, Private, Public};
 use openssl::sign::{Signer, Verifier};
 use serde_json::{Map, Value};
-use once_cell::sync::Lazy;
+use std::io::Read;
 
-use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier};
-use crate::jws::util::{json_eq, json_base64_bytes, parse_pem};
-use crate::der::{DerReader, DerBuilder, DerType, DerClass};
-use crate::der::oid::{ObjectIdentifier};
+use crate::der::oid::ObjectIdentifier;
+use crate::der::{DerBuilder, DerClass, DerReader, DerType};
 use crate::error::JoseError;
+use crate::jws::util::{json_base64_bytes, json_eq, parse_pem};
+use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier};
 
 /// ECDSA using P-256 and SHA-256
 pub const ES256: EcdsaJwsAlgorithm = EcdsaJwsAlgorithm::new("ES256");
@@ -24,25 +24,20 @@ pub const ES512: EcdsaJwsAlgorithm = EcdsaJwsAlgorithm::new("ES512");
 // ECDSA using secp256k1 curve and SHA-256
 pub const ES256K: EcdsaJwsAlgorithm = EcdsaJwsAlgorithm::new("ES256K");
 
-static OID_ID_EC_PUBLIC_KEY: Lazy<ObjectIdentifier> = Lazy::new(|| {
-    ObjectIdentifier::from_slice(&[1, 2, 840, 10045, 2, 1])
-});
+static OID_ID_EC_PUBLIC_KEY: Lazy<ObjectIdentifier> =
+    Lazy::new(|| ObjectIdentifier::from_slice(&[1, 2, 840, 10045, 2, 1]));
 
-static OID_PRIME256V1: Lazy<ObjectIdentifier> = Lazy::new(|| {
-    ObjectIdentifier::from_slice(&[1, 2, 840, 10045, 3, 1, 7])
-});
+static OID_PRIME256V1: Lazy<ObjectIdentifier> =
+    Lazy::new(|| ObjectIdentifier::from_slice(&[1, 2, 840, 10045, 3, 1, 7]));
 
-static OID_SECP384R1: Lazy<ObjectIdentifier> = Lazy::new(|| {
-    ObjectIdentifier::from_slice(&[1, 3, 132, 0, 34])
-});
+static OID_SECP384R1: Lazy<ObjectIdentifier> =
+    Lazy::new(|| ObjectIdentifier::from_slice(&[1, 3, 132, 0, 34]));
 
-static OID_SECP521R1: Lazy<ObjectIdentifier> = Lazy::new(|| {
-    ObjectIdentifier::from_slice(&[1, 3, 132, 0, 35])
-});
+static OID_SECP521R1: Lazy<ObjectIdentifier> =
+    Lazy::new(|| ObjectIdentifier::from_slice(&[1, 3, 132, 0, 35]));
 
-static OID_SECP256K1: Lazy<ObjectIdentifier> = Lazy::new(|| {
-    ObjectIdentifier::from_slice(&[1, 3, 132, 0, 10])
-});
+static OID_SECP256K1: Lazy<ObjectIdentifier> =
+    Lazy::new(|| ObjectIdentifier::from_slice(&[1, 3, 132, 0, 10]));
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct EcdsaJwsAlgorithm {
@@ -55,9 +50,7 @@ impl EcdsaJwsAlgorithm {
     /// # Arguments
     /// * `name` - A algrithm name.
     const fn new(name: &'static str) -> Self {
-        EcdsaJwsAlgorithm {
-            name,
-        }
+        EcdsaJwsAlgorithm { name }
     }
 
     /// Return a signer from a private key of JWK format.
@@ -127,19 +120,20 @@ impl EcdsaJwsAlgorithm {
                         bail!("Invalid PEM contents.");
                     }
                     PKey::private_key_from_der(&data)?
-                },
+                }
                 "EC PRIVATE KEY" => {
                     let pkcs8 = self.to_pkcs8(&data, false);
                     PKey::private_key_from_der(&pkcs8)?
-                },
-                alg => bail!("Inappropriate algorithm: {}", alg)
+                }
+                alg => bail!("Inappropriate algorithm: {}", alg),
             };
 
             Ok(EcdsaJwsSigner {
                 algorithm: &self,
                 private_key: pkey,
             })
-        })().map_err(|err| JoseError::InvalidKeyFormat(err))
+        })()
+        .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
     /// Return a signer from a private key of PKCS#1 or PKCS#8 DER format.
@@ -162,7 +156,8 @@ impl EcdsaJwsAlgorithm {
                 algorithm: &self,
                 private_key: pkey,
             })
-        })().map_err(|err| JoseError::InvalidKeyFormat(err))
+        })()
+        .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
     /// Return a verifier from a key of JWK format.
@@ -194,7 +189,8 @@ impl EcdsaJwsAlgorithm {
                 algorithm: &self,
                 public_key: pkey,
             })
-        })().map_err(|err| JoseError::InvalidKeyFormat(err))
+        })()
+        .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
     /// Return a verifier from a key of PKCS#8 PEM format.
@@ -207,26 +203,27 @@ impl EcdsaJwsAlgorithm {
     ) -> Result<impl JwsVerifier<Self> + 'a, JoseError> {
         (|| -> anyhow::Result<EcdsaJwsVerifier> {
             let (alg, data) = parse_pem(input)?;
-            
+
             let pkey = match alg.as_str() {
                 "PUBLIC KEY" => {
                     if !self.detect_pkcs8(&data, true)? {
                         bail!("Invalid PEM contents.");
                     }
                     PKey::public_key_from_der(&data)?
-                },
+                }
                 "EC PUBLIC KEY" => {
                     let pkcs8 = self.to_pkcs8(&data, true);
                     PKey::public_key_from_der(&pkcs8)?
-                },
-                alg => bail!("Inappropriate algorithm: {}", alg)
+                }
+                alg => bail!("Inappropriate algorithm: {}", alg),
             };
 
             Ok(EcdsaJwsVerifier {
                 algorithm: &self,
                 public_key: pkey,
             })
-        })().map_err(|err| JoseError::InvalidKeyFormat(err))
+        })()
+        .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
     /// Return a verifier from a key of PKCS#8 DER format.
@@ -249,7 +246,8 @@ impl EcdsaJwsAlgorithm {
                 algorithm: &self,
                 public_key: pkey,
             })
-        })().map_err(|err| JoseError::InvalidKeyFormat(err))
+        })()
+        .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
     fn curve_name(&self) -> &str {
@@ -258,7 +256,7 @@ impl EcdsaJwsAlgorithm {
             "ES384" => "P-384",
             "ES512" => "P-521",
             "ES256K" => "secp256k1",
-            _  => unreachable!()
+            _ => unreachable!(),
         }
     }
 
@@ -268,70 +266,64 @@ impl EcdsaJwsAlgorithm {
             "ES384" => &*OID_SECP384R1,
             "ES512" => &*OID_SECP521R1,
             "ES256K" => &*OID_SECP256K1,
-            _  => unreachable!()
+            _ => unreachable!(),
         }
     }
 
-    fn detect_pkcs8(&self, input: &[u8], is_public:bool) -> anyhow::Result<bool> {
+    fn detect_pkcs8(&self, input: &[u8], is_public: bool) -> anyhow::Result<bool> {
         let curve = self.curve();
 
         let mut reader = DerReader::new(input.bytes());
 
         match reader.next() {
-            Ok(Some(DerType::Sequence)) => {},
-            _ => return Ok(false)
+            Ok(Some(DerType::Sequence)) => {}
+            _ => return Ok(false),
         }
 
         {
             if !is_public {
                 // Version
                 match reader.next() {
-                    Ok(Some(DerType::Integer)) => {
-                        match reader.to_u8() {
-                            Ok(val) => {
-                                if val != 0 {
-                                    bail!("Unrecognized version: {}", val);
-                                }
-                            },
-                            _ => return Ok(false)
+                    Ok(Some(DerType::Integer)) => match reader.to_u8() {
+                        Ok(val) => {
+                            if val != 0 {
+                                bail!("Unrecognized version: {}", val);
+                            }
                         }
+                        _ => return Ok(false),
                     },
-                    _ => return Ok(false)
+                    _ => return Ok(false),
                 }
             }
 
             match reader.next() {
-                Ok(Some(DerType::Sequence)) => {},
-                _ => return Ok(false)
+                Ok(Some(DerType::Sequence)) => {}
+                _ => return Ok(false),
             }
 
             {
                 match reader.next() {
-                    Ok(Some(DerType::ObjectIdentifier)) => {
-                        match reader.to_object_identifier() {
-                            Ok(val) => {
-                                if val != *OID_ID_EC_PUBLIC_KEY {
-                                    bail!("Incompatible oid: {}", val);
-                                }
-                            },
-                            _ => return Ok(false)
+                    Ok(Some(DerType::ObjectIdentifier)) => match reader.to_object_identifier() {
+                        Ok(val) => {
+                            if val != *OID_ID_EC_PUBLIC_KEY {
+                                bail!("Incompatible oid: {}", val);
+                            }
                         }
+                        _ => return Ok(false),
                     },
-                    _ => return Ok(false)
+                    _ => return Ok(false),
                 }
 
                 match reader.next() {
-                    Ok(Some(DerType::ObjectIdentifier)) => {
-                        match reader.to_object_identifier() {
-                            Ok(val) => {
-                                if &val != curve {
-                                    bail!("Incompatible oid: {}", val);
-                                }
-                            },
-                            _ => return Ok(false)
+                    Ok(Some(DerType::ObjectIdentifier)) => match reader.to_object_identifier() {
+                        Ok(val) => {
+                            if &val != curve {
+                                bail!("Incompatible oid: {}", val);
+                            }
                         }
+                        _ => return Ok(false),
                     },
-                    _ => return Ok(false)
+                    _ => return Ok(false),
                 }
             }
         }
@@ -364,6 +356,7 @@ impl EcdsaJwsAlgorithm {
         }
 
         builder.end();
+
         builder.build()
     }
 }
@@ -447,12 +440,7 @@ mod tests {
     fn sign_and_verify_ecdsa_jwt() -> Result<()> {
         let data = b"abcde12345";
 
-        for name in &[
-            "ES256",
-            "ES384",
-            "ES512",
-            "ES256K",
-         ] {
+        for name in &["ES256", "ES384", "ES512", "ES256K"] {
             let alg = EcdsaJwsAlgorithm::new(name);
 
             let private_key = load_file(match *name {
@@ -460,14 +448,14 @@ mod tests {
                 "ES384" => "jwk/EC_P-384_private.jwk",
                 "ES512" => "jwk/EC_P-521_private.jwk",
                 "ES256K" => "jwk/EC_secp256k1_private.jwk",
-                _ => unreachable!()
+                _ => unreachable!(),
             })?;
             let public_key = load_file(match *name {
                 "ES256" => "jwk/EC_P-256_public.jwk",
                 "ES384" => "jwk/EC_P-384_public.jwk",
                 "ES512" => "jwk/EC_P-521_public.jwk",
                 "ES256K" => "jwk/EC_secp256k1_public.jwk",
-                _ => unreachable!()
+                _ => unreachable!(),
             })?;
 
             let signer = alg.signer_from_jwk(&private_key)?;
@@ -479,27 +467,23 @@ mod tests {
 
         Ok(())
     }
-    
+
     #[test]
     fn sign_and_verify_ecdsa_pkcs8_pem() -> Result<()> {
         let data = b"abcde12345";
 
-        for name in &[
-            "ES256",
-            "ES384",
-            "ES512",
-        ] {
+        for name in &["ES256", "ES384", "ES512"] {
             let private_key = load_file(match *name {
                 "ES256" => "pem/ecdsa_p256_pkcs8_private.pem",
                 "ES384" => "pem/ecdsa_p384_pkcs8_private.pem",
                 "ES512" => "pem/ecdsa_p521_pkcs8_private.pem",
-                _ => unreachable!()
+                _ => unreachable!(),
             })?;
             let public_key = load_file(match *name {
                 "ES256" => "pem/ecdsa_p256_pkcs8_public.pem",
                 "ES384" => "pem/ecdsa_p384_pkcs8_public.pem",
                 "ES512" => "pem/ecdsa_p521_pkcs8_public.pem",
-                _ => unreachable!()
+                _ => unreachable!(),
             })?;
 
             let alg = EcdsaJwsAlgorithm::new(name);
@@ -518,22 +502,18 @@ mod tests {
     fn sign_and_verify_ecdsa_pkcs8_der() -> Result<()> {
         let data = b"abcde12345";
 
-        for name in &[
-            "ES256",
-            "ES384",
-            "ES512",
-        ] {
+        for name in &["ES256", "ES384", "ES512"] {
             let private_key = load_file(match *name {
                 "ES256" => "der/ecdsa_p256_pkcs8_private.der",
                 "ES384" => "der/ecdsa_p384_pkcs8_private.der",
                 "ES512" => "der/ecdsa_p521_pkcs8_private.der",
-                _ => unreachable!()
+                _ => unreachable!(),
             })?;
             let public_key = load_file(match *name {
                 "ES256" => "der/ecdsa_p256_pkcs8_public.der",
                 "ES384" => "der/ecdsa_p384_pkcs8_public.der",
                 "ES512" => "der/ecdsa_p521_pkcs8_public.der",
-                _ => unreachable!()
+                _ => unreachable!(),
             })?;
 
             let alg = EcdsaJwsAlgorithm::new(name);

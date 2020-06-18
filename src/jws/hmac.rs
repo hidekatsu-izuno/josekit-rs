@@ -5,9 +5,9 @@ use openssl::pkey::{PKey, Private};
 use openssl::sign::Signer;
 use serde_json::{Map, Value};
 
-use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier};
-use crate::jws::util::{json_eq, json_base64_bytes};
 use crate::error::JoseError;
+use crate::jws::util::{json_base64_bytes, json_eq};
+use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier};
 
 /// HMAC using SHA-256
 pub const HS256: HmacJwsAlgorithm = HmacJwsAlgorithm::new("HS256");
@@ -29,9 +29,7 @@ impl HmacJwsAlgorithm {
     /// # Arguments
     /// * `name` - A algrithm name.
     const fn new(name: &'static str) -> Self {
-        HmacJwsAlgorithm {
-            name,
-        }
+        HmacJwsAlgorithm { name }
     }
 
     /// Return a signer from a private key of JWK format.
@@ -49,7 +47,7 @@ impl HmacJwsAlgorithm {
             json_eq(&map, "kty", "oct", true)?;
             json_eq(&map, "use", "sig", false)?;
             let key_data = json_base64_bytes(&map, "k")?;
-            
+
             Ok(key_data)
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))?;
@@ -151,11 +149,7 @@ mod tests {
     fn sign_and_verify_hmac_jwk() -> Result<()> {
         let data = b"abcde12345";
 
-        for name in &[
-            "HS256",
-            "HS384",
-            "HS512",
-        ] {
+        for name in &["HS256", "HS384", "HS512"] {
             let alg = HmacJwsAlgorithm::new(name);
 
             let private_key = load_file("jwk/oct_private.jwk")?;
@@ -173,11 +167,7 @@ mod tests {
         let private_key = b"ABCDE12345";
         let data = b"abcde12345";
 
-        for name in &[
-            "HS256",
-            "HS384",
-            "HS512",
-        ] {
+        for name in &["HS256", "HS384", "HS512"] {
             let alg = HmacJwsAlgorithm::new(name);
 
             let signer = alg.signer_from_slice(private_key)?;

@@ -1,16 +1,16 @@
 use anyhow::bail;
-use std::io::Read;
+use once_cell::sync::Lazy;
 use openssl::hash::MessageDigest;
 use openssl::pkey::{HasPublic, PKey, Private, Public};
 use openssl::sign::{Signer, Verifier};
 use serde_json::{Map, Value};
-use once_cell::sync::Lazy;
+use std::io::Read;
 
-use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier};
-use crate::jws::util::{json_eq, json_base64_bytes, parse_pem};
-use crate::der::{DerReader, DerBuilder, DerType, DerClass};
-use crate::der::oid::{ObjectIdentifier};
+use crate::der::oid::ObjectIdentifier;
+use crate::der::{DerBuilder, DerClass, DerReader, DerType};
 use crate::error::JoseError;
+use crate::jws::util::{json_base64_bytes, json_eq, parse_pem};
+use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier};
 
 /// RSASSA-PSS using SHA-256 and MGF1 with SHA-256
 pub const PS256: RsaPssJwsAlgorithm = RsaPssJwsAlgorithm::new("PS256");
@@ -21,25 +21,20 @@ pub const PS384: RsaPssJwsAlgorithm = RsaPssJwsAlgorithm::new("PS384");
 /// RSASSA-PSS using SHA-512 and MGF1 with SHA-512
 pub const PS512: RsaPssJwsAlgorithm = RsaPssJwsAlgorithm::new("PS512");
 
-static OID_RSASSA_PSS: Lazy<ObjectIdentifier> = Lazy::new(|| {
-    ObjectIdentifier::from_slice(&[1, 2, 840, 113549, 1, 1, 10])
-});
+static OID_RSASSA_PSS: Lazy<ObjectIdentifier> =
+    Lazy::new(|| ObjectIdentifier::from_slice(&[1, 2, 840, 113549, 1, 1, 10]));
 
-static OID_SHA256: Lazy<ObjectIdentifier> = Lazy::new(|| {
-    ObjectIdentifier::from_slice(&[2, 16, 840, 1, 101, 3, 4, 2, 1])
-});
+static OID_SHA256: Lazy<ObjectIdentifier> =
+    Lazy::new(|| ObjectIdentifier::from_slice(&[2, 16, 840, 1, 101, 3, 4, 2, 1]));
 
-static OID_SHA384: Lazy<ObjectIdentifier> = Lazy::new(|| {
-    ObjectIdentifier::from_slice(&[2, 16, 840, 1, 101, 3, 4, 2, 2])
-});
+static OID_SHA384: Lazy<ObjectIdentifier> =
+    Lazy::new(|| ObjectIdentifier::from_slice(&[2, 16, 840, 1, 101, 3, 4, 2, 2]));
 
-static OID_SHA512: Lazy<ObjectIdentifier> = Lazy::new(|| {
-    ObjectIdentifier::from_slice(&[2, 16, 840, 1, 101, 3, 4, 2, 3])
-});
+static OID_SHA512: Lazy<ObjectIdentifier> =
+    Lazy::new(|| ObjectIdentifier::from_slice(&[2, 16, 840, 1, 101, 3, 4, 2, 3]));
 
-static OID_MGF1: Lazy<ObjectIdentifier> = Lazy::new(|| {
-    ObjectIdentifier::from_slice(&[1, 2, 840, 113549, 1, 1, 8])
-});
+static OID_MGF1: Lazy<ObjectIdentifier> =
+    Lazy::new(|| ObjectIdentifier::from_slice(&[1, 2, 840, 113549, 1, 1, 8]));
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct RsaPssJwsAlgorithm {
@@ -52,9 +47,7 @@ impl RsaPssJwsAlgorithm {
     /// # Arguments
     /// * `name` - A algrithm name.
     const fn new(name: &'static str) -> Self {
-        RsaPssJwsAlgorithm {
-            name,
-        }
+        RsaPssJwsAlgorithm { name }
     }
 
     /// Return a signer from a private key of JWK format.
@@ -103,7 +96,8 @@ impl RsaPssJwsAlgorithm {
                 algorithm: &self,
                 private_key: pkey,
             })
-        })().map_err(|err| JoseError::InvalidKeyFormat(err))
+        })()
+        .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
     /// Return a signer from a private key of PKCS#1 or PKCS#8 PEM format.
@@ -123,12 +117,12 @@ impl RsaPssJwsAlgorithm {
                         bail!("Invalid PEM contents.");
                     }
                     PKey::private_key_from_der(&data)?
-                },
+                }
                 "RSA PRIVATE KEY" => {
                     let pkcs8 = self.to_pkcs8(&data, false);
                     PKey::private_key_from_der(&pkcs8)?
-                },
-                alg => bail!("Inappropriate algorithm: {}", alg)
+                }
+                alg => bail!("Inappropriate algorithm: {}", alg),
             };
             self.check_key(&pkey)?;
 
@@ -136,7 +130,8 @@ impl RsaPssJwsAlgorithm {
                 algorithm: &self,
                 private_key: pkey,
             })
-        })().map_err(|err| JoseError::InvalidKeyFormat(err))
+        })()
+        .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
     /// Return a signer from a private key of PKCS#1 or PKCS#8 DER format.
@@ -160,7 +155,8 @@ impl RsaPssJwsAlgorithm {
                 algorithm: &self,
                 private_key: pkey,
             })
-        })().map_err(|err| JoseError::InvalidKeyFormat(err))
+        })()
+        .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
     /// Return a verifier from a key of JWK format.
@@ -187,7 +183,7 @@ impl RsaPssJwsAlgorithm {
                 builder.append_integer_from_be_slice(&e); // e
             }
             builder.end();
-            
+
             let pkcs8 = self.to_pkcs8(&builder.build(), true);
             let pkey = PKey::public_key_from_der(&pkcs8)?;
 
@@ -197,7 +193,8 @@ impl RsaPssJwsAlgorithm {
                 algorithm: &self,
                 public_key: pkey,
             })
-        })().map_err(|err| JoseError::InvalidKeyFormat(err))
+        })()
+        .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
     /// Return a verifier from a public key of PKCS#1 or PKCS#8 PEM format.
@@ -216,12 +213,12 @@ impl RsaPssJwsAlgorithm {
                         bail!("Invalid PEM contents.");
                     }
                     PKey::public_key_from_der(&data)?
-                },
+                }
                 "RSA PUBLIC KEY" => {
                     let pkcs8 = self.to_pkcs8(&data, true);
                     PKey::public_key_from_der(&pkcs8)?
-                },
-                alg => bail!("Inappropriate algorithm: {}", alg)
+                }
+                alg => bail!("Inappropriate algorithm: {}", alg),
             };
             self.check_key(&pkey)?;
 
@@ -229,7 +226,8 @@ impl RsaPssJwsAlgorithm {
                 algorithm: &self,
                 public_key: pkey,
             })
-        })().map_err(|err| JoseError::InvalidKeyFormat(err))
+        })()
+        .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
     /// Return a verifier from a public key of PKCS#1 or PKCS#8 DER format.
@@ -253,15 +251,16 @@ impl RsaPssJwsAlgorithm {
                 algorithm: &self,
                 public_key: pkey,
             })
-        })().map_err(|err| JoseError::InvalidKeyFormat(err))
+        })()
+        .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
-        
+
     fn parameters(&self) -> (&ObjectIdentifier, u8) {
         match self.name {
             "PS256" => (&OID_SHA256, 32),
             "PS384" => (&OID_SHA384, 48),
             "PS512" => (&OID_SHA512, 64),
-            _ => unreachable!()
+            _ => unreachable!(),
         }
     }
 
@@ -274,69 +273,65 @@ impl RsaPssJwsAlgorithm {
 
         Ok(())
     }
-    
-    fn detect_pkcs8(&self, input: &[u8], is_public:bool) -> anyhow::Result<bool> {
+
+    fn detect_pkcs8(&self, input: &[u8], is_public: bool) -> anyhow::Result<bool> {
         let (sha_oid, salt_len) = self.parameters();
 
         let mut reader = DerReader::new(input.bytes());
 
         match reader.next() {
-            Ok(Some(DerType::Sequence)) => {},
-            _ => return Ok(false)
+            Ok(Some(DerType::Sequence)) => {}
+            _ => return Ok(false),
         }
 
         {
             if !is_public {
                 // Version
                 match reader.next() {
-                    Ok(Some(DerType::Integer)) => {
-                        match reader.to_u8() {
-                            Ok(val) => {
-                                if val != 0 {
-                                    bail!("Unrecognized version: {}", val);
-                                }
-                            },
-                            _ => return Ok(false)
+                    Ok(Some(DerType::Integer)) => match reader.to_u8() {
+                        Ok(val) => {
+                            if val != 0 {
+                                bail!("Unrecognized version: {}", val);
+                            }
                         }
+                        _ => return Ok(false),
                     },
-                    _ => return Ok(false)
+                    _ => return Ok(false),
                 }
             }
 
             match reader.next() {
-                Ok(Some(DerType::Sequence)) => {},
-                _ => return Ok(false)
+                Ok(Some(DerType::Sequence)) => {}
+                _ => return Ok(false),
             }
 
             {
                 match reader.next() {
-                    Ok(Some(DerType::ObjectIdentifier)) => {
-                        match reader.to_object_identifier() {
-                            Ok(val) => {
-                                if val != *OID_RSASSA_PSS {
-                                    bail!("Incompatible oid: {}", val);
-                                }
-                            },
-                            _ => return Ok(false)
+                    Ok(Some(DerType::ObjectIdentifier)) => match reader.to_object_identifier() {
+                        Ok(val) => {
+                            if val != *OID_RSASSA_PSS {
+                                bail!("Incompatible oid: {}", val);
+                            }
                         }
+                        _ => return Ok(false),
                     },
-                    _ => return Ok(false)
+                    _ => return Ok(false),
                 }
 
                 match reader.next() {
-                    Ok(Some(DerType::Sequence)) => {},
-                    _ => return Ok(false)
+                    Ok(Some(DerType::Sequence)) => {}
+                    _ => return Ok(false),
                 }
 
                 {
                     match reader.next() {
-                        Ok(Some(DerType::Other(DerClass::ContextSpecific, 0))) => {},
-                        _ => return Ok(false)
+                        Ok(Some(DerType::Other(DerClass::ContextSpecific, 0))) => {}
+                        _ => return Ok(false),
                     }
 
                     match reader.next() {
-                        Ok(Some(DerType::Sequence)) => {},
-                        _ => return Ok(false)
+                        Ok(Some(DerType::Sequence)) => {}
+                        _ => return Ok(false),
                     }
 
                     {
@@ -347,27 +342,27 @@ impl RsaPssJwsAlgorithm {
                                         if val != *sha_oid {
                                             bail!("Incompatible oid: {}", val);
                                         }
-                                    },
-                                    _ => return Ok(false)
+                                    }
+                                    _ => return Ok(false),
                                 }
-                            },
-                            _ => return Ok(false)
+                            }
+                            _ => return Ok(false),
                         }
                     }
 
                     match reader.next() {
-                        Ok(Some(DerType::EndOfContents)) => {},
-                        _ => return Ok(false)
+                        Ok(Some(DerType::EndOfContents)) => {}
+                        _ => return Ok(false),
                     }
 
                     match reader.next() {
-                        Ok(Some(DerType::Other(DerClass::ContextSpecific, 1))) => {},
-                        _ => return Ok(false)
+                        Ok(Some(DerType::Other(DerClass::ContextSpecific, 1))) => {}
+                        _ => return Ok(false),
                     }
 
                     match reader.next() {
-                        Ok(Some(DerType::Sequence)) => {},
-                        _ => return Ok(false)
+                        Ok(Some(DerType::Sequence)) => {}
+                        _ => return Ok(false),
                     }
 
                     {
@@ -378,16 +373,16 @@ impl RsaPssJwsAlgorithm {
                                         if val != *OID_MGF1 {
                                             bail!("Incompatible oid: {}", val);
                                         }
-                                    },
-                                    _ => return Ok(false)
+                                    }
+                                    _ => return Ok(false),
                                 }
-                            },
-                            _ => return Ok(false)
+                            }
+                            _ => return Ok(false),
                         }
 
                         match reader.next() {
-                            Ok(Some(DerType::Sequence)) => {},
-                            _ => return Ok(false)
+                            Ok(Some(DerType::Sequence)) => {}
+                            _ => return Ok(false),
                         }
 
                         {
@@ -398,37 +393,35 @@ impl RsaPssJwsAlgorithm {
                                             if val != *sha_oid {
                                                 bail!("Incompatible oid: {}", val);
                                             }
-                                        },
-                                        _ => return Ok(false)
+                                        }
+                                        _ => return Ok(false),
                                     }
-                                },
-                                _ => return Ok(false)
+                                }
+                                _ => return Ok(false),
                             }
                         }
                     }
 
                     match reader.next() {
-                        Ok(Some(DerType::EndOfContents)) => {},
-                        _ => return Ok(false)
+                        Ok(Some(DerType::EndOfContents)) => {}
+                        _ => return Ok(false),
                     }
 
                     match reader.next() {
-                        Ok(Some(DerType::Other(DerClass::ContextSpecific, 2))) => {},
-                        _ => return Ok(false)
+                        Ok(Some(DerType::Other(DerClass::ContextSpecific, 2))) => {}
+                        _ => return Ok(false),
                     }
 
                     match reader.next() {
-                        Ok(Some(DerType::Integer)) => {
-                            match reader.to_u8() {
-                                Ok(val) => {
-                                    if val != salt_len {
-                                        bail!("Incompatible salt length: {}", val);
-                                    }
-                                },
-                                _ => return Ok(false)
+                        Ok(Some(DerType::Integer)) => match reader.to_u8() {
+                            Ok(val) => {
+                                if val != salt_len {
+                                    bail!("Incompatible salt length: {}", val);
+                                }
                             }
+                            _ => return Ok(false),
                         },
-                        _ => return Ok(false)
+                        _ => return Ok(false),
                     }
                 }
             }
@@ -578,11 +571,7 @@ mod tests {
     fn sign_and_verify_rsspss_jwt() -> Result<()> {
         let data = b"abcde12345";
 
-        for name in &[
-            "PS256",
-            "PS384",
-            "PS512",
-         ] {
+        for name in &["PS256", "PS384", "PS512"] {
             let alg = RsaPssJwsAlgorithm::new(name);
 
             let private_key = load_file("jwk/RSA_private.jwk")?;
@@ -602,24 +591,20 @@ mod tests {
     fn sign_and_verify_rsspss_pkcs8_pem() -> Result<()> {
         let data = b"abcde12345";
 
-        for name in &[
-            "PS256",
-            "PS384",
-            "PS512",
-         ] {
+        for name in &["PS256", "PS384", "PS512"] {
             let alg = RsaPssJwsAlgorithm::new(name);
 
             let private_key = load_file(match *name {
                 "PS256" => "pem/rsapss_2048_sha256_pkcs8_private.pem",
                 "PS384" => "pem/rsapss_2048_sha384_pkcs8_private.pem",
                 "PS512" => "pem/rsapss_2048_sha512_pkcs8_private.pem",
-                _ => unreachable!()
+                _ => unreachable!(),
             })?;
             let public_key = load_file(match *name {
                 "PS256" => "pem/rsapss_2048_sha256_pkcs8_public.pem",
                 "PS384" => "pem/rsapss_2048_sha384_pkcs8_public.pem",
                 "PS512" => "pem/rsapss_2048_sha512_pkcs8_public.pem",
-                _ => unreachable!()
+                _ => unreachable!(),
             })?;
 
             let signer = alg.signer_from_pem(&private_key)?;
@@ -636,24 +621,20 @@ mod tests {
     fn sign_and_verify_rsspss_pkcs8_der() -> Result<()> {
         let data = b"abcde12345";
 
-        for name in &[
-            "PS256",
-            "PS384",
-            "PS512",
-         ] {
+        for name in &["PS256", "PS384", "PS512"] {
             let alg = RsaPssJwsAlgorithm::new(name);
 
             let private_key = load_file(match *name {
                 "PS256" => "der/rsapss_2048_sha256_pkcs8_private.der",
                 "PS384" => "der/rsapss_2048_sha384_pkcs8_private.der",
                 "PS512" => "der/rsapss_2048_sha512_pkcs8_private.der",
-                _ => unreachable!()
+                _ => unreachable!(),
             })?;
             let public_key = load_file(match *name {
                 "PS256" => "der/rsapss_2048_sha256_pkcs8_public.der",
                 "PS384" => "der/rsapss_2048_sha384_pkcs8_public.der",
                 "PS512" => "der/rsapss_2048_sha512_pkcs8_public.der",
-                _ => unreachable!()
+                _ => unreachable!(),
             })?;
 
             let signer = alg.signer_from_der(&private_key)?;

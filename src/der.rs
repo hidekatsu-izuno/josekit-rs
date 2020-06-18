@@ -1,11 +1,11 @@
-pub mod oid;
-mod reader;
 mod builder;
 mod error;
+pub mod oid;
+mod reader;
 
-pub use crate::der::reader::DerReader;
 pub use crate::der::builder::DerBuilder;
 pub use crate::der::error::DerError;
+pub use crate::der::reader::DerReader;
 
 use std::fmt;
 
@@ -45,7 +45,7 @@ pub enum DerType {
     TimeOfDay,
     DateTime,
     Duration,
-    Other(DerClass, u64)
+    Other(DerClass, u64),
 }
 
 impl DerType {
@@ -80,7 +80,7 @@ impl DerType {
             DerType::DateTime => true,
             DerType::Duration => true,
             DerType::Other(_, _) => true,
-            _ => false
+            _ => false,
         }
     }
 
@@ -105,14 +105,14 @@ impl DerType {
             DerType::CharacterString => true,
             DerType::BmpString => true,
             DerType::Other(_, _) => true,
-            _ => false
+            _ => false,
         }
     }
 
     pub fn der_class(&self) -> DerClass {
         match self {
             DerType::Other(val, _) => *val,
-            _ => DerClass::Universal
+            _ => DerClass::Universal,
         }
     }
 
@@ -152,7 +152,7 @@ impl DerType {
             DerType::TimeOfDay => 32,
             DerType::DateTime => 33,
             DerType::Duration => 34,
-            DerType::Other(_, val) => *val
+            DerType::Other(_, val) => *val,
         }
     }
 }
@@ -168,7 +168,7 @@ pub enum DerClass {
     Universal,
     Application,
     ContextSpecific,
-    Private
+    Private,
 }
 
 impl DerClass {
@@ -177,7 +177,7 @@ impl DerClass {
             DerClass::Universal => 0,
             DerClass::Application => 1,
             DerClass::ContextSpecific => 2,
-            DerClass::Private => 3
+            DerClass::Private => 3,
         }
     }
 }
