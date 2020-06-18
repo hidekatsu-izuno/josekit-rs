@@ -148,7 +148,7 @@ mod tests {
     use std::path::PathBuf;
 
     #[test]
-    fn sign_and_verify_jwk() -> Result<()> {
+    fn sign_and_verify_hmac_jwk() -> Result<()> {
         let data = b"abcde12345";
 
         for name in &[
@@ -158,12 +158,7 @@ mod tests {
         ] {
             let alg = HmacJwsAlgorithm::new(name);
 
-            let private_key = load_file(match *name {
-                "HS256" => "jwk/hs256_private.jwk",
-                "HS384" => "jwk/hs384_private.jwk",
-                "HS512" => "jwk/hs512_private.jwk",
-                _ => unreachable!()
-            })?;
+            let private_key = load_file("jwk/oct_private.jwk")?;
 
             let signer = alg.signer_from_jwk(&private_key)?;
             let signature = signer.sign(&[data])?;
@@ -174,7 +169,7 @@ mod tests {
     }
 
     #[test]
-    fn sign_and_verify_slice() -> Result<()> {
+    fn sign_and_verify_hmac_bytes() -> Result<()> {
         let private_key = b"ABCDE12345";
         let data = b"abcde12345";
 

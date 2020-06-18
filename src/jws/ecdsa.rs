@@ -1,18 +1,15 @@
-use anyhow::{anyhow, bail};
+use anyhow::bail;
 use std::io::Read;
-use openssl::ec::{EcKey, EcGroup};
 use openssl::hash::MessageDigest;
-use openssl::nid::Nid;
-use openssl::pkey::{HasPublic, PKey, Private, Public};
+use openssl::pkey::{PKey, Private, Public};
 use openssl::sign::{Signer, Verifier};
-use openssl::bn::BigNum;
 use serde_json::{Map, Value};
 use once_cell::sync::Lazy;
 
 use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier};
 use crate::jws::util::{json_eq, json_base64_bytes, parse_pem};
-use crate::der::{DerReader, DerBuilder, DerType, DerError};
-use crate::der::oid::ObjectIdentifier;
+use crate::der::{DerReader, DerBuilder, DerType, DerClass};
+use crate::der::oid::{ObjectIdentifier};
 use crate::error::JoseError;
 
 /// ECDSA using P-256 and SHA-256
@@ -74,34 +71,37 @@ impl EcdsaJwsAlgorithm {
         (|| -> anyhow::Result<EcdsaJwsSigner> {
             let map: Map<String, Value> = serde_json::from_slice(input)?;
 
-            json_eq(&map, "alg", &self.name(), false)?;
             json_eq(&map, "kty", "EC", true)?;
             json_eq(&map, "use", "sig", false)?;
-            json_eq(&map, "crv", match self.name {
-                "ES256" => "P-256",
-                "ES346" => "P-348",
-                "ES512" => "P-512",
-                "ES256K" => "secp256k1",
-                _  => unreachable!()
-            }, true)?;
+            json_eq(&map, "alg", self.name(), false)?;
+            json_eq(&map, "crv", self.curve_name(), true)?;
             let d = json_base64_bytes(&map, "d")?;
             let x = json_base64_bytes(&map, "x")?;
             let y = json_base64_bytes(&map, "y")?;
 
-            let crv = Self::curve(&map, "crv")?;
-            let ec_group = EcGroup::from_curve_name(crv)?;
-            let public_key = EcKey::from_public_key_affine_coordinates(
-                ec_group.as_ref(),
-                BigNum::from_slice(&x)?.as_ref(),
-                BigNum::from_slice(&y)?.as_ref()
-            )?;
+            let mut builder = DerBuilder::new();
+            builder.begin(DerType::Sequence);
+            {
+                builder.append_integer_from_u8(1);
+                builder.append_octed_string_from_slice(&d);
+                builder.begin(DerType::Other(DerClass::ContextSpecific, 0));
+                {
+                    builder.append_object_identifier(self.curve());
+                }
+                builder.end();
+                builder.begin(DerType::Other(DerClass::ContextSpecific, 1));
+                {
+                    let mut vec = Vec::with_capacity(x.len() + y.len());
+                    vec.extend_from_slice(&x);
+                    vec.extend_from_slice(&y);
+                    builder.append_bit_string_from_slice(&vec, 0);
+                }
+                builder.end();
+            }
+            builder.end();
 
-            let pkey = EcKey::from_private_components(
-                ec_group.as_ref(),
-                BigNum::from_slice(&d)?.as_ref(),
-                public_key.public_key()
-            ).and_then(|val| PKey::from_ec_key(val))?;
-            self.check_key(&pkey)?;
+            let pkcs8 = self.to_pkcs8(&builder.build(), false);
+            let pkey = PKey::private_key_from_der(&pkcs8)?;
 
             Ok(EcdsaJwsSigner {
                 algorithm: &self,
@@ -121,14 +121,19 @@ impl EcdsaJwsAlgorithm {
     ) -> Result<impl JwsSigner<Self> + 'a, JoseError> {
         (|| -> anyhow::Result<EcdsaJwsSigner> {
             let (alg, data) = parse_pem(input)?;
-            let der = match alg.as_str() {
-                "PUBLIC KEY" => data,
-                "EC PUBLIC KEY" => self.to_pkcs8_private_der(&data),
+            let pkey = match alg.as_str() {
+                "PRIVATE KEY" => {
+                    if !self.detect_pkcs8(&data, false)? {
+                        bail!("Invalid PEM contents.");
+                    }
+                    PKey::private_key_from_der(&data)?
+                },
+                "EC PRIVATE KEY" => {
+                    let pkcs8 = self.to_pkcs8(&data, false);
+                    PKey::private_key_from_der(&pkcs8)?
+                },
                 alg => bail!("Inappropriate algorithm: {}", alg)
             };
-
-            let pkey = PKey::private_key_from_der(&der)?;
-            self.check_key(&pkey)?;
 
             Ok(EcdsaJwsSigner {
                 algorithm: &self,
@@ -146,14 +151,12 @@ impl EcdsaJwsAlgorithm {
         input: &[u8],
     ) -> Result<impl JwsSigner<Self> + 'a, JoseError> {
         (|| -> anyhow::Result<EcdsaJwsSigner> {
-            let pkey = if self.is_pkcs8_private_der(input) {
+            let pkey = if self.detect_pkcs8(input, false)? {
                 PKey::private_key_from_der(input)?
             } else {
-                let der = self.to_pkcs8_private_der(input);
-                PKey::private_key_from_der(&der)?
+                let pkcs8 = self.to_pkcs8(input, false);
+                PKey::private_key_from_der(&pkcs8)?
             };
-            
-            self.check_key(&pkey)?;
 
             Ok(EcdsaJwsSigner {
                 algorithm: &self,
@@ -173,29 +176,19 @@ impl EcdsaJwsAlgorithm {
         (|| -> anyhow::Result<EcdsaJwsVerifier> {
             let map: Map<String, Value> = serde_json::from_slice(input)?;
 
-            json_eq(&map, "alg", &self.name(), false)?;
             json_eq(&map, "kty", "EC", true)?;
             json_eq(&map, "use", "sig", false)?;
-            json_eq(&map, "crv", match self.name {
-                "ES256" => "P-256",
-                "ES346" => "P-348",
-                "ES512" => "P-512",
-                "ES256K" => "secp256k1",
-                _  => unreachable!()
-            }, true)?;
+            json_eq(&map, "alg", self.name(), false)?;
+            json_eq(&map, "crv", self.curve_name(), true)?;
             let x = json_base64_bytes(&map, "x")?;
             let y = json_base64_bytes(&map, "y")?;
 
-            let crv = Self::curve(&map, "crv")?;
-            let ec_group = EcGroup::from_curve_name(crv)?;
-            let public_key = EcKey::from_public_key_affine_coordinates(
-                ec_group.as_ref(),
-                BigNum::from_slice(&x)?.as_ref(),
-                BigNum::from_slice(&y)?.as_ref()
-            )?;
-            
-            let pkey = PKey::from_ec_key(public_key)?;
-            self.check_key(&pkey)?;
+            let mut vec = Vec::with_capacity(x.len() + y.len());
+            vec.extend_from_slice(&x);
+            vec.extend_from_slice(&y);
+
+            let pkcs8 = self.to_pkcs8(&vec, true);
+            let pkey = PKey::public_key_from_der(&pkcs8)?;
 
             Ok(EcdsaJwsVerifier {
                 algorithm: &self,
@@ -214,14 +207,20 @@ impl EcdsaJwsAlgorithm {
     ) -> Result<impl JwsVerifier<Self> + 'a, JoseError> {
         (|| -> anyhow::Result<EcdsaJwsVerifier> {
             let (alg, data) = parse_pem(input)?;
-            let der = match alg.as_str() {
-                "PUBLIC KEY" => data,
-                "EC PUBLIC KEY" => self.to_pkcs8_public_der(&data),
+            
+            let pkey = match alg.as_str() {
+                "PUBLIC KEY" => {
+                    if !self.detect_pkcs8(&data, true)? {
+                        bail!("Invalid PEM contents.");
+                    }
+                    PKey::public_key_from_der(&data)?
+                },
+                "EC PUBLIC KEY" => {
+                    let pkcs8 = self.to_pkcs8(&data, true);
+                    PKey::public_key_from_der(&pkcs8)?
+                },
                 alg => bail!("Inappropriate algorithm: {}", alg)
             };
-
-            let pkey = PKey::public_key_from_der(&der)?;
-            self.check_key(&pkey)?;
 
             Ok(EcdsaJwsVerifier {
                 algorithm: &self,
@@ -239,14 +238,12 @@ impl EcdsaJwsAlgorithm {
         input: &[u8],
     ) -> Result<impl JwsVerifier<Self> + 'a, JoseError> {
         (|| -> anyhow::Result<EcdsaJwsVerifier> {
-            let pkey = if self.is_pkcs8_public_der(input) {
+            let pkey = if self.detect_pkcs8(input, true)? {
                 PKey::public_key_from_der(input)?
             } else {
-                let der = self.to_pkcs8_public_der(input);
-                PKey::public_key_from_der(&der)?
+                let pkcs8 = self.to_pkcs8(input, true);
+                PKey::public_key_from_der(&pkcs8)?
             };
-
-            self.check_key(&pkey)?;
 
             Ok(EcdsaJwsVerifier {
                 algorithm: &self,
@@ -255,147 +252,117 @@ impl EcdsaJwsAlgorithm {
         })().map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
-    fn check_key<T: HasPublic>(&self, pkey: &PKey<T>) -> anyhow::Result<()> {
-        let ec_key = pkey.ec_key()?;
-
-        let curve = match self.name {
-            "ES256" => Nid::X9_62_PRIME256V1,
-            "ES384" => Nid::SECP384R1,
-            "ES512" => Nid::SECP521R1,
-            "ES256K" => Nid::SECP256K1,
-            _ => unimplemented!()
-        };
-
-        match ec_key.group().curve_name() {
-            Some(val) if val == curve => {}
-            _ => bail!("Inappropriate curve: {:?}", curve),
+    fn curve_name(&self) -> &str {
+        match self.name {
+            "ES256" => "P-256",
+            "ES384" => "P-384",
+            "ES512" => "P-521",
+            "ES256K" => "secp256k1",
+            _  => unreachable!()
         }
-
-        Ok(())
     }
 
-    fn curve(map: &Map<String, Value>, key: &str) -> anyhow::Result<Nid> {
-        if let Some(Value::String(val)) = map.get(key) {
-            match val.as_str() {
-                "P-256" => Ok(Nid::X9_62_PRIME256V1),
-                "P-384" => Ok(Nid::SECP384R1),
-                "P-521" => Ok(Nid::SECP521R1),
-                "secp256k1" => Ok(Nid::SECP256K1),
-                _ => bail!("Unsupported curve: {}", val)
+    fn curve(&self) -> &ObjectIdentifier {
+        match self.name {
+            "ES256" => &*OID_PRIME256V1,
+            "ES384" => &*OID_SECP384R1,
+            "ES512" => &*OID_SECP521R1,
+            "ES256K" => &*OID_SECP256K1,
+            _  => unreachable!()
+        }
+    }
+
+    fn detect_pkcs8(&self, input: &[u8], is_public:bool) -> anyhow::Result<bool> {
+        let curve = self.curve();
+
+        let mut reader = DerReader::new(input.bytes());
+
+        match reader.next() {
+            Ok(Some(DerType::Sequence)) => {},
+            _ => return Ok(false)
+        }
+
+        {
+            if !is_public {
+                // Version
+                match reader.next() {
+                    Ok(Some(DerType::Integer)) => {
+                        match reader.to_u8() {
+                            Ok(val) => {
+                                if val != 0 {
+                                    bail!("Unrecognized version: {}", val);
+                                }
+                            },
+                            _ => return Ok(false)
+                        }
+                    },
+                    _ => return Ok(false)
+                }
             }
+
+            match reader.next() {
+                Ok(Some(DerType::Sequence)) => {},
+                _ => return Ok(false)
+            }
+
+            {
+                match reader.next() {
+                    Ok(Some(DerType::ObjectIdentifier)) => {
+                        match reader.to_object_identifier() {
+                            Ok(val) => {
+                                if val != *OID_ID_EC_PUBLIC_KEY {
+                                    bail!("Incompatible oid: {}", val);
+                                }
+                            },
+                            _ => return Ok(false)
+                        }
+                    },
+                    _ => return Ok(false)
+                }
+
+                match reader.next() {
+                    Ok(Some(DerType::ObjectIdentifier)) => {
+                        match reader.to_object_identifier() {
+                            Ok(val) => {
+                                if &val != curve {
+                                    bail!("Incompatible oid: {}", val);
+                                }
+                            },
+                            _ => return Ok(false)
+                        }
+                    },
+                    _ => return Ok(false)
+                }
+            }
+        }
+
+        Ok(true)
+    }
+
+    fn to_pkcs8(&self, input: &[u8], is_public: bool) -> Vec<u8> {
+        let curve = self.curve();
+
+        let mut builder = DerBuilder::new();
+        builder.begin(DerType::Sequence);
+        {
+            if !is_public {
+                builder.append_integer_from_u8(0);
+            }
+
+            builder.begin(DerType::Sequence);
+            {
+                builder.append_object_identifier(&OID_ID_EC_PUBLIC_KEY);
+                builder.append_object_identifier(curve);
+            }
+            builder.end();
+        }
+
+        if is_public {
+            builder.append_bit_string_from_slice(input, 0);
         } else {
-            bail!("Key crv is missing.");
+            builder.append_octed_string_from_slice(input);
         }
-    }
 
-    fn is_pkcs8_private_der<'a>(&'a self, input: &[u8]) -> bool {
-        let mut reader = DerReader::new(input.bytes());
-
-        (|| -> Result<bool, DerError> {
-            match reader.next()? {
-                Some(DerType::Sequence) => {},
-                _ => return Ok(false)
-            }
-
-            // Version
-            match reader.next()? {
-                Some(DerType::Integer) => {
-                    match reader.to_u8() {
-                        Ok(val) if val == 0 => {},
-                        _ => return Ok(false)
-                    }
-                },
-                _ => return Ok(false)
-            }
-
-            match reader.next()? {
-                Some(DerType::Sequence) => {},
-                _ => return Ok(false)
-            }
-
-            match reader.next()? {
-                Some(DerType::ObjectIdentifier) => {
-                    match reader.to_object_identifier() {
-                        Ok(val) if val == *OID_ID_EC_PUBLIC_KEY => {},
-                        _ => return Ok(false)
-                    }
-                },
-                _ => return Ok(false)
-            }
-
-            Ok(true)
-        })().unwrap_or(false)
-    }
-
-    fn to_pkcs8_private_der<'a>(&'a self, input: &[u8]) -> Vec<u8> {
-        let mut builder = DerBuilder::new();
-        builder.begin(DerType::Sequence);
-        {
-            builder.append_integer_from_u8(0);
-            builder.begin(DerType::Sequence);
-            {
-                builder.append_object_identifier(&OID_ID_EC_PUBLIC_KEY);
-                builder.append_object_identifier(match self.name {
-                    "ES256" => &*OID_PRIME256V1,
-                    "ES346" => &*OID_SECP384R1,
-                    "ES512" => &*OID_SECP521R1,
-                    "ES256K" => &*OID_SECP256K1,
-                    _  => unreachable!()
-                });
-            }
-            builder.end();
-        }
-        builder.append_octed_string_from_slice(input);
-        builder.end();
-        builder.build()
-    }
-
-    fn is_pkcs8_public_der<'a>(&'a self, input: &[u8]) -> bool {
-        let mut reader = DerReader::new(input.bytes());
-
-        (|| -> Result<bool, DerError> {
-            match reader.next()? {
-                Some(DerType::Sequence) => {},
-                _ => return Ok(false)
-            }
-
-            match reader.next()? {
-                Some(DerType::Sequence) => {},
-                _ => return Ok(false)
-            }
-
-            match reader.next()? {
-                Some(DerType::ObjectIdentifier) => {
-                    match reader.to_object_identifier() {
-                        Ok(val) if val == *OID_ID_EC_PUBLIC_KEY => {},
-                        _ => return Ok(false)
-                    }
-                },
-                _ => return Ok(false)
-            }
-
-            Ok(true)
-        })().unwrap_or(false)
-    }
-
-    fn to_pkcs8_public_der<'a>(&'a self, input: &[u8]) -> Vec<u8> {
-        let mut builder = DerBuilder::new();
-        builder.begin(DerType::Sequence);
-        {
-            builder.begin(DerType::Sequence);
-            {
-                builder.append_object_identifier(&OID_ID_EC_PUBLIC_KEY);
-                builder.append_object_identifier(match self.name {
-                    "ES256" => &*OID_PRIME256V1,
-                    "ES346" => &*OID_SECP384R1,
-                    "ES512" => &*OID_SECP521R1,
-                    "ES256K" => &*OID_SECP256K1,
-                    _  => unreachable!()
-                });
-            }
-            builder.end();
-        }
-        builder.append_bit_string_from_slice(input, 0);
         builder.end();
         builder.build()
     }
@@ -477,26 +444,29 @@ mod tests {
     use std::path::PathBuf;
 
     #[test]
-    fn sign_and_verify_jwt() -> Result<()> {
+    fn sign_and_verify_ecdsa_jwt() -> Result<()> {
         let data = b"abcde12345";
 
         for name in &[
             "ES256",
             "ES384",
             "ES512",
+            "ES256K",
          ] {
             let alg = EcdsaJwsAlgorithm::new(name);
 
             let private_key = load_file(match *name {
-                "ES256" => "jwk/es256_private.jwk",
-                "ES384" => "jwk/es384_private.jwk",
-                "ES512" => "jwk/es512_private.jwk",
+                "ES256" => "jwk/EC_P-256_private.jwk",
+                "ES384" => "jwk/EC_P-384_private.jwk",
+                "ES512" => "jwk/EC_P-521_private.jwk",
+                "ES256K" => "jwk/EC_secp256k1_private.jwk",
                 _ => unreachable!()
             })?;
             let public_key = load_file(match *name {
-                "ES256" => "jwk/es256_public.jwk",
-                "ES384" => "jwk/es384_public.jwk",
-                "ES512" => "jwk/es512_public.jwk",
+                "ES256" => "jwk/EC_P-256_public.jwk",
+                "ES384" => "jwk/EC_P-384_public.jwk",
+                "ES512" => "jwk/EC_P-521_public.jwk",
+                "ES256K" => "jwk/EC_secp256k1_public.jwk",
                 _ => unreachable!()
             })?;
 
@@ -511,7 +481,7 @@ mod tests {
     }
     
     #[test]
-    fn sign_and_verify_pkcs8_pem() -> Result<()> {
+    fn sign_and_verify_ecdsa_pkcs8_pem() -> Result<()> {
         let data = b"abcde12345";
 
         for name in &[
@@ -545,7 +515,7 @@ mod tests {
     }
 
     #[test]
-    fn sign_and_verify_pkcs8_der() -> Result<()> {
+    fn sign_and_verify_ecdsa_pkcs8_der() -> Result<()> {
         let data = b"abcde12345";
 
         for name in &[

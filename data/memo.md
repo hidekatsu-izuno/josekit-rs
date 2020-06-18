@@ -61,24 +61,30 @@ openssl pkcs8 -nocrypt -in ecdsa_p256_pk1_private.pem -topk8 -out ecdsa_p256_pri
 ## RSA-PSS keypair
 
 ### Create RSA-PSS PKCS#8 PEM private key
-openssl genpkey -algorithm RSA-PSS -pkeyopt rsa_keygen_bits:2048 -pkeyopt rsa_pss_keygen_md:sha256 -pkeyopt rsa_pss_keygen_mgf1_md:sha256 -pkeyopt rsa_pss_keygen_saltlen:32 -out rsapss_2048_sha256_private.pem
-openssl genpkey -algorithm RSA-PSS -pkeyopt rsa_keygen_bits:2048 -pkeyopt rsa_pss_keygen_md:sha384 -pkeyopt rsa_pss_keygen_mgf1_md:sha384 -out rsapss_2048_sha384_private.pem
-openssl genpkey -algorithm RSA-PSS -pkeyopt rsa_keygen_bits:2048 -pkeyopt rsa_pss_keygen_md:sha512  -pkeyopt rsa_pss_keygen_mgf1_md:sha512 -out rsapss_2048_sha512_private.pem
+openssl genpkey -algorithm RSA-PSS -pkeyopt rsa_keygen_bits:2048 -pkeyopt rsa_pss_keygen_md:sha256 -pkeyopt rsa_pss_keygen_mgf1_md:sha256 -pkeyopt rsa_pss_keygen_saltlen:32 -out rsapss_2048_sha256_pkcs8_private.pem
+openssl genpkey -algorithm RSA-PSS -pkeyopt rsa_keygen_bits:2048 -pkeyopt rsa_pss_keygen_md:sha384 -pkeyopt rsa_pss_keygen_mgf1_md:sha384 -pkeyopt rsa_pss_keygen_saltlen:48 -out rsapss_2048_sha384_pkcs8_private.pem
+openssl genpkey -algorithm RSA-PSS -pkeyopt rsa_keygen_bits:2048 -pkeyopt rsa_pss_keygen_md:sha512  -pkeyopt rsa_pss_keygen_mgf1_md:sha512 -pkeyopt rsa_pss_keygen_saltlen:64 -out rsapss_2048_sha512_pkcs8_private.pem
 
 ### Generate RSA-PSS PKCS#8 PEM public key from RSA PKCS#8 PEM private key
-openssl pkey -in rsapss_2048_sha256_private.pem -pubout -outform PEM -out rsapss_2048_sha256_public.pem
+openssl pkey -in rsapss_2048_sha256_pkcs8_private.pem -pubout -outform PEM -out rsapss_2048_sha256_pkcs8_public.pem
+openssl pkey -in rsapss_2048_sha384_pkcs8_private.pem -pubout -outform PEM -out rsapss_2048_sha384_pkcs8_public.pem
+openssl pkey -in rsapss_2048_sha512_pkcs8_private.pem -pubout -outform PEM -out rsapss_2048_sha512_pkcs8_public.pem
 
 ### Convert RSA-PSS private key from PKCS#8 PEM to PKCS#8 DER
-openssl pkcs8 -nocrypt -in rsapss_2048_sha256_private.pem -topk8 -outform DER -out rsapss_2048_sha256_private.der
+openssl pkcs8 -nocrypt -in rsapss_2048_sha256_pkcs8_private.pem -topk8 -outform DER -out rsapss_2048_sha256_pkcs8_private.der
+openssl pkcs8 -nocrypt -in rsapss_2048_sha384_pkcs8_private.pem -topk8 -outform DER -out rsapss_2048_sha384_pkcs8_private.der
+openssl pkcs8 -nocrypt -in rsapss_2048_sha512_pkcs8_private.pem -topk8 -outform DER -out rsapss_2048_sha512_pkcs8_private.der
 
 ### Generate RSA-PSS PKCS#8 DER public key from RSA-PSS PKCS#8 PEM private key
-openssl pkey -in rsapss_2048_sha256_private.pem -pubout -outform DER -out rsapss_2048_sha256_public.der
+openssl pkey -in rsapss_2048_sha256_pkcs8_private.pem -pubout -outform DER -out rsapss_2048_sha256_pkcs8_public.der
+openssl pkey -in rsapss_2048_sha384_pkcs8_private.pem -pubout -outform DER -out rsapss_2048_sha384_pkcs8_public.der
+openssl pkey -in rsapss_2048_sha512_pkcs8_private.pem -pubout -outform DER -out rsapss_2048_sha512_pkcs8_public.der
 
 ### Convert RSA-PSS private key from PKCS#8 DER to PKCS#8 PEM
 openssl pkey -inform DER -in rsapss_2048_sha256_private.der -out rsapss_2048_sha256_private.pem
 
-### Convert RSA-PSS private key from PKCS#8 PEM to PKCS#1 PEM
-openssl pkcs8 -nocrypt -in rsapss_2048_sha256_pkcs8_private.pem -traditional -out rsapss_2048_sha256_pkcs1_private.pem
+### Convert RSA-PSS private key from PKCS#8 PEM to traditional PKCS#8 PEM
+openssl pkcs8 -nocrypt -in rsapss_2048_sha256_pkcs8_private.pem -traditional -out rsapss_2048_pkcs1_private.pem
 
 ### Convert RSA-PSS private key from PKCS#8 PEM to PKCS#1 DER
 Unknown

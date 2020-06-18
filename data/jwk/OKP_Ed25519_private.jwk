@@ -2,7 +2,6 @@
     "kty":"OKP",
     "use":"sig",
     "crv":"Ed25519",
-    "kid":"1201fbed-168f-4fa1-a542-dbea7e251f65",
     "d":"_mwzx8PQTpWSshckKD2u-3Pp-SWTB2fBDs5vCJkf7Gc",
     "x":"FwDfp6XwCMtN-c1AcCa89jsPESCugUboBJM6agxPmrk"
 }
