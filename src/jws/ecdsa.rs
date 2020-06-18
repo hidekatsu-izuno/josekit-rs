@@ -85,6 +85,7 @@ impl EcdsaJwsAlgorithm {
                 builder.begin(DerType::Other(DerClass::ContextSpecific, 1));
                 {
                     let mut vec = Vec::with_capacity(x.len() + y.len());
+                    vec.push(0x04);
                     vec.extend_from_slice(&x);
                     vec.extend_from_slice(&y);
                     builder.append_bit_string_from_slice(&vec, 0);
@@ -179,6 +180,7 @@ impl EcdsaJwsAlgorithm {
             let y = json_base64_bytes(&map, "y")?;
 
             let mut vec = Vec::with_capacity(x.len() + y.len());
+            vec.push(0x04);
             vec.extend_from_slice(&x);
             vec.extend_from_slice(&y);
 
@@ -271,8 +273,6 @@ impl EcdsaJwsAlgorithm {
     }
 
     fn detect_pkcs8(&self, input: &[u8], is_public: bool) -> anyhow::Result<bool> {
-        let curve = self.curve();
-
         let mut reader = DerReader::new(input.bytes());
 
         match reader.next() {
@@ -317,7 +317,7 @@ impl EcdsaJwsAlgorithm {
                 match reader.next() {
                     Ok(Some(DerType::ObjectIdentifier)) => match reader.to_object_identifier() {
                         Ok(val) => {
-                            if &val != curve {
+                            if &val != self.curve() {
                                 bail!("Incompatible oid: {}", val);
                             }
                         }
@@ -332,8 +332,6 @@ impl EcdsaJwsAlgorithm {
     }
 
     fn to_pkcs8(&self, input: &[u8], is_public: bool) -> Vec<u8> {
-        let curve = self.curve();
-
         let mut builder = DerBuilder::new();
         builder.begin(DerType::Sequence);
         {
@@ -344,7 +342,7 @@ impl EcdsaJwsAlgorithm {
             builder.begin(DerType::Sequence);
             {
                 builder.append_object_identifier(&OID_ID_EC_PUBLIC_KEY);
-                builder.append_object_identifier(curve);
+                builder.append_object_identifier(self.curve());
             }
             builder.end();
         }
