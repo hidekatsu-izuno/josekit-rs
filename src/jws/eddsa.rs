@@ -14,8 +14,9 @@ use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier};
 /// EdDSA
 pub const EDDSA: EddsaJwsAlgorithm = EddsaJwsAlgorithm::new("EdDSA");
 
-static OID_X25519: Lazy<ObjectIdentifier> =
-    Lazy::new(|| ObjectIdentifier::from_slice(&[1, 3, 101, 110]));
+static OID_ED25519: Lazy<ObjectIdentifier> =
+    Lazy::new(|| ObjectIdentifier::from_slice(&[1, 3, 101, 112]));
+
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct EddsaJwsAlgorithm {
@@ -49,7 +50,10 @@ impl EddsaJwsAlgorithm {
             json_eq(&map, "crv", "Ed25519", true)?;
             let d = json_base64_bytes(&map, "d")?;
 
-            let pkcs8 = self.to_pkcs8(&d, false);
+            let mut builder = DerBuilder::new();
+            builder.append_octed_string_from_slice(&d);
+            let pkcs8 = self.to_pkcs8(&builder.build(), false);
+
             let pkey = PKey::private_key_from_der(&pkcs8)?;
 
             Ok(EddsaJwsSigner {
@@ -97,12 +101,15 @@ impl EddsaJwsAlgorithm {
         input: &[u8],
     ) -> Result<impl JwsSigner<Self> + 'a, JoseError> {
         (|| -> anyhow::Result<EddsaJwsSigner> {
-            let pkey = if self.detect_pkcs8(input, false)? {
-                PKey::private_key_from_der(input)?
+            let pkcs8;
+            let pkcs8_ref = if self.detect_pkcs8(input, false)? {
+                input
             } else {
-                let pkcs8 = self.to_pkcs8(input, false);
-                PKey::private_key_from_der(&pkcs8)?
+                pkcs8 = self.to_pkcs8(input, false);
+                &pkcs8
             };
+
+            let pkey = PKey::private_key_from_der(pkcs8_ref)?;
 
             Ok(EddsaJwsSigner {
                 algorithm: &self,
@@ -177,12 +184,15 @@ impl EddsaJwsAlgorithm {
         input: &[u8],
     ) -> Result<impl JwsVerifier<Self> + 'a, JoseError> {
         (|| -> anyhow::Result<EddsaJwsVerifier> {
-            let pkey = if self.detect_pkcs8(input, true)? {
-                PKey::public_key_from_der(input)?
+            let pkcs8;
+            let pkcs8_ref = if self.detect_pkcs8(input, true)? {
+                input
             } else {
-                let pkcs8 = self.to_pkcs8(input, true);
-                PKey::public_key_from_der(&pkcs8)?
+                pkcs8 = self.to_pkcs8(input, true);
+                &pkcs8
             };
+
+            let pkey = PKey::public_key_from_der(pkcs8_ref)?;
 
             Ok(EddsaJwsVerifier {
                 algorithm: &self,
@@ -225,7 +235,7 @@ impl EddsaJwsAlgorithm {
                 match reader.next() {
                     Ok(Some(DerType::ObjectIdentifier)) => match reader.to_object_identifier() {
                         Ok(val) => {
-                            if val != *OID_X25519 {
+                            if val != *OID_ED25519 {
                                 bail!("Incompatible oid: {}", val);
                             }
                         }
@@ -249,7 +259,7 @@ impl EddsaJwsAlgorithm {
 
             builder.begin(DerType::Sequence);
             {
-                builder.append_object_identifier(&OID_X25519);
+                builder.append_object_identifier(&OID_ED25519);
             }
             builder.end();
         }
@@ -281,12 +291,10 @@ impl<'a> JwsSigner<EddsaJwsAlgorithm> for EddsaJwsSigner<'a> {
         &self.algorithm
     }
 
-    fn sign(&self, data: &[&[u8]]) -> Result<Vec<u8>, JoseError> {
+    fn sign(&self, message: &[u8]) -> Result<Vec<u8>, JoseError> {
         (|| -> anyhow::Result<Vec<u8>> {
             let mut signer = Signer::new_without_digest(&self.private_key)?;
-            for part in data {
-                signer.update(part)?;
-            }
+            signer.update(message)?;
             let signature = signer.sign_to_vec()?;
             Ok(signature)
         })()
@@ -304,12 +312,10 @@ impl<'a> JwsVerifier<EddsaJwsAlgorithm> for EddsaJwsVerifier<'a> {
         &self.algorithm
     }
 
-    fn verify(&self, data: &[&[u8]], signature: &[u8]) -> Result<(), JoseError> {
+    fn verify(&self, message: &[u8], signature: &[u8]) -> Result<(), JoseError> {
         (|| -> anyhow::Result<()> {
             let mut verifier = Verifier::new_without_digest(&self.public_key)?;
-            for part in data {
-                verifier.update(part)?;
-            }
+            verifier.update(message)?;
             verifier.verify(signature)?;
             Ok(())
         })()
@@ -328,7 +334,7 @@ mod tests {
 
     #[test]
     fn sign_and_verify_eddsa_jwt() -> Result<()> {
-        let data = b"abcde12345";
+        let input = b"abcde12345";
 
         let alg = EDDSA;
 
@@ -336,17 +342,17 @@ mod tests {
         let public_key = load_file("jwk/OKP_Ed25519_private.jwk")?;
 
         let signer = alg.signer_from_jwk(&private_key)?;
-        let signature = signer.sign(&[data])?;
+        let signature = signer.sign(input)?;
 
         let verifier = alg.verifier_from_jwk(&public_key)?;
-        verifier.verify(&[data], &signature)?;
+        verifier.verify(input, &signature)?;
 
         Ok(())
     }
 
     #[test]
     fn sign_and_verify_eddsa_pkcs8_pem() -> Result<()> {
-        let data = b"abcde12345";
+        let input = b"abcde12345";
 
         let alg = EDDSA;
 
@@ -354,17 +360,17 @@ mod tests {
         let public_key = load_file("pem/eddsa_pkcs8_public.pem")?;
 
         let signer = alg.signer_from_jwk(&private_key)?;
-        let signature = signer.sign(&[data])?;
+        let signature = signer.sign(input)?;
 
         let verifier = alg.verifier_from_jwk(&public_key)?;
-        verifier.verify(&[data], &signature)?;
+        verifier.verify(input, &signature)?;
 
         Ok(())
     }
 
     #[test]
     fn sign_and_verify_eddsa_pkcs8_der() -> Result<()> {
-        let data = b"abcde12345";
+        let input = b"abcde12345";
 
         let alg = EDDSA;
 
@@ -372,10 +378,10 @@ mod tests {
         let public_key = load_file("der/eddsa_pkcs8_public.der")?;
 
         let signer = alg.signer_from_jwk(&private_key)?;
-        let signature = signer.sign(&[data])?;
+        let signature = signer.sign(input)?;
 
         let verifier = alg.verifier_from_jwk(&public_key)?;
-        verifier.verify(&[data], &signature)?;
+        verifier.verify(input, &signature)?;
 
         Ok(())
     }

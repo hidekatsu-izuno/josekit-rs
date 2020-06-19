@@ -33,8 +33,8 @@ pub trait JwsSigner<T: JwsAlgorithm> {
     /// Return a signature of the data.
     ///
     /// # Arguments
-    /// * `data` - The data to sign.
-    fn sign(&self, data: &[&[u8]]) -> Result<Vec<u8>, JoseError>;
+    /// * `message` - The message data to sign.
+    fn sign(&self, message: &[u8]) -> Result<Vec<u8>, JoseError>;
 }
 
 pub trait JwsVerifier<T: JwsAlgorithm> {
@@ -44,7 +44,7 @@ pub trait JwsVerifier<T: JwsAlgorithm> {
     /// Verify the data by the signature.
     ///
     /// # Arguments
-    /// * `data` - The data to verify.
+    /// * `message` - The message data to verify.
     /// * `signature` - The signature data.
-    fn verify(&self, data: &[&[u8]], signature: &[u8]) -> Result<(), JoseError>;
+    fn verify(&self, message: &[u8], signature: &[u8]) -> Result<(), JoseError>;
 }

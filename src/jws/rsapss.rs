@@ -508,7 +508,7 @@ impl<'a> JwsSigner<RsaPssJwsAlgorithm> for RsaPssJwsSigner<'a> {
         &self.algorithm
     }
 
-    fn sign(&self, input: &[&[u8]]) -> Result<Vec<u8>, JoseError> {
+    fn sign(&self, message: &[u8]) -> Result<Vec<u8>, JoseError> {
         (|| -> anyhow::Result<Vec<u8>> {
             let message_digest = match self.algorithm.name {
                 "PS256" => MessageDigest::sha256(),
@@ -518,9 +518,7 @@ impl<'a> JwsSigner<RsaPssJwsAlgorithm> for RsaPssJwsSigner<'a> {
             };
 
             let mut signer = Signer::new(message_digest, &self.private_key)?;
-            for part in input {
-                signer.update(part)?;
-            }
+            signer.update(message)?;
             let signature = signer.sign_to_vec()?;
             Ok(signature)
         })()
@@ -538,7 +536,7 @@ impl<'a> JwsVerifier<RsaPssJwsAlgorithm> for RsaPssJwsVerifier<'a> {
         &self.algorithm
     }
 
-    fn verify(&self, input: &[&[u8]], signature: &[u8]) -> Result<(), JoseError> {
+    fn verify(&self, message: &[u8], signature: &[u8]) -> Result<(), JoseError> {
         (|| -> anyhow::Result<()> {
             let message_digest = match self.algorithm.name {
                 "PS256" => MessageDigest::sha256(),
@@ -548,9 +546,7 @@ impl<'a> JwsVerifier<RsaPssJwsAlgorithm> for RsaPssJwsVerifier<'a> {
             };
 
             let mut verifier = Verifier::new(message_digest, &self.public_key)?;
-            for part in input {
-                verifier.update(part)?;
-            }
+            verifier.update(message)?;
             verifier.verify(signature)?;
             Ok(())
         })()
@@ -569,7 +565,7 @@ mod tests {
 
     #[test]
     fn sign_and_verify_rsspss_jwt() -> Result<()> {
-        let data = b"abcde12345";
+        let input = b"abcde12345";
 
         for name in &["PS256", "PS384", "PS512"] {
             let alg = RsaPssJwsAlgorithm::new(name);
@@ -578,10 +574,10 @@ mod tests {
             let public_key = load_file("jwk/RSA_public.jwk")?;
 
             let signer = alg.signer_from_jwk(&private_key)?;
-            let signature = signer.sign(&[data])?;
+            let signature = signer.sign(input)?;
 
             let verifier = alg.verifier_from_jwk(&public_key)?;
-            verifier.verify(&[data], &signature)?;
+            verifier.verify(input, &signature)?;
         }
 
         Ok(())
@@ -589,7 +585,7 @@ mod tests {
 
     #[test]
     fn sign_and_verify_rsspss_pkcs8_pem() -> Result<()> {
-        let data = b"abcde12345";
+        let input = b"abcde12345";
 
         for name in &["PS256", "PS384", "PS512"] {
             let alg = RsaPssJwsAlgorithm::new(name);
@@ -608,10 +604,10 @@ mod tests {
             })?;
 
             let signer = alg.signer_from_pem(&private_key)?;
-            let signature = signer.sign(&[data])?;
+            let signature = signer.sign(input)?;
 
             let verifier = alg.verifier_from_pem(&public_key)?;
-            verifier.verify(&[data], &signature)?;
+            verifier.verify(input, &signature)?;
         }
 
         Ok(())
@@ -619,7 +615,7 @@ mod tests {
 
     #[test]
     fn sign_and_verify_rsspss_pkcs8_der() -> Result<()> {
-        let data = b"abcde12345";
+        let input = b"abcde12345";
 
         for name in &["PS256", "PS384", "PS512"] {
             let alg = RsaPssJwsAlgorithm::new(name);
@@ -638,10 +634,10 @@ mod tests {
             })?;
 
             let signer = alg.signer_from_der(&private_key)?;
-            let signature = signer.sign(&[data])?;
+            let signature = signer.sign(input)?;
 
             let verifier = alg.verifier_from_der(&public_key)?;
-            verifier.verify(&[data], &signature)?;
+            verifier.verify(input, &signature)?;
         }
 
         Ok(())

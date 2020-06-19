@@ -112,11 +112,9 @@ impl Jwt {
             let signature_base64 = parts.get(2).unwrap();
             let signature = base64::decode_config(signature_base64, base64::URL_SAFE_NO_PAD)?;
 
+            let message = format!("{}.{}", header_base64, payload_base64);
             Ok(verifier
-                .verify(
-                    &[header_base64.as_bytes(), b".", payload_base64.as_bytes()],
-                    &signature,
-                )
+                .verify(message.as_ref(), &signature )
                 .map(|_| jwt))
         })()
         .map_err(|err| JoseError::InvalidJwtFormat(err))?
@@ -183,11 +181,8 @@ impl Jwt {
             let signature_base64 = parts.get(2).unwrap();
             let signature = base64::decode_config(signature_base64, base64::URL_SAFE_NO_PAD)?;
 
-            Ok(verifier
-                .verify(
-                    &[header_base64.as_bytes(), b".", payload_base64.as_bytes()],
-                    &signature,
-                )
+            let message = format!("{}.{}", header_base64, payload_base64);
+            Ok(verifier.verify(message.as_ref(), &signature)
                 .map(|_| jwt))
         })()
         .map_err(|err| JoseError::InvalidJwtFormat(err))?
@@ -572,14 +567,11 @@ impl Jwt {
         let payload_json = serde_json::to_string(&self.payload).unwrap();
         let payload_base64 = base64::encode_config(payload_json, base64::URL_SAFE_NO_PAD);
 
-        let signature =
-            signer.sign(&[header_base64.as_bytes(), b".", payload_base64.as_bytes()])?;
+        let message = format!("{}.{}", header_base64, payload_base64);
+        let signature = signer.sign(message.as_ref())?;
 
         let signature_base64 = base64::encode_config(signature, base64::URL_SAFE_NO_PAD);
-        Ok(format!(
-            "{}.{}.{}",
-            header_base64, payload_base64, signature_base64
-        ))
+        Ok(format!("{}.{}", message, signature_base64))
     }
 }
 

@@ -88,7 +88,7 @@ impl<'a> JwsSigner<HmacJwsAlgorithm> for HmacJwsSigner<'a> {
         &self.algorithm
     }
 
-    fn sign(&self, data: &[&[u8]]) -> Result<Vec<u8>, JoseError> {
+    fn sign(&self, message: &[u8]) -> Result<Vec<u8>, JoseError> {
         (|| -> anyhow::Result<Vec<u8>> {
             let message_digest = match self.algorithm.name {
                 "HS256" => MessageDigest::sha256(),
@@ -98,9 +98,7 @@ impl<'a> JwsSigner<HmacJwsAlgorithm> for HmacJwsSigner<'a> {
             };
 
             let mut signer = Signer::new(message_digest, &self.private_key)?;
-            for part in data {
-                signer.update(part)?;
-            }
+            signer.update(message)?;
             let signature = signer.sign_to_vec()?;
             Ok(signature)
         })()
@@ -113,7 +111,7 @@ impl<'a> JwsVerifier<HmacJwsAlgorithm> for HmacJwsSigner<'a> {
         &self.algorithm
     }
 
-    fn verify(&self, data: &[&[u8]], signature: &[u8]) -> Result<(), JoseError> {
+    fn verify(&self, message: &[u8], signature: &[u8]) -> Result<(), JoseError> {
         (|| -> anyhow::Result<()> {
             let message_digest = match self.algorithm.name {
                 "HS256" => MessageDigest::sha256(),
@@ -123,9 +121,7 @@ impl<'a> JwsVerifier<HmacJwsAlgorithm> for HmacJwsSigner<'a> {
             };
 
             let mut signer = Signer::new(message_digest, &self.private_key)?;
-            for part in data {
-                signer.update(part)?;
-            }
+            signer.update(message)?;
             let new_signature = signer.sign_to_vec()?;
             if !memcmp::eq(&new_signature, &signature) {
                 bail!("Failed to verify.")
@@ -155,8 +151,8 @@ mod tests {
             let private_key = load_file("jwk/oct_private.jwk")?;
 
             let signer = alg.signer_from_jwk(&private_key)?;
-            let signature = signer.sign(&[data])?;
-            signer.verify(&[data], &signature)?;
+            let signature = signer.sign(data)?;
+            signer.verify(data, &signature)?;
         }
 
         Ok(())
@@ -171,8 +167,8 @@ mod tests {
             let alg = HmacJwsAlgorithm::new(name);
 
             let signer = alg.signer_from_slice(private_key)?;
-            let signature = signer.sign(&[data])?;
-            signer.verify(&[data], &signature)?;
+            let signature = signer.sign(data)?;
+            signer.verify(data, &signature)?;
         }
 
         Ok(())

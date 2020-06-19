@@ -348,7 +348,7 @@ impl<'a> JwsSigner<RsaJwsAlgorithm> for RsaJwsSigner<'a> {
         &self.algorithm
     }
 
-    fn sign(&self, input: &[&[u8]]) -> Result<Vec<u8>, JoseError> {
+    fn sign(&self, message: &[u8]) -> Result<Vec<u8>, JoseError> {
         (|| -> anyhow::Result<Vec<u8>> {
             let message_digest = match self.algorithm.name {
                 "RS256" => MessageDigest::sha256(),
@@ -358,9 +358,7 @@ impl<'a> JwsSigner<RsaJwsAlgorithm> for RsaJwsSigner<'a> {
             };
 
             let mut signer = Signer::new(message_digest, &self.private_key)?;
-            for part in input {
-                signer.update(part)?;
-            }
+            signer.update(message)?;
             let signature = signer.sign_to_vec()?;
             Ok(signature)
         })()
@@ -378,7 +376,7 @@ impl<'a> JwsVerifier<RsaJwsAlgorithm> for RsaJwsVerifier<'a> {
         &self.algorithm
     }
 
-    fn verify(&self, input: &[&[u8]], signature: &[u8]) -> Result<(), JoseError> {
+    fn verify(&self, message: &[u8], signature: &[u8]) -> Result<(), JoseError> {
         (|| -> anyhow::Result<()> {
             let message_digest = match self.algorithm.name {
                 "RS256" => MessageDigest::sha256(),
@@ -388,9 +386,7 @@ impl<'a> JwsVerifier<RsaJwsAlgorithm> for RsaJwsVerifier<'a> {
             };
 
             let mut verifier = Verifier::new(message_digest, &self.public_key)?;
-            for part in input {
-                verifier.update(part)?;
-            }
+            verifier.update(message)?;
             verifier.verify(signature)?;
             Ok(())
         })()
@@ -418,10 +414,10 @@ mod tests {
             let public_key = load_file("jwk/RSA_public.jwk")?;
 
             let signer = alg.signer_from_jwk(&private_key)?;
-            let signature = signer.sign(&[data])?;
+            let signature = signer.sign(data)?;
 
             let verifier = alg.verifier_from_jwk(&public_key)?;
-            verifier.verify(&[data], &signature)?;
+            verifier.verify(data, &signature)?;
         }
 
         Ok(())
@@ -438,10 +434,10 @@ mod tests {
             let public_key = load_file("pem/rsa_2048_pkcs8_public.pem")?;
 
             let signer = alg.signer_from_pem(&private_key)?;
-            let signature = signer.sign(&[data])?;
+            let signature = signer.sign(data)?;
 
             let verifier = alg.verifier_from_pem(&public_key)?;
-            verifier.verify(&[data], &signature)?;
+            verifier.verify(data, &signature)?;
         }
 
         Ok(())
@@ -458,10 +454,10 @@ mod tests {
             let public_key = load_file("der/rsa_2048_pkcs8_public.der")?;
 
             let signer = alg.signer_from_der(&private_key)?;
-            let signature = signer.sign(&[data])?;
+            let signature = signer.sign(data)?;
 
             let verifier = alg.verifier_from_der(&public_key)?;
-            verifier.verify(&[data], &signature)?;
+            verifier.verify(data, &signature)?;
         }
 
         Ok(())
@@ -478,10 +474,10 @@ mod tests {
             let public_key = load_file("pem/rsa_2048_pkcs1_public.pem")?;
 
             let signer = alg.signer_from_pem(&private_key)?;
-            let signature = signer.sign(&[data])?;
+            let signature = signer.sign(data)?;
 
             let verifier = alg.verifier_from_pem(&public_key)?;
-            verifier.verify(&[data], &signature)?;
+            verifier.verify(data, &signature)?;
         }
 
         Ok(())
@@ -498,10 +494,10 @@ mod tests {
             let public_key = load_file("der/rsa_2048_pkcs1_public.der")?;
 
             let signer = alg.signer_from_der(&private_key)?;
-            let signature = signer.sign(&[data])?;
+            let signature = signer.sign(data)?;
 
             let verifier = alg.verifier_from_der(&public_key)?;
-            verifier.verify(&[data], &signature)?;
+            verifier.verify(data, &signature)?;
         }
 
         Ok(())

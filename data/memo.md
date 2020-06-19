@@ -95,7 +95,7 @@ openssl pkcs8 -nocrypt -in rsapss_2048_sha256_pkcs1_private.pem -topk8 -out rsap
 ## EdDSA keypair
 
 ### Create EdDSA PKCS#8 PEM private key
-openssl genpkey -algorithm X25519 -out eddsa_pkcs8_private.pem
+openssl genpkey -algorithm ED25519 -out eddsa_pkcs8_private.pem
 
 ### Generate EdDSA PKCS#8 PEM public key from EdDSA PKCS#8 PEM private key
 openssl pkey -in eddsa_pkcs8_private.pem -pubout -outform PEM -out eddsa_pkcs8_public.pem
