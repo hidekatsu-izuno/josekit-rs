@@ -319,15 +319,15 @@ impl RsaJwsAlgorithm {
                 builder.append_null();
             }
             builder.end();
+            
+            if is_public {
+                builder.append_bit_string_from_slice(input, 0);
+            } else {
+                builder.append_octed_string_from_slice(input);
+            }
         }
-
-        if is_public {
-            builder.append_bit_string_from_slice(input, 0);
-        } else {
-            builder.append_octed_string_from_slice(input);
-        }
-
         builder.end();
+        
         builder.build()
     }
 }

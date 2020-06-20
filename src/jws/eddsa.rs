@@ -44,16 +44,16 @@ impl EddsaJwsAlgorithm {
         (|| -> anyhow::Result<EddsaJwsSigner> {
             let map: Map<String, Value> = serde_json::from_slice(input)?;
 
-            json_eq(&map, "alg", &self.name(), false)?;
             json_eq(&map, "kty", "OKP", true)?;
             json_eq(&map, "use", "sig", false)?;
+            json_eq(&map, "alg", &self.name(), false)?;
             json_eq(&map, "crv", "Ed25519", true)?;
             let d = json_base64_bytes(&map, "d")?;
 
             let mut builder = DerBuilder::new();
             builder.append_octed_string_from_slice(&d);
+            
             let pkcs8 = self.to_pkcs8(&builder.build(), false);
-
             let pkey = PKey::private_key_from_der(&pkcs8)?;
 
             Ok(EddsaJwsSigner {
@@ -75,7 +75,7 @@ impl EddsaJwsAlgorithm {
         (|| -> anyhow::Result<EddsaJwsSigner> {
             let (alg, data) = parse_pem(input)?;
             let pkey = match alg.as_str() {
-                "PRIVATE KEY" | "X25519 PRIVATE KEY" => {
+                "PRIVATE KEY" | "ED25519 PRIVATE KEY" => {
                     if !self.detect_pkcs8(&data, false)? {
                         bail!("Invalid PEM contents.");
                     }
@@ -130,9 +130,9 @@ impl EddsaJwsAlgorithm {
         (|| -> anyhow::Result<EddsaJwsVerifier> {
             let map: Map<String, Value> = serde_json::from_slice(input)?;
 
-            json_eq(&map, "alg", &self.name(), false)?;
             json_eq(&map, "kty", "EC", true)?;
             json_eq(&map, "use", "sig", false)?;
+            json_eq(&map, "alg", &self.name(), false)?;
             json_eq(&map, "crv", "Ed25519", true)?;
             let x = json_base64_bytes(&map, "x")?;
 
@@ -158,7 +158,7 @@ impl EddsaJwsAlgorithm {
         (|| -> anyhow::Result<EddsaJwsVerifier> {
             let (alg, data) = parse_pem(input)?;
             let pkey = match alg.as_str() {
-                "PUBLIC KEY" | "X25519 PUBLIC KEY" => {
+                "PUBLIC KEY" | "ED25519 PUBLIC KEY" => {
                     if !self.detect_pkcs8(&data, false)? {
                         bail!("Invalid PEM contents.");
                     }
@@ -262,15 +262,15 @@ impl EddsaJwsAlgorithm {
                 builder.append_object_identifier(&OID_ED25519);
             }
             builder.end();
+            
+            if is_public {
+                builder.append_bit_string_from_slice(input, 0);
+            } else {
+                builder.append_octed_string_from_slice(input);
+            }
         }
-
-        if is_public {
-            builder.append_bit_string_from_slice(input, 0);
-        } else {
-            builder.append_octed_string_from_slice(input);
-        }
-
         builder.end();
+
         builder.build()
     }
 }
@@ -359,10 +359,10 @@ mod tests {
         let private_key = load_file("pem/eddsa_pkcs8_private.pem")?;
         let public_key = load_file("pem/eddsa_pkcs8_public.pem")?;
 
-        let signer = alg.signer_from_jwk(&private_key)?;
+        let signer = alg.signer_from_pem(&private_key)?;
         let signature = signer.sign(input)?;
 
-        let verifier = alg.verifier_from_jwk(&public_key)?;
+        let verifier = alg.verifier_from_pem(&public_key)?;
         verifier.verify(input, &signature)?;
 
         Ok(())
@@ -377,10 +377,10 @@ mod tests {
         let private_key = load_file("der/eddsa_pkcs8_private.der")?;
         let public_key = load_file("der/eddsa_pkcs8_public.der")?;
 
-        let signer = alg.signer_from_jwk(&private_key)?;
+        let signer = alg.signer_from_der(&private_key)?;
         let signature = signer.sign(input)?;
 
-        let verifier = alg.verifier_from_jwk(&public_key)?;
+        let verifier = alg.verifier_from_der(&public_key)?;
         verifier.verify(input, &signature)?;
 
         Ok(())
