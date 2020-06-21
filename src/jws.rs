@@ -10,6 +10,7 @@ use crate::error::JoseError;
 pub use crate::jws::ecdsa::EcdsaJwsAlgorithm::ES256;
 pub use crate::jws::ecdsa::EcdsaJwsAlgorithm::ES384;
 pub use crate::jws::ecdsa::EcdsaJwsAlgorithm::ES512;
+pub use crate::jws::ecdsa::EcdsaJwsAlgorithm::ES256K;
 pub use crate::jws::eddsa::EddsaJwsAlgorithm::EDDSA;
 pub use crate::jws::hmac::HmacJwsAlgorithm::HS256;
 pub use crate::jws::hmac::HmacJwsAlgorithm::HS384;

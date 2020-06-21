@@ -343,8 +343,8 @@ mod tests {
 
         let alg = EddsaJwsAlgorithm::EDDSA;
 
-        let private_key = load_file("pem/eddsa_pkcs8_private.pem")?;
-        let public_key = load_file("pem/eddsa_pkcs8_public.pem")?;
+        let private_key = load_file("pem/ED25519_pkcs8_private.pem")?;
+        let public_key = load_file("pem/ED25519_pkcs8_public.pem")?;
 
         let signer = alg.signer_from_pem(&private_key)?;
         let signature = signer.sign(input)?;
@@ -361,8 +361,8 @@ mod tests {
 
         let alg = EddsaJwsAlgorithm::EDDSA;
 
-        let private_key = load_file("der/eddsa_pkcs8_private.der")?;
-        let public_key = load_file("der/eddsa_pkcs8_public.der")?;
+        let private_key = load_file("der/ED25519_pkcs8_private.der")?;
+        let public_key = load_file("der/ED25519_pkcs8_public.der")?;
 
         let signer = alg.signer_from_der(&private_key)?;
         let signature = signer.sign(input)?;

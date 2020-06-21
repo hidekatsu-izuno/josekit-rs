@@ -862,7 +862,7 @@ mod tests {
     use std::path::PathBuf;
 
     use crate::jws::{
-        ES256, ES384, ES512, HS256, HS384, HS512, PS256, PS384, PS512, RS256, RS384, RS512,
+        ES256, ES384, ES512, ES256K, HS256, HS384, HS512, PS256, PS384, PS512, RS256, RS384, RS512,
     };
 
     #[test]
@@ -973,18 +973,18 @@ mod tests {
     fn test_jwt_with_ecdsa_pem() -> Result<()> {
         let from_jwt = Jwt::new();
 
-        for alg in &[ES256, ES384, ES512] {
-            let private_key = load_file(match alg.name() {
-                "ES256" => "pem/ecdsa_p256_pkcs8_private.pem",
-                "ES384" => "pem/ecdsa_p384_pkcs8_private.pem",
-                "ES512" => "pem/ecdsa_p521_pkcs8_private.pem",
-                _ => unreachable!(),
+        for alg in &[ES256, ES384, ES512, ES256K] {
+            let private_key = load_file(match alg {
+                ES256 => "pem/ECDSA_P-256_pkcs8_private.pem",
+                ES384 => "pem/ECDSA_P-384_pkcs8_private.pem",
+                ES512 => "pem/ECDSA_P-521_pkcs8_private.pem",
+                ES256K => "pem/ECDSA_secp256k1_pkcs8_private.pem",
             })?;
-            let public_key = load_file(match alg.name() {
-                "ES256" => "pem/ecdsa_p256_pkcs8_public.pem",
-                "ES384" => "pem/ecdsa_p384_pkcs8_public.pem",
-                "ES512" => "pem/ecdsa_p521_pkcs8_public.pem",
-                _ => unreachable!(),
+            let public_key = load_file(match alg {
+                ES256 => "pem/ECDSA_P-256_pkcs8_public.pem",
+                ES384 => "pem/ECDSA_P-384_pkcs8_public.pem",
+                ES512 => "pem/ECDSA_P-521_pkcs8_public.pem",
+                ES256K => "pem/ECDSA_secp256k1_pkcs8_public.pem",
             })?;
 
             let signer = alg.signer_from_pem(&private_key)?;
@@ -1004,18 +1004,18 @@ mod tests {
     fn test_jwt_with_ecdsa_der() -> Result<()> {
         let from_jwt = Jwt::new();
 
-        for alg in &[ES256, ES384, ES512] {
-            let private_key = load_file(match alg.name() {
-                "ES256" => "der/ecdsa_p256_pkcs8_private.der",
-                "ES384" => "der/ecdsa_p384_pkcs8_private.der",
-                "ES512" => "der/ecdsa_p521_pkcs8_private.der",
-                _ => unreachable!(),
+        for alg in &[ES256, ES384, ES512, ES256K] {
+            let private_key = load_file(match alg {
+                ES256 => "der/ECDSA_P-256_pkcs8_private.der",
+                ES384 => "der/ECDSA_P-384_pkcs8_private.der",
+                ES512 => "der/ECDSA_P-521_pkcs8_private.der",
+                ES256K => "der/ECDSA_secp256k1_pkcs8_private.der",
             })?;
-            let public_key = load_file(match alg.name() {
-                "ES256" => "der/ecdsa_p256_pkcs8_public.der",
-                "ES384" => "der/ecdsa_p384_pkcs8_public.der",
-                "ES512" => "der/ecdsa_p521_pkcs8_public.der",
-                _ => unreachable!(),
+            let public_key = load_file(match alg {
+                ES256 => "der/ECDSA_P-256_pkcs8_public.der",
+                ES384 => "der/ECDSA_P-384_pkcs8_public.der",
+                ES512 => "der/ECDSA_P-521_pkcs8_public.der",
+                ES256K => "der/ECDSA_secp256k1_pkcs8_public.der",
             })?;
 
             let signer = alg.signer_from_der(&private_key)?;

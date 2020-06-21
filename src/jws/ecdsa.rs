@@ -463,18 +463,22 @@ mod tests {
             EcdsaJwsAlgorithm::ES512,
             EcdsaJwsAlgorithm::ES256K
         ] {
+            println!("a");
+
             let private_key = load_file(match alg {
-                EcdsaJwsAlgorithm::ES256 => "pem/ecdsa_p256_pkcs8_private.pem",
-                EcdsaJwsAlgorithm::ES384 => "pem/ecdsa_p384_pkcs8_private.pem",
-                EcdsaJwsAlgorithm::ES512 => "pem/ecdsa_p521_pkcs8_private.pem",
-                EcdsaJwsAlgorithm::ES256K => "pem/ecdsa_secp256k1_pkcs8_private.pem",
+                EcdsaJwsAlgorithm::ES256 => "pem/ECDSA_P-256_pkcs8_private.pem",
+                EcdsaJwsAlgorithm::ES384 => "pem/ECDSA_P-384_pkcs8_private.pem",
+                EcdsaJwsAlgorithm::ES512 => "pem/ECDSA_P-521_pkcs8_private.pem",
+                EcdsaJwsAlgorithm::ES256K => "pem/ECDSA_secp256k1_pkcs8_private.pem",
             })?;
             let public_key = load_file(match alg {
-                EcdsaJwsAlgorithm::ES256 => "pem/ecdsa_p256_pkcs8_public.pem",
-                EcdsaJwsAlgorithm::ES384 => "pem/ecdsa_p384_pkcs8_public.pem",
-                EcdsaJwsAlgorithm::ES512 => "pem/ecdsa_p521_pkcs8_public.pem",
-                EcdsaJwsAlgorithm::ES256K => "pem/ecdsa_secp256k1_pkcs8_public.pem",
+                EcdsaJwsAlgorithm::ES256 => "pem/ECDSA_P-256_pkcs8_public.pem",
+                EcdsaJwsAlgorithm::ES384 => "pem/ECDSA_P-384_pkcs8_public.pem",
+                EcdsaJwsAlgorithm::ES512 => "pem/ECDSA_P-521_pkcs8_public.pem",
+                EcdsaJwsAlgorithm::ES256K => "pem/ECDSA_secp256k1_pkcs8_public.pem",
             })?;
+
+            println!("b");
 
             let signer = alg.signer_from_pem(&private_key)?;
             let signature = signer.sign(input)?;
@@ -497,16 +501,16 @@ mod tests {
             EcdsaJwsAlgorithm::ES256K
         ] {
             let private_key = load_file(match alg {
-                EcdsaJwsAlgorithm::ES256 => "der/ecdsa_p256_pkcs8_private.der",
-                EcdsaJwsAlgorithm::ES384 => "der/ecdsa_p384_pkcs8_private.der",
-                EcdsaJwsAlgorithm::ES512 => "der/ecdsa_p521_pkcs8_private.der",
-                EcdsaJwsAlgorithm::ES256K => "der/ecdsa_secp256k1_pkcs8_private.der",
+                EcdsaJwsAlgorithm::ES256 => "der/ECDSA_P-256_pkcs8_private.der",
+                EcdsaJwsAlgorithm::ES384 => "der/ECDSA_P-384_pkcs8_private.der",
+                EcdsaJwsAlgorithm::ES512 => "der/ECDSA_P-521_pkcs8_private.der",
+                EcdsaJwsAlgorithm::ES256K => "der/ECDSA_secp256k1_pkcs8_private.der",
             })?;
             let public_key = load_file(match alg {
-                EcdsaJwsAlgorithm::ES256 => "der/ecdsa_p256_pkcs8_public.der",
-                EcdsaJwsAlgorithm::ES384 => "der/ecdsa_p384_pkcs8_public.der",
-                EcdsaJwsAlgorithm::ES512 => "der/ecdsa_p521_pkcs8_public.der",
-                EcdsaJwsAlgorithm::ES256K => "der/ecdsa_secp256k1_pkcs8_public.der",
+                EcdsaJwsAlgorithm::ES256 => "der/ECDSA_P-256_pkcs8_public.der",
+                EcdsaJwsAlgorithm::ES384 => "der/ECDSA_P-384_pkcs8_public.der",
+                EcdsaJwsAlgorithm::ES512 => "der/ECDSA_P-521_pkcs8_public.der",
+                EcdsaJwsAlgorithm::ES256K => "der/ECDSA_secp256k1_pkcs8_public.der",
             })?;
 
             let signer = alg.signer_from_der(&private_key)?;
