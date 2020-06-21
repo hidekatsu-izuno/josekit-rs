@@ -9,29 +9,19 @@ use crate::error::JoseError;
 use crate::jws::util::{json_base64_bytes, json_eq};
 use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier};
 
-/// HMAC using SHA-256
-pub const HS256: HmacJwsAlgorithm = HmacJwsAlgorithm::new("HS256");
-
-/// HMAC using SHA-384
-pub const HS384: HmacJwsAlgorithm = HmacJwsAlgorithm::new("HS384");
-
-/// HMAC using SHA-512
-pub const HS512: HmacJwsAlgorithm = HmacJwsAlgorithm::new("HS512");
-
 #[derive(Debug, Eq, PartialEq)]
-pub struct HmacJwsAlgorithm {
-    name: &'static str,
+pub enum HmacJwsAlgorithm {
+    /// HMAC using SHA-256
+    HS256,
+
+    /// HMAC using SHA-384
+    HS384,
+
+    /// HMAC using SHA-512
+    HS512,
 }
 
 impl HmacJwsAlgorithm {
-    /// Return a new instance.
-    ///
-    /// # Arguments
-    /// * `name` - A algrithm name.
-    const fn new(name: &'static str) -> Self {
-        HmacJwsAlgorithm { name }
-    }
-
     /// Return a signer from a private key of JWK format.
     ///
     /// # Arguments
@@ -74,7 +64,11 @@ impl HmacJwsAlgorithm {
 
 impl JwsAlgorithm for HmacJwsAlgorithm {
     fn name(&self) -> &str {
-        self.name
+        match self {
+            Self::HS256 => "HS256",
+            Self::HS384 => "HS384",
+            Self::HS512 => "HS512",
+        }
     }
 }
 
@@ -90,11 +84,10 @@ impl<'a> JwsSigner<HmacJwsAlgorithm> for HmacJwsSigner<'a> {
 
     fn sign(&self, message: &[u8]) -> Result<Vec<u8>, JoseError> {
         (|| -> anyhow::Result<Vec<u8>> {
-            let message_digest = match self.algorithm.name {
-                "HS256" => MessageDigest::sha256(),
-                "HS384" => MessageDigest::sha384(),
-                "HS512" => MessageDigest::sha512(),
-                _ => unreachable!(),
+            let message_digest = match self.algorithm {
+                HmacJwsAlgorithm::HS256 => MessageDigest::sha256(),
+                HmacJwsAlgorithm::HS384 => MessageDigest::sha384(),
+                HmacJwsAlgorithm::HS512 => MessageDigest::sha512(),
             };
 
             let mut signer = Signer::new(message_digest, &self.private_key)?;
@@ -113,11 +106,10 @@ impl<'a> JwsVerifier<HmacJwsAlgorithm> for HmacJwsSigner<'a> {
 
     fn verify(&self, message: &[u8], signature: &[u8]) -> Result<(), JoseError> {
         (|| -> anyhow::Result<()> {
-            let message_digest = match self.algorithm.name {
-                "HS256" => MessageDigest::sha256(),
-                "HS384" => MessageDigest::sha384(),
-                "HS512" => MessageDigest::sha512(),
-                _ => unreachable!(),
+            let message_digest = match self.algorithm {
+                HmacJwsAlgorithm::HS256 => MessageDigest::sha256(),
+                HmacJwsAlgorithm::HS384 => MessageDigest::sha384(),
+                HmacJwsAlgorithm::HS512 => MessageDigest::sha512(),
             };
 
             let mut signer = Signer::new(message_digest, &self.private_key)?;
@@ -145,9 +137,11 @@ mod tests {
     fn sign_and_verify_hmac_jwk() -> Result<()> {
         let data = b"abcde12345";
 
-        for name in &["HS256", "HS384", "HS512"] {
-            let alg = HmacJwsAlgorithm::new(name);
-
+        for alg in &[
+            HmacJwsAlgorithm::HS256,
+            HmacJwsAlgorithm::HS384,
+            HmacJwsAlgorithm::HS512
+        ] {
             let private_key = load_file("jwk/oct_private.jwk")?;
 
             let signer = alg.signer_from_jwk(&private_key)?;
@@ -163,9 +157,11 @@ mod tests {
         let private_key = b"ABCDE12345";
         let data = b"abcde12345";
 
-        for name in &["HS256", "HS384", "HS512"] {
-            let alg = HmacJwsAlgorithm::new(name);
-
+        for alg in &[
+            HmacJwsAlgorithm::HS256,
+            HmacJwsAlgorithm::HS384,
+            HmacJwsAlgorithm::HS512
+        ] {
             let signer = alg.signer_from_slice(private_key)?;
             let signature = signer.sign(data)?;
             signer.verify(data, &signature)?;

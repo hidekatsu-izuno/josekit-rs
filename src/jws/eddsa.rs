@@ -11,28 +11,15 @@ use crate::error::JoseError;
 use crate::jws::util::{json_base64_bytes, json_eq, parse_pem};
 use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier};
 
-/// EdDSA
-pub const EDDSA: EddsaJwsAlgorithm = EddsaJwsAlgorithm::new("EdDSA");
-
 static OID_ED25519: Lazy<ObjectIdentifier> =
     Lazy::new(|| ObjectIdentifier::from_slice(&[1, 3, 101, 112]));
 
-
 #[derive(Debug, Eq, PartialEq)]
-pub struct EddsaJwsAlgorithm {
-    name: &'static str,
+pub enum EddsaJwsAlgorithm {
+    EDDSA
 }
 
 impl EddsaJwsAlgorithm {
-    /// Return a new instance.
-    ///
-    /// # Arguments
-    /// * `name` - A algrithm name.
-    /// * `hash_algorithm` - A algrithm name.
-    const fn new(name: &'static str) -> Self {
-        EddsaJwsAlgorithm { name }
-    }
-
     /// Return a signer from a private key of JWK format.
     ///
     /// # Arguments
@@ -277,7 +264,7 @@ impl EddsaJwsAlgorithm {
 
 impl JwsAlgorithm for EddsaJwsAlgorithm {
     fn name(&self) -> &str {
-        self.name
+        "EdDSA"
     }
 }
 
@@ -336,7 +323,7 @@ mod tests {
     fn sign_and_verify_eddsa_jwt() -> Result<()> {
         let input = b"abcde12345";
 
-        let alg = EDDSA;
+        let alg = EddsaJwsAlgorithm::EDDSA;
 
         let private_key = load_file("jwk/OKP_Ed25519_private.jwk")?;
         let public_key = load_file("jwk/OKP_Ed25519_private.jwk")?;
@@ -354,7 +341,7 @@ mod tests {
     fn sign_and_verify_eddsa_pkcs8_pem() -> Result<()> {
         let input = b"abcde12345";
 
-        let alg = EDDSA;
+        let alg = EddsaJwsAlgorithm::EDDSA;
 
         let private_key = load_file("pem/eddsa_pkcs8_private.pem")?;
         let public_key = load_file("pem/eddsa_pkcs8_public.pem")?;
@@ -372,7 +359,7 @@ mod tests {
     fn sign_and_verify_eddsa_pkcs8_der() -> Result<()> {
         let input = b"abcde12345";
 
-        let alg = EDDSA;
+        let alg = EddsaJwsAlgorithm::EDDSA;
 
         let private_key = load_file("der/eddsa_pkcs8_private.der")?;
         let public_key = load_file("der/eddsa_pkcs8_public.der")?;
