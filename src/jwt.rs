@@ -901,8 +901,8 @@ mod tests {
         let from_jwt = Jwt::new();
 
         for alg in &[RS256, RS384, RS512] {
-            let private_key = load_file("pem/rsa_2048_pkcs8_private.pem")?;
-            let public_key = load_file("pem/rsa_2048_pkcs8_public.pem")?;
+            let private_key = load_file("pem/RSA_2048bit_pkcs8_private.pem")?;
+            let public_key = load_file("pem/RSA_2048bit_pkcs8_public.pem")?;
 
             let signer = alg.signer_from_pem(&private_key)?;
             let jwt_string = from_jwt.encode_with_signer(&signer)?;
@@ -923,15 +923,15 @@ mod tests {
 
         for alg in &[PS256, PS384, PS512] {
             let private_key = load_file(match alg.name() {
-                "PS256" => "pem/rsapss_2048_sha256_pkcs8_private.pem",
-                "PS384" => "pem/rsapss_2048_sha384_pkcs8_private.pem",
-                "PS512" => "pem/rsapss_2048_sha512_pkcs8_private.pem",
+                "PS256" => "pem/RSA-PSS_2048bit_SHA256_pkcs8_private.pem",
+                "PS384" => "pem/RSA-PSS_2048bit_SHA384_pkcs8_private.pem",
+                "PS512" => "pem/RSA-PSS_2048bit_SHA512_pkcs8_private.pem",
                 _ => unreachable!(),
             })?;
             let public_key = load_file(match alg.name() {
-                "PS256" => "pem/rsapss_2048_sha256_pkcs8_public.pem",
-                "PS384" => "pem/rsapss_2048_sha384_pkcs8_public.pem",
-                "PS512" => "pem/rsapss_2048_sha512_pkcs8_public.pem",
+                "PS256" => "pem/RSA-PSS_2048bit_SHA256_pkcs8_public.pem",
+                "PS384" => "pem/RSA-PSS_2048bit_SHA384_pkcs8_public.pem",
+                "PS512" => "pem/RSA-PSS_2048bit_SHA512_pkcs8_public.pem",
                 _ => unreachable!(),
             })?;
 
@@ -953,8 +953,8 @@ mod tests {
         let from_jwt = Jwt::new();
 
         for alg in &[RS256, RS384, RS512] {
-            let private_key = load_file("der/rsa_2048_pkcs8_private.der")?;
-            let public_key = load_file("der/rsa_2048_pkcs8_public.der")?;
+            let private_key = load_file("der/RSA_2048bit_pkcs8_private.der")?;
+            let public_key = load_file("der/RSA_2048bit_pkcs8_public.der")?;
 
             let signer = alg.signer_from_der(&private_key)?;
             let jwt_string = from_jwt.encode_with_signer(&signer)?;

@@ -470,7 +470,7 @@ mod tests {
 
     #[test]
     fn parse_der() -> Result<()> {
-        let bytes = load_file("der/rsa_2048_pkcs1_public.der")?.bytes();
+        let bytes = load_file("der/RSA_2048bit_public.der")?.bytes();
 
         let mut parser = DerReader::new(bytes);
         assert!(matches!(parser.next()?, Some(DerType::Sequence)));

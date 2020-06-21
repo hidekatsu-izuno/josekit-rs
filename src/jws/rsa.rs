@@ -426,8 +426,8 @@ mod tests {
             RsaJwsAlgorithm::RS384,
             RsaJwsAlgorithm::RS512
         ] {
-            let private_key = load_file("pem/rsa_2048_pkcs8_private.pem")?;
-            let public_key = load_file("pem/rsa_2048_pkcs8_public.pem")?;
+            let private_key = load_file("pem/RSA_2048bit_pkcs8_private.pem")?;
+            let public_key = load_file("pem/RSA_2048bit_pkcs8_public.pem")?;
 
             let signer = alg.signer_from_pem(&private_key)?;
             let signature = signer.sign(data)?;
@@ -448,8 +448,8 @@ mod tests {
             RsaJwsAlgorithm::RS384,
             RsaJwsAlgorithm::RS512
         ] {
-            let private_key = load_file("der/rsa_2048_pkcs8_private.der")?;
-            let public_key = load_file("der/rsa_2048_pkcs8_public.der")?;
+            let private_key = load_file("der/RSA_2048bit_pkcs8_private.der")?;
+            let public_key = load_file("der/RSA_2048bit_pkcs8_public.der")?;
 
             let signer = alg.signer_from_der(&private_key)?;
             let signature = signer.sign(data)?;
@@ -470,8 +470,8 @@ mod tests {
             RsaJwsAlgorithm::RS384,
             RsaJwsAlgorithm::RS512
         ] {
-            let private_key = load_file("pem/rsa_2048_pkcs1_private.pem")?;
-            let public_key = load_file("pem/rsa_2048_pkcs1_public.pem")?;
+            let private_key = load_file("pem/RSA_2048bit_private.pem")?;
+            let public_key = load_file("pem/RSA_2048bit_public.pem")?;
 
             let signer = alg.signer_from_pem(&private_key)?;
             let signature = signer.sign(data)?;
@@ -492,8 +492,8 @@ mod tests {
             RsaJwsAlgorithm::RS384,
             RsaJwsAlgorithm::RS512
         ] {
-            let private_key = load_file("der/rsa_2048_pkcs1_private.der")?;
-            let public_key = load_file("der/rsa_2048_pkcs1_public.der")?;
+            let private_key = load_file("der/RSA_2048bit_private.der")?;
+            let public_key = load_file("der/RSA_2048bit_public.der")?;
 
             let signer = alg.signer_from_der(&private_key)?;
             let signature = signer.sign(data)?;
