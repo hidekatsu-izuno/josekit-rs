@@ -117,7 +117,7 @@ impl EddsaJwsAlgorithm {
         (|| -> anyhow::Result<EddsaJwsVerifier> {
             let map: Map<String, Value> = serde_json::from_slice(input)?;
 
-            json_eq(&map, "kty", "EC", true)?;
+            json_eq(&map, "kty", "OKP", true)?;
             json_eq(&map, "use", "sig", false)?;
             json_eq(&map, "alg", &self.name(), false)?;
             json_eq(&map, "crv", "Ed25519", true)?;
@@ -146,7 +146,7 @@ impl EddsaJwsAlgorithm {
             let (alg, data) = parse_pem(input)?;
             let pkey = match alg.as_str() {
                 "PUBLIC KEY" | "ED25519 PUBLIC KEY" => {
-                    if !self.detect_pkcs8(&data, false)? {
+                    if !self.detect_pkcs8(&data, true)? {
                         bail!("Invalid PEM contents.");
                     }
                     PKey::public_key_from_der(&data)?
@@ -281,8 +281,8 @@ impl<'a> JwsSigner<EddsaJwsAlgorithm> for EddsaJwsSigner<'a> {
     fn sign(&self, message: &[u8]) -> Result<Vec<u8>, JoseError> {
         (|| -> anyhow::Result<Vec<u8>> {
             let mut signer = Signer::new_without_digest(&self.private_key)?;
-            signer.update(message)?;
-            let signature = signer.sign_to_vec()?;
+            let mut signature = vec![0; signer.len()?];
+            signer.sign_oneshot(&mut signature, message)?;
             Ok(signature)
         })()
         .map_err(|err| JoseError::InvalidSignature(err))
@@ -302,8 +302,7 @@ impl<'a> JwsVerifier<EddsaJwsAlgorithm> for EddsaJwsVerifier<'a> {
     fn verify(&self, message: &[u8], signature: &[u8]) -> Result<(), JoseError> {
         (|| -> anyhow::Result<()> {
             let mut verifier = Verifier::new_without_digest(&self.public_key)?;
-            verifier.update(message)?;
-            verifier.verify(signature)?;
+            verifier.verify_oneshot(signature, message)?;
             Ok(())
         })()
         .map_err(|err| JoseError::InvalidSignature(err))
