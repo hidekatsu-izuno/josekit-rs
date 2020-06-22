@@ -35,7 +35,7 @@ pub enum EcdsaJwsAlgorithm {
     ES384,
     /// ECDSA using P-521 and SHA-512
     ES512,
-    // ECDSA using secp256k1 curve and SHA-256
+    /// ECDSA using secp256k1 curve and SHA-256
     ES256K
 }
 

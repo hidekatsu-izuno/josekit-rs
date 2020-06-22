@@ -19,6 +19,7 @@ static OID_ED448: Lazy<ObjectIdentifier> =
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum EddsaJwsAlgorithm {
+    /// EdDSA signature algorithms
     EDDSA
 }
 

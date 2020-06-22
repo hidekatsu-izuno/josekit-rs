@@ -150,5 +150,3 @@ RSAPublicKey ::= SEQUENCE {
     modulus           INTEGER,  -- n
     publicExponent    INTEGER   -- e
 }
-
-https://tools.ietf.org/html/rfc7468
