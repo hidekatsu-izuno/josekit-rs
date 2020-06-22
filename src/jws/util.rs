@@ -5,15 +5,17 @@ use serde_json::{Map, Value};
 
 pub fn json_eq(map: &Map<String, Value>, key: &str, value: &str, required: bool) -> Result<()> {
     match map.get(key) {
-        Some(val) if val == value => Ok(()),
-        Some(val) => bail!("{} must be {}: {}", key, value, val),
+        Some(Value::String(val)) if val == value => {},
+        Some(val) => {
+            bail!("{} must be {}: {}", key, value, val);
+        }
         None => {
             if required {
                 bail!("Key {} is missing.", key);
             }
-            Ok(())
         }
     }
+    Ok(())
 }
 
 pub fn json_base64_bytes(map: &Map<String, Value>, key: &str) -> Result<Vec<u8>> {

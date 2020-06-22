@@ -96,19 +96,24 @@ openssl pkcs8 -nocrypt -in rsapss_2048_sha256_pkcs1_private.pem -topk8 -out rsap
 ## EdDSA keypair
 
 ### Create EdDSA PKCS#8 PEM private key
-openssl genpkey -algorithm ED25519 -out eddsa_pkcs8_private.pem
+openssl genpkey -algorithm ED25519 -out ED25519_pkcs8_private.pem
+openssl genpkey -algorithm ED448 -out ED448_pkcs8_private.pem
 
 ### Generate EdDSA PKCS#8 PEM public key from EdDSA PKCS#8 PEM private key
-openssl pkey -in eddsa_pkcs8_private.pem -pubout -outform PEM -out eddsa_pkcs8_public.pem
+openssl pkey -in ED25519_pkcs8_private.pem -pubout -outform PEM -out ED25519_pkcs8_public.pem
+openssl pkey -in ED448_pkcs8_private.pem -pubout -outform PEM -out ED448_pkcs8_public.pem
 
 ### Convert EdDSA private key from PKCS#8 PEM to PKCS#8 DER
-openssl pkcs8 -nocrypt -in eddsa_pkcs8_private.pem -topk8 -outform DER -out eddsa_pkcs8_private.der
+openssl pkcs8 -nocrypt -in ED25519_pkcs8_private.pem -topk8 -outform DER -out ED25519_pkcs8_private.der
+openssl pkcs8 -nocrypt -in ED448_pkcs8_private.pem -topk8 -outform DER -out ED448_pkcs8_private.der
 
 ### Generate EdDSA PKCS#8 DER public key from EdDSA PKCS#8 PEM private key
-openssl pkey -in eddsa_pkcs8_private.pem -pubout -outform DER -out eddsa_pkcs8_public.der
+openssl pkey -in ED25519_pkcs8_private.pem -pubout -outform DER -out ED25519_pkcs8_public.der
+openssl pkey -in ED448_pkcs8_private.pem -pubout -outform DER -out ED448_pkcs8_public.der
 
-### Convert EdDSA private key from PKCS#8 PEM to PKCS#1 PEM
-openssl pkcs8 -nocrypt -in eddsa_pkcs8_private.pem -traditional -out eddsa_pkcs1_private.pem
+### Convert EdDSA private key from PKCS#8 PEM to PKCS#8 Traditional PEM
+openssl pkcs8 -nocrypt -in ED25519_pkcs8_private.pem -traditional -out ED25519_pkcs8_private_traditional.pem
+openssl pkcs8 -nocrypt -in ED448_pkcs8_private.pem -traditional -out ED448_pkcs8_private_traditional.pem
 
 PrivateKeyInfo ::= SEQUENCE {
     version             INTEGER,

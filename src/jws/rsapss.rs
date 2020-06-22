@@ -90,10 +90,10 @@ impl RsaPssJwsAlgorithm {
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
-    /// Return a signer from a private key of PKCS#1 or PKCS#8 PEM format.
+    /// Return a signer from a private key of PKCS#8 PEM format.
     ///
     /// # Arguments
-    /// * `input` - A private key of PKCS#1 or PKCS#8 PEM format.
+    /// * `input` - A private key of PKCS#8 PEM format.
     pub fn signer_from_pem<'a>(
         &'a self,
         input: &[u8],
@@ -124,10 +124,10 @@ impl RsaPssJwsAlgorithm {
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
-    /// Return a signer from a private key of PKCS#1 or PKCS#8 DER format.
+    /// Return a signer from a private key of PKCS#8 DER format.
     ///
     /// # Arguments
-    /// * `input` - A private key of PKCS#1 or PKCS#8 DER format.
+    /// * `input` - A private key of PKCS#8 DER format.
     pub fn signer_from_der<'a>(
         &'a self,
         input: &'a [u8],
@@ -187,10 +187,10 @@ impl RsaPssJwsAlgorithm {
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
-    /// Return a verifier from a public key of PKCS#1 or PKCS#8 PEM format.
+    /// Return a verifier from a public key of PKCS#8 PEM format.
     ///
     /// # Arguments
-    /// * `input` - A public key of PKCS#1 or PKCS#8 PEM format.
+    /// * `input` - A public key of PKCS#8 PEM format.
     pub fn verifier_from_pem<'a>(
         &'a self,
         input: &[u8],
@@ -220,10 +220,10 @@ impl RsaPssJwsAlgorithm {
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
-    /// Return a verifier from a public key of PKCS#1 or PKCS#8 DER format.
+    /// Return a verifier from a public key of PKCS#8 DER format.
     ///
     /// # Arguments
-    /// * `input` - A public key of PKCS#1 or PKCS#8 DER format.
+    /// * `input` - A public key of PKCS#8 DER format.
     pub fn verifier_from_der<'a>(
         &'a self,
         input: &[u8],
@@ -245,11 +245,19 @@ impl RsaPssJwsAlgorithm {
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
-    fn parameters(&self) -> (&ObjectIdentifier, u8) {
+    fn digest(&self) -> &ObjectIdentifier {
         match self {
-            RsaPssJwsAlgorithm::PS256 => (&OID_SHA256, 32),
-            RsaPssJwsAlgorithm::PS384 => (&OID_SHA384, 48),
-            RsaPssJwsAlgorithm::PS512 => (&OID_SHA512, 64),
+            RsaPssJwsAlgorithm::PS256 => &OID_SHA256,
+            RsaPssJwsAlgorithm::PS384 => &OID_SHA384,
+            RsaPssJwsAlgorithm::PS512 => &OID_SHA512,
+        }
+    }
+
+    fn salt_len(&self) -> u8 {
+        match self {
+            RsaPssJwsAlgorithm::PS256 => 32,
+            RsaPssJwsAlgorithm::PS384 => 48,
+            RsaPssJwsAlgorithm::PS512 => 64,
         }
     }
 
@@ -264,8 +272,6 @@ impl RsaPssJwsAlgorithm {
     }
 
     fn detect_pkcs8(&self, input: &[u8], is_public: bool) -> anyhow::Result<bool> {
-        let (sha_oid, salt_len) = self.parameters();
-
         let mut reader = DerReader::new(input.bytes());
 
         match reader.next() {
@@ -328,7 +334,7 @@ impl RsaPssJwsAlgorithm {
                             Ok(Some(DerType::ObjectIdentifier)) => {
                                 match reader.to_object_identifier() {
                                     Ok(val) => {
-                                        if val != *sha_oid {
+                                        if val != *self.digest() {
                                             bail!("Incompatible oid: {}", val);
                                         }
                                     }
@@ -379,7 +385,7 @@ impl RsaPssJwsAlgorithm {
                                 Ok(Some(DerType::ObjectIdentifier)) => {
                                     match reader.to_object_identifier() {
                                         Ok(val) => {
-                                            if val != *sha_oid {
+                                            if val != *self.digest() {
                                                 bail!("Incompatible oid: {}", val);
                                             }
                                         }
@@ -404,7 +410,7 @@ impl RsaPssJwsAlgorithm {
                     match reader.next() {
                         Ok(Some(DerType::Integer)) => match reader.to_u8() {
                             Ok(val) => {
-                                if val != salt_len {
+                                if val != self.salt_len() {
                                     bail!("Incompatible salt length: {}", val);
                                 }
                             }
@@ -420,8 +426,6 @@ impl RsaPssJwsAlgorithm {
     }
 
     fn to_pkcs8(&self, input: &[u8], is_public: bool) -> Vec<u8> {
-        let (sha_oid, salt_len) = self.parameters();
-
         let mut builder = DerBuilder::new();
         builder.begin(DerType::Sequence);
         {
@@ -438,7 +442,7 @@ impl RsaPssJwsAlgorithm {
                     {
                         builder.begin(DerType::Sequence);
                         {
-                            builder.append_object_identifier(sha_oid);
+                            builder.append_object_identifier(self.digest());
                         }
                         builder.end();
                     }
@@ -451,7 +455,7 @@ impl RsaPssJwsAlgorithm {
                             builder.append_object_identifier(&OID_MGF1);
                             builder.begin(DerType::Sequence);
                             {
-                                builder.append_object_identifier(sha_oid);
+                                builder.append_object_identifier(self.digest());
                             }
                             builder.end();
                         }
@@ -461,7 +465,7 @@ impl RsaPssJwsAlgorithm {
 
                     builder.begin(DerType::Other(DerClass::ContextSpecific, 2));
                     {
-                        builder.append_integer_from_u8(salt_len);
+                        builder.append_integer_from_u8(self.salt_len());
                     }
                     builder.end();
                 }
