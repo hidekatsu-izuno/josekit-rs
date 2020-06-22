@@ -44,10 +44,10 @@ impl RsaPssJwsAlgorithm {
     ///
     /// # Arguments
     /// * `input` - A private key of JWK format.
-    pub fn signer_from_jwk<'a>(
-        &'a self,
+    pub fn signer_from_jwk(
+        &self,
         input: &[u8],
-    ) -> Result<impl JwsSigner<Self> + 'a, JoseError> {
+    ) -> Result<RsaPssJwsSigner, JoseError> {
         (|| -> anyhow::Result<RsaPssJwsSigner> {
             let map: Map<String, Value> = serde_json::from_slice(input)?;
 
@@ -94,10 +94,10 @@ impl RsaPssJwsAlgorithm {
     ///
     /// # Arguments
     /// * `input` - A private key of PKCS#8 PEM format.
-    pub fn signer_from_pem<'a>(
-        &'a self,
+    pub fn signer_from_pem(
+        &self,
         input: &[u8],
-    ) -> Result<impl JwsSigner<Self> + 'a, JoseError> {
+    ) -> Result<RsaPssJwsSigner, JoseError> {
         (|| -> anyhow::Result<RsaPssJwsSigner> {
             let (alg, data) = parse_pem(input)?;
 
@@ -128,10 +128,10 @@ impl RsaPssJwsAlgorithm {
     ///
     /// # Arguments
     /// * `input` - A private key of PKCS#8 DER format.
-    pub fn signer_from_der<'a>(
-        &'a self,
-        input: &'a [u8],
-    ) -> Result<impl JwsSigner<Self> + 'a, JoseError> {
+    pub fn signer_from_der(
+        &self,
+        input: &[u8],
+    ) -> Result<RsaPssJwsSigner, JoseError> {
         (|| -> anyhow::Result<RsaPssJwsSigner> {
             let pkey = if self.detect_pkcs8(input, false)? {
                 PKey::private_key_from_der(input)?
@@ -153,10 +153,10 @@ impl RsaPssJwsAlgorithm {
     ///
     /// # Arguments
     /// * `input` - A key of JWK format.
-    pub fn verifier_from_jwk<'a>(
-        &'a self,
+    pub fn verifier_from_jwk(
+        &self,
         input: &[u8],
-    ) -> Result<impl JwsVerifier<Self> + 'a, JoseError> {
+    ) -> Result<RsaPssJwsVerifier, JoseError> {
         (|| -> anyhow::Result<RsaPssJwsVerifier> {
             let map: Map<String, Value> = serde_json::from_slice(input)?;
 
@@ -191,10 +191,10 @@ impl RsaPssJwsAlgorithm {
     ///
     /// # Arguments
     /// * `input` - A public key of PKCS#8 PEM format.
-    pub fn verifier_from_pem<'a>(
-        &'a self,
+    pub fn verifier_from_pem(
+        &self,
         input: &[u8],
-    ) -> Result<impl JwsVerifier<Self> + 'a, JoseError> {
+    ) -> Result<RsaPssJwsVerifier, JoseError> {
         (|| -> anyhow::Result<RsaPssJwsVerifier> {
             let (alg, data) = parse_pem(input)?;
             let pkey = match alg.as_str() {
@@ -224,10 +224,10 @@ impl RsaPssJwsAlgorithm {
     ///
     /// # Arguments
     /// * `input` - A public key of PKCS#8 DER format.
-    pub fn verifier_from_der<'a>(
-        &'a self,
+    pub fn verifier_from_der(
+        &self,
         input: &[u8],
-    ) -> Result<impl JwsVerifier<Self> + 'a, JoseError> {
+    ) -> Result<RsaPssJwsVerifier, JoseError> {
         (|| -> anyhow::Result<RsaPssJwsVerifier> {
             let pkey = if self.detect_pkcs8(input, true)? {
                 PKey::public_key_from_der(input)?

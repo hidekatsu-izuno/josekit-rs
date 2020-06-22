@@ -26,10 +26,10 @@ impl HmacJwsAlgorithm {
     ///
     /// # Arguments
     /// * `data` - A private key.
-    pub fn signer_from_jwk<'a>(
-        &'a self,
+    pub fn signer_from_jwk(
+        &self,
         jwk_str: &[u8],
-    ) -> Result<impl JwsSigner<Self> + JwsVerifier<Self> + 'a, JoseError> {
+    ) -> Result<HmacJwsSigner, JoseError> {
         let key_data = (|| -> anyhow::Result<Vec<u8>> {
             let map: Map<String, Value> = serde_json::from_slice(jwk_str)?;
 
@@ -49,10 +49,10 @@ impl HmacJwsAlgorithm {
     ///
     /// # Arguments
     /// * `data` - A private key.
-    pub fn signer_from_slice<'a>(
-        &'a self,
+    pub fn signer_from_slice(
+        &self,
         data: &[u8],
-    ) -> Result<impl JwsSigner<Self> + JwsVerifier<Self> + 'a, JoseError> {
+    ) -> Result<HmacJwsSigner, JoseError> {
         PKey::hmac(&data)
             .map_err(|err| JoseError::InvalidKeyFormat(anyhow!(err)))
             .map(|val| HmacJwsSigner {
