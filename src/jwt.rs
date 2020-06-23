@@ -3,15 +3,11 @@ use std::time::{Duration, SystemTime};
 use anyhow::bail;
 use chrono::{DateTime, Utc};
 use serde_json::map::Entry;
-use serde_json::{json, Map};
+use serde_json::{json, Map, Value};
+use std::io::Cursor;
 
 use crate::error::JoseError;
 use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier};
-
-/// Represents any valid JSON value.
-///
-/// See the `serde_json::value` module documentation for usage examples.
-pub type Value = serde_json::Value;
 
 /// Represents plain JWT object with header and payload.
 #[derive(Debug, Eq, PartialEq)]
@@ -78,7 +74,7 @@ impl Jwt {
     /// * `verifier` - A verifier of the siging algorithm.
     pub fn decode_with_verifier<T: JwsAlgorithm>(
         input: &str,
-        verifier: &impl JwsVerifier<T>,
+        verifier: &dyn JwsVerifier<T>,
     ) -> Result<Self, JoseError> {
         (|| -> anyhow::Result<Result<Jwt, JoseError>> {
             let parts: Vec<&str> = input.split('.').collect();
@@ -114,7 +110,7 @@ impl Jwt {
 
             let message = format!("{}.{}", header_base64, payload_base64);
             Ok(verifier
-                .verify(message.as_ref(), &signature )
+                .verify(&mut Cursor::new(message), &signature)
                 .map(|_| jwt))
         })()
         .map_err(|err| JoseError::InvalidJwtFormat(err))?
@@ -182,7 +178,8 @@ impl Jwt {
             let signature = base64::decode_config(signature_base64, base64::URL_SAFE_NO_PAD)?;
 
             let message = format!("{}.{}", header_base64, payload_base64);
-            Ok(verifier.verify(message.as_ref(), &signature)
+            Ok(verifier
+                .verify(&mut Cursor::new(message), &signature)
                 .map(|_| jwt))
         })()
         .map_err(|err| JoseError::InvalidJwtFormat(err))?
@@ -568,7 +565,7 @@ impl Jwt {
         let payload_base64 = base64::encode_config(payload_json, base64::URL_SAFE_NO_PAD);
 
         let message = format!("{}.{}", header_base64, payload_base64);
-        let signature = signer.sign(message.as_ref())?;
+        let signature = signer.sign(&mut Cursor::new(&message))?;
 
         let signature_base64 = base64::encode_config(signature, base64::URL_SAFE_NO_PAD);
         Ok(format!("{}.{}", message, signature_base64))
@@ -862,7 +859,7 @@ mod tests {
     use std::path::PathBuf;
 
     use crate::jws::{
-        ES256, ES384, ES512, ES256K, HS256, HS384, HS512, PS256, PS384, PS512, RS256, RS384, RS512,
+        ES256, ES256K, ES384, ES512, HS256, HS384, HS512, PS256, PS384, PS512, RS256, RS384, RS512,
     };
 
     #[test]

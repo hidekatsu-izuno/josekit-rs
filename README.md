@@ -309,6 +309,8 @@ dual licensed as above, without any additional terms or conditions.
 - [RFC7519: JSON Web Token (JWT)](https://tools.ietf.org/html/rfc7519)
 - [RFC8017: PKCS #1: RSA Cryptography Specifications Version 2.2](https://tools.ietf.org/html/rfc8017)
 - [RFC5208: PKCS #8: Private-Key Information Syntax Specification Version 1.2](https://tools.ietf.org/html/rfc5208)
+- [RFC5280: Internet X.509 Public Key Infrastructure Certificate and Certificate Revocation List (CRL) Profile](https://tools.ietf.org/html/rfc5280)
+- [RFC5915: Elliptic Curve Private Key Structure](https://tools.ietf.org/html/rfc5915)
 - [RFC5480: Elliptic Curve Cryptography Subject Public Key Information](https://tools.ietf.org/html/rfc5480)
 - [RFC6979: Deterministic Usage of the Digital Signature Algorithm (DSA) and Elliptic Curve Digital Signature Algorithm (ECDSA)](https://tools.ietf.org/html/rfc6979)
 - [RFC8410: Algorithm Identifiers for Ed25519, Ed448, X25519, and X448 for Use in the Internet X.509 Public Key Infrastructure](https://tools.ietf.org/html/rfc8410)

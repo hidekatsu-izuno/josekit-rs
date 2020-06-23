@@ -28,20 +28,17 @@ pub enum RsaJwsAlgorithm {
 }
 
 impl RsaJwsAlgorithm {
-    /// Return a signer from a private key of JWK format.
+    /// Return a signer from a private key of RSA JWK format.
     ///
     /// # Arguments
-    /// * `input` - A private key of JWK format.
-    pub fn signer_from_jwk<'a>(
-        &'a self,
-        input: &[u8],
-    ) -> Result<RsaJwsSigner, JoseError> {
+    /// * `input` - A private key of RSA JWK format.
+    pub fn signer_from_jwk(&self, input: impl AsRef<[u8]>) -> Result<RsaJwsSigner, JoseError> {
         (|| -> anyhow::Result<RsaJwsSigner> {
-            let map: Map<String, Value> = serde_json::from_slice(input)?;
+            let map: Map<String, Value> = serde_json::from_slice(input.as_ref())?;
 
-            json_eq(&map, "alg", self.name(), false)?;
             json_eq(&map, "kty", "RSA", true)?;
             json_eq(&map, "use", "sig", false)?;
+            json_eq(&map, "alg", self.name(), false)?;
             let n = json_base64_bytes(&map, "n")?;
             let e = json_base64_bytes(&map, "e")?;
             let d = json_base64_bytes(&map, "d")?;
@@ -78,16 +75,19 @@ impl RsaJwsAlgorithm {
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
-    /// Return a signer from a private key of PKCS#1 or PKCS#8 PEM format.
+    /// Return a signer from a private key of common or traditinal PEM format.
+    ///
+    /// Common PEM format is a DER and base64 encoded PKCS#8 PrivateKeyInfo
+    /// that surrounded by "-----BEGIN/END PRIVATE KEY----".
+    ///
+    /// Traditional PEM format is a DER and base64 encoded PKCS#1 RSAPrivateKey
+    /// that surrounded by "-----BEGIN/END RSA PRIVATE KEY----".
     ///
     /// # Arguments
-    /// * `input` - A private key of PKCS#1 or PKCS#8 PEM format.
-    pub fn signer_from_pem(
-        &self,
-        input: &[u8],
-    ) -> Result<RsaJwsSigner, JoseError> {
+    /// * `input` - A private key of common or traditinal PEM format.
+    pub fn signer_from_pem(&self, input: impl AsRef<[u8]>) -> Result<RsaJwsSigner, JoseError> {
         (|| -> anyhow::Result<RsaJwsSigner> {
-            let (alg, data) = parse_pem(input)?;
+            let (alg, data) = parse_pem(input.as_ref())?;
 
             let pkey = match alg.as_str() {
                 "PRIVATE KEY" => {
@@ -112,21 +112,21 @@ impl RsaJwsAlgorithm {
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
-    /// Return a signer from a private key of PKCS#1 or PKCS#8 DER format.
+    /// Return a signer from a private key that is a DER encoded PKCS#8 PrivateKeyInfo or PKCS#1 RSAPrivateKey.
     ///
     /// # Arguments
-    /// * `input` - A private key of PKCS#1 or PKCS#8 DER format.
-    pub fn signer_from_der(
-        &self,
-        input: &[u8],
-    ) -> Result<RsaJwsSigner, JoseError> {
+    /// * `input` - A private key that is a DER encoded PKCS#8 PrivateKeyInfo or PKCS#1 RSAPrivateKey.
+    pub fn signer_from_der(&self, input: impl AsRef<[u8]>) -> Result<RsaJwsSigner, JoseError> {
         (|| -> anyhow::Result<RsaJwsSigner> {
-            let pkey = if self.detect_pkcs8(input, false)? {
-                PKey::private_key_from_der(input)?
+            let pkcs8;
+            let pkcs8_ref = if self.detect_pkcs8(input.as_ref(), false)? {
+                input.as_ref()
             } else {
-                let pkcs8 = self.to_pkcs8(input, false);
-                PKey::private_key_from_der(&pkcs8)?
+                pkcs8 = self.to_pkcs8(input.as_ref(), false);
+                &pkcs8
             };
+
+            let pkey = PKey::private_key_from_der(pkcs8_ref)?;
             self.check_key(&pkey)?;
 
             Ok(RsaJwsSigner {
@@ -137,20 +137,17 @@ impl RsaJwsAlgorithm {
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
-    /// Return a verifier from a key of JWK format.
+    /// Return a verifier from a key of RSA JWK format.
     ///
     /// # Arguments
-    /// * `input` - A key of JWK format.
-    pub fn verifier_from_jwk(
-        &self,
-        input: &[u8],
-    ) -> Result<RsaJwsVerifier, JoseError> {
+    /// * `input` - A key of RSA JWK format.
+    pub fn verifier_from_jwk(&self, input: impl AsRef<[u8]>) -> Result<RsaJwsVerifier, JoseError> {
         (|| -> anyhow::Result<RsaJwsVerifier> {
-            let map: Map<String, Value> = serde_json::from_slice(input)?;
+            let map: Map<String, Value> = serde_json::from_slice(input.as_ref())?;
 
-            json_eq(&map, "alg", &self.name(), false)?;
             json_eq(&map, "kty", "RSA", true)?;
             json_eq(&map, "use", "sig", false)?;
+            json_eq(&map, "alg", &self.name(), false)?;
             let n = json_base64_bytes(&map, "n")?;
             let e = json_base64_bytes(&map, "e")?;
 
@@ -174,16 +171,19 @@ impl RsaJwsAlgorithm {
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
-    /// Return a verifier from a public key of PKCS#1 or PKCS#8 PEM format.
+    /// Return a verifier from a key of common or traditional PEM format.
+    ///
+    /// Common PEM format is a DER and base64 encoded SubjectPublicKeyInfo
+    /// that surrounded by "-----BEGIN/END PUBLIC KEY----".
+    ///
+    /// Traditional PEM format is a DER and base64 PKCS#1 RSAPublicKey
+    /// that surrounded by "-----BEGIN/END RSA PUBLIC KEY----".
     ///
     /// # Arguments
-    /// * `input` - A public key of PKCS#1 or PKCS#8 PEM format.
-    pub fn verifier_from_pem(
-        &self,
-        input: &[u8],
-    ) -> Result<RsaJwsVerifier, JoseError> {
+    /// * `input` - A public key of common or traditional PEM format.
+    pub fn verifier_from_pem(&self, input: impl AsRef<[u8]>) -> Result<RsaJwsVerifier, JoseError> {
         (|| -> anyhow::Result<RsaJwsVerifier> {
-            let (alg, data) = parse_pem(input)?;
+            let (alg, data) = parse_pem(input.as_ref())?;
 
             let pkey = match alg.as_str() {
                 "PUBLIC KEY" => {
@@ -208,21 +208,21 @@ impl RsaJwsAlgorithm {
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
-    /// Return a verifier from a public key of PKCS#1 or PKCS#8 DER format.
+    /// Return a verifier from a public key that is a DER encoded SubjectPublicKeyInfo or PKCS#1 RSAPublicKey.
     ///
     /// # Arguments
-    /// * `input` - A public key of PKCS#1 or PKCS#8 DER format.
-    pub fn verifier_from_der(
-        &self,
-        input: &[u8],
-    ) -> Result<RsaJwsVerifier, JoseError> {
+    /// * `input` - A public key that is a DER encoded SubjectPublicKeyInfo or PKCS#1 RSAPublicKey.
+    pub fn verifier_from_der(&self, input: impl AsRef<[u8]>) -> Result<RsaJwsVerifier, JoseError> {
         (|| -> anyhow::Result<RsaJwsVerifier> {
-            let pkey = if self.detect_pkcs8(input, true)? {
-                PKey::public_key_from_der(input)?
+            let pkcs8;
+            let pkcs8_ref = if self.detect_pkcs8(input.as_ref(), true)? {
+                input.as_ref()
             } else {
-                let pkcs8 = self.to_pkcs8(input, true);
-                PKey::public_key_from_der(&pkcs8)?
+                pkcs8 = self.to_pkcs8(input.as_ref(), true);
+                &pkcs8
             };
+
+            let pkey = PKey::public_key_from_der(pkcs8_ref)?;
             self.check_key(&pkey)?;
 
             Ok(RsaJwsVerifier {
@@ -309,7 +309,7 @@ impl RsaJwsAlgorithm {
                 builder.append_null();
             }
             builder.end();
-            
+
             if is_public {
                 builder.append_bit_string_from_slice(input, 0);
             } else {
@@ -317,7 +317,7 @@ impl RsaJwsAlgorithm {
             }
         }
         builder.end();
-        
+
         builder.build()
     }
 }
@@ -342,7 +342,7 @@ impl<'a> JwsSigner<RsaJwsAlgorithm> for RsaJwsSigner<'a> {
         &self.algorithm
     }
 
-    fn sign(&self, message: &[u8]) -> Result<Vec<u8>, JoseError> {
+    fn sign(&self, message: &mut dyn Read) -> Result<Vec<u8>, JoseError> {
         (|| -> anyhow::Result<Vec<u8>> {
             let message_digest = match self.algorithm {
                 RsaJwsAlgorithm::RS256 => MessageDigest::sha256(),
@@ -351,7 +351,15 @@ impl<'a> JwsSigner<RsaJwsAlgorithm> for RsaJwsSigner<'a> {
             };
 
             let mut signer = Signer::new(message_digest, &self.private_key)?;
-            signer.update(message)?;
+
+            let mut buf = [0; 1024];
+            loop {
+                match message.read(&mut buf)? {
+                    0 => break,
+                    n => signer.update(&buf[..n])?,
+                }
+            }
+
             let signature = signer.sign_to_vec()?;
             Ok(signature)
         })()
@@ -369,7 +377,7 @@ impl<'a> JwsVerifier<RsaJwsAlgorithm> for RsaJwsVerifier<'a> {
         &self.algorithm
     }
 
-    fn verify(&self, message: &[u8], signature: &[u8]) -> Result<(), JoseError> {
+    fn verify(&self, message: &mut dyn Read, signature: &[u8]) -> Result<(), JoseError> {
         (|| -> anyhow::Result<()> {
             let message_digest = match self.algorithm {
                 RsaJwsAlgorithm::RS256 => MessageDigest::sha256(),
@@ -378,7 +386,15 @@ impl<'a> JwsVerifier<RsaJwsAlgorithm> for RsaJwsVerifier<'a> {
             };
 
             let mut verifier = Verifier::new(message_digest, &self.public_key)?;
-            verifier.update(message)?;
+
+            let mut buf = [0; 1024];
+            loop {
+                match message.read(&mut buf)? {
+                    0 => break,
+                    n => verifier.update(&buf[..n])?,
+                }
+            }
+
             verifier.verify(signature)?;
             Ok(())
         })()
@@ -392,26 +408,26 @@ mod tests {
 
     use anyhow::Result;
     use std::fs::File;
-    use std::io::Read;
+    use std::io::{Cursor, Read};
     use std::path::PathBuf;
 
     #[test]
     fn sign_and_verify_rsa_jwt() -> Result<()> {
-        let data = b"abcde12345";
+        let input = b"abcde12345";
 
         for alg in &[
             RsaJwsAlgorithm::RS256,
             RsaJwsAlgorithm::RS384,
-            RsaJwsAlgorithm::RS512
+            RsaJwsAlgorithm::RS512,
         ] {
             let private_key = load_file("jwk/RSA_private.jwk")?;
             let public_key = load_file("jwk/RSA_public.jwk")?;
 
             let signer = alg.signer_from_jwk(&private_key)?;
-            let signature = signer.sign(data)?;
+            let signature = signer.sign(&mut Cursor::new(input))?;
 
             let verifier = alg.verifier_from_jwk(&public_key)?;
-            verifier.verify(data, &signature)?;
+            verifier.verify(&mut Cursor::new(input), &signature)?;
         }
 
         Ok(())
@@ -419,21 +435,21 @@ mod tests {
 
     #[test]
     fn sign_and_verify_rsa_pkcs8_pem() -> Result<()> {
-        let data = b"abcde12345";
+        let input = b"abcde12345";
 
         for alg in &[
             RsaJwsAlgorithm::RS256,
             RsaJwsAlgorithm::RS384,
-            RsaJwsAlgorithm::RS512
+            RsaJwsAlgorithm::RS512,
         ] {
             let private_key = load_file("pem/RSA_2048bit_pkcs8_private.pem")?;
             let public_key = load_file("pem/RSA_2048bit_pkcs8_public.pem")?;
 
             let signer = alg.signer_from_pem(&private_key)?;
-            let signature = signer.sign(data)?;
+            let signature = signer.sign(&mut Cursor::new(input))?;
 
             let verifier = alg.verifier_from_pem(&public_key)?;
-            verifier.verify(data, &signature)?;
+            verifier.verify(&mut Cursor::new(input), &signature)?;
         }
 
         Ok(())
@@ -441,21 +457,21 @@ mod tests {
 
     #[test]
     fn sign_and_verify_rsa_pkcs8_der() -> Result<()> {
-        let data = b"abcde12345";
+        let input = b"abcde12345";
 
         for alg in &[
             RsaJwsAlgorithm::RS256,
             RsaJwsAlgorithm::RS384,
-            RsaJwsAlgorithm::RS512
+            RsaJwsAlgorithm::RS512,
         ] {
             let private_key = load_file("der/RSA_2048bit_pkcs8_private.der")?;
             let public_key = load_file("der/RSA_2048bit_pkcs8_public.der")?;
 
             let signer = alg.signer_from_der(&private_key)?;
-            let signature = signer.sign(data)?;
+            let signature = signer.sign(&mut Cursor::new(input))?;
 
             let verifier = alg.verifier_from_der(&public_key)?;
-            verifier.verify(data, &signature)?;
+            verifier.verify(&mut Cursor::new(input), &signature)?;
         }
 
         Ok(())
@@ -463,21 +479,21 @@ mod tests {
 
     #[test]
     fn sign_and_verify_rsa_pkcs1_pem() -> Result<()> {
-        let data = b"abcde12345";
+        let input = b"abcde12345";
 
         for alg in &[
             RsaJwsAlgorithm::RS256,
             RsaJwsAlgorithm::RS384,
-            RsaJwsAlgorithm::RS512
+            RsaJwsAlgorithm::RS512,
         ] {
             let private_key = load_file("pem/RSA_2048bit_private.pem")?;
             let public_key = load_file("pem/RSA_2048bit_public.pem")?;
 
             let signer = alg.signer_from_pem(&private_key)?;
-            let signature = signer.sign(data)?;
+            let signature = signer.sign(&mut Cursor::new(input))?;
 
             let verifier = alg.verifier_from_pem(&public_key)?;
-            verifier.verify(data, &signature)?;
+            verifier.verify(&mut Cursor::new(input), &signature)?;
         }
 
         Ok(())
@@ -485,21 +501,21 @@ mod tests {
 
     #[test]
     fn sign_and_verify_rsa_pkcs1_der() -> Result<()> {
-        let data = b"abcde12345";
+        let input = b"abcde12345";
 
         for alg in &[
             RsaJwsAlgorithm::RS256,
             RsaJwsAlgorithm::RS384,
-            RsaJwsAlgorithm::RS512
+            RsaJwsAlgorithm::RS512,
         ] {
             let private_key = load_file("der/RSA_2048bit_private.der")?;
             let public_key = load_file("der/RSA_2048bit_public.der")?;
 
             let signer = alg.signer_from_der(&private_key)?;
-            let signature = signer.sign(data)?;
+            let signature = signer.sign(&mut Cursor::new(input))?;
 
             let verifier = alg.verifier_from_der(&public_key)?;
-            verifier.verify(data, &signature)?;
+            verifier.verify(&mut Cursor::new(input), &signature)?;
         }
 
         Ok(())

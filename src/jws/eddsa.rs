@@ -20,20 +20,17 @@ static OID_ED448: Lazy<ObjectIdentifier> =
 #[derive(Debug, Eq, PartialEq)]
 pub enum EddsaJwsAlgorithm {
     /// EdDSA signature algorithms
-    EDDSA
+    EDDSA,
 }
 
 impl EddsaJwsAlgorithm {
-    /// Return a signer from a private key of JWK format.
+    /// Return a signer from a private key of OKP JWK format.
     ///
     /// # Arguments
-    /// * `input` - A private key of JWK format.
-    pub fn signer_from_jwk(
-        &self,
-        input: &[u8],
-    ) -> Result<EddsaJwsSigner, JoseError> {
+    /// * `input` - A private key of OKP JWK format.
+    pub fn signer_from_jwk(&self, input: impl AsRef<[u8]>) -> Result<EddsaJwsSigner, JoseError> {
         (|| -> anyhow::Result<EddsaJwsSigner> {
-            let map: Map<String, Value> = serde_json::from_slice(input)?;
+            let map: Map<String, Value> = serde_json::from_slice(input.as_ref())?;
 
             json_eq(&map, "kty", "OKP", true)?;
             json_eq(&map, "use", "sig", false)?;
@@ -48,7 +45,7 @@ impl EddsaJwsAlgorithm {
 
             let mut builder = DerBuilder::new();
             builder.append_octed_string_from_slice(&d);
-            
+
             let pkcs8 = self.to_pkcs8(&builder.build(), false, crv);
             let pkey = PKey::private_key_from_der(&pkcs8)?;
 
@@ -60,16 +57,19 @@ impl EddsaJwsAlgorithm {
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
-    /// Return a signer from a private key of PKCS#8 PEM format.
+    /// Return a signer from a private key of common or traditinal PEM format.
+    ///
+    /// Common PEM format is a DER and base64 encoded PKCS#8 PrivateKeyInfo
+    /// that surrounded by "-----BEGIN/END PRIVATE KEY----".
+    ///
+    /// Traditional PEM format is a DER and base64 encoded PKCS#8 PrivateKeyInfo
+    /// that surrounded by "-----BEGIN/END ED25519/ED448 PRIVATE KEY----".
     ///
     /// # Arguments
-    /// * `input` - A private key of PKCS#8 PEM format.
-    pub fn signer_from_pem(
-        & self,
-        input: &[u8],
-    ) -> Result<EddsaJwsSigner, JoseError> {
+    /// * `input` - A private key of common or traditinal PEM format.
+    pub fn signer_from_pem(&self, input: impl AsRef<[u8]>) -> Result<EddsaJwsSigner, JoseError> {
         (|| -> anyhow::Result<EddsaJwsSigner> {
-            let (alg, data) = parse_pem(input)?;
+            let (alg, data) = parse_pem(input.as_ref())?;
             let pkey = match alg.as_str() {
                 "PRIVATE KEY" => {
                     if let Some(_) = self.detect_pkcs8(&data, false)? {
@@ -77,7 +77,7 @@ impl EddsaJwsAlgorithm {
                     } else {
                         bail!("The EdDSA private key must be wrapped by PKCS#8 format.");
                     }
-                },
+                }
                 "ED25519 PRIVATE KEY" => {
                     if let Some(oid) = self.detect_pkcs8(&data, false)? {
                         if oid == *OID_ED25519 {
@@ -88,7 +88,7 @@ impl EddsaJwsAlgorithm {
                     } else {
                         bail!("The EdDSA private key must be wrapped by PKCS#8 format.");
                     }
-                },
+                }
                 "ED448 PRIVATE KEY" => {
                     if let Some(oid) = self.detect_pkcs8(&data, false)? {
                         if oid == *OID_ED448 {
@@ -99,7 +99,7 @@ impl EddsaJwsAlgorithm {
                     } else {
                         bail!("The EdDSA private key must be wrapped by PKCS#8 format.");
                     }
-                },
+                }
                 alg => bail!("Inappropriate algorithm: {}", alg),
             };
 
@@ -111,17 +111,14 @@ impl EddsaJwsAlgorithm {
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
-    /// Return a signer from a private key of PKCS#8 DER format.
+    /// Return a signer from a private key that is a DER encoded PKCS#8 PrivateKeyInfo.
     ///
     /// # Arguments
-    /// * `input` - A private key of PKCS#8 DER format.
-    pub fn signer_from_der(
-        & self,
-        input: &[u8],
-    ) -> Result<EddsaJwsSigner, JoseError> {
+    /// * `input` - A private key that is a DER encoded PKCS#8 PrivateKeyInfo.
+    pub fn signer_from_der(&self, input: impl AsRef<[u8]>) -> Result<EddsaJwsSigner, JoseError> {
         (|| -> anyhow::Result<EddsaJwsSigner> {
-            let pkey = if let Some(_) = self.detect_pkcs8(input, false)? {
-                PKey::private_key_from_der(input)?
+            let pkey = if let Some(_) = self.detect_pkcs8(input.as_ref(), false)? {
+                PKey::private_key_from_der(input.as_ref())?
             } else {
                 bail!("The EdDSA private key must be wrapped by PKCS#8 format.");
             };
@@ -134,16 +131,16 @@ impl EddsaJwsAlgorithm {
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
-    /// Return a verifier from a key of JWK format.
+    /// Return a verifier from a key of OKP JWK format.
     ///
     /// # Arguments
-    /// * `input` - A key of JWK format.
+    /// * `input` - A key of OKP JWK format.
     pub fn verifier_from_jwk(
         &self,
-        input: &[u8],
+        input: impl AsRef<[u8]>,
     ) -> Result<EddsaJwsVerifier, JoseError> {
         (|| -> anyhow::Result<EddsaJwsVerifier> {
-            let map: Map<String, Value> = serde_json::from_slice(input)?;
+            let map: Map<String, Value> = serde_json::from_slice(input.as_ref())?;
 
             json_eq(&map, "kty", "OKP", true)?;
             json_eq(&map, "use", "sig", false)?;
@@ -167,16 +164,22 @@ impl EddsaJwsAlgorithm {
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
-    /// Return a verifier from a key of PKCS#8 PEM format.
+    /// Return a verifier from a key of common or traditional PEM format.
+    ///
+    /// Common PEM format is a DER and base64 encoded SubjectPublicKeyInfo
+    /// that surrounded by "-----BEGIN/END PUBLIC KEY----".
+    ///
+    /// Traditional PEM format is a DER and base64 SubjectPublicKeyInfo
+    /// that surrounded by "-----BEGIN/END ED25519/ED448 PUBLIC KEY----".
     ///
     /// # Arguments
-    /// * `input` - A key of PKCS#8 PEM format.
+    /// * `input` - A key of common or traditional PEM format.
     pub fn verifier_from_pem(
         &self,
-        input: &[u8],
+        input: impl AsRef<[u8]>,
     ) -> Result<EddsaJwsVerifier, JoseError> {
         (|| -> anyhow::Result<EddsaJwsVerifier> {
-            let (alg, data) = parse_pem(input)?;
+            let (alg, data) = parse_pem(input.as_ref())?;
             let pkey = match alg.as_str() {
                 "PUBLIC KEY" => {
                     if let Some(_) = self.detect_pkcs8(&data, true)? {
@@ -184,7 +187,7 @@ impl EddsaJwsAlgorithm {
                     } else {
                         bail!("The EdDSA public key must be wrapped by PKCS#8 format.");
                     }
-                },
+                }
                 "ED25519 PUBLIC KEY" => {
                     if let Some(oid) = self.detect_pkcs8(&data, true)? {
                         if oid == *OID_ED25519 {
@@ -195,7 +198,7 @@ impl EddsaJwsAlgorithm {
                     } else {
                         bail!("The EdDSA public key must be wrapped by PKCS#8 format.");
                     }
-                },
+                }
                 "ED448 PUBLIC KEY" => {
                     if let Some(oid) = self.detect_pkcs8(&data, true)? {
                         if oid == *OID_ED448 {
@@ -206,7 +209,7 @@ impl EddsaJwsAlgorithm {
                     } else {
                         bail!("The EdDSA public key must be wrapped by PKCS#8 format.");
                     }
-                },
+                }
                 alg => bail!("Unacceptable algorithm: {}", alg),
             };
 
@@ -218,17 +221,17 @@ impl EddsaJwsAlgorithm {
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
-    /// Return a verifier from a key of PKCS#8 DER format.
+    /// Return a verifier from a public key that is a DER encoded SubjectPublicKeyInfo.
     ///
     /// # Arguments
-    /// * `input` - A key of PKCS#8 DER format.
+    /// * `input` - A public key that is a DER encoded SubjectPublicKeyInfo.
     pub fn verifier_from_der(
         &self,
-        input: &[u8],
+        input: impl AsRef<[u8]>,
     ) -> Result<EddsaJwsVerifier, JoseError> {
         (|| -> anyhow::Result<EddsaJwsVerifier> {
-            let pkey = if let Some(_) = self.detect_pkcs8(input, true)? {
-                PKey::public_key_from_der(input)?
+            let pkey = if let Some(_) = self.detect_pkcs8(input.as_ref(), true)? {
+                PKey::public_key_from_der(input.as_ref())?
             } else {
                 bail!("The EdDSA public key must be wrapped by PKCS#8 format.");
             };
@@ -241,7 +244,11 @@ impl EddsaJwsAlgorithm {
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
-    fn detect_pkcs8(&self, input: &[u8], is_public: bool) -> anyhow::Result<Option<ObjectIdentifier>> {
+    fn detect_pkcs8(
+        &self,
+        input: &[u8],
+        is_public: bool,
+    ) -> anyhow::Result<Option<ObjectIdentifier>> {
         let oid;
         let mut reader = DerReader::new(input.bytes());
 
@@ -303,7 +310,7 @@ impl EddsaJwsAlgorithm {
                 builder.append_object_identifier(crv);
             }
             builder.end();
-            
+
             if is_public {
                 builder.append_bit_string_from_slice(input, 0);
             } else {
@@ -332,11 +339,15 @@ impl<'a> JwsSigner<EddsaJwsAlgorithm> for EddsaJwsSigner<'a> {
         &self.algorithm
     }
 
-    fn sign(&self, message: &[u8]) -> Result<Vec<u8>, JoseError> {
+    fn sign(&self, message: &mut dyn Read) -> Result<Vec<u8>, JoseError> {
         (|| -> anyhow::Result<Vec<u8>> {
             let mut signer = Signer::new_without_digest(&self.private_key)?;
             let mut signature = vec![0; signer.len()?];
-            signer.sign_oneshot(&mut signature, message)?;
+
+            let mut buf = Vec::new();
+            let _ = message.read_to_end(&mut buf);
+
+            signer.sign_oneshot(&mut signature, &buf)?;
             Ok(signature)
         })()
         .map_err(|err| JoseError::InvalidSignature(err))
@@ -353,10 +364,14 @@ impl<'a> JwsVerifier<EddsaJwsAlgorithm> for EddsaJwsVerifier<'a> {
         &self.algorithm
     }
 
-    fn verify(&self, message: &[u8], signature: &[u8]) -> Result<(), JoseError> {
+    fn verify(&self, message: &mut dyn Read, signature: &[u8]) -> Result<(), JoseError> {
         (|| -> anyhow::Result<()> {
             let mut verifier = Verifier::new_without_digest(&self.public_key)?;
-            verifier.verify_oneshot(signature, message)?;
+
+            let mut buf = Vec::new();
+            let _ = message.read_to_end(&mut buf);
+
+            verifier.verify_oneshot(signature, &buf)?;
             Ok(())
         })()
         .map_err(|err| JoseError::InvalidSignature(err))
@@ -369,7 +384,7 @@ mod tests {
 
     use anyhow::Result;
     use std::fs::File;
-    use std::io::Read;
+    use std::io::{Cursor, Read};
     use std::path::PathBuf;
 
     #[test]
@@ -382,10 +397,10 @@ mod tests {
         let public_key = load_file("jwk/OKP_Ed25519_private.jwk")?;
 
         let signer = alg.signer_from_jwk(&private_key)?;
-        let signature = signer.sign(input)?;
+        let signature = signer.sign(&mut Cursor::new(input))?;
 
         let verifier = alg.verifier_from_jwk(&public_key)?;
-        verifier.verify(input, &signature)?;
+        verifier.verify(&mut Cursor::new(input), &signature)?;
 
         Ok(())
     }
@@ -395,16 +410,16 @@ mod tests {
         let input = b"abcde12345";
 
         let alg = EddsaJwsAlgorithm::EDDSA;
-        
+
         for crv in &["ED25519", "ED448"] {
             let private_key = load_file(&format!("pem/{}_pkcs8_private.pem", crv))?;
             let public_key = load_file(&format!("pem/{}_pkcs8_public.pem", crv))?;
-    
+
             let signer = alg.signer_from_pem(&private_key)?;
-            let signature = signer.sign(input)?;
-    
+            let signature = signer.sign(&mut Cursor::new(input))?;
+
             let verifier = alg.verifier_from_pem(&public_key)?;
-            verifier.verify(input, &signature)?;
+            verifier.verify(&mut Cursor::new(input), &signature)?;
         }
 
         Ok(())
@@ -421,10 +436,10 @@ mod tests {
             let public_key = load_file(&format!("der/{}_pkcs8_public.der", crv))?;
 
             let signer = alg.signer_from_der(&private_key)?;
-            let signature = signer.sign(input)?;
+            let signature = signer.sign(&mut Cursor::new(input))?;
 
             let verifier = alg.verifier_from_der(&public_key)?;
-            verifier.verify(input, &signature)?;
+            verifier.verify(&mut Cursor::new(input), &signature)?;
         }
 
         Ok(())

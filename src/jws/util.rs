@@ -5,7 +5,7 @@ use serde_json::{Map, Value};
 
 pub fn json_eq(map: &Map<String, Value>, key: &str, value: &str, required: bool) -> Result<()> {
     match map.get(key) {
-        Some(Value::String(val)) if val == value => {},
+        Some(Value::String(val)) if val == value => {}
         Some(val) => {
             bail!("{} must be {}: {}", key, value, val);
         }

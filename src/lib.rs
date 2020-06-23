@@ -5,3 +5,4 @@ pub mod der;
 pub mod error;
 pub mod jws;
 pub mod jwt;
+pub mod jwk;

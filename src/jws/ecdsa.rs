@@ -36,20 +36,17 @@ pub enum EcdsaJwsAlgorithm {
     /// ECDSA using P-521 and SHA-512
     ES512,
     /// ECDSA using secp256k1 curve and SHA-256
-    ES256K
+    ES256K,
 }
 
 impl EcdsaJwsAlgorithm {
-    /// Return a signer from a private key of JWK format.
+    /// Return a signer from a private key of EC JWK format.
     ///
     /// # Arguments
-    /// * `input` - A private key of JWK format.
-    pub fn signer_from_jwk(
-        &self,
-        input: &[u8],
-    ) -> Result<EcdsaJwsSigner, JoseError> {
+    /// * `input` - A private key of EC JWK format.
+    pub fn signer_from_jwk(&self, input: impl AsRef<[u8]>) -> Result<EcdsaJwsSigner, JoseError> {
         (|| -> anyhow::Result<EcdsaJwsSigner> {
-            let map: Map<String, Value> = serde_json::from_slice(input)?;
+            let map: Map<String, Value> = serde_json::from_slice(input.as_ref())?;
 
             json_eq(&map, "kty", "EC", true)?;
             json_eq(&map, "use", "sig", false)?;
@@ -92,30 +89,36 @@ impl EcdsaJwsAlgorithm {
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
-    /// Return a signer from a private key of raw or PKCS#8 PEM format.
+    /// Return a signer from a private key of common or traditinal PEM format.
+    ///
+    /// Common PEM format is a DER and base64 encoded PKCS#8 PrivateKeyInfo
+    /// that surrounded by "-----BEGIN/END PRIVATE KEY----".
+    ///
+    /// Traditional PEM format is a DER and base64 encoded ECPrivateKey
+    /// that surrounded by "-----BEGIN/END EC PRIVATE KEY----".
     ///
     /// # Arguments
-    /// * `input` - A private key of raw or PKCS#8 PEM format.
-    pub fn signer_from_pem(
-        &self,
-        input: &[u8],
-    ) -> Result<EcdsaJwsSigner, JoseError> {
+    /// * `input` - A private key of common or traditinal PEM format.
+    pub fn signer_from_pem(&self, input: impl AsRef<[u8]>) -> Result<EcdsaJwsSigner, JoseError> {
         (|| -> anyhow::Result<EcdsaJwsSigner> {
-            let (alg, data) = parse_pem(input)?;
-            let pkey = match alg.as_str() {
+            let (alg, data) = parse_pem(input.as_ref())?;
+            let pkcs8;
+            let pkcs8_ref = match alg.as_str() {
                 "PRIVATE KEY" => {
                     if !self.detect_pkcs8(&data, false)? {
                         bail!("PEM contents is expected PKCS#8 wrapped key.");
                     }
-                    PKey::private_key_from_der(&data)?
+                    &data
                 }
                 "EC PRIVATE KEY" => {
-                    let pkcs8 = self.to_pkcs8(&data, false);
-                    PKey::private_key_from_der(&pkcs8)?
+                    pkcs8 = self.to_pkcs8(&data, false);
+                    &pkcs8
                 }
                 alg => bail!("Inappropriate algorithm: {}", alg),
             };
 
+            let pkey = PKey::private_key_from_der(pkcs8_ref)?;
+
             Ok(EcdsaJwsSigner {
                 algorithm: &self,
                 private_key: pkey,
@@ -124,22 +127,22 @@ impl EcdsaJwsAlgorithm {
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
-    /// Return a signer from a private key of raw or PKCS#8 DER format.
+    /// Return a signer from a private key that is a DER encoded PKCS#8 PrivateKeyInfo or ECPrivateKey.
     ///
     /// # Arguments
-    /// * `input` - A private key of raw or PKCS#8 DER format.
-    pub fn signer_from_der(
-        &self,
-        input: &[u8],
-    ) -> Result<EcdsaJwsSigner, JoseError> {
+    /// * `input` - A private key that is a DER encoded PKCS#8 PrivateKeyInfo or ECPrivateKey.
+    pub fn signer_from_der(&self, input: impl AsRef<[u8]>) -> Result<EcdsaJwsSigner, JoseError> {
         (|| -> anyhow::Result<EcdsaJwsSigner> {
-            let pkey = if self.detect_pkcs8(input, false)? {
-                PKey::private_key_from_der(input)?
+            let pkcs8;
+            let pkcs8_ref = if self.detect_pkcs8(input.as_ref(), false)? {
+                input.as_ref()
             } else {
-                let pkcs8 = self.to_pkcs8(input, false);
-                PKey::private_key_from_der(&pkcs8)?
+                pkcs8 = self.to_pkcs8(input.as_ref(), false);
+                &pkcs8
             };
 
+            let pkey = PKey::private_key_from_der(pkcs8_ref)?;
+
             Ok(EcdsaJwsSigner {
                 algorithm: &self,
                 private_key: pkey,
@@ -148,16 +151,16 @@ impl EcdsaJwsAlgorithm {
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
-    /// Return a verifier from a key of JWK format.
+    /// Return a verifier from a key of EC JWK format.
     ///
     /// # Arguments
-    /// * `input` - A key of JWK format.
-    pub fn verifier_from_jwk<'a>(
-        &'a self,
-        input: &[u8],
-    ) -> Result<impl JwsVerifier<Self> + 'a, JoseError> {
+    /// * `input` - A key of EC JWK format.
+    pub fn verifier_from_jwk(
+        &self,
+        input: impl AsRef<[u8]>,
+    ) -> Result<EcdsaJwsVerifier, JoseError> {
         (|| -> anyhow::Result<EcdsaJwsVerifier> {
-            let map: Map<String, Value> = serde_json::from_slice(input)?;
+            let map: Map<String, Value> = serde_json::from_slice(input.as_ref())?;
 
             json_eq(&map, "kty", "EC", true)?;
             json_eq(&map, "use", "sig", false)?;
@@ -182,30 +185,39 @@ impl EcdsaJwsAlgorithm {
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
-    /// Return a verifier from a key of traditional or PKCS#8 PEM format.
+    /// Return a verifier from a key of common or traditional PEM format.
+    ///
+    /// Common PEM format is a DER and base64 encoded SubjectPublicKeyInfo
+    /// that surrounded by "-----BEGIN/END PUBLIC KEY----".
+    ///
+    /// Traditional PEM format is a DER and base64 ECParameters
+    /// that surrounded by "-----BEGIN/END EC PUBLIC KEY----".
     ///
     /// # Arguments
-    /// * `input` - A key of traditional or PKCS#8 PEM format.
+    /// * `input` - A public key of common or traditional PEM format.
     pub fn verifier_from_pem(
         &self,
-        input: &[u8],
+        input: impl AsRef<[u8]>,
     ) -> Result<EcdsaJwsVerifier, JoseError> {
         (|| -> anyhow::Result<EcdsaJwsVerifier> {
-            let (alg, data) = parse_pem(input)?;
+            let (alg, data) = parse_pem(input.as_ref())?;
 
-            let pkey = match alg.as_str() {
+            let pkcs8;
+            let pkcs8_ref = match alg.as_str() {
                 "PUBLIC KEY" => {
                     if !self.detect_pkcs8(&data, true)? {
                         bail!("PEM contents is expected PKCS#8 wrapped key.");
                     }
-                    PKey::public_key_from_der(&data)?
+                    &data
                 }
                 "EC PUBLIC KEY" => {
-                    let pkcs8 = self.to_pkcs8(&data, true);
-                    PKey::public_key_from_der(&pkcs8)?
+                    pkcs8 = self.to_pkcs8(&data, true);
+                    &pkcs8
                 }
                 alg => bail!("Inappropriate algorithm: {}", alg),
             };
+
+            let pkey = PKey::public_key_from_der(pkcs8_ref)?;
 
             Ok(EcdsaJwsVerifier {
                 algorithm: &self,
@@ -215,21 +227,24 @@ impl EcdsaJwsAlgorithm {
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
-    /// Return a verifier from a key of raw or PKCS#8 DER format.
+    /// Return a verifier from a public key that is a DER encoded SubjectPublicKeyInfo or ECPoint.
     ///
     /// # Arguments
-    /// * `input` - A key of raw or PKCS#8 DER format.
-    pub fn verifier_from_der<'a>(
-        &'a self,
-        input: &[u8],
+    /// * `input` - A public key that is a DER encoded SubjectPublicKeyInfo or ECPoint.
+    pub fn verifier_from_der(
+        &self,
+        input: impl AsRef<[u8]>,
     ) -> Result<EcdsaJwsVerifier, JoseError> {
         (|| -> anyhow::Result<EcdsaJwsVerifier> {
-            let pkey = if self.detect_pkcs8(input, true)? {
-                PKey::public_key_from_der(input)?
+            let pkcs8;
+            let pkcs8_ref = if self.detect_pkcs8(input.as_ref(), true)? {
+                input.as_ref()
             } else {
-                let pkcs8 = self.to_pkcs8(input, true);
-                PKey::public_key_from_der(&pkcs8)?
+                pkcs8 = self.to_pkcs8(input.as_ref(), true);
+                &pkcs8
             };
+
+            let pkey = PKey::public_key_from_der(pkcs8_ref)?;
 
             Ok(EcdsaJwsVerifier {
                 algorithm: &self,
@@ -330,7 +345,7 @@ impl EcdsaJwsAlgorithm {
                 builder.append_object_identifier(self.curve_oid());
             }
             builder.end();
-            
+
             if is_public {
                 builder.append_bit_string_from_slice(input, 0);
             } else {
@@ -364,7 +379,7 @@ impl<'a> JwsSigner<EcdsaJwsAlgorithm> for EcdsaJwsSigner<'a> {
         &self.algorithm
     }
 
-    fn sign(&self, message: &[u8]) -> Result<Vec<u8>, JoseError> {
+    fn sign(&self, message: &mut dyn Read) -> Result<Vec<u8>, JoseError> {
         (|| -> anyhow::Result<Vec<u8>> {
             let message_digest = match self.algorithm {
                 EcdsaJwsAlgorithm::ES256 => MessageDigest::sha256(),
@@ -374,7 +389,15 @@ impl<'a> JwsSigner<EcdsaJwsAlgorithm> for EcdsaJwsSigner<'a> {
             };
 
             let mut signer = Signer::new(message_digest, &self.private_key)?;
-            signer.update(message)?;
+
+            let mut buf = [0; 1024];
+            loop {
+                match message.read(&mut buf)? {
+                    0 => break,
+                    n => signer.update(&buf[..n])?,
+                }
+            }
+
             let signature = signer.sign_to_vec()?;
             Ok(signature)
         })()
@@ -392,7 +415,7 @@ impl<'a> JwsVerifier<EcdsaJwsAlgorithm> for EcdsaJwsVerifier<'a> {
         &self.algorithm
     }
 
-    fn verify(&self, message: &[u8], signature: &[u8]) -> Result<(), JoseError> {
+    fn verify(&self, message: &mut dyn Read, signature: &[u8]) -> Result<(), JoseError> {
         (|| -> anyhow::Result<()> {
             let message_digest = match self.algorithm {
                 EcdsaJwsAlgorithm::ES256 => MessageDigest::sha256(),
@@ -402,7 +425,15 @@ impl<'a> JwsVerifier<EcdsaJwsAlgorithm> for EcdsaJwsVerifier<'a> {
             };
 
             let mut verifier = Verifier::new(message_digest, &self.public_key)?;
-            verifier.update(message)?;
+
+            let mut buf = [0; 1024];
+            loop {
+                match message.read(&mut buf)? {
+                    0 => break,
+                    n => verifier.update(&buf[..n])?,
+                }
+            }
+
             verifier.verify(signature)?;
             Ok(())
         })()
@@ -416,7 +447,7 @@ mod tests {
 
     use anyhow::Result;
     use std::fs::File;
-    use std::io::Read;
+    use std::io::{Cursor, Read};
     use std::path::PathBuf;
 
     #[test]
@@ -424,12 +455,11 @@ mod tests {
         let input = b"abcde12345";
 
         for alg in &[
-            EcdsaJwsAlgorithm::ES256, 
-            EcdsaJwsAlgorithm::ES384, 
+            EcdsaJwsAlgorithm::ES256,
+            EcdsaJwsAlgorithm::ES384,
             EcdsaJwsAlgorithm::ES512,
-            EcdsaJwsAlgorithm::ES256K
+            EcdsaJwsAlgorithm::ES256K,
         ] {
-
             let private_key = load_file(match alg {
                 EcdsaJwsAlgorithm::ES256 => "jwk/EC_P-256_private.jwk",
                 EcdsaJwsAlgorithm::ES384 => "jwk/EC_P-384_private.jwk",
@@ -444,10 +474,10 @@ mod tests {
             })?;
 
             let signer = alg.signer_from_jwk(&private_key)?;
-            let signature = signer.sign(input)?;
+            let signature = signer.sign(&mut Cursor::new(input))?;
 
             let verifier = alg.verifier_from_jwk(&public_key)?;
-            verifier.verify(input, &signature)?;
+            verifier.verify(&mut Cursor::new(input), &signature)?;
         }
 
         Ok(())
@@ -458,13 +488,11 @@ mod tests {
         let input = b"abcde12345";
 
         for alg in &[
-            EcdsaJwsAlgorithm::ES256, 
-            EcdsaJwsAlgorithm::ES384, 
+            EcdsaJwsAlgorithm::ES256,
+            EcdsaJwsAlgorithm::ES384,
             EcdsaJwsAlgorithm::ES512,
-            EcdsaJwsAlgorithm::ES256K
+            EcdsaJwsAlgorithm::ES256K,
         ] {
-            println!("a");
-
             let private_key = load_file(match alg {
                 EcdsaJwsAlgorithm::ES256 => "pem/ECDSA_P-256_pkcs8_private.pem",
                 EcdsaJwsAlgorithm::ES384 => "pem/ECDSA_P-384_pkcs8_private.pem",
@@ -478,13 +506,11 @@ mod tests {
                 EcdsaJwsAlgorithm::ES256K => "pem/ECDSA_secp256k1_pkcs8_public.pem",
             })?;
 
-            println!("b");
-
             let signer = alg.signer_from_pem(&private_key)?;
-            let signature = signer.sign(input)?;
+            let signature = signer.sign(&mut Cursor::new(input))?;
 
             let verifier = alg.verifier_from_pem(&public_key)?;
-            verifier.verify(input, &signature)?;
+            verifier.verify(&mut Cursor::new(input), &signature)?;
         }
 
         Ok(())
@@ -495,10 +521,10 @@ mod tests {
         let input = b"abcde12345";
 
         for alg in &[
-            EcdsaJwsAlgorithm::ES256, 
-            EcdsaJwsAlgorithm::ES384, 
+            EcdsaJwsAlgorithm::ES256,
+            EcdsaJwsAlgorithm::ES384,
             EcdsaJwsAlgorithm::ES512,
-            EcdsaJwsAlgorithm::ES256K
+            EcdsaJwsAlgorithm::ES256K,
         ] {
             let private_key = load_file(match alg {
                 EcdsaJwsAlgorithm::ES256 => "der/ECDSA_P-256_pkcs8_private.der",
@@ -514,10 +540,10 @@ mod tests {
             })?;
 
             let signer = alg.signer_from_der(&private_key)?;
-            let signature = signer.sign(input)?;
+            let signature = signer.sign(&mut Cursor::new(input))?;
 
             let verifier = alg.verifier_from_der(&public_key)?;
-            verifier.verify(input, &signature)?;
+            verifier.verify(&mut Cursor::new(input), &signature)?;
         }
 
         Ok(())

@@ -5,12 +5,14 @@ pub mod rsa;
 pub mod rsapss;
 mod util;
 
+use std::io::Read;
+
 use crate::error::JoseError;
 
 pub use crate::jws::ecdsa::EcdsaJwsAlgorithm::ES256;
+pub use crate::jws::ecdsa::EcdsaJwsAlgorithm::ES256K;
 pub use crate::jws::ecdsa::EcdsaJwsAlgorithm::ES384;
 pub use crate::jws::ecdsa::EcdsaJwsAlgorithm::ES512;
-pub use crate::jws::ecdsa::EcdsaJwsAlgorithm::ES256K;
 pub use crate::jws::eddsa::EddsaJwsAlgorithm::EDDSA;
 pub use crate::jws::hmac::HmacJwsAlgorithm::HS256;
 pub use crate::jws::hmac::HmacJwsAlgorithm::HS384;
@@ -35,7 +37,7 @@ pub trait JwsSigner<T: JwsAlgorithm> {
     ///
     /// # Arguments
     /// * `message` - The message data to sign.
-    fn sign(&self, message: &[u8]) -> Result<Vec<u8>, JoseError>;
+    fn sign(&self, message: &mut dyn Read) -> Result<Vec<u8>, JoseError>;
 }
 
 pub trait JwsVerifier<T: JwsAlgorithm> {
@@ -47,5 +49,5 @@ pub trait JwsVerifier<T: JwsAlgorithm> {
     /// # Arguments
     /// * `message` - The message data to verify.
     /// * `signature` - The signature data.
-    fn verify(&self, message: &[u8], signature: &[u8]) -> Result<(), JoseError>;
+    fn verify(&self, message: &mut dyn Read, signature: &[u8]) -> Result<(), JoseError>;
 }
