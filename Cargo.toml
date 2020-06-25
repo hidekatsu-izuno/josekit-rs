@@ -18,11 +18,9 @@ thiserror = "1"
 anyhow = "1"
 once_cell = "1"
 regex = "1"
-bit-vec = "0.6"
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 base64 = "0.12"
 chrono = "0.4"
-oid = "0.1"
 openssl-sys = "0.9"
 openssl = "0.10"

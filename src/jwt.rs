@@ -62,6 +62,10 @@ impl Jwt {
                 bail!("JWT alg header parameter is missing.");
             }
 
+            if let Some(_) = jwt.key_id() {
+                bail!("none alg JWT must not have kid header claim.");
+            }
+
             Ok(jwt)
         })()
         .map_err(|err| JoseError::InvalidJwtFormat(err))
@@ -96,13 +100,19 @@ impl Jwt {
                 let actual_alg = verifier.algorithm().name();
                 if expected_alg != actual_alg {
                     bail!(
-                        "JWT alg header parameter is mismatched: expected = {}, actual = {}",
-                        expected_alg,
+                        "JWT alg header parameter is mismatched: {}",
                         actual_alg
                     );
                 }
             } else {
                 bail!("JWT alg header parameter is missing.");
+            }
+
+            match (verifier.key_id(), jwt.key_id()) {
+                (Some(expected), Some(actual)) if expected == actual => {},
+                (None, None) => {},
+                (Some(_), Some(actual)) => bail!("JWT kid header parameter is mismatched: {}", actual),
+                _ => bail!("JWT kid header parameter is missing."),
             }
 
             let signature_base64 = parts.get(2).unwrap();
@@ -168,10 +178,15 @@ impl Jwt {
             let algorithm_alg = verifier.algorithm().name();
             if alg != algorithm_alg {
                 bail!(
-                    "JWT alg header parameter is mismatched: expected = {}, actual = {}",
-                    algorithm_alg,
-                    alg
+                    "JWT alg header parameter is mismatched: {}", alg
                 );
+            }
+
+            match (verifier.key_id(), jwt.key_id()) {
+                (Some(expected), Some(actual)) if expected == actual => {},
+                (None, None) => {},
+                (Some(_), Some(actual)) => bail!("JWT kid header parameter is mismatched: {}", actual),
+                _ => bail!("JWT kid header parameter is missing."),
             }
 
             let signature_base64 = parts.get(2).unwrap();
@@ -292,7 +307,7 @@ impl Jwt {
     ///
     /// # Arguments
     /// * `subject` - A subject
-    pub fn set_subject<'a>(&mut self, subject: &str) -> &mut Self {
+    pub fn set_subject(&mut self, subject: &str) -> &mut Self {
         self.payload.insert("sub".to_string(), json!(subject));
         self
     }
@@ -318,7 +333,7 @@ impl Jwt {
     ///
     /// # Arguments
     /// * `audience` - A audience
-    pub fn add_audience<'a>(&mut self, audience: &str) -> &mut Self {
+    pub fn add_audience(&mut self, audience: &str) -> &mut Self {
         match self.payload.entry("aud") {
             Entry::Vacant(entry) => {
                 entry.insert(json!(audience));
@@ -343,33 +358,33 @@ impl Jwt {
     /// Set values for a audience payload claim (aud).
     ///
     /// # Arguments
-    /// * `audiences` - A list of audiences
-    pub fn set_audiences(&mut self, audiences: Vec<&str>) -> &mut Self {
+    /// * `audience_list` - A list of audiences
+    pub fn set_audience_list(&mut self, audience_list: Vec<&str>) -> &mut Self {
         match self.payload.entry("aud") {
             Entry::Vacant(entry) => {
                 let mut list = Vec::new();
-                for audience in audiences {
+                for audience in audience_list {
                     list.push(json!(audience));
                 }
                 entry.insert(json!(list));
             }
             Entry::Occupied(mut entry) => match entry.get_mut() {
                 Value::Array(vals) => {
-                    for audience in audiences {
+                    for audience in audience_list {
                         vals.push(json!(audience.to_string()));
                     }
                 }
                 Value::String(val) => {
                     let mut vals = Vec::new();
                     vals.push(json!(val.to_string()));
-                    for audience in audiences {
+                    for audience in audience_list {
                         vals.push(json!(audience.to_string()));
                     }
                     entry.insert(json!(vals));
                 }
                 _ => {
                     let mut list = Vec::new();
-                    for audience in audiences {
+                    for audience in audience_list {
                         list.push(json!(audience.to_string()));
                     }
                     entry.insert(json!(list));
@@ -557,6 +572,9 @@ impl Jwt {
 
         let mut header = self.header.clone();
         header.insert("alg".to_string(), Value::String(name.to_string()));
+        if let Some(key_id) = signer.key_id() {
+            header.insert("kid".to_string(), Value::String(key_id.to_string()));
+        }
 
         let header_json = serde_json::to_string(&header).unwrap();
         let header_base64 = base64::encode_config(header_json, base64::URL_SAFE_NO_PAD);
@@ -662,7 +680,7 @@ impl JwtValidator {
     ///
     /// # Arguments
     /// * `audience` - A audience
-    pub fn set_audience<'a>(&mut self, audience: &str) -> &mut Self {
+    pub fn set_audience(&mut self, audience: &str) -> &mut Self {
         self.payload.insert("aud".to_string(), json!(audience));
         self
     }
@@ -671,7 +689,7 @@ impl JwtValidator {
     ///
     /// # Arguments
     /// * `audience` - A audience
-    pub fn add_audience<'a>(&mut self, audience: &str) -> &mut Self {
+    pub fn add_audience(&mut self, audience: &str) -> &mut Self {
         match self.payload.entry("aud") {
             Entry::Vacant(entry) => {
                 entry.insert(json!(audience));
@@ -696,33 +714,33 @@ impl JwtValidator {
     /// Set values for a audience payload claim (aud) validation.
     ///
     /// # Arguments
-    /// * `audiences` - A list of audiences
-    pub fn set_audiences(&mut self, audiences: Vec<&str>) -> &mut Self {
+    /// * `audience_list` - A list of audiences
+    pub fn set_audience_list(&mut self, audience_list: Vec<&str>) -> &mut Self {
         match self.payload.entry("aud") {
             Entry::Vacant(entry) => {
                 let mut list = Vec::new();
-                for audience in audiences {
+                for audience in audience_list {
                     list.push(json!(audience));
                 }
                 entry.insert(json!(list));
             }
             Entry::Occupied(mut entry) => match entry.get_mut() {
                 Value::Array(vals) => {
-                    for audience in audiences {
+                    for audience in audience_list {
                         vals.push(json!(audience.to_string()));
                     }
                 }
                 Value::String(val) => {
                     let mut vals = Vec::new();
                     vals.push(json!(val.to_string()));
-                    for audience in audiences {
+                    for audience in audience_list {
                         vals.push(json!(audience.to_string()));
                     }
                     entry.insert(json!(vals));
                 }
                 _ => {
                     let mut list = Vec::new();
-                    for audience in audiences {
+                    for audience in audience_list {
                         list.push(json!(audience.to_string()));
                     }
                     entry.insert(json!(list));
@@ -884,7 +902,8 @@ mod tests {
             let signer = alg.signer_from_slice(private_key)?;
             let jwt_string = from_jwt.encode_with_signer(&signer)?;
 
-            let mut to_jwt = Jwt::decode_with_verifier(&jwt_string, &signer)?;
+            let verifier = alg.verifier_from_slice(private_key)?;
+            let mut to_jwt = Jwt::decode_with_verifier(&jwt_string, &verifier)?;
             to_jwt.unset_header_claim("alg");
 
             assert_eq!(from_jwt, to_jwt);

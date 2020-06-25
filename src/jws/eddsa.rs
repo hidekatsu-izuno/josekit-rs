@@ -8,7 +8,7 @@ use std::io::Read;
 use crate::der::oid::ObjectIdentifier;
 use crate::der::{DerBuilder, DerReader, DerType};
 use crate::error::JoseError;
-use crate::jws::util::{json_base64_bytes, json_eq, parse_pem};
+use crate::util::{json_eq, json_in, json_get, parse_pem};
 use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier};
 
 static OID_ED25519: Lazy<ObjectIdentifier> =
@@ -32,8 +32,10 @@ impl EddsaJwsAlgorithm {
         (|| -> anyhow::Result<EddsaJwsSigner> {
             let map: Map<String, Value> = serde_json::from_slice(input.as_ref())?;
 
+            let kid = json_get(&map, "kid", false)?;
             json_eq(&map, "kty", "OKP", true)?;
             json_eq(&map, "use", "sig", false)?;
+            json_in(&map, "key_ops", "sign", false)?;
             json_eq(&map, "alg", &self.name(), false)?;
             let crv = match map.get("crv") {
                 Some(Value::String(val)) if val == "Ed25519" => &OID_ED25519,
@@ -41,7 +43,7 @@ impl EddsaJwsAlgorithm {
                 Some(val) => bail!("crv value is invalid: {:?}", val),
                 None => bail!("Key crv is missing."),
             };
-            let d = json_base64_bytes(&map, "d")?;
+            let d = base64::decode_config(json_get(&map, "d", true)?.unwrap(), base64::URL_SAFE_NO_PAD)?;
 
             let mut builder = DerBuilder::new();
             builder.append_octed_string_from_slice(&d);
@@ -52,6 +54,7 @@ impl EddsaJwsAlgorithm {
             Ok(EddsaJwsSigner {
                 algorithm: &self,
                 private_key: pkey,
+                key_id: kid.map(|val| val.to_string()),
             })
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
@@ -106,6 +109,7 @@ impl EddsaJwsAlgorithm {
             Ok(EddsaJwsSigner {
                 algorithm: &self,
                 private_key: pkey,
+                key_id: None,
             })
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
@@ -126,6 +130,7 @@ impl EddsaJwsAlgorithm {
             Ok(EddsaJwsSigner {
                 algorithm: &self,
                 private_key: pkey,
+                key_id: None,
             })
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
@@ -142,8 +147,10 @@ impl EddsaJwsAlgorithm {
         (|| -> anyhow::Result<EddsaJwsVerifier> {
             let map: Map<String, Value> = serde_json::from_slice(input.as_ref())?;
 
+            let kid = json_get(&map, "kid", false)?;
             json_eq(&map, "kty", "OKP", true)?;
             json_eq(&map, "use", "sig", false)?;
+            json_in(&map, "key_ops", "verify", false)?;
             json_eq(&map, "alg", &self.name(), false)?;
             let crv = match map.get("crv") {
                 Some(Value::String(val)) if val == "Ed25519" => &OID_ED25519,
@@ -151,7 +158,7 @@ impl EddsaJwsAlgorithm {
                 Some(val) => bail!("crv value is invalid: {:?}", val),
                 None => bail!("Key crv is missing."),
             };
-            let x = json_base64_bytes(&map, "x")?;
+            let x = base64::decode_config(json_get(&map, "x", true)?.unwrap(), base64::URL_SAFE_NO_PAD)?;
 
             let pkcs8 = self.to_pkcs8(&x, true, crv);
             let pkey = PKey::public_key_from_der(&pkcs8)?;
@@ -159,6 +166,7 @@ impl EddsaJwsAlgorithm {
             Ok(EddsaJwsVerifier {
                 algorithm: &self,
                 public_key: pkey,
+                key_id: kid.map(|val| val.to_string()),
             })
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
@@ -216,6 +224,7 @@ impl EddsaJwsAlgorithm {
             Ok(EddsaJwsVerifier {
                 algorithm: &self,
                 public_key: pkey,
+                key_id: None,
             })
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
@@ -239,6 +248,7 @@ impl EddsaJwsAlgorithm {
             Ok(EddsaJwsVerifier {
                 algorithm: &self,
                 public_key: pkey,
+                key_id: None,
             })
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
@@ -332,11 +342,27 @@ impl JwsAlgorithm for EddsaJwsAlgorithm {
 pub struct EddsaJwsSigner<'a> {
     algorithm: &'a EddsaJwsAlgorithm,
     private_key: PKey<Private>,
+    key_id: Option<String>,
 }
 
 impl<'a> JwsSigner<EddsaJwsAlgorithm> for EddsaJwsSigner<'a> {
     fn algorithm(&self) -> &EddsaJwsAlgorithm {
         &self.algorithm
+    }
+
+    fn key_id(&self) -> Option<&str> {
+        match &self.key_id {
+            Some(val) => Some(val.as_ref()),
+            None => None
+        }
+    }
+
+    fn set_key_id(&mut self, key_id: &str) {
+        self.key_id = Some(key_id.to_string());
+    }
+    
+    fn unset_key_id(&mut self) {
+        self.key_id = None;
     }
 
     fn sign(&self, message: &mut dyn Read) -> Result<Vec<u8>, JoseError> {
@@ -357,11 +383,27 @@ impl<'a> JwsSigner<EddsaJwsAlgorithm> for EddsaJwsSigner<'a> {
 pub struct EddsaJwsVerifier<'a> {
     algorithm: &'a EddsaJwsAlgorithm,
     public_key: PKey<Public>,
+    key_id: Option<String>,
 }
 
 impl<'a> JwsVerifier<EddsaJwsAlgorithm> for EddsaJwsVerifier<'a> {
     fn algorithm(&self) -> &EddsaJwsAlgorithm {
         &self.algorithm
+    }
+
+    fn key_id(&self) -> Option<&str> {
+        match &self.key_id {
+            Some(val) => Some(val.as_ref()),
+            None => None
+        }
+    }
+
+    fn set_key_id(&mut self, key_id: &str) {
+        self.key_id = Some(key_id.to_string());
+    }
+    
+    fn unset_key_id(&mut self) {
+        self.key_id = None;
     }
 
     fn verify(&self, message: &mut dyn Read, signature: &[u8]) -> Result<(), JoseError> {

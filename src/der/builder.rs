@@ -1,5 +1,3 @@
-use bit_vec::BitVec;
-
 use crate::der::oid::ObjectIdentifier;
 use crate::der::DerType;
 
@@ -102,12 +100,6 @@ impl DerBuilder {
 
         let mut vec = contents.to_vec();
         vec.insert(0, trailing_len as u8);
-        self.append(DerType::BitString, &vec);
-    }
-
-    pub fn append_bit_string_from_bit_vec(&mut self, contents: &BitVec) {
-        let mut vec = contents.to_bytes();
-        vec.insert(0, ((8 - (contents.len() % 8)) % 8) as u8);
         self.append(DerType::BitString, &vec);
     }
 

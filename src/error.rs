@@ -8,6 +8,9 @@ pub enum JoseError {
     #[error("Invalid JWT format: {0}")]
     InvalidJwtFormat(#[source] anyhow::Error),
 
+    #[error("Invalid JWK format: {0}")]
+    InvalidJwkFormat(#[source] anyhow::Error),
+
     #[error("Invalid key format: {0}")]
     InvalidKeyFormat(#[source] anyhow::Error),
 

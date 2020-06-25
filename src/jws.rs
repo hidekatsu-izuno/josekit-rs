@@ -3,7 +3,6 @@ pub mod eddsa;
 pub mod hmac;
 pub mod rsa;
 pub mod rsapss;
-mod util;
 
 use std::io::Read;
 
@@ -33,6 +32,18 @@ pub trait JwsSigner<T: JwsAlgorithm> {
     /// Return the source algrithm instance.
     fn algorithm(&self) -> &T;
 
+    /// Return kid value.
+    fn key_id(&self) -> Option<&str>;
+
+    /// Set a compared value for a kid header claim (kid).
+    ///
+    /// # Arguments
+    /// * `key_id` - A key id
+    fn set_key_id(&mut self, key_id: &str);
+        
+    /// Unset a compared value for a kid header claim (kid).
+    fn unset_key_id(&mut self);
+
     /// Return a signature of the data.
     ///
     /// # Arguments
@@ -43,6 +54,18 @@ pub trait JwsSigner<T: JwsAlgorithm> {
 pub trait JwsVerifier<T: JwsAlgorithm> {
     /// Return the source algrithm instance.
     fn algorithm(&self) -> &T;
+
+    /// Return kid value.
+    fn key_id(&self) -> Option<&str>;
+
+    /// Set a compared value for a kid header claim (kid).
+    ///
+    /// # Arguments
+    /// * `key_id` - A key id
+    fn set_key_id(&mut self, key_id: &str);
+    
+    /// Unset a compared value for a kid header claim (kid).
+    fn unset_key_id(&mut self);
 
     /// Verify the data by the signature.
     ///

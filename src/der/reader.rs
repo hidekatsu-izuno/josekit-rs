@@ -1,4 +1,3 @@
-use bit_vec::BitVec;
 use std::io;
 
 use crate::der::oid::ObjectIdentifier;
@@ -247,7 +246,7 @@ impl<R: io::Read> DerReader<R> {
         }
     }
 
-    pub fn to_bit_vec(&self) -> Result<BitVec, DerError> {
+    pub fn to_bit_vec(&self) -> Result<(Vec<u8>, u8), DerError> {
         if let DerType::BitString = self.der_type {
             if let Some(contents) = &self.contents {
                 if contents.len() >= 2 {
@@ -256,16 +255,14 @@ impl<R: io::Read> DerReader<R> {
                     )));
                 }
 
-                let unused_bits = contents[0] as usize;
+                let unused_bits = contents[0];
                 if unused_bits > 7 {
                     return Err(DerError::InvalidContents(format!(
                         "Unused bit count of Bit String must be from 0 to 7."
                     )));
                 }
 
-                let mut bit_vec = BitVec::from_bytes(&contents[1..]);
-                bit_vec.truncate((contents.len() - 1) * 8 - unused_bits);
-                Ok(bit_vec)
+                Ok((contents.to_vec(), unused_bits))
             } else {
                 unreachable!();
             }
