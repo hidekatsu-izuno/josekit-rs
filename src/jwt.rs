@@ -103,125 +103,131 @@ impl Jwt {
         }
     }
 
-    fn from_map(header: Map<String, Value>, payload: Map<String, Value>) -> anyhow::Result<Self> {
-        let mut jwk = None;
-        let mut x509_certificate_sha1_thumbprint = None;
-        let mut x509_certificate_sha256_thumbprint = None;
-        let mut x509_certificate_chain = None;
-        let mut critical = None;
-        for (key, value) in &header {
-            match key.as_ref() {
-                "jku" | "x5u" | "kid" | "typ" | "cty" => match value {
-                    Value::String(_) => {},
-                    _ => bail!("JWT {} header claim must be a string type.", key),
-                },
-                "jwk" => jwk = match value {
-                    Value::Object(vals) => Some(Jwk::from_map(vals.clone())),
-                    _ => bail!("JWT {} header claim must be a string type.", key),
-                },
-                "x5t" => x509_certificate_sha1_thumbprint = match value {
-                    Value::String(val) => Some(base64::decode_config(val, base64::URL_SAFE_NO_PAD)?),
-                    _ => bail!("JWT {} header claim must be a string type.", key),
-                },
-                "x5t#S256" => x509_certificate_sha256_thumbprint = match value {
-                    Value::String(val) => Some(base64::decode_config(val, base64::URL_SAFE_NO_PAD)?),
-                    _ => bail!("JWT {} header claim must be a string type.", key),
-                },
-                "x5c" => x509_certificate_chain = match value {
-                    Value::Array(vals) => {
-                        let mut vec = Vec::with_capacity(vals.len());
-                        for val in vals {
-                            match val {
-                                Value::String(val) => {
-                                    let decoded = base64::decode_config(val, base64::URL_SAFE_NO_PAD)?;
-                                    vec.push(decoded);
-                                },
-                                _ => bail!("A item of JWT {} header claim must be a string type.", key),
-                            }
-                        }
-                        Some(vec)
+    pub fn from_map(header: Map<String, Value>, payload: Map<String, Value>) -> Result<Self, JoseError> {
+        (|| -> anyhow::Result<Self> {
+            let mut jwk = None;
+            let mut x509_certificate_sha1_thumbprint = None;
+            let mut x509_certificate_sha256_thumbprint = None;
+            let mut x509_certificate_chain = None;
+            let mut critical = None;
+            for (key, value) in &header {
+                match key.as_ref() {
+                    "jku" | "x5u" | "kid" | "typ" | "cty" => match value {
+                        Value::String(_) => {},
+                        _ => bail!("JWT {} header claim must be a string type.", key),
                     },
-                    _ => bail!("JWT {} header claim must be a array type.", key),
-                },
-                "crit" => critical = match value {
-                    Value::Array(vals) => {
-                        let mut vec = Vec::with_capacity(vals.len());
-                        for val in vals {
-                            match val {
-                                Value::String(val) => vec.push(val.to_string()),
-                                _ => bail!("A item of JWT {} header claim must be a string type.", key),
-                            }
-                        }
-                        Some(vec)
+                    "jwk" => jwk = match value {
+                        Value::Object(vals) => Some(Jwk::from_map(vals.clone())),
+                        _ => bail!("JWT {} header claim must be a string type.", key),
                     },
-                    _ => bail!("JWT {} header claim must be a array type.", key),
-                },
-                _ => {},
+                    "x5t" => x509_certificate_sha1_thumbprint = match value {
+                        Value::String(val) => Some(base64::decode_config(val, base64::URL_SAFE_NO_PAD)?),
+                        _ => bail!("JWT {} header claim must be a string type.", key),
+                    },
+                    "x5t#S256" => x509_certificate_sha256_thumbprint = match value {
+                        Value::String(val) => Some(base64::decode_config(val, base64::URL_SAFE_NO_PAD)?),
+                        _ => bail!("JWT {} header claim must be a string type.", key),
+                    },
+                    "x5c" => x509_certificate_chain = match value {
+                        Value::Array(vals) => {
+                            let mut vec = Vec::with_capacity(vals.len());
+                            for val in vals {
+                                match val {
+                                    Value::String(val) => {
+                                        let decoded = base64::decode_config(val, base64::URL_SAFE_NO_PAD)?;
+                                        vec.push(decoded);
+                                    },
+                                    _ => bail!("A item of JWT {} header claim must be a string type.", key),
+                                }
+                            }
+                            Some(vec)
+                        },
+                        _ => bail!("JWT {} header claim must be a array type.", key),
+                    },
+                    "crit" => critical = match value {
+                        Value::Array(vals) => {
+                            let mut vec = Vec::with_capacity(vals.len());
+                            for val in vals {
+                                match val {
+                                    Value::String(val) => vec.push(val.to_string()),
+                                    _ => bail!("A item of JWT {} header claim must be a string type.", key),
+                                }
+                            }
+                            Some(vec)
+                        },
+                        _ => bail!("JWT {} header claim must be a array type.", key),
+                    },
+                    _ => {},
+                }
             }
-        }
 
-        let mut audience = None;
-        let mut expires_at = None;
-        let mut not_before = None;
-        let mut issued_at = None;
-        for (key, value) in &payload {
-            match key.as_ref() {
-                "iss" | "sub" | "jti" => match value {
-                    Value::String(_) => {},
-                    _ => bail!("JWT {} header claim must be a string type.", key),
-                },
-                "aud" => audience = match value {
-                    Value::String(val) => Some(vec![val.clone()]),
-                    Value::Array(vals) => {
-                        let mut vec = Vec::with_capacity(vals.len());
-                        for val in vals {
-                            match val {
-                                Value::String(val) => vec.push(val.to_string()),
-                                _ => bail!("A item of JWT {} header claim must be a string type.", key),
+            let mut audience = None;
+            let mut expires_at = None;
+            let mut not_before = None;
+            let mut issued_at = None;
+            for (key, value) in &payload {
+                match key.as_ref() {
+                    "iss" | "sub" | "jti" => match value {
+                        Value::String(_) => {},
+                        _ => bail!("JWT {} header claim must be a string type.", key),
+                    },
+                    "aud" => audience = match value {
+                        Value::String(val) => Some(vec![val.clone()]),
+                        Value::Array(vals) => {
+                            let mut vec = Vec::with_capacity(vals.len());
+                            for val in vals {
+                                match val {
+                                    Value::String(val) => vec.push(val.to_string()),
+                                    _ => bail!("A item of JWT {} header claim must be a string type.", key),
+                                }
                             }
-                        }
-                        Some(vec)
+                            Some(vec)
+                        },
+                        _ => bail!("JWT {} header claim must be a string or array type.", key),
                     },
-                    _ => bail!("JWT {} header claim must be a string or array type.", key),
-                },
-                "exp" => expires_at = match value {
-                    Value::Number(val) => match val.as_u64() {
-                        Some(val) => Some(SystemTime::UNIX_EPOCH + Duration::from_secs(val)),
-                        None => bail!("JWT {} payload claim must be a 64bit positive integer type.", key),
+                    "exp" => expires_at = match value {
+                        Value::Number(val) => match val.as_u64() {
+                            Some(val) => Some(SystemTime::UNIX_EPOCH + Duration::from_secs(val)),
+                            None => bail!("JWT {} payload claim must be a 64bit positive integer type.", key),
+                        },
+                        _ => bail!("JWT {} header claim must be a string type.", key),
                     },
-                    _ => bail!("JWT {} header claim must be a string type.", key),
-                },
-                "nbf" => not_before = match value {
-                    Value::Number(val) => match val.as_u64() {
-                        Some(val) => Some(SystemTime::UNIX_EPOCH + Duration::from_secs(val)),
-                        None => bail!("JWT {} payload claim must be a 64bit positive integer type.", key),
+                    "nbf" => not_before = match value {
+                        Value::Number(val) => match val.as_u64() {
+                            Some(val) => Some(SystemTime::UNIX_EPOCH + Duration::from_secs(val)),
+                            None => bail!("JWT {} payload claim must be a 64bit positive integer type.", key),
+                        },
+                        _ => bail!("JWT {} header claim must be a string type.", key),
                     },
-                    _ => bail!("JWT {} header claim must be a string type.", key),
-                },
-                "iat" => issued_at = match value {
-                    Value::Number(val) => match val.as_u64() {
-                        Some(val) => Some(SystemTime::UNIX_EPOCH + Duration::from_secs(val)),
-                        None => bail!("JWT {} payload claim must be a 64bit positive integer type.", key),
+                    "iat" => issued_at = match value {
+                        Value::Number(val) => match val.as_u64() {
+                            Some(val) => Some(SystemTime::UNIX_EPOCH + Duration::from_secs(val)),
+                            None => bail!("JWT {} payload claim must be a 64bit positive integer type.", key),
+                        },
+                        _ => bail!("JWT {} header claim must be a string type.", key),
                     },
-                    _ => bail!("JWT {} header claim must be a string type.", key),
-                },
-                _ => {},
+                    _ => {},
+                }
             }
-        }
 
-        Ok(Self {
-            jwk,
-            x509_certificate_sha1_thumbprint,
-            x509_certificate_sha256_thumbprint,
-            x509_certificate_chain,
-            critical,
-            header,
-        
-            audience,
-            expires_at,
-            not_before,
-            issued_at,
-            payload,
+            Ok(Self {
+                jwk,
+                x509_certificate_sha1_thumbprint,
+                x509_certificate_sha256_thumbprint,
+                x509_certificate_chain,
+                critical,
+                header,
+            
+                audience,
+                expires_at,
+                not_before,
+                issued_at,
+                payload,
+            })
+        })()
+        .map_err(|err| match err.downcast::<JoseError>() {
+            Ok(err) => err,
+            Err(err) => JoseError::InvalidJwtFormat(err)
         })
     }
 
