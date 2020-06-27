@@ -8,8 +8,8 @@ use std::io::Read;
 use crate::der::oid::ObjectIdentifier;
 use crate::der::{DerBuilder, DerReader, DerType};
 use crate::error::JoseError;
-use crate::util::{json_eq, json_in, json_get, parse_pem};
 use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier};
+use crate::util::{json_eq, json_get, json_in, parse_pem};
 
 static OID_ED25519: Lazy<ObjectIdentifier> =
     Lazy::new(|| ObjectIdentifier::from_slice(&[1, 3, 101, 112]));
@@ -43,7 +43,10 @@ impl EddsaJwsAlgorithm {
                 Some(val) => bail!("crv value is invalid: {:?}", val),
                 None => bail!("Key crv is missing."),
             };
-            let d = base64::decode_config(json_get(&map, "d", true)?.unwrap(), base64::URL_SAFE_NO_PAD)?;
+            let d = base64::decode_config(
+                json_get(&map, "d", true)?.unwrap(),
+                base64::URL_SAFE_NO_PAD,
+            )?;
 
             let mut builder = DerBuilder::new();
             builder.append_octed_string_from_slice(&d);
@@ -158,7 +161,10 @@ impl EddsaJwsAlgorithm {
                 Some(val) => bail!("crv value is invalid: {:?}", val),
                 None => bail!("Key crv is missing."),
             };
-            let x = base64::decode_config(json_get(&map, "x", true)?.unwrap(), base64::URL_SAFE_NO_PAD)?;
+            let x = base64::decode_config(
+                json_get(&map, "x", true)?.unwrap(),
+                base64::URL_SAFE_NO_PAD,
+            )?;
 
             let pkcs8 = self.to_pkcs8(&x, true, crv);
             let pkey = PKey::public_key_from_der(&pkcs8)?;
@@ -353,14 +359,14 @@ impl<'a> JwsSigner<EddsaJwsAlgorithm> for EddsaJwsSigner<'a> {
     fn key_id(&self) -> Option<&str> {
         match &self.key_id {
             Some(val) => Some(val.as_ref()),
-            None => None
+            None => None,
         }
     }
 
     fn set_key_id(&mut self, key_id: &str) {
         self.key_id = Some(key_id.to_string());
     }
-    
+
     fn unset_key_id(&mut self) {
         self.key_id = None;
     }
@@ -394,14 +400,14 @@ impl<'a> JwsVerifier<EddsaJwsAlgorithm> for EddsaJwsVerifier<'a> {
     fn key_id(&self) -> Option<&str> {
         match &self.key_id {
             Some(val) => Some(val.as_ref()),
-            None => None
+            None => None,
         }
     }
 
     fn set_key_id(&mut self, key_id: &str) {
         self.key_id = Some(key_id.to_string());
     }
-    
+
     fn unset_key_id(&mut self) {
         self.key_id = None;
     }

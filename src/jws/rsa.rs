@@ -9,8 +9,8 @@ use std::io::Read;
 use crate::der::oid::ObjectIdentifier;
 use crate::der::{DerBuilder, DerReader, DerType};
 use crate::error::JoseError;
-use crate::util::{json_eq, json_in, json_get, parse_pem};
 use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier};
+use crate::util::{json_eq, json_get, json_in, parse_pem};
 
 static OID_RSA_ENCRYPTION: Lazy<ObjectIdentifier> =
     Lazy::new(|| ObjectIdentifier::from_slice(&[1, 2, 840, 113549, 1, 1, 1]));
@@ -41,14 +41,38 @@ impl RsaJwsAlgorithm {
             json_eq(&map, "use", "sig", false)?;
             json_in(&map, "key_ops", "sign", false)?;
             json_eq(&map, "alg", self.name(), false)?;
-            let n = base64::decode_config(json_get(&map, "n", true)?.unwrap(), base64::URL_SAFE_NO_PAD)?;
-            let e = base64::decode_config(json_get(&map, "e", true)?.unwrap(), base64::URL_SAFE_NO_PAD)?;
-            let d = base64::decode_config(json_get(&map, "d", true)?.unwrap(), base64::URL_SAFE_NO_PAD)?;
-            let p = base64::decode_config(json_get(&map, "p", true)?.unwrap(), base64::URL_SAFE_NO_PAD)?;
-            let q = base64::decode_config(json_get(&map, "q", true)?.unwrap(), base64::URL_SAFE_NO_PAD)?;
-            let dp = base64::decode_config(json_get(&map, "dp", true)?.unwrap(), base64::URL_SAFE_NO_PAD)?;
-            let dq = base64::decode_config(json_get(&map, "dq", true)?.unwrap(), base64::URL_SAFE_NO_PAD)?;
-            let qi = base64::decode_config(json_get(&map, "qi", true)?.unwrap(), base64::URL_SAFE_NO_PAD)?;
+            let n = base64::decode_config(
+                json_get(&map, "n", true)?.unwrap(),
+                base64::URL_SAFE_NO_PAD,
+            )?;
+            let e = base64::decode_config(
+                json_get(&map, "e", true)?.unwrap(),
+                base64::URL_SAFE_NO_PAD,
+            )?;
+            let d = base64::decode_config(
+                json_get(&map, "d", true)?.unwrap(),
+                base64::URL_SAFE_NO_PAD,
+            )?;
+            let p = base64::decode_config(
+                json_get(&map, "p", true)?.unwrap(),
+                base64::URL_SAFE_NO_PAD,
+            )?;
+            let q = base64::decode_config(
+                json_get(&map, "q", true)?.unwrap(),
+                base64::URL_SAFE_NO_PAD,
+            )?;
+            let dp = base64::decode_config(
+                json_get(&map, "dp", true)?.unwrap(),
+                base64::URL_SAFE_NO_PAD,
+            )?;
+            let dq = base64::decode_config(
+                json_get(&map, "dq", true)?.unwrap(),
+                base64::URL_SAFE_NO_PAD,
+            )?;
+            let qi = base64::decode_config(
+                json_get(&map, "qi", true)?.unwrap(),
+                base64::URL_SAFE_NO_PAD,
+            )?;
 
             let mut builder = DerBuilder::new();
             builder.begin(DerType::Sequence);
@@ -155,8 +179,14 @@ impl RsaJwsAlgorithm {
             json_eq(&map, "use", "sig", false)?;
             json_in(&map, "key_ops", "verify", false)?;
             json_eq(&map, "alg", &self.name(), false)?;
-            let n = base64::decode_config(json_get(&map, "n", true)?.unwrap(), base64::URL_SAFE_NO_PAD)?;
-            let e = base64::decode_config(json_get(&map, "e", true)?.unwrap(), base64::URL_SAFE_NO_PAD)?;
+            let n = base64::decode_config(
+                json_get(&map, "n", true)?.unwrap(),
+                base64::URL_SAFE_NO_PAD,
+            )?;
+            let e = base64::decode_config(
+                json_get(&map, "e", true)?.unwrap(),
+                base64::URL_SAFE_NO_PAD,
+            )?;
 
             let mut builder = DerBuilder::new();
             builder.begin(DerType::Sequence);
@@ -356,14 +386,14 @@ impl<'a> JwsSigner<RsaJwsAlgorithm> for RsaJwsSigner<'a> {
     fn key_id(&self) -> Option<&str> {
         match &self.key_id {
             Some(val) => Some(val.as_ref()),
-            None => None
+            None => None,
         }
     }
 
     fn set_key_id(&mut self, key_id: &str) {
         self.key_id = Some(key_id.to_string());
     }
-    
+
     fn unset_key_id(&mut self) {
         self.key_id = None;
     }
@@ -407,14 +437,14 @@ impl<'a> JwsVerifier<RsaJwsAlgorithm> for RsaJwsVerifier<'a> {
     fn key_id(&self) -> Option<&str> {
         match &self.key_id {
             Some(val) => Some(val.as_ref()),
-            None => None
+            None => None,
         }
     }
 
     fn set_key_id(&mut self, key_id: &str) {
         self.key_id = Some(key_id.to_string());
     }
-    
+
     fn unset_key_id(&mut self) {
         self.key_id = None;
     }

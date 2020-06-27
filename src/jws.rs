@@ -40,7 +40,7 @@ pub trait JwsSigner<T: JwsAlgorithm> {
     /// # Arguments
     /// * `key_id` - A key id
     fn set_key_id(&mut self, key_id: &str);
-        
+
     /// Unset a compared value for a kid header claim (kid).
     fn unset_key_id(&mut self);
 
@@ -63,7 +63,7 @@ pub trait JwsVerifier<T: JwsAlgorithm> {
     /// # Arguments
     /// * `key_id` - A key id
     fn set_key_id(&mut self, key_id: &str);
-    
+
     /// Unset a compared value for a kid header claim (kid).
     fn unset_key_id(&mut self);
 

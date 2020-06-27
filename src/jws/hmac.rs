@@ -7,8 +7,8 @@ use serde_json::Value;
 use std::io::Read;
 
 use crate::error::JoseError;
-use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier};
 use crate::jwk::Jwk;
+use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier};
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum HmacJwsAlgorithm {
@@ -29,24 +29,25 @@ impl HmacJwsAlgorithm {
     /// * `jwk` - A private key of oct JWK format.
     pub fn signer_from_jwk(&self, jwk: &Jwk) -> Result<HmacJwsSigner, JoseError> {
         (|| -> anyhow::Result<HmacJwsSigner> {
-            match jwk.key_type.as_ref() {
-                "oct" => {},
+            match jwk.key_type() {
+                "oct" => {}
                 val => bail!("A parameter kty must be oct: {}", val),
             };
-            match jwk.key_use.as_deref() {
-                Some("sig") | None => {},
+            match jwk.key_use() {
+                Some("sig") | None => {}
                 Some(val) => bail!("A parameter use must be sig: {}", val),
             };
-            match &jwk.key_operations {
-                Some(vals) if vals.contains(&"sign".to_string()) => {},
-                None => {},
+            match jwk.key_operations() {
+                Some(vals) if vals.contains(&"sign") => {}
+                None => {}
                 _ => bail!("A parameter key_ops must contains sign."),
             }
-            match &jwk.algorithm {
-                Some(val) if val == self.name() => {},
-                None => {},
+            match jwk.algorithm() {
+                Some(val) if val == self.name() => {}
+                None => {}
                 Some(val) => bail!("A parameter alg must be {} but {}", self.name(), val),
             }
+            let key_id = jwk.key_id();
             let k = match jwk.parameter("k") {
                 Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
                 Some(val) => bail!("A parameter k must be string type but {:?}", val),
@@ -58,7 +59,7 @@ impl HmacJwsAlgorithm {
             Ok(HmacJwsSigner {
                 algorithm: &self,
                 private_key,
-                key_id: jwk.key_id.clone(),
+                key_id: key_id.map(|val| val.to_string()),
             })
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
@@ -75,7 +76,7 @@ impl HmacJwsAlgorithm {
             Ok(HmacJwsSigner {
                 algorithm: &self,
                 private_key: pkey,
-                key_id: None
+                key_id: None,
             })
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
@@ -87,24 +88,25 @@ impl HmacJwsAlgorithm {
     /// * `jwk` - A secret key of oct JWK format.
     pub fn verifier_from_jwk(&self, jwk: &Jwk) -> Result<HmacJwsVerifier, JoseError> {
         (|| -> anyhow::Result<HmacJwsVerifier> {
-            match jwk.key_type.as_ref() {
-                "oct" => {},
+            match jwk.key_type() {
+                "oct" => {}
                 val => bail!("A parameter kty must be oct: {}", val),
             };
-            match jwk.key_use.as_deref() {
-                Some("sig") | None => {},
+            match jwk.key_use() {
+                Some("sig") | None => {}
                 Some(val) => bail!("A parameter use must be sig: {}", val),
             };
-            match &jwk.key_operations {
-                Some(vals) if vals.contains(&"verify".to_string()) => {},
-                None => {},
+            match jwk.key_operations() {
+                Some(vals) if vals.contains(&"verify") => {}
+                None => {}
                 _ => bail!("A parameter key_ops must contains verify."),
             }
-            match &jwk.algorithm {
-                Some(val) if val == self.name() => {},
-                None => {},
+            match jwk.algorithm() {
+                Some(val) if val == self.name() => {}
+                None => {}
                 Some(val) => bail!("A parameter alg must be {} but {}", self.name(), val),
             }
+            let key_id = jwk.key_id();
             let k = match jwk.parameter("k") {
                 Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
                 Some(val) => bail!("A parameter k must be string type but {:?}", val),
@@ -116,7 +118,7 @@ impl HmacJwsAlgorithm {
             Ok(HmacJwsVerifier {
                 algorithm: &self,
                 private_key,
-                key_id: jwk.key_id.clone(),
+                key_id: key_id.map(|val| val.to_string()),
             })
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
@@ -126,14 +128,17 @@ impl HmacJwsAlgorithm {
     ///
     /// # Arguments
     /// * `input` - A secret key.
-    pub fn verifier_from_slice(&self, input: impl AsRef<[u8]>) -> Result<HmacJwsVerifier, JoseError> {
+    pub fn verifier_from_slice(
+        &self,
+        input: impl AsRef<[u8]>,
+    ) -> Result<HmacJwsVerifier, JoseError> {
         (|| -> anyhow::Result<HmacJwsVerifier> {
             let pkey = PKey::hmac(input.as_ref())?;
 
             Ok(HmacJwsVerifier {
                 algorithm: &self,
                 private_key: pkey,
-                key_id: None
+                key_id: None,
             })
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
@@ -164,14 +169,14 @@ impl<'a> JwsSigner<HmacJwsAlgorithm> for HmacJwsSigner<'a> {
     fn key_id(&self) -> Option<&str> {
         match &self.key_id {
             Some(val) => Some(val.as_ref()),
-            None => None
+            None => None,
         }
     }
 
     fn set_key_id(&mut self, key_id: &str) {
         self.key_id = Some(key_id.to_string());
     }
-    
+
     fn unset_key_id(&mut self) {
         self.key_id = None;
     }
@@ -201,7 +206,6 @@ impl<'a> JwsSigner<HmacJwsAlgorithm> for HmacJwsSigner<'a> {
     }
 }
 
-
 pub struct HmacJwsVerifier<'a> {
     algorithm: &'a HmacJwsAlgorithm,
     private_key: PKey<Private>,
@@ -216,14 +220,14 @@ impl<'a> JwsVerifier<HmacJwsAlgorithm> for HmacJwsVerifier<'a> {
     fn key_id(&self) -> Option<&str> {
         match &self.key_id {
             Some(val) => Some(val.as_ref()),
-            None => None
+            None => None,
         }
     }
 
     fn set_key_id(&mut self, key_id: &str) {
         self.key_id = Some(key_id.to_string());
     }
-    
+
     fn unset_key_id(&mut self) {
         self.key_id = None;
     }

@@ -9,8 +9,8 @@ use std::io::Read;
 use crate::der::oid::ObjectIdentifier;
 use crate::der::{DerBuilder, DerClass, DerReader, DerType};
 use crate::error::JoseError;
-use crate::util::{json_eq, json_in, json_get, parse_pem};
 use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier};
+use crate::util::{json_eq, json_get, json_in, parse_pem};
 
 static OID_ID_EC_PUBLIC_KEY: Lazy<ObjectIdentifier> =
     Lazy::new(|| ObjectIdentifier::from_slice(&[1, 2, 840, 10045, 2, 1]));
@@ -54,9 +54,18 @@ impl EcdsaJwsAlgorithm {
             json_in(&map, "key_ops", "sign", false)?;
             json_eq(&map, "alg", self.name(), false)?;
             json_eq(&map, "crv", self.curve_name(), true)?;
-            let d = base64::decode_config(json_get(&map, "d", true)?.unwrap(), base64::URL_SAFE_NO_PAD)?;
-            let x = base64::decode_config(json_get(&map, "x", true)?.unwrap(), base64::URL_SAFE_NO_PAD)?;
-            let y = base64::decode_config(json_get(&map, "y", true)?.unwrap(), base64::URL_SAFE_NO_PAD)?;
+            let d = base64::decode_config(
+                json_get(&map, "d", true)?.unwrap(),
+                base64::URL_SAFE_NO_PAD,
+            )?;
+            let x = base64::decode_config(
+                json_get(&map, "x", true)?.unwrap(),
+                base64::URL_SAFE_NO_PAD,
+            )?;
+            let y = base64::decode_config(
+                json_get(&map, "y", true)?.unwrap(),
+                base64::URL_SAFE_NO_PAD,
+            )?;
 
             let mut builder = DerBuilder::new();
             builder.begin(DerType::Sequence);
@@ -173,8 +182,14 @@ impl EcdsaJwsAlgorithm {
             json_in(&map, "key_ops", "verify", false)?;
             json_eq(&map, "alg", self.name(), false)?;
             json_eq(&map, "crv", self.curve_name(), true)?;
-            let x = base64::decode_config(json_get(&map, "x", true)?.unwrap(), base64::URL_SAFE_NO_PAD)?;
-            let y = base64::decode_config(json_get(&map, "y", true)?.unwrap(), base64::URL_SAFE_NO_PAD)?;
+            let x = base64::decode_config(
+                json_get(&map, "x", true)?.unwrap(),
+                base64::URL_SAFE_NO_PAD,
+            )?;
+            let y = base64::decode_config(
+                json_get(&map, "y", true)?.unwrap(),
+                base64::URL_SAFE_NO_PAD,
+            )?;
 
             let mut vec = Vec::with_capacity(x.len() + y.len());
             vec.push(0x04);
@@ -393,14 +408,14 @@ impl<'a> JwsSigner<EcdsaJwsAlgorithm> for EcdsaJwsSigner<'a> {
     fn key_id(&self) -> Option<&str> {
         match &self.key_id {
             Some(val) => Some(val.as_ref()),
-            None => None
+            None => None,
         }
     }
 
     fn set_key_id(&mut self, key_id: &str) {
         self.key_id = Some(key_id.to_string());
     }
-    
+
     fn unset_key_id(&mut self) {
         self.key_id = None;
     }
@@ -445,14 +460,14 @@ impl<'a> JwsVerifier<EcdsaJwsAlgorithm> for EcdsaJwsVerifier<'a> {
     fn key_id(&self) -> Option<&str> {
         match &self.key_id {
             Some(val) => Some(val.as_ref()),
-            None => None
+            None => None,
         }
     }
 
     fn set_key_id(&mut self, key_id: &str) {
         self.key_id = Some(key_id.to_string());
     }
-    
+
     fn unset_key_id(&mut self) {
         self.key_id = None;
     }
