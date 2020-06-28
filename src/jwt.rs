@@ -11,7 +11,7 @@ use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier};
 use crate::jwk::Jwk;
 
 /// Represents plain JWT object with header and payload.
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub struct Jwt {
     jwk: Option<Jwk>,
     x509_certificate_sha1_thumbprint: Option<Vec<u8>>,
@@ -114,19 +114,19 @@ impl Jwt {
                 match key.as_ref() {
                     "jku" | "x5u" | "kid" | "typ" | "cty" => match value {
                         Value::String(_) => {},
-                        _ => bail!("JWT {} header claim must be a string type.", key),
+                        _ => bail!("The JWT {} header claim must be a string.", key),
                     },
                     "jwk" => jwk = match value {
-                        Value::Object(vals) => Some(Jwk::from_map(vals.clone())),
-                        _ => bail!("JWT {} header claim must be a string type.", key),
+                        Value::Object(vals) => Some(Jwk::from_map(vals.clone())?),
+                        _ => bail!("The JWT {} header claim must be a string.", key),
                     },
                     "x5t" => x509_certificate_sha1_thumbprint = match value {
                         Value::String(val) => Some(base64::decode_config(val, base64::URL_SAFE_NO_PAD)?),
-                        _ => bail!("JWT {} header claim must be a string type.", key),
+                        _ => bail!("The JWT {} header claim must be a string.", key),
                     },
                     "x5t#S256" => x509_certificate_sha256_thumbprint = match value {
                         Value::String(val) => Some(base64::decode_config(val, base64::URL_SAFE_NO_PAD)?),
-                        _ => bail!("JWT {} header claim must be a string type.", key),
+                        _ => bail!("The JWT {} header claim must be a string.", key),
                     },
                     "x5c" => x509_certificate_chain = match value {
                         Value::Array(vals) => {
@@ -137,12 +137,12 @@ impl Jwt {
                                         let decoded = base64::decode_config(val, base64::URL_SAFE_NO_PAD)?;
                                         vec.push(decoded);
                                     },
-                                    _ => bail!("A item of JWT {} header claim must be a string type.", key),
+                                    _ => bail!("An element of the JWT {} header claim must be a string.", key),
                                 }
                             }
                             Some(vec)
                         },
-                        _ => bail!("JWT {} header claim must be a array type.", key),
+                        _ => bail!("The JWT {} header claim must be a array.", key),
                     },
                     "crit" => critical = match value {
                         Value::Array(vals) => {
@@ -150,12 +150,12 @@ impl Jwt {
                             for val in vals {
                                 match val {
                                     Value::String(val) => vec.push(val.to_string()),
-                                    _ => bail!("A item of JWT {} header claim must be a string type.", key),
+                                    _ => bail!("An element of the JWT {} header claim must be a string.", key),
                                 }
                             }
                             Some(vec)
                         },
-                        _ => bail!("JWT {} header claim must be a array type.", key),
+                        _ => bail!("The JWT {} header claim must be a array.", key),
                     },
                     _ => {},
                 }
@@ -169,7 +169,7 @@ impl Jwt {
                 match key.as_ref() {
                     "iss" | "sub" | "jti" => match value {
                         Value::String(_) => {},
-                        _ => bail!("JWT {} header claim must be a string type.", key),
+                        _ => bail!("The JWT {} payload claim must be a string.", key),
                     },
                     "aud" => audience = match value {
                         Value::String(val) => Some(vec![val.clone()]),
@@ -178,33 +178,33 @@ impl Jwt {
                             for val in vals {
                                 match val {
                                     Value::String(val) => vec.push(val.to_string()),
-                                    _ => bail!("A item of JWT {} header claim must be a string type.", key),
+                                    _ => bail!("An element of JWT {} payload claim must be a string.", key),
                                 }
                             }
                             Some(vec)
                         },
-                        _ => bail!("JWT {} header claim must be a string or array type.", key),
+                        _ => bail!("The JWT {} payload claim must be a string or array.", key),
                     },
                     "exp" => expires_at = match value {
                         Value::Number(val) => match val.as_u64() {
                             Some(val) => Some(SystemTime::UNIX_EPOCH + Duration::from_secs(val)),
-                            None => bail!("JWT {} payload claim must be a 64bit positive integer type.", key),
+                            None => bail!("The JWT {} payload claim must be a positive integer within 64bit.", key),
                         },
-                        _ => bail!("JWT {} header claim must be a string type.", key),
+                        _ => bail!("The JWT {} payload claim must be a string type.", key),
                     },
                     "nbf" => not_before = match value {
                         Value::Number(val) => match val.as_u64() {
                             Some(val) => Some(SystemTime::UNIX_EPOCH + Duration::from_secs(val)),
-                            None => bail!("JWT {} payload claim must be a 64bit positive integer type.", key),
+                            None => bail!("The JWT {} payload claim must be a positive integer within 64bit.", key),
                         },
-                        _ => bail!("JWT {} header claim must be a string type.", key),
+                        _ => bail!("The JWT {} payload claim must be a string type.", key),
                     },
                     "iat" => issued_at = match value {
                         Value::Number(val) => match val.as_u64() {
                             Some(val) => Some(SystemTime::UNIX_EPOCH + Duration::from_secs(val)),
-                            None => bail!("JWT {} payload claim must be a 64bit positive integer type.", key),
+                            None => bail!("The JWT {} payload claim must be a positive integer within 64bit.", key),
                         },
-                        _ => bail!("JWT {} header claim must be a string type.", key),
+                        _ => bail!("The JWT {} payload claim must be a string type.", key),
                     },
                     _ => {},
                 }
@@ -239,7 +239,7 @@ impl Jwt {
         (|| -> anyhow::Result<Self> {
             let parts: Vec<&str> = input.split('.').collect();
             if parts.len() != 2 {
-                bail!("JWT must be two parts separated by colon.");
+                bail!("The JWT must be two parts separated by colon.");
             }
 
             let header_base64 = parts.get(0).unwrap();
@@ -248,14 +248,14 @@ impl Jwt {
 
             match header.get("alg") {
                 Some(Value::String(val)) if val == "none" => {}
-                Some(Value::String(val)) => bail!("JWT alg header claim is not none: {}", val),
-                Some(_) => bail!("JWT alg header claim must be string."),
-                None => bail!("JWT alg header claim is missing."),
+                Some(Value::String(val)) => bail!("The JWT alg header claim is not none: {}", val),
+                Some(_) => bail!("The JWT alg header claim must be a string."),
+                None => bail!("The JWT alg header claim is missing."),
             }
 
             match header.get("kid") {
                 None => {}
-                Some(_) => bail!("none alg JWT must not have kid header claim."),
+                Some(_) => bail!("A JWT of none alg cannot have kid header claim."),
             }
 
             header.remove("alg");
@@ -284,7 +284,7 @@ impl Jwt {
         (|| -> anyhow::Result<Self> {
             let parts: Vec<&str> = input.split('.').collect();
             if parts.len() != 3 {
-                bail!("JWT must be three parts separated by colon.");
+                bail!("The JWT must be three parts separated by colon.");
             }
 
             let header_base64 = parts.get(0).unwrap();
@@ -295,18 +295,18 @@ impl Jwt {
             match header.get("alg") {
                 Some(Value::String(val)) if val == expected_alg => {}
                 Some(Value::String(val)) => {
-                    bail!("JWT alg header claim is not {}: {}", expected_alg, val)
+                    bail!("The JWT alg header claim is not {}: {}", expected_alg, val)
                 }
-                Some(_) => bail!("JWT alg header claim must be string."),
-                None => bail!("JWT alg header claim is missing."),
+                Some(_) => bail!("The JWT alg header claim must be a string."),
+                None => bail!("The JWT alg header claim is missing."),
             }
 
             let expected_kid = verifier.key_id();
             match (expected_kid, header.get("kid")) {
                 (Some(expected), Some(actual)) if expected == actual => {}
                 (None, None) => {}
-                (Some(_), Some(actual)) => bail!("JWT kid header claim is mismatched: {}", actual),
-                _ => bail!("JWT kid header claim is missing."),
+                (Some(_), Some(actual)) => bail!("The JWT kid header claim is mismatched: {}", actual),
+                _ => bail!("The JWT kid header claim is missing."),
             }
 
             header.remove("alg");
@@ -347,7 +347,7 @@ impl Jwt {
         (|| -> anyhow::Result<Jwt> {
             let parts: Vec<&str> = input.split('.').collect();
             if parts.len() != 2 && parts.len() != 3 {
-                bail!("JWT must be two or three parts separated by colon.");
+                bail!("The JWT must be two or three parts separated by colon.");
             }
 
             let header_base64 = parts.get(0).unwrap();
@@ -357,15 +357,15 @@ impl Jwt {
             match header.get("alg") {
                 Some(alg) if alg == "none" => {
                     if parts.len() != 2 {
-                        bail!("JWT must not have signature part when alg = \"none\".");
+                        bail!("The JWT must not have signature part when alg = \"none\".");
                     }
                 }
                 Some(_) => {
                     if parts.len() != 3 {
-                        bail!("JWT must have signature part when alg != \"none\".");
+                        bail!("The JWT must have signature part when alg != \"none\".");
                     }
                 }
-                None => bail!("JWT alg header claim is required."),
+                None => bail!("The JWT alg header claim is required."),
             };
 
             let verifier = verifier_selector(&header);
@@ -374,18 +374,18 @@ impl Jwt {
             match header.get("alg") {
                 Some(Value::String(val)) if val == expected_alg => {}
                 Some(Value::String(val)) => {
-                    bail!("JWT alg header claim is not {}: {}", expected_alg, val)
+                    bail!("The JWT alg header claim is not {}: {}", expected_alg, val)
                 }
-                Some(_) => bail!("JWT alg header claim must be string."),
-                None => bail!("JWT alg header claim is missing."),
+                Some(_) => bail!("The JWT alg header claim must be a string."),
+                None => bail!("The JWT alg header claim is missing."),
             }
 
             let expected_kid = verifier.key_id();
             match (expected_kid, header.get("kid")) {
                 (Some(expected), Some(actual)) if expected == actual => {}
                 (None, None) => {}
-                (Some(_), Some(actual)) => bail!("JWT kid header claim is mismatched: {}", actual),
-                _ => bail!("JWT kid header claim is missing."),
+                (Some(_), Some(actual)) => bail!("The JWT kid header claim is mismatched: {}", actual),
+                _ => bail!("The JWT kid header claim is missing."),
             }
 
             header.remove("alg");
@@ -414,15 +414,9 @@ impl Jwt {
     ///
     /// # Arguments
     /// * `value` - A JWK set url
-    pub fn set_jwk_set_url(&mut self, value: Option<String>) {
-        match value {
-            Some(val) => {
-                self.header.insert("jku".to_string(), json!(val));
-            }
-            None => {
-                self.header.remove("jku");
-            }
-        }
+    pub fn set_jwk_set_url(&mut self, value: impl Into<String>) {
+        let value: String = value.into();
+        self.header.insert("jku".to_string(), Value::String(value));
     }
 
     /// Return a value for JWK set url header claim (jku).
@@ -438,16 +432,9 @@ impl Jwt {
     ///
     /// # Arguments
     /// * `value` - A JWK
-    pub fn set_jwk(&mut self, value: Option<Jwk>) {
-        match &value {
-            Some(val) => {
-                self.header.insert("jwk".to_string(), Value::Object(val.parameters().clone()));
-                self.jwk = value;
-            },
-            None => {
-                self.header.remove("jwk");
-            },
-        }
+    pub fn set_jwk(&mut self, value: Jwk) {
+        self.header.insert("jwk".to_string(), Value::Object(value.parameters().clone()));
+        self.jwk = Some(value);
     }
 
     /// Return a value for JWK header claim (jwk).
@@ -462,19 +449,13 @@ impl Jwt {
     ///
     /// # Arguments
     /// * `value` - A x509 url
-    pub fn set_x509_url(&mut self, value: Option<String>) {
-        match value {
-            Some(val) => {
-                self.header.insert("x5u".to_string(), json!(val));
-            }
-            None => {
-                self.header.remove("x5u");
-            }
-        }
+    pub fn set_x509_url(&mut self, value: impl Into<String>) {
+        let value: String = value.into();
+        self.header.insert("x5u".to_string(), Value::String(value));
     }
 
     /// Return a value for a x509 url header claim (x5u).
-    pub fn x509_url(&self) -> Option<&String> {
+    pub fn x509_url(&self) -> Option<&str> {
         match self.header.get("x5u") {
             Some(Value::String(val)) => Some(val),
             None => None,
@@ -486,20 +467,13 @@ impl Jwt {
     ///
     /// # Arguments
     /// * `values` - X.509 certificate chain
-    pub fn set_x509_certificate_chain(&mut self, values: Option<Vec<Vec<u8>>>) {
-        match &values {
-            Some(vals) => {
-                let mut vec = Vec::with_capacity(vals.len());
-                for val in vals {
-                    vec.push(Value::String(base64::encode_config(val, base64::URL_SAFE_NO_PAD)));
-                }
-                self.header.insert("x5c".to_string(), Value::Array(vec));
-                self.x509_certificate_chain = values;
-            }
-            None => {
-                self.header.remove("x5c");
-            }
+    pub fn set_x509_certificate_chain(&mut self, values: Vec<Vec<u8>>) {
+        let mut vec = Vec::with_capacity(values.len());
+        for val in &values {
+            vec.push(Value::String(base64::encode_config(&val, base64::URL_SAFE_NO_PAD)));
         }
+        self.header.insert("x5c".to_string(), Value::Array(vec));
+        self.x509_certificate_chain = Some(values);
     }
 
     /// Return values for a X.509 certificate chain header claim (x5c).
@@ -514,16 +488,9 @@ impl Jwt {
     ///
     /// # Arguments
     /// * `value` - A x509 certificate SHA-1 thumbprint
-    pub fn set_x509_certificate_sha1_thumbprint(&mut self, value: Option<Vec<u8>>) {
-        match &value {
-            Some(val) => {
-                self.header.insert("x5t".to_string(), Value::String(base64::encode_config(val, base64::URL_SAFE_NO_PAD)));
-                self.x509_certificate_sha1_thumbprint = value;
-            }
-            None => {
-                self.header.remove("x5t");
-            }
-        }
+    pub fn set_x509_certificate_sha1_thumbprint(&mut self, value: Vec<u8>) {
+        self.header.insert("x5t".to_string(), Value::String(base64::encode_config(&value, base64::URL_SAFE_NO_PAD)));
+        self.x509_certificate_sha1_thumbprint = Some(value);
     }
 
     /// Return a value for a x509 certificate SHA-1 thumbprint header claim (x5t).
@@ -538,16 +505,9 @@ impl Jwt {
     ///
     /// # Arguments
     /// * `value` - A x509 certificate SHA-256 thumbprint
-    pub fn set_x509_certificate_sha256_thumbprint(&mut self, value: Option<Vec<u8>>) {
-        match &value {
-            Some(val) => {
-                self.header.insert("x5t#S256".to_string(), Value::String(base64::encode_config(val, base64::URL_SAFE_NO_PAD)));
-                self.x509_certificate_sha256_thumbprint = value;
-            }
-            None => {
-                self.header.remove("x5t#S256");
-            }
-        }
+    pub fn set_x509_certificate_sha256_thumbprint(&mut self, value: Vec<u8>) {
+        self.header.insert("x5t#S256".to_string(), Value::String(base64::encode_config(&value, base64::URL_SAFE_NO_PAD)));
+        self.x509_certificate_sha256_thumbprint = Some(value);
     }
 
     /// Return a value for a x509 certificate SHA-256 thumbprint header claim (x5t#S256).
@@ -562,19 +522,13 @@ impl Jwt {
     ///
     /// # Arguments
     /// * `value` - A key ID
-    pub fn set_key_id(&mut self, value: Option<String>) {
-        match value {
-            Some(val) => {
-                self.header.insert("kid".to_string(), json!(val));
-            }
-            None => {
-                self.header.remove("kid");
-            }
-        }
+    pub fn set_key_id(&mut self, value: impl Into<String>) {
+        let value: String = value.into();
+        self.header.insert("kid".to_string(), Value::String(value));
     }
 
     /// Return a value for key ID header claim (kid).
-    pub fn key_id(&self) -> Option<&String> {
+    pub fn key_id(&self) -> Option<&str> {
         match self.header.get("kid") {
             Some(Value::String(val)) => Some(val),
             _ => None,
@@ -585,19 +539,13 @@ impl Jwt {
     ///
     /// # Arguments
     /// * `value` - A token type (e.g. "JWT")
-    pub fn set_token_type(&mut self, value: Option<String>) {
-        match value {
-            Some(val) => {
-                self.header.insert("typ".to_string(), json!(val));
-            }
-            None => {
-                self.header.remove("typ");
-            }
-        }
+    pub fn set_token_type(&mut self, value: impl Into<String>) {
+        let value: String = value.into();
+        self.header.insert("typ".to_string(), Value::String(value));
     }
 
     /// Return a value for token type header claim (typ).
-    pub fn token_type(&self) -> Option<&String> {
+    pub fn token_type(&self) -> Option<&str> {
         match self.header.get("typ") {
             Some(Value::String(val)) => Some(val),
             _ => None,
@@ -608,19 +556,13 @@ impl Jwt {
     ///
     /// # Arguments
     /// * `value` - A content type (e.g. "JWT")
-    pub fn set_content_type(&mut self, value: Option<String>) {
-        match value {
-            Some(val) => {
-                self.header.insert("cty".to_string(), json!(val));
-            }
-            None => {
-                self.header.remove("cty");
-            }
-        }
+    pub fn set_content_type(&mut self, value: impl Into<String>) {
+        let value: String = value.into();
+        self.header.insert("cty".to_string(), Value::String(value));
     }
 
     /// Return a value for content type header claim (cty).
-    pub fn content_type(&self) -> Option<&String> {
+    pub fn content_type(&self) -> Option<&str> {
         match self.header.get("cty") {
             Some(Value::String(val)) => Some(val),
             _ => None,
@@ -631,16 +573,16 @@ impl Jwt {
     ///
     /// # Arguments
     /// * `values` - a critical header claim
-    pub fn set_critical(&mut self, values: Option<Vec<String>>) {
-        match &values {
-            Some(vals) => {
-                self.header.insert("crit".to_string(), json!(vals));
-                self.critical = values;
-            }
-            None => {
-                self.header.remove("crit");
-            }
+    pub fn set_critical(&mut self, values: Vec<impl Into<String>>) {
+        let mut vec1 = Vec::with_capacity(values.len());
+        let mut vec2 = Vec::with_capacity(values.len());
+        for val in values {
+            let val: String = val.into();
+            vec1.push(Value::String(val.clone()));
+            vec2.push(val);
         }
+        self.header.insert("crit".to_string(), Value::Array(vec1));
+        self.critical = Some(vec2);
     }
 
     /// Return values for a critical header claim (crit).
@@ -657,45 +599,53 @@ impl Jwt {
     /// * `key` - A key name of a header claim
     /// * `value` - A typed value of a header claim
     pub fn set_header_claim(&mut self, key: &str, value: Option<Value>) -> Result<(), JoseError> {
-        let value = if let Some(val) = value {
-            val
-        } else {
-            self.header.remove(key);
-            return Ok(());
-        };
-
         (|| -> anyhow::Result<()> {
             match key {
-                "alg" => bail!("JWT {} header claim should not be setted expressly.", key),
+                "alg" => bail!("The JWT {} header claim should not be setted expressly.", key),
                 "jku" | "x5u" | "kid" | "typ" | "cty" => match &value {
-                    Value::String(_) => {
-                        self.header.insert(key.to_string(), value);
+                    Some(Value::String(_)) => {
+                        self.header.insert(key.to_string(), value.unwrap());
                     },
-                    _ => bail!("JWT {} header claim must be string type.", key),
+                    None => {
+                        self.header.remove(key);
+                    },
+                    _ => bail!("The JWT {} header claim must be string.", key),
                 },
                 "jwk" => match &value {
-                    Value::Object(vals) => {
-                        self.jwk = Some(Jwk::from_map(vals.clone()));
-                        self.header.insert(key.to_string(), value);
+                    Some(Value::Object(vals)) => {
+                        self.jwk = Some(Jwk::from_map(vals.clone())?);
+                        self.header.insert(key.to_string(), value.unwrap());
                     },
-                    _ => bail!("JWT {} header claim must be a string type.", key),
+                    None => {
+                        self.jwk = None;
+                        self.header.remove(key);
+                    },
+                    _ => bail!("The JWT {} header claim must be a string.", key),
                 },
                 "x5t" => match &value {
-                    Value::String(val) => {
+                    Some(Value::String(val)) => {
                         self.x509_certificate_sha1_thumbprint = Some(base64::decode_config(val, base64::URL_SAFE_NO_PAD)?);
-                        self.header.insert(key.to_string(), value);
+                        self.header.insert(key.to_string(), value.unwrap());
                     },
-                    _ => bail!("JWT {} header claim must be a string type.", key),
+                    None => {
+                        self.x509_certificate_sha1_thumbprint = None;
+                        self.header.remove(key);
+                    },
+                    _ => bail!("The JWT {} header claim must be a string.", key),
                 },
                 "x5t#S256" => match &value {
-                    Value::String(val) => {
+                    Some(Value::String(val)) => {
                         self.x509_certificate_sha256_thumbprint = Some(base64::decode_config(val, base64::URL_SAFE_NO_PAD)?);
-                        self.header.insert(key.to_string(), value);
+                        self.header.insert(key.to_string(), value.unwrap());
                     },
-                    _ => bail!("JWT {} header claim must be a string type.", key),
+                    None => {
+                        self.x509_certificate_sha256_thumbprint = None;
+                        self.header.remove(key);
+                    },
+                    _ => bail!("The JWT {} header claim must be a string.", key),
                 },
                 "x5c" => match &value {
-                    Value::Array(vals) => {
+                    Some(Value::Array(vals)) => {
                         let mut vec = Vec::with_capacity(vals.len());
                         for val in vals {
                             match val {
@@ -703,30 +653,43 @@ impl Jwt {
                                     let decoded = base64::decode_config(val, base64::URL_SAFE_NO_PAD)?;
                                     vec.push(decoded);
                                 },
-                                _ => bail!("A item of JWT {} header claim must be a string type.", key),
+                                _ => bail!("An element of the JWT {} header claim must be a string.", key),
                             }
                         }
                         self.x509_certificate_chain = Some(vec);
-                        self.header.insert(key.to_string(), value);
+                        self.header.insert(key.to_string(), value.unwrap());
                     },
-                    _ => bail!("JWT {} header claim must be a array type.", key),
+                    None => {
+                        self.x509_certificate_chain = None;
+                        self.header.remove(key);
+                    },
+                    _ => bail!("The JWT {} header claim must be a array.", key),
                 },
                 "crit" => match &value {
-                    Value::Array(vals) => {
+                    Some(Value::Array(vals)) => {
                         let mut vec = Vec::with_capacity(vals.len());
                         for val in vals {
                             match val {
                                 Value::String(val) => vec.push(val.to_string()),
-                                _ => bail!("A item of JWT {} header claim must be a string type.", key),
+                                _ => bail!("An element of the JWT {} header claim must be a string.", key),
                             }
                         }
                         self.critical = Some(vec);
-                        self.header.insert(key.to_string(), value);
+                        self.header.insert(key.to_string(), value.unwrap());
                     },
-                    _ => bail!("JWT {} header claim must be a array type.", key),
+                    None => {
+                        self.critical = None;
+                        self.header.remove(key);
+                    },
+                    _ => bail!("The JWT {} header claim must be a array.", key),
                 },
-                _ => {
-                    self.header.insert(key.to_string(), value);
+                _ => match &value {
+                    Some(_) => {
+                        self.header.insert(key.to_string(), value.unwrap());
+                    },
+                    None => {
+                        self.header.remove(key);
+                    },
                 }
             }
 
@@ -747,19 +710,13 @@ impl Jwt {
     ///
     /// # Arguments
     /// * `value` - A issuer
-    pub fn set_issuer(&mut self, value: Option<String>) {
-        match value {
-            Some(val) => {
-                self.payload.insert("iss".to_string(), json!(val));
-            }
-            None => {
-                self.payload.remove("iss");
-            }
-        }
+    pub fn set_issuer(&mut self, value: impl Into<String>) {
+        let value: String = value.into();
+        self.payload.insert("iss".to_string(), Value::String(value));
     }
 
     /// Return a value for a issuer payload claim (iss).
-    pub fn issuer(&self) -> Option<&String> {
+    pub fn issuer(&self) -> Option<&str> {
         match self.payload.get("iss") {
             Some(Value::String(val)) => Some(val),
             _ => None,
@@ -770,38 +727,16 @@ impl Jwt {
     ///
     /// # Arguments
     /// * `value` - A subject
-    pub fn set_subject(&mut self, value: Option<String>) {
-        match value {
-            Some(val) => {
-                self.payload.insert("sub".to_string(), json!(val));
-            }
-            None => {
-                self.payload.remove("sub");
-            }
-        }
+    pub fn set_subject(&mut self, value: impl Into<String>) {
+        let value: String = value.into();
+        self.payload.insert("sub".to_string(), Value::String(value));
     }
 
     /// Return a value for a subject payload claim (sub).
-    pub fn subject(&self) -> Option<&String> {
+    pub fn subject(&self) -> Option<&str> {
         match self.payload.get("sub") {
             Some(Value::String(val)) => Some(val),
             _ => None,
-        }
-    }
-
-    /// Set a value for a audience payload claim (aud).
-    ///
-    /// # Arguments
-    /// * `value` - A audience
-    pub fn set_audience(&mut self, value: Option<String>) {
-        match value {
-            Some(val) => {
-                self.payload.insert("aud".to_string(), json!(val));
-                self.audience = Some(vec![val]);
-            }
-            None => {
-                self.payload.remove("aud");
-            }
         }
     }
 
@@ -809,9 +744,25 @@ impl Jwt {
     ///
     /// # Arguments
     /// * `values` - A list of audiences
-    pub fn set_audience_from_vec(&mut self, values: Vec<String>) {
-        self.payload.insert("aud".to_string(), json!(values));
-        self.audience = Some(values);
+    pub fn set_audience(&mut self, values: Vec<impl Into<String>>) {
+        if values.len() == 0 {
+            for val in values {
+                let val: String = val.into();
+                self.payload.insert("aud".to_string(), Value::String(val.clone()));
+                self.audience = Some(vec![val]);
+                break;
+            }
+        } else {
+            let mut vec1 = Vec::with_capacity(values.len());
+            let mut vec2 = Vec::with_capacity(values.len());
+            for val in values {
+                let val: String = val.into();
+                vec1.push(Value::String(val.clone()));
+                vec2.push(val);
+            }
+            self.payload.insert("aud".to_string(), Value::Array(vec1));
+            self.audience = Some(vec2);
+        }
     }
 
     /// Return values for a audience payload claim (aud).
@@ -823,19 +774,12 @@ impl Jwt {
     ///
     /// # Arguments
     /// * `value` - The expiration time on or after which the JWT must not be accepted for processing.
-    pub fn set_expires_at(&mut self, value: Option<SystemTime>) {
-        match &value {
-            Some(val) => {
-                self.payload.insert("exp".to_string(), json!(val
-                    .duration_since(SystemTime::UNIX_EPOCH)
-                    .unwrap()
-                    .as_secs()));
-                self.expires_at = value;
-            }
-            None => {
-                self.payload.remove("exp");
-            }
-        }
+    pub fn set_expires_at(&mut self, value: SystemTime) {
+        self.payload.insert("exp".to_string(), json!(value
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_secs()));
+        self.expires_at = Some(value);
     }
 
     /// Return a system time for a expires at payload claim (exp).
@@ -847,19 +791,12 @@ impl Jwt {
     ///
     /// # Arguments
     /// * `value` - The time before which the JWT must not be accepted for processing.
-    pub fn set_not_before(&mut self, value: Option<SystemTime>) {
-        match &value {
-            Some(val) => {
-                self.payload.insert("nbf".to_string(), json!(val
-                    .duration_since(SystemTime::UNIX_EPOCH)
-                    .unwrap()
-                    .as_secs()));
-                self.not_before = value;
-            }
-            None => {
-                self.payload.remove("nbf");
-            }
-        }
+    pub fn set_not_before(&mut self, value: SystemTime) {
+        self.payload.insert("nbf".to_string(), json!(value
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_secs()));
+        self.not_before = Some(value);
     }
 
     /// Return a system time for a not before payload claim (nbf).
@@ -871,19 +808,12 @@ impl Jwt {
     ///
     /// # Arguments
     /// * `value` - The time at which the JWT was issued.
-    pub fn set_issued_at(&mut self, value: Option<SystemTime>) {
-        match &value {
-            Some(val) => {
-                self.payload.insert("iat".to_string(), json!(val
-                    .duration_since(SystemTime::UNIX_EPOCH)
-                    .unwrap()
-                    .as_secs()));
-                self.issued_at = value;
-            }
-            None => {
-                self.payload.remove("iat");
-            }
-        }
+    pub fn set_issued_at(&mut self, value: SystemTime) {
+        self.payload.insert("iat".to_string(), json!(value
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_secs()));
+        self.issued_at = Some(value);
     }
 
     /// Return a time for a issued at payload claim (iat).
@@ -895,19 +825,13 @@ impl Jwt {
     ///
     /// # Arguments
     /// * `value` - A jwt id
-    pub fn set_jwt_id(&mut self, value: Option<String>) {
-        match value {
-            Some(val) => {
-                self.payload.insert("jti".to_string(), json!(val));
-            }
-            None => {
-                self.payload.remove("jti");
-            }
-        }
+    pub fn set_jwt_id(&mut self, value: impl Into<String>) {
+        let value: String = value.into();
+        self.payload.insert("jti".to_string(), json!(value));
     }
 
     /// Return a value for a jwt id payload claim (jti).
-    pub fn jwt_id(&self) -> Option<&String> {
+    pub fn jwt_id(&self) -> Option<&str> {
         match self.payload.get("jti") {
             Some(Value::String(val)) => Some(val),
             _ => None,
@@ -920,67 +844,88 @@ impl Jwt {
     /// * `key` - A key name of a payload claim
     /// * `value` - A typed value of a payload claim
     pub fn set_payload_claim(&mut self, key: &str, value: Option<Value>) -> Result<(), JoseError> {
-        let value = if let Some(val) = value {
-            val
-        } else {
-            self.header.remove(key);
-            return Ok(());
-        };
-
         (|| -> anyhow::Result<()> {
             match key {
                 "iss" | "sub" | "jti" => match &value {
-                    Value::String(_) => {
-                        self.payload.insert(key.to_string(), value);
+                    Some(Value::String(_)) => {
+                        self.payload.insert(key.to_string(), value.unwrap());
                     },
-                    _ => bail!("JWT {} header claim must be string type.", key),
+                    None => {
+                        self.payload.remove(key);
+                    },
+                    _ => bail!("The JWT {} payload claim must be a string.", key),
                 },
                 "aud" => match &value {
-                    Value::Array(vals) => {
+                    Some(Value::String(val)) => {
+                        self.audience = Some(vec![val.clone()]);
+                        self.payload.insert(key.to_string(), value.unwrap());
+                    },
+                    Some(Value::Array(vals)) => {
                         let mut vec = Vec::with_capacity(vals.len());
                         for val in vals {
                             match val {
                                 Value::String(val) => vec.push(val.to_string()),
-                                _ => bail!("A item of JWT {} header claim must be a string type.", key),
+                                _ => bail!("An element of the JWT {} payload claim must be a string.", key),
                             }
                         }
                         self.audience = Some(vec);
-                        self.payload.insert(key.to_string(), value);
+                        self.payload.insert(key.to_string(), value.unwrap());
                     },
-                    _ => bail!("JWT {} header claim must be a array type.", key),
+                    None => {
+                        self.audience = None;
+                        self.payload.remove(key);
+                    },
+                    _ => bail!("The JWT {} payload claim must be a string or array.", key),
                 },
                 "exp" => match &value {
-                    Value::Number(val) => match val.as_u64() {
+                    Some(Value::Number(val)) => match val.as_u64() {
                         Some(val) => {
                             self.expires_at = Some(SystemTime::UNIX_EPOCH + Duration::from_secs(val));
-                            self.payload.insert(key.to_string(), value);
+                            self.payload.insert(key.to_string(), value.unwrap());
                         },
-                        None => bail!("JWT {} payload claim must be a 64bit positive integer type.", key),
+                        None => bail!("The JWT {} payload claim must be a positive integer within 64bit.", key),
                     },
-                    _ => bail!("JWT {} header claim must be a string type.", key),
+                    None => {
+                        self.expires_at = None;
+                        self.payload.remove(key);
+                    },
+                    _ => bail!("The JWT {} header claim must be a string.", key),
                 },
                 "nbf" => match &value {
-                    Value::Number(val) => match val.as_u64() {
+                    Some(Value::Number(val)) => match val.as_u64() {
                         Some(val) => {
                             self.not_before = Some(SystemTime::UNIX_EPOCH + Duration::from_secs(val));
-                            self.payload.insert(key.to_string(), value);
+                            self.payload.insert(key.to_string(), value.unwrap());
                         },
-                        None => bail!("JWT {} payload claim must be a 64bit positive integer type.", key),
+                        None => bail!("The JWT {} payload claim must be a positive integer within 64bit.", key),
                     },
-                    _ => bail!("JWT {} header claim must be a string type.", key),
+                    None => {
+                        self.not_before = None;
+                        self.payload.remove(key);
+                    },
+                    _ => bail!("The JWT {} payload claim must be a string.", key),
                 },
                 "iat" => match &value {
-                    Value::Number(val) => match val.as_u64() {
+                    Some(Value::Number(val)) => match val.as_u64() {
                         Some(val) => {
                             self.issued_at = Some(SystemTime::UNIX_EPOCH + Duration::from_secs(val));
-                            self.payload.insert(key.to_string(), value);
+                            self.payload.insert(key.to_string(), value.unwrap());
                         },
-                        None => bail!("JWT {} payload claim must be a 64bit positive integer type.", key),
+                        None => bail!("The JWT {} payload claim must be a positive integer within 64bit.", key),
                     },
-                    _ => bail!("JWT {} header claim must be a string type.", key),
+                    None => {
+                        self.issued_at = None;
+                        self.payload.remove(key);
+                    },
+                    _ => bail!("The JWT {} payload claim must be a string.", key),
                 },
-                _ => {
-                    self.payload.insert(key.to_string(), value);
+                _ => match &value {
+                    Some(_) => {
+                        self.payload.insert(key.to_string(), value.unwrap());
+                    }
+                    None => {
+                        self.payload.remove(key);
+                    }
                 }
             }
 
@@ -1331,6 +1276,58 @@ mod tests {
     use crate::jws::{
         ES256, ES256K, ES384, ES512, HS256, HS384, HS512, PS256, PS384, PS512, RS256, RS384, RS512,
     };
+
+    #[test]
+    fn test_new_jwt() -> Result<()> {
+        let mut jwt = Jwt::new();
+        let jwk = Jwk::new("oct");
+        jwt.set_jwk_set_url("jku");
+        jwt.set_jwk(jwk.clone());
+        jwt.set_x509_url("x5u");
+        jwt.set_x509_certificate_chain(vec![b"x5c0".to_vec(), b"x5c1".to_vec()]);
+        jwt.set_x509_certificate_sha1_thumbprint(b"x5t".to_vec());
+        jwt.set_x509_certificate_sha256_thumbprint(b"x5t#S256".to_vec());
+        jwt.set_key_id("kid");
+        jwt.set_token_type("typ");
+        jwt.set_content_type("cty");
+        jwt.set_critical(vec!["crit0", "crit1"]);
+        jwt.set_header_claim("header_claim", Some(json!("header_claim")))?;
+
+        jwt.set_issuer("iss");
+        jwt.set_subject("sub");
+        jwt.set_audience(vec!["aud0", "aud1"]);
+        jwt.set_expires_at(SystemTime::UNIX_EPOCH);
+        jwt.set_not_before(SystemTime::UNIX_EPOCH);
+        jwt.set_issued_at(SystemTime::UNIX_EPOCH);
+        jwt.set_jwt_id("jti");
+        jwt.set_payload_claim("payload_claim", Some(json!("payload_claim")))?;
+
+        assert!(matches!(jwt.jwk_set_url(), Some("jku")));
+        assert!(matches!(jwt.jwk(), Some(val) if val == &jwk));
+        assert!(matches!(jwt.x509_url(), Some("x5u")));
+        assert!(matches!(jwt.x509_certificate_chain(), Some(vals) if vals == &vec![
+            b"x5c0".to_vec(), 
+            b"x5c1".to_vec(),
+        ]));
+        assert!(matches!(jwt.x509_certificate_sha1_thumbprint(), Some(val) if val == &b"x5t".to_vec()));
+        assert!(matches!(jwt.x509_certificate_sha256_thumbprint(), Some(val) if val == &b"x5t#S256".to_vec()));
+        assert!(matches!(jwt.key_id(), Some("kid")));
+        assert!(matches!(jwt.token_type(), Some("typ")));
+        assert!(matches!(jwt.content_type(), Some("cty")));
+        assert!(matches!(jwt.critical(), Some(vals) if vals == &vec!["crit0", "crit1"]));
+        assert!(matches!(jwt.header_claim("header_claim"), Some(val) if val == &json!("header_claim")));
+        
+        assert!(matches!(jwt.issuer(), Some("iss")));
+        assert!(matches!(jwt.subject(), Some("sub")));
+        assert!(matches!(jwt.audience(), Some(vals) if vals == &vec!["aud0", "aud1"]));
+        assert!(matches!(jwt.expires_at(), Some(val) if val == &SystemTime::UNIX_EPOCH));
+        assert!(matches!(jwt.not_before(), Some(val) if val == &SystemTime::UNIX_EPOCH));
+        assert!(matches!(jwt.issued_at(), Some(val) if val == &SystemTime::UNIX_EPOCH));
+        assert!(matches!(jwt.jwt_id(), Some("jti")));
+        assert!(matches!(jwt.payload_claim("payload_claim"), Some(val) if val == &json!("payload_claim")));
+
+        Ok(())
+    }
 
     #[test]
     fn test_jwt_with_none() -> Result<()> {

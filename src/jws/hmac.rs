@@ -30,15 +30,16 @@ impl HmacJwsAlgorithm {
     pub fn signer_from_jwk(&self, jwk: &Jwk) -> Result<HmacJwsSigner, JoseError> {
         (|| -> anyhow::Result<HmacJwsSigner> {
             match jwk.key_type() {
-                "oct" => {}
+                val if val == "oct" => {}
                 val => bail!("A parameter kty must be oct: {}", val),
             };
             match jwk.key_use() {
-                Some("sig") | None => {}
+                Some(val) if val == "sig" => {},
+                None => {}
                 Some(val) => bail!("A parameter use must be sig: {}", val),
             };
             match jwk.key_operations() {
-                Some(vals) if vals.contains(&"sign") => {}
+                Some(vals) if vals.iter().any(|e| e == "sign") => {}
                 None => {}
                 _ => bail!("A parameter key_ops must contains sign."),
             }
@@ -89,15 +90,16 @@ impl HmacJwsAlgorithm {
     pub fn verifier_from_jwk(&self, jwk: &Jwk) -> Result<HmacJwsVerifier, JoseError> {
         (|| -> anyhow::Result<HmacJwsVerifier> {
             match jwk.key_type() {
-                "oct" => {}
+                val if val == "oct" => {}
                 val => bail!("A parameter kty must be oct: {}", val),
             };
             match jwk.key_use() {
-                Some("sig") | None => {}
+                Some(val) if val == "sig" => {},
+                None => {}
                 Some(val) => bail!("A parameter use must be sig: {}", val),
             };
             match jwk.key_operations() {
-                Some(vals) if vals.contains(&"verify") => {}
+                Some(vals) if vals.iter().any(|e| e == "verify") => {}
                 None => {}
                 _ => bail!("A parameter key_ops must contains verify."),
             }
