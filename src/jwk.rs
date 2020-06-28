@@ -121,12 +121,13 @@ impl Jwk {
     ///
     /// # Arguments
     /// * `value` - A key type
-    pub fn set_key_type(&mut self, value: String) {
-        self.params.insert("kty".to_string(), json!(value));
+    pub fn set_key_type(&mut self, value: impl Into<String>) {
+        let value: String = value.into();
+        self.params.insert("kty".to_string(), Value::String(value));
     }
 
     /// Return a value for a key type parameter (kty).
-    pub fn key_type(&self) -> &String {
+    pub fn key_type(&self) -> &str {
         match self.params.get("kty") {
             Some(Value::String(val)) => val,
             _ => unreachable!("The JWS kty parameter is required."),
@@ -137,19 +138,13 @@ impl Jwk {
     ///
     /// # Arguments
     /// * `value` - A key use
-    pub fn set_key_use(&mut self, value: Option<String>) {
-        match value {
-            Some(val) => {
-                self.params.insert("use".to_string(), json!(val));
-            },
-            None => {
-                self.params.remove("use");
-            },
-        }
+    pub fn set_key_use(&mut self, value: impl Into<String>) {
+        let value: String = value.into();
+        self.params.insert("use".to_string(), Value::String(value));
     }
 
     /// Return a value for a key use parameter (use).
-    pub fn key_use(&self) -> Option<&String> {
+    pub fn key_use(&self) -> Option<&str> {
         match self.params.get("use") {
             Some(Value::String(val)) => Some(val),
             None => None,
@@ -161,16 +156,16 @@ impl Jwk {
     ///
     /// # Arguments
     /// * `values` - key operations
-    pub fn set_key_operations(&mut self, values: Option<Vec<String>>) {
-        match &values {
-            Some(vals) => {
-                self.params.insert("key_ops".to_string(), json!(vals));
-            },
-            None => {
-                self.params.remove("key_ops");
-            },
+    pub fn set_key_operations(&mut self, values: Vec<impl Into<String>>) {
+        let mut vec1 = Vec::with_capacity(values.len());
+        let mut vec2 = Vec::with_capacity(values.len());
+        for val in values {
+            let val: String = val.into();
+            vec1.push(Value::String(val.clone()));
+            vec2.push(val);
         }
-        self.key_operations = values;
+        self.params.insert("key_ops".to_string(), Value::Array(vec1));
+        self.key_operations = Some(vec2);
     }
 
     /// Return values for a key operations parameter (key_ops).
@@ -185,19 +180,13 @@ impl Jwk {
     ///
     /// # Arguments
     /// * `value` - A algorithm
-    pub fn set_algorithm(&mut self, value: Option<String>) {
-        match value {
-            Some(val) => {
-                self.params.insert("alg".to_string(), json!(val));
-            }
-            None => {
-                self.params.remove("alg");
-            }
-        }
+    pub fn set_algorithm(&mut self, value: impl Into<String>) {
+        let value: String = value.into();
+        self.params.insert("alg".to_string(), Value::String(value));
     }
 
     /// Return a value for a algorithm parameter (alg).
-    pub fn algorithm(&self) -> Option<&String> {
+    pub fn algorithm(&self) -> Option<&str> {
         match self.params.get("alg") {
             Some(Value::String(val)) => Some(val),
             None => None,
@@ -209,19 +198,13 @@ impl Jwk {
     ///
     /// # Arguments
     /// * `value` - A key ID
-    pub fn set_key_id(&mut self, value: Option<String>) {
-        match value {
-            Some(val) => {
-                self.params.insert("kid".to_string(), json!(val));
-            }
-            None => {
-                self.params.remove("kid");
-            }
-        }
+    pub fn set_key_id(&mut self, value: impl Into<String>) {
+        let value: String = value.into();
+        self.params.insert("kid".to_string(), Value::String(value));
     }
 
     /// Return a value for a key ID parameter (kid).
-    pub fn key_id(&self) -> Option<&String> {
+    pub fn key_id(&self) -> Option<&str> {
         match self.params.get("kid") {
             Some(Value::String(val)) => Some(val),
             None => None,
@@ -233,19 +216,13 @@ impl Jwk {
     ///
     /// # Arguments
     /// * `value` - A x509 url
-    pub fn set_x509_url(&mut self, value: Option<String>) {
-        match value {
-            Some(val) => {
-                self.params.insert("x5u".to_string(), json!(val));
-            }
-            None => {
-                self.params.remove("x5u");
-            }
-        }
+    pub fn set_x509_url(&mut self, value: impl Into<String>) {
+        let value: String = value.into();
+        self.params.insert("x5u".to_string(), Value::String(value));
     }
 
     /// Return a value for a x509 url parameter (x5u).
-    pub fn x509_url(&self) -> Option<&String> {
+    pub fn x509_url(&self) -> Option<&str> {
         match self.params.get("x5u") {
             Some(Value::String(val)) => Some(val),
             None => None,
@@ -257,16 +234,9 @@ impl Jwk {
     ///
     /// # Arguments
     /// * `value` - A x509 certificate SHA-1 thumbprint
-    pub fn set_x509_certificate_sha1_thumbprint(&mut self, value: Option<Vec<u8>>) {
-        match &value {
-            Some(val) => {
-                self.params.insert("x5t".to_string(), Value::String(base64::encode_config(val, base64::URL_SAFE_NO_PAD)));
-            }
-            None => {
-                self.params.remove("x5t");
-            }
-        }
-        self.x509_certificate_sha1_thumbprint = value;
+    pub fn set_x509_certificate_sha1_thumbprint(&mut self, value: Vec<u8>) {
+        self.params.insert("x5t".to_string(), Value::String(base64::encode_config(&value, base64::URL_SAFE_NO_PAD)));
+        self.x509_certificate_sha1_thumbprint = Some(value);
     }
 
     /// Return a value for a x509 certificate SHA-1 thumbprint parameter (x5t).
@@ -281,16 +251,9 @@ impl Jwk {
     ///
     /// # Arguments
     /// * `value` - A x509 certificate SHA-256 thumbprint
-    pub fn set_x509_certificate_sha256_thumbprint(&mut self, value: Option<Vec<u8>>) {
-        match &value {
-            Some(val) => {
-                self.params.insert("x5t#S256".to_string(), Value::String(base64::encode_config(val, base64::URL_SAFE_NO_PAD)));
-            }
-            None => {
-                self.params.remove("x5t#S256");
-            }
-        }
-        self.x509_certificate_sha256_thumbprint = value;
+    pub fn set_x509_certificate_sha256_thumbprint(&mut self, value: Vec<u8>) {
+        self.params.insert("x5t#S256".to_string(), Value::String(base64::encode_config(&value, base64::URL_SAFE_NO_PAD)));
+        self.x509_certificate_sha256_thumbprint = Some(value);
     }
 
     /// Return a value for a x509 certificate SHA-256 thumbprint parameter (x5t#S256).
@@ -305,20 +268,13 @@ impl Jwk {
     ///
     /// # Arguments
     /// * `values` - X.509 certificate chain
-    pub fn set_x509_certificate_chain(&mut self, values: Option<Vec<Vec<u8>>>) {
-        match &values {
-            Some(vals) => {
-                let mut vec = Vec::with_capacity(vals.len());
-                for val in vals {
-                    vec.push(Value::String(base64::encode_config(val, base64::URL_SAFE_NO_PAD)));
-                }
-                self.params.insert("x5c".to_string(), Value::Array(vec));
-            }
-            None => {
-                self.params.remove("x5c");
-            }
+    pub fn set_x509_certificate_chain(&mut self, values: Vec<Vec<u8>>) {
+        let mut vec = Vec::with_capacity(values.len());
+        for val in &values {
+            vec.push(Value::String(base64::encode_config(&val, base64::URL_SAFE_NO_PAD)));
         }
-        self.x509_certificate_chain = values;
+        self.params.insert("x5c".to_string(), Value::Array(vec));
+        self.x509_certificate_chain = Some(values);
     }
 
     /// Return values for a X.509 certificate chain parameter (x5c).
@@ -432,11 +388,6 @@ impl Jwk {
     /// * `key` - A key name of a parameter
     pub fn parameter(&self, key: &str) -> Option<&Value> {
         self.params.get(key)
-    }
-
-    /// Return parameters
-    pub fn parameters(&self) -> &Map<String, Value> {
-        &self.params
     }
 }
 

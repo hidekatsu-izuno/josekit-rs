@@ -2,7 +2,6 @@ use std::time::{Duration, SystemTime};
 
 use anyhow::bail;
 use chrono::{DateTime, Utc};
-use serde_json::map::Entry;
 use serde_json::{json, Map, Value};
 use std::io::Cursor;
 
@@ -433,7 +432,7 @@ impl Jwt {
     /// # Arguments
     /// * `value` - A JWK
     pub fn set_jwk(&mut self, value: Jwk) {
-        self.header.insert("jwk".to_string(), Value::Object(value.parameters().clone()));
+        self.header.insert("jwk".to_string(), Value::Object(value.as_ref().clone()));
         self.jwk = Some(value);
     }
 
@@ -1000,6 +999,7 @@ pub struct JwtValidator {
     base_time: Option<SystemTime>,
     min_issued_time: Option<SystemTime>,
     max_issued_time: Option<SystemTime>,
+    audience: Option<String>,
     payload: Map<String, Value>,
 }
 
@@ -1013,42 +1013,43 @@ impl JwtValidator {
     }
 
     /// Return a base time for a time related claim (exp, nbf) validation.
-    pub fn base_time(&self) -> Option<SystemTime> {
-        self.base_time
+    pub fn base_time(&self) -> Option<&SystemTime> {
+        self.base_time.as_ref()
     }
 
     /// Set a minimum time for a issued at payload claim (iat) validation.
     ///
     /// # Arguments
     /// * `min_issued_time` - The minimum time at which the JWT was issued.
-    pub fn set_min_issued_time(&mut self, min_issued_time: &SystemTime) {
-        self.min_issued_time = Some(*min_issued_time);
+    pub fn set_min_issued_time(&mut self, min_issued_time: SystemTime) {
+        self.min_issued_time = Some(min_issued_time);
     }
 
     /// Return a minimum time for a issued at payload claim (iat).
-    pub fn min_issued_time(&self) -> Option<SystemTime> {
-        self.min_issued_time
+    pub fn min_issued_time(&self) -> Option<&SystemTime> {
+        self.min_issued_time.as_ref()
     }
 
     /// Set a maximum time for a issued at payload claim (iat) validation.
     ///
     /// # Arguments
     /// * `max_issued_time` - A maximum time at which the JWT was issued.
-    pub fn set_max_issued_time(&mut self, max_issued_time: &SystemTime) {
-        self.max_issued_time = Some(*max_issued_time);
+    pub fn set_max_issued_time(&mut self, max_issued_time: SystemTime) {
+        self.max_issued_time = Some(max_issued_time);
     }
 
     /// Return a maximum time for a issued at payload claim (iat).
-    pub fn max_issued_time(&self) -> Option<SystemTime> {
-        self.max_issued_time
+    pub fn max_issued_time(&self) -> Option<&SystemTime> {
+        self.max_issued_time.as_ref()
     }
 
     /// Set a value for a issuer payload claim (iss) validation.
     ///
     /// # Arguments
-    /// * `issuer` - A issuer
-    pub fn set_issuer(&mut self, issuer: &str) {
-        self.payload.insert("iss".to_string(), json!(issuer));
+    /// * `value` - A issuer
+    pub fn set_issuer(&mut self, value: impl Into<String>) {
+        let value: String = value.into();
+        self.payload.insert("iss".to_string(), Value::String(value));
     }
 
     /// Return a value for a issuer payload claim (iss) validation.
@@ -1062,9 +1063,10 @@ impl JwtValidator {
     /// Set a value for a subject payload claim (sub) validation.
     ///
     /// # Arguments
-    /// * `subject` - A subject
-    pub fn set_subject<'a>(&mut self, subject: &str) {
-        self.payload.insert("sub".to_string(), json!(subject));
+    /// * `value` - A subject
+    pub fn set_subject(&mut self, value: impl Into<String>) {
+        let value: String = value.into();
+        self.payload.insert("sub".to_string(), Value::String(value));
     }
 
     /// Return a value for a subject payload claim (sub) validation.
@@ -1078,91 +1080,16 @@ impl JwtValidator {
     /// Set a value for a audience payload claim (aud) validation.
     ///
     /// # Arguments
-    /// * `audience` - A audience
-    pub fn set_audience(&mut self, audience: &str) {
-        self.payload.insert("aud".to_string(), json!(audience));
+    /// * `value` - A audience
+    pub fn set_audience(&mut self, value: impl Into<String>) {
+        let value: String = value.into();
+        self.audience = Some(value);
     }
-
-    /// Add a value for a audience payload claim (aud) validation.
-    ///
-    /// # Arguments
-    /// * `audience` - A audience
-    pub fn add_audience(&mut self, audience: &str) {
-        match self.payload.entry("aud") {
-            Entry::Vacant(entry) => {
-                entry.insert(json!(audience));
-            }
-            Entry::Occupied(mut entry) => match entry.get_mut() {
-                Value::Array(vals) => {
-                    vals.push(json!(audience));
-                }
-                Value::String(val) => {
-                    let mut vals = Vec::new();
-                    vals.push(json!(val));
-                    entry.insert(json!(vals));
-                }
-                _ => {
-                    entry.insert(json!(audience));
-                }
-            },
-        }
-    }
-
-    /// Set values for a audience payload claim (aud) validation.
-    ///
-    /// # Arguments
-    /// * `audience_list` - A list of audiences
-    pub fn set_audience_list(&mut self, audience_list: Vec<&str>) {
-        match self.payload.entry("aud") {
-            Entry::Vacant(entry) => {
-                let mut list = Vec::new();
-                for audience in audience_list {
-                    list.push(json!(audience));
-                }
-                entry.insert(json!(list));
-            }
-            Entry::Occupied(mut entry) => match entry.get_mut() {
-                Value::Array(vals) => {
-                    for audience in audience_list {
-                        vals.push(json!(audience.to_string()));
-                    }
-                }
-                Value::String(val) => {
-                    let mut vals = Vec::new();
-                    vals.push(json!(val.to_string()));
-                    for audience in audience_list {
-                        vals.push(json!(audience.to_string()));
-                    }
-                    entry.insert(json!(vals));
-                }
-                _ => {
-                    let mut list = Vec::new();
-                    for audience in audience_list {
-                        list.push(json!(audience.to_string()));
-                    }
-                    entry.insert(json!(list));
-                }
-            },
-        }
-    }
-
-    /// Return a value for a audience payload claim (sub) validation.
-    pub fn audience(&self) -> Option<Vec<&str>> {
-        match self.payload.get("aud") {
-            Some(Value::String(str_val)) => {
-                let mut list = Vec::new();
-                list.push(str_val.as_str());
-                Some(list)
-            }
-            Some(Value::Array(vals)) => {
-                let mut list = Vec::new();
-                for val in vals {
-                    if let Value::String(str_val) = val {
-                        list.push(str_val.as_str());
-                    }
-                }
-                Some(list)
-            }
+    
+    /// Return a value for a audience payload claim (aud) validation.
+    pub fn audience(&self) -> Option<&str> {
+        match self.audience {
+            Some(ref val) => Some(val),
             _ => None,
         }
     }
@@ -1170,9 +1097,10 @@ impl JwtValidator {
     /// Set a value for a jwt id payload claim (jti) validation.
     ///
     /// # Arguments
-    /// * `jwt_id` - A jwt id
-    pub fn set_jwt_id(&mut self, jwt_id: &str) {
-        self.payload.insert("jti".to_string(), json!(jwt_id));
+    /// * `value` - A jwt id
+    pub fn set_jwt_id(&mut self, value: impl Into<String>) {
+        let value:String = value.into();
+        self.payload.insert("jti".to_string(), Value::String(value));
     }
 
     /// Return a value for a jwt id payload claim (jti) validation.
@@ -1188,8 +1116,8 @@ impl JwtValidator {
     /// # Arguments
     /// * `key` - A key name of a payload claim
     /// * `value` - A typed value of a payload claim
-    pub fn set_payload_claim(&mut self, key: &str, value: &Value) {
-        self.payload.insert(key.to_string(), (*value).clone());
+    pub fn set_payload_claim(&mut self, key: &str, value: Value) {
+        self.payload.insert(key.to_string(), value);
     }
 
     /// Return a value for a payload claim of a specified key.
@@ -1207,9 +1135,9 @@ impl JwtValidator {
     pub fn validate(&self, jwt: &Jwt) -> Result<(), JoseError> {
         (|| -> anyhow::Result<()> {
             let now = SystemTime::now();
-            let current_time = self.base_time().unwrap_or(now);
-            let min_issued_time = self.min_issued_time().unwrap_or(SystemTime::UNIX_EPOCH);
-            let max_issued_time = self.max_issued_time().unwrap_or(now);
+            let current_time = self.base_time().unwrap_or(&now);
+            let min_issued_time = self.min_issued_time().unwrap_or(&SystemTime::UNIX_EPOCH);
+            let max_issued_time = self.max_issued_time().unwrap_or(&now);
 
             if let Some(not_before) = jwt.not_before() {
                 if not_before > &current_time {
