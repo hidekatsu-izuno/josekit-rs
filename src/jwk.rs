@@ -1,7 +1,9 @@
-use serde_json::{json, Map, Value};
 use std::io::Read;
 use std::string::ToString;
 use anyhow::bail;
+use serde::{Serialize, Serializer};
+use serde::ser::{SerializeMap};
+use serde_json::{json, Map, Value};
 
 use crate::error::JoseError;
 
@@ -397,9 +399,22 @@ impl AsRef<Map<String, Value>> for Jwk {
     }
 }
 
+impl Serialize for Jwk {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut map = serializer.serialize_map(Some(self.params.len()))?;
+        for (k, v) in &self.params {
+            map.serialize_entry(k, v)?;
+        }
+        map.end()
+    }
+}
+
 impl ToString for Jwk {
     fn to_string(&self) -> String {
-        serde_json::to_string(&self.params).unwrap()
+        serde_json::to_string(&self).unwrap()
     }
 }
 
@@ -420,14 +435,13 @@ impl JwkSet {
 
     pub fn from_map(map: Map<String, Value>) -> Result<Self, JoseError> {
         (|| -> anyhow::Result<Self> {
-            let mut map = map;
-            let keys = match map.remove("keys") {
+            let keys = match map.get("keys") {
                 Some(Value::Array(vals)) => {
                     let mut vec = Vec::new();
                     for val in vals {
                         match val {
                             Value::Object(val) => {
-                                vec.push(Jwk::from_map(val)?);
+                                vec.push(Jwk::from_map(val.clone())?);
                             },
                             _ => bail!("An element of the JWK set keys parameter must be a object."),
                         }
@@ -437,6 +451,7 @@ impl JwkSet {
                 Some(_) => bail!("The JWT keys parameter must be a array."),
                 None => bail!("The JWK set must have a keys parameter."),
             };
+
             Ok(Self {
                 keys,
                 params: map,
@@ -473,4 +488,40 @@ impl JwkSet {
     pub fn keys(&self) -> &Vec<Jwk> {
         &self.keys
     }
+
+    pub fn push_key(&mut self, jwk: Jwk) {
+        match self.params.get_mut("keys") {
+            Some(Value::Array(keys)) => {
+                keys.push(Value::Object(jwk.as_ref().clone()));
+            },
+            _ => unreachable!(),
+        }
+        self.keys.push(jwk);
+    }
 }
+
+impl AsRef<Map<String, Value>> for JwkSet {
+    fn as_ref(&self) -> &Map<String, Value> {
+        &self.params
+    }
+}
+
+impl Serialize for JwkSet {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut map = serializer.serialize_map(Some(self.params.len()))?;
+        for (k, v) in &self.params {
+            map.serialize_entry(k, v)?;
+        }
+        map.end()
+    }
+}
+
+impl ToString for JwkSet {
+    fn to_string(&self) -> String {
+        serde_json::to_string(&self).unwrap()
+    }
+}
+

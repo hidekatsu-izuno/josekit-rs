@@ -705,6 +705,11 @@ impl Jwt {
         self.header.get(key)
     }
 
+    /// Return values for a header claims set
+    pub fn header_claims_set(&self) -> &Map<String, Value> {
+        &self.header
+    }
+
     /// Set a value for a issuer payload claim (iss).
     ///
     /// # Arguments
@@ -939,6 +944,11 @@ impl Jwt {
     /// * `key` - A key name of a payload claim
     pub fn payload_claim(&self, key: &str) -> Option<&Value> {
         self.payload.get(key)
+    }
+
+    /// Return values for a payload claims set
+    pub fn payload_claims_set(&self) -> &Map<String, Value> {
+        &self.payload
     }
 
     /// Return a text of the JWT compact serialization with a "none" algorithm.
