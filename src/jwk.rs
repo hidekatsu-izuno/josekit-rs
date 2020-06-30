@@ -1,4 +1,6 @@
 use std::io::Read;
+use std::sync::Arc;
+use std::collections::BTreeMap;
 use std::string::ToString;
 use anyhow::bail;
 use serde::{Serialize, Serializer};
@@ -421,8 +423,10 @@ impl ToString for Jwk {
 /// Represents JWK set.
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct JwkSet {
-    keys: Vec<Jwk>,
+    keys: Vec<Arc<Jwk>>,
     params: Map<String, Value>,
+
+    kid_map: BTreeMap<(String, usize), Arc<Jwk>>,
 }
 
 impl JwkSet {
@@ -430,18 +434,24 @@ impl JwkSet {
         Self {
             keys: Vec::new(),
             params: Map::new(),
+            kid_map: BTreeMap::new(),
         }
     }
 
     pub fn from_map(map: Map<String, Value>) -> Result<Self, JoseError> {
         (|| -> anyhow::Result<Self> {
+            let mut kid_map = BTreeMap::new();
             let keys = match map.get("keys") {
                 Some(Value::Array(vals)) => {
                     let mut vec = Vec::new();
-                    for val in vals {
+                    for (i, val) in vals.iter().enumerate() {
                         match val {
                             Value::Object(val) => {
-                                vec.push(Jwk::from_map(val.clone())?);
+                                let jwk = Arc::new(Jwk::from_map(val.clone())?);
+                                if let Some(kid) = jwk.key_id() {
+                                    kid_map.insert((kid.to_string(), i), Arc::clone(&jwk));
+                                }
+                                vec.push(jwk);
                             },
                             _ => bail!("An element of the JWK set keys parameter must be a object."),
                         }
@@ -455,6 +465,7 @@ impl JwkSet {
             Ok(Self {
                 keys,
                 params: map,
+                kid_map: kid_map,
             })
         })()
         .map_err(|err| match err.downcast::<JoseError>() {
@@ -485,8 +496,8 @@ impl JwkSet {
         })
     }
 
-    pub fn keys(&self) -> &Vec<Jwk> {
-        &self.keys
+    pub fn keys(&self) -> Vec<&Jwk> {
+        self.keys.iter().map(|e| e.as_ref()).collect()
     }
 
     pub fn push_key(&mut self, jwk: Jwk) {
@@ -496,7 +507,25 @@ impl JwkSet {
             },
             _ => unreachable!(),
         }
+
+        let jwk = Arc::new(jwk);
+        if let Some(kid) = jwk.key_id() {
+            self.kid_map.insert((kid.to_string(), self.keys.len()), Arc::clone(&jwk));
+        }
         self.keys.push(jwk);
+    }
+
+    pub fn remove_key(&mut self, jwk: &Jwk) {
+        let index = self.keys.iter().position(|e| e.as_ref() == jwk);
+        if let Some(index) = index {
+            match self.params.get_mut("keys") {
+                Some(Value::Array(keys)) => {
+                    keys.remove(index);
+                },
+                _ => unreachable!(),
+            }
+            self.keys.remove(index);
+        }
     }
 }
 
