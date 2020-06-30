@@ -41,8 +41,8 @@ pub trait JwsSigner<T: JwsAlgorithm> {
     /// * `key_id` - A key id
     fn set_key_id(&mut self, key_id: &str);
 
-    /// Unset a compared value for a kid header claim (kid).
-    fn unset_key_id(&mut self);
+    /// Remove a compared value for a kid header claim (kid).
+    fn remove_key_id(&mut self);
 
     /// Return a signature of the data.
     ///

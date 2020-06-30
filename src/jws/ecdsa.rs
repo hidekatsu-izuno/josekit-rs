@@ -416,7 +416,7 @@ impl<'a> JwsSigner<EcdsaJwsAlgorithm> for EcdsaJwsSigner<'a> {
         self.key_id = Some(key_id.to_string());
     }
 
-    fn unset_key_id(&mut self) {
+    fn remove_key_id(&mut self) {
         self.key_id = None;
     }
 
