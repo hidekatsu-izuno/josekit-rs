@@ -1,6 +1,7 @@
 use std::io::Read;
 use std::sync::Arc;
 use std::collections::BTreeMap;
+use std::ops::Bound::Included;
 use std::string::ToString;
 use anyhow::bail;
 use serde::{Serialize, Serializer};
@@ -494,6 +495,18 @@ impl JwkSet {
             Ok(err) => err,
             Err(err) => JoseError::InvalidJwtFormat(err)
         })
+    }
+
+    pub fn get(&self, key_id: &str) -> Vec<&Jwk> {
+        let mut vec = Vec::new();
+        for (_, val) in self.kid_map.range((
+                Included((key_id.to_string(), 0)), 
+                Included((key_id.to_string(), usize::MAX))
+            )) {
+            let jwk: &Jwk = &val;
+            vec.push(jwk);
+        }
+        vec
     }
 
     pub fn keys(&self) -> Vec<&Jwk> {
