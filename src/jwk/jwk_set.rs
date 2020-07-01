@@ -157,3 +157,32 @@ impl ToString for JwkSet {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use anyhow::Result;
+    use std::fs::File;
+    use std::path::PathBuf;
+
+    #[test]
+    fn test_load_jwt_set() -> Result<()> {
+        let mut file = load_file("jwks/test.jwks")?;
+        let jwks = JwkSet::from_reader(&mut file)?;
+
+        assert_eq!(jwks.get("1").len(), 1);
+        let key_id = jwks.get("1")[0].key_id();
+        assert!(matches!(key_id, Some("1")));
+
+        Ok(())
+    }
+    
+    fn load_file(path: &str) -> Result<File> {
+        let mut pb = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        pb.push("data");
+        pb.push(path);
+
+        let file = File::open(&pb)?;
+        Ok(file)
+    }
+}
+
