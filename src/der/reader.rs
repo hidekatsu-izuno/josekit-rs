@@ -13,8 +13,8 @@ pub struct DerReader<R> {
 }
 
 impl<'a> DerReader<&'a [u8]> {
-    pub fn from_slice(input: &'a [u8]) -> Self {
-        Self::from_reader(input)
+    pub fn from_bytes(input: &'a impl AsRef<[u8]>) -> Self {
+        Self::from_reader(input.as_ref())
     }
 }
 
@@ -487,7 +487,7 @@ mod tests {
         let mut vec = Vec::new();
         let _ = load_file("der/RSA_2048bit_public.der")?.read_to_end(&mut vec)?;
 
-        let mut parser = DerReader::from_slice(&vec);
+        let mut parser = DerReader::from_bytes(&vec);
         assert!(matches!(parser.next()?, Some(DerType::Sequence)));
         assert!(matches!(parser.next()?, Some(DerType::Integer)));
         assert!(matches!(parser.next()?, Some(DerType::Integer)));
