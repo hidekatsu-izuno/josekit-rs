@@ -266,7 +266,7 @@ impl EddsaJwsAlgorithm {
         is_public: bool,
     ) -> anyhow::Result<Option<ObjectIdentifier>> {
         let oid;
-        let mut reader = DerReader::new(input.bytes());
+        let mut reader = DerReader::from_reader(input);
 
         match reader.next() {
             Ok(Some(DerType::Sequence)) => {}

@@ -1,9 +1,9 @@
 use std::time::{Duration, SystemTime};
+use std::io::Cursor;
 
 use anyhow::bail;
 use chrono::{DateTime, Utc};
 use serde_json::{json, Map, Value};
-use std::io::Cursor;
 
 use crate::error::JoseError;
 use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier};

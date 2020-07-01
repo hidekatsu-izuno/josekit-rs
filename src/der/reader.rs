@@ -1,10 +1,10 @@
-use std::io;
+use std::io::{Bytes, Read};
 
 use crate::der::oid::ObjectIdentifier;
 use crate::der::{DerClass, DerError, DerType};
 
-pub struct DerReader<R: io::Read> {
-    input: io::Bytes<R>,
+pub struct DerReader<R> {
+    input: Bytes<R>,
     stack: Vec<Option<usize>>,
     der_type: DerType,
     constructed: bool,
@@ -12,10 +12,16 @@ pub struct DerReader<R: io::Read> {
     read_count: usize,
 }
 
-impl<R: io::Read> DerReader<R> {
-    pub fn new(input: io::Bytes<R>) -> Self {
+impl<'a> DerReader<&'a [u8]> {
+    pub fn from_slice(input: &'a [u8]) -> Self {
+        Self::from_reader(input)
+    }
+}
+
+impl<R: Read> DerReader<R> {
+    pub fn from_reader(input: R) -> Self {
         Self {
-            input,
+            input: input.bytes(),
             stack: Vec::new(),
             der_type: DerType::EndOfContents,
             constructed: false,
@@ -462,14 +468,26 @@ mod tests {
 
     use anyhow::Result;
     use std::fs::File;
-    use std::io::Read;
     use std::path::PathBuf;
 
     #[test]
     fn parse_der() -> Result<()> {
-        let bytes = load_file("der/RSA_2048bit_public.der")?.bytes();
+        let bytes = load_file("der/RSA_2048bit_public.der")?;
 
-        let mut parser = DerReader::new(bytes);
+        let mut parser = DerReader::from_reader(bytes);
+        assert!(matches!(parser.next()?, Some(DerType::Sequence)));
+        assert!(matches!(parser.next()?, Some(DerType::Integer)));
+        assert!(matches!(parser.next()?, Some(DerType::Integer)));
+        assert!(matches!(parser.next()?, Some(DerType::EndOfContents)));
+        Ok(())
+    }
+
+    #[test]
+    fn parse_der_2() -> Result<()> {
+        let mut vec = Vec::new();
+        let _ = load_file("der/RSA_2048bit_public.der")?.read_to_end(&mut vec)?;
+
+        let mut parser = DerReader::from_slice(&vec);
         assert!(matches!(parser.next()?, Some(DerType::Sequence)));
         assert!(matches!(parser.next()?, Some(DerType::Integer)));
         assert!(matches!(parser.next()?, Some(DerType::Integer)));

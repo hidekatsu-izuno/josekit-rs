@@ -284,7 +284,7 @@ impl RsaJwsAlgorithm {
     }
 
     fn detect_pkcs8(&self, input: &[u8], is_public: bool) -> anyhow::Result<bool> {
-        let mut reader = DerReader::new(input.bytes());
+        let mut reader = DerReader::from_reader(input);
 
         match reader.next() {
             Ok(Some(DerType::Sequence)) => {}
