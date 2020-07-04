@@ -1,15 +1,15 @@
-use std::io::Read;
-use std::sync::Arc;
+use anyhow::bail;
+use serde::ser::SerializeMap;
+use serde::{Serialize, Serializer};
+use serde_json::{Map, Value};
 use std::collections::BTreeMap;
+use std::io::Read;
 use std::ops::Bound::Included;
 use std::string::ToString;
-use anyhow::bail;
-use serde::{Serialize, Serializer};
-use serde::ser::{SerializeMap};
-use serde_json::{Map, Value};
+use std::sync::Arc;
 
-use crate::jwk::jwk::Jwk;
 use crate::error::JoseError;
+use crate::jwk::jwk::Jwk;
 
 /// Represents JWK set.
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -43,12 +43,14 @@ impl JwkSet {
                                     kid_map.insert((kid.to_string(), i), Arc::clone(&jwk));
                                 }
                                 vec.push(jwk);
-                            },
-                            _ => bail!("An element of the JWK set keys parameter must be a object."),
+                            }
+                            _ => {
+                                bail!("An element of the JWK set keys parameter must be a object.")
+                            }
                         }
                     }
                     vec
-                },
+                }
                 Some(_) => bail!("The JWT keys parameter must be a array."),
                 None => bail!("The JWK set must have a keys parameter."),
             };
@@ -61,7 +63,7 @@ impl JwkSet {
         })()
         .map_err(|err| match err.downcast::<JoseError>() {
             Ok(err) => err,
-            Err(err) => JoseError::InvalidJwtFormat(err)
+            Err(err) => JoseError::InvalidJwtFormat(err),
         })
     }
 
@@ -72,7 +74,7 @@ impl JwkSet {
         })()
         .map_err(|err| match err.downcast::<JoseError>() {
             Ok(err) => err,
-            Err(err) => JoseError::InvalidJwtFormat(err)
+            Err(err) => JoseError::InvalidJwtFormat(err),
         })
     }
 
@@ -83,16 +85,16 @@ impl JwkSet {
         })()
         .map_err(|err| match err.downcast::<JoseError>() {
             Ok(err) => err,
-            Err(err) => JoseError::InvalidJwtFormat(err)
+            Err(err) => JoseError::InvalidJwtFormat(err),
         })
     }
 
     pub fn get(&self, key_id: &str) -> Vec<&Jwk> {
         let mut vec = Vec::new();
         for (_, val) in self.kid_map.range((
-                Included((key_id.to_string(), 0)), 
-                Included((key_id.to_string(), usize::MAX))
-            )) {
+            Included((key_id.to_string(), 0)),
+            Included((key_id.to_string(), usize::MAX)),
+        )) {
             let jwk: &Jwk = &val;
             vec.push(jwk);
         }
@@ -107,13 +109,14 @@ impl JwkSet {
         match self.params.get_mut("keys") {
             Some(Value::Array(keys)) => {
                 keys.push(Value::Object(jwk.as_ref().clone()));
-            },
+            }
             _ => unreachable!(),
         }
 
         let jwk = Arc::new(jwk);
         if let Some(kid) = jwk.key_id() {
-            self.kid_map.insert((kid.to_string(), self.keys.len()), Arc::clone(&jwk));
+            self.kid_map
+                .insert((kid.to_string(), self.keys.len()), Arc::clone(&jwk));
         }
         self.keys.push(jwk);
     }
@@ -124,7 +127,7 @@ impl JwkSet {
             match self.params.get_mut("keys") {
                 Some(Value::Array(keys)) => {
                     keys.remove(index);
-                },
+                }
                 _ => unreachable!(),
             }
             self.keys.remove(index);
@@ -175,7 +178,7 @@ mod tests {
 
         Ok(())
     }
-    
+
     fn load_file(path: &str) -> Result<File> {
         let mut pb = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         pb.push("data");
@@ -185,4 +188,3 @@ mod tests {
         Ok(file)
     }
 }
-

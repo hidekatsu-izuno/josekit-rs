@@ -1,9 +1,9 @@
+use anyhow::bail;
+use serde::ser::SerializeMap;
+use serde::{Serialize, Serializer};
+use serde_json::{json, Map, Value};
 use std::io::Read;
 use std::string::ToString;
-use anyhow::bail;
-use serde::{Serialize, Serializer};
-use serde::ser::{SerializeMap};
-use serde_json::{json, Map, Value};
 
 use crate::error::JoseError;
 
@@ -39,46 +39,67 @@ impl Jwk {
             for (key, value) in &map {
                 match key.as_str() {
                     "jku" | "x5u" | "kid" | "typ" | "cty" => match value {
-                        Value::String(_) => {},
+                        Value::String(_) => {}
                         _ => bail!("The JWK {} parameter must be a string.", key),
                     },
-                    "key_ops" => key_operations = match value {
-                        Value::Array(vals) => {
-                            let mut vec = Vec::with_capacity(vals.len());
-                            for val in vals {
-                                match val {
-                                    Value::String(val) => vec.push(val.to_string()),
-                                    _ => bail!("An element of the JWK {} parameter must be a string.", key),
+                    "key_ops" => {
+                        key_operations = match value {
+                            Value::Array(vals) => {
+                                let mut vec = Vec::with_capacity(vals.len());
+                                for val in vals {
+                                    match val {
+                                        Value::String(val) => vec.push(val.to_string()),
+                                        _ => bail!(
+                                            "An element of the JWK {} parameter must be a string.",
+                                            key
+                                        ),
+                                    }
                                 }
+                                Some(vec)
                             }
-                            Some(vec)
-                        },
-                        _ => bail!("The JWT {} parameter must be a array.", key),
-                    },
-                    "x5c" => x509_certificate_chain = match value {
-                        Value::Array(vals) => {
-                            let mut vec = Vec::with_capacity(vals.len());
-                            for val in vals {
-                                match val {
-                                    Value::String(val) => {
-                                        let decoded = base64::decode_config(val, base64::URL_SAFE_NO_PAD)?;
-                                        vec.push(decoded);
-                                    },
-                                    _ => bail!("An element of the JWK {} parameter must be a string.", key),
+                            _ => bail!("The JWT {} parameter must be a array.", key),
+                        }
+                    }
+                    "x5c" => {
+                        x509_certificate_chain = match value {
+                            Value::Array(vals) => {
+                                let mut vec = Vec::with_capacity(vals.len());
+                                for val in vals {
+                                    match val {
+                                        Value::String(val) => {
+                                            let decoded = base64::decode_config(
+                                                val,
+                                                base64::URL_SAFE_NO_PAD,
+                                            )?;
+                                            vec.push(decoded);
+                                        }
+                                        _ => bail!(
+                                            "An element of the JWK {} parameter must be a string.",
+                                            key
+                                        ),
+                                    }
                                 }
+                                Some(vec)
                             }
-                            Some(vec)
-                        },
-                        _ => bail!("The JWK {} parameter must be a array.", key),
-                    },
-                    "x5t" => x509_certificate_sha1_thumbprint = match value {
-                        Value::String(val) => Some(base64::decode_config(val, base64::URL_SAFE_NO_PAD)?),
-                        _ => bail!("The JWK {} parameter must be a string.", key),
-                    },
-                    "x5t#S256" => x509_certificate_sha256_thumbprint = match value {
-                        Value::String(val) => Some(base64::decode_config(val, base64::URL_SAFE_NO_PAD)?),
-                        _ => bail!("The JWK {} parameter must be a string.", key),
-                    },
+                            _ => bail!("The JWK {} parameter must be a array.", key),
+                        }
+                    }
+                    "x5t" => {
+                        x509_certificate_sha1_thumbprint = match value {
+                            Value::String(val) => {
+                                Some(base64::decode_config(val, base64::URL_SAFE_NO_PAD)?)
+                            }
+                            _ => bail!("The JWK {} parameter must be a string.", key),
+                        }
+                    }
+                    "x5t#S256" => {
+                        x509_certificate_sha256_thumbprint = match value {
+                            Value::String(val) => {
+                                Some(base64::decode_config(val, base64::URL_SAFE_NO_PAD)?)
+                            }
+                            _ => bail!("The JWK {} parameter must be a string.", key),
+                        }
+                    }
                     _ => {}
                 }
             }
@@ -93,7 +114,7 @@ impl Jwk {
         })()
         .map_err(|err| match err.downcast::<JoseError>() {
             Ok(err) => err,
-            Err(err) => JoseError::InvalidJwtFormat(err)
+            Err(err) => JoseError::InvalidJwtFormat(err),
         })
     }
 
@@ -104,7 +125,7 @@ impl Jwk {
         })()
         .map_err(|err| match err.downcast::<JoseError>() {
             Ok(err) => err,
-            Err(err) => JoseError::InvalidJwtFormat(err)
+            Err(err) => JoseError::InvalidJwtFormat(err),
         })
     }
 
@@ -115,7 +136,7 @@ impl Jwk {
         })()
         .map_err(|err| match err.downcast::<JoseError>() {
             Ok(err) => err,
-            Err(err) => JoseError::InvalidJwtFormat(err)
+            Err(err) => JoseError::InvalidJwtFormat(err),
         })
     }
 
@@ -166,7 +187,8 @@ impl Jwk {
             vec1.push(Value::String(val.clone()));
             vec2.push(val);
         }
-        self.params.insert("key_ops".to_string(), Value::Array(vec1));
+        self.params
+            .insert("key_ops".to_string(), Value::Array(vec1));
         self.key_operations = Some(vec2);
     }
 
@@ -237,7 +259,10 @@ impl Jwk {
     /// # Arguments
     /// * `value` - A x509 certificate SHA-1 thumbprint
     pub fn set_x509_certificate_sha1_thumbprint(&mut self, value: Vec<u8>) {
-        self.params.insert("x5t".to_string(), Value::String(base64::encode_config(&value, base64::URL_SAFE_NO_PAD)));
+        self.params.insert(
+            "x5t".to_string(),
+            Value::String(base64::encode_config(&value, base64::URL_SAFE_NO_PAD)),
+        );
         self.x509_certificate_sha1_thumbprint = Some(value);
     }
 
@@ -254,7 +279,10 @@ impl Jwk {
     /// # Arguments
     /// * `value` - A x509 certificate SHA-256 thumbprint
     pub fn set_x509_certificate_sha256_thumbprint(&mut self, value: Vec<u8>) {
-        self.params.insert("x5t#S256".to_string(), Value::String(base64::encode_config(&value, base64::URL_SAFE_NO_PAD)));
+        self.params.insert(
+            "x5t#S256".to_string(),
+            Value::String(base64::encode_config(&value, base64::URL_SAFE_NO_PAD)),
+        );
         self.x509_certificate_sha256_thumbprint = Some(value);
     }
 
@@ -273,7 +301,10 @@ impl Jwk {
     pub fn set_x509_certificate_chain(&mut self, values: Vec<Vec<u8>>) {
         let mut vec = Vec::with_capacity(values.len());
         for val in &values {
-            vec.push(Value::String(base64::encode_config(&val, base64::URL_SAFE_NO_PAD)));
+            vec.push(Value::String(base64::encode_config(
+                &val,
+                base64::URL_SAFE_NO_PAD,
+            )));
         }
         self.params.insert("x5c".to_string(), Value::Array(vec));
         self.x509_certificate_chain = Some(values);
@@ -302,10 +333,10 @@ impl Jwk {
                 "use" | "alg" | "kid" | "x5u" => match &value {
                     Some(Value::String(_)) => {
                         self.params.insert(key.to_string(), value.unwrap());
-                    },
+                    }
                     None => {
                         self.params.remove(key);
-                    },
+                    }
                     _ => bail!("The JWK {} parameter must be a string.", key),
                 },
                 "key_ops" => match &value {
@@ -314,38 +345,43 @@ impl Jwk {
                         for val in vals {
                             match val {
                                 Value::String(val) => vec.push(val.to_string()),
-                                _ => bail!("An element of the JWT {} parameter must be a string.", key),
+                                _ => bail!(
+                                    "An element of the JWT {} parameter must be a string.",
+                                    key
+                                ),
                             }
                         }
                         self.key_operations = Some(vec);
                         self.params.insert(key.to_string(), value.unwrap());
-                    },
+                    }
                     None => {
                         self.key_operations = None;
                         self.params.remove(key);
-                    },
+                    }
                     _ => bail!("The JWT {} parameter must be a array.", key),
                 },
                 "x5t" => match &value {
                     Some(Value::String(val)) => {
-                        self.x509_certificate_sha1_thumbprint = Some(base64::decode_config(val, base64::URL_SAFE_NO_PAD)?);
+                        self.x509_certificate_sha1_thumbprint =
+                            Some(base64::decode_config(val, base64::URL_SAFE_NO_PAD)?);
                         self.params.insert(key.to_string(), value.unwrap());
-                    },
+                    }
                     None => {
                         self.x509_certificate_sha1_thumbprint = None;
                         self.params.remove(key);
-                    },
+                    }
                     _ => bail!("The JWK {} parameter must be a string.", key),
                 },
                 "x5t#S256" => match &value {
                     Some(Value::String(val)) => {
-                        self.x509_certificate_sha256_thumbprint = Some(base64::decode_config(val, base64::URL_SAFE_NO_PAD)?);
+                        self.x509_certificate_sha256_thumbprint =
+                            Some(base64::decode_config(val, base64::URL_SAFE_NO_PAD)?);
                         self.params.insert(key.to_string(), value.unwrap());
-                    },
+                    }
                     None => {
                         self.x509_certificate_sha256_thumbprint = None;
                         self.params.remove(key);
-                    },
+                    }
                     _ => bail!("The JWK {} parameter must be a string.", key),
                 },
                 "x5c" => match &value {
@@ -354,19 +390,23 @@ impl Jwk {
                         for val in vals {
                             match val {
                                 Value::String(val) => {
-                                    let decoded = base64::decode_config(val, base64::URL_SAFE_NO_PAD)?;
+                                    let decoded =
+                                        base64::decode_config(val, base64::URL_SAFE_NO_PAD)?;
                                     vec.push(decoded);
-                                },
-                                _ => bail!("An element of the JWK {} parameter must be a string.", key),
+                                }
+                                _ => bail!(
+                                    "An element of the JWK {} parameter must be a string.",
+                                    key
+                                ),
                             }
                         }
                         self.x509_certificate_chain = Some(vec);
                         self.params.insert(key.to_string(), value.unwrap());
-                    },
+                    }
                     None => {
                         self.x509_certificate_chain = None;
                         self.params.remove(key);
-                    },
+                    }
                     _ => bail!("The JWK {} parameter must be a string.", key),
                 },
                 _ => match &value {
@@ -376,9 +416,9 @@ impl Jwk {
                     None => {
                         self.params.remove(key);
                     }
-                }
+                },
             }
-            
+
             Ok(())
         })()
         .map_err(|err| JoseError::InvalidJwtFormat(err))

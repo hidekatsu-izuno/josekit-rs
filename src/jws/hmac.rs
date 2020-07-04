@@ -27,15 +27,18 @@ impl HmacJwsAlgorithm {
     ///
     /// # Arguments
     /// * `data` - A secret key.
-    pub fn signer_from_slice(&self, input: impl AsRef<[u8]>) -> Result<HmacJwsSigner, JoseError> {
-        (|| -> anyhow::Result<HmacJwsSigner> {
+    pub fn signer_from_slice(
+        &self,
+        input: impl AsRef<[u8]>,
+    ) -> Result<Box<dyn JwsSigner>, JoseError> {
+        (|| -> anyhow::Result<Box<dyn JwsSigner>> {
             let pkey = PKey::hmac(input.as_ref())?;
 
-            Ok(HmacJwsSigner {
+            Ok(Box::new(HmacJwsSigner {
                 algorithm: self.clone(),
                 private_key: pkey,
                 key_id: None,
-            })
+            }))
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
@@ -47,15 +50,15 @@ impl HmacJwsAlgorithm {
     pub fn verifier_from_slice(
         &self,
         input: impl AsRef<[u8]>,
-    ) -> Result<HmacJwsVerifier, JoseError> {
-        (|| -> anyhow::Result<HmacJwsVerifier> {
+    ) -> Result<Box<dyn JwsVerifier>, JoseError> {
+        (|| -> anyhow::Result<Box<dyn JwsVerifier>> {
             let pkey = PKey::hmac(input.as_ref())?;
 
-            Ok(HmacJwsVerifier {
+            Ok(Box::new(HmacJwsVerifier {
                 algorithm: self.clone(),
                 private_key: pkey,
                 key_id: None,
-            })
+            }))
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
@@ -69,7 +72,7 @@ impl JwsAlgorithm for HmacJwsAlgorithm {
             HmacJwsAlgorithm::HS512 => "HS512",
         }
     }
-    
+
     fn key_type(&self) -> &str {
         "oct"
     }
@@ -81,7 +84,7 @@ impl JwsAlgorithm for HmacJwsAlgorithm {
                 val => bail!("A parameter kty must be {}: {}", self.key_type(), val),
             }
             match jwk.key_use() {
-                Some(val) if val == "sig" => {},
+                Some(val) if val == "sig" => {}
                 None => {}
                 Some(val) => bail!("A parameter use must be sig: {}", val),
             }
@@ -120,7 +123,7 @@ impl JwsAlgorithm for HmacJwsAlgorithm {
                 val => bail!("A parameter kty must be {}: {}", self.key_type(), val),
             }
             match jwk.key_use() {
-                Some(val) if val == "sig" => {},
+                Some(val) if val == "sig" => {}
                 None => {}
                 Some(val) => bail!("A parameter use must be sig: {}", val),
             }
@@ -153,7 +156,7 @@ impl JwsAlgorithm for HmacJwsAlgorithm {
     }
 }
 
-pub struct HmacJwsSigner {
+struct HmacJwsSigner {
     algorithm: HmacJwsAlgorithm,
     private_key: PKey<Private>,
     key_id: Option<String>,
@@ -204,7 +207,7 @@ impl JwsSigner for HmacJwsSigner {
     }
 }
 
-pub struct HmacJwsVerifier {
+struct HmacJwsVerifier {
     algorithm: HmacJwsAlgorithm,
     private_key: PKey<Private>,
     key_id: Option<String>,

@@ -6,8 +6,8 @@ pub mod rsapss;
 
 use std::io::Read;
 
-use crate::jwk::Jwk;
 use crate::error::JoseError;
+use crate::jwk::Jwk;
 
 pub use crate::jws::ecdsa::EcdsaJwsAlgorithm::ES256;
 pub use crate::jws::ecdsa::EcdsaJwsAlgorithm::ES256K;
@@ -31,16 +31,16 @@ pub trait JwsAlgorithm {
     /// Return the "kty" (key type) header parameter value of JWS.
     fn key_type(&self) -> &str;
 
-    /// Return a signer from a JWK private key.
+    /// Return the signer from a JWK private key.
     ///
     /// # Arguments
-    /// * `jwk` - A JWK private key.
+    /// * `jwk` - a JWK private key.
     fn signer_from_jwk(&self, jwk: &Jwk) -> Result<Box<dyn JwsSigner>, JoseError>;
 
-    /// Return a verifier from a JWK key.
+    /// Return the verifier from a JWK key.
     ///
     /// # Arguments
-    /// * `jwk` - A JWK key.
+    /// * `jwk` - a JWK key.
     fn verifier_from_jwk(&self, jwk: &Jwk) -> Result<Box<dyn JwsVerifier>, JoseError>;
 }
 
@@ -48,13 +48,14 @@ pub trait JwsSigner {
     /// Return the source algrithm instance.
     fn algorithm(&self) -> &dyn JwsAlgorithm;
 
-    /// Return kid value.
+    /// Return the source key ID.
+    /// The default value is a value of kid parameter in JWK. 
     fn key_id(&self) -> Option<&str>;
 
     /// Set a compared value for a kid header claim (kid).
     ///
     /// # Arguments
-    /// * `key_id` - A key id
+    /// * `key_id` - a key ID
     fn set_key_id(&mut self, key_id: &str);
 
     /// Remove a compared value for a kid header claim (kid).
@@ -71,13 +72,14 @@ pub trait JwsVerifier {
     /// Return the source algrithm instance.
     fn algorithm(&self) -> &dyn JwsAlgorithm;
 
-    /// Return kid value.
+    /// Return the source key ID.
+    /// The default value is a value of kid parameter in JWK. 
     fn key_id(&self) -> Option<&str>;
 
     /// Set a compared value for a kid header claim (kid).
     ///
     /// # Arguments
-    /// * `key_id` - A key id
+    /// * `key_id` - a key ID
     fn set_key_id(&mut self, key_id: &str);
 
     /// Unset a compared value for a kid header claim (kid).
@@ -86,7 +88,7 @@ pub trait JwsVerifier {
     /// Verify the data by the signature.
     ///
     /// # Arguments
-    /// * `message` - The message data to verify.
-    /// * `signature` - The signature data.
+    /// * `message` - a message data to verify.
+    /// * `signature` - a signature data.
     fn verify(&self, message: &mut dyn Read, signature: &[u8]) -> Result<(), JoseError>;
 }

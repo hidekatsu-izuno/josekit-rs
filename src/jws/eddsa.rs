@@ -8,8 +8,8 @@ use std::io::Read;
 use crate::der::oid::ObjectIdentifier;
 use crate::der::{DerBuilder, DerReader, DerType};
 use crate::error::JoseError;
-use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier};
 use crate::jwk::Jwk;
+use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier};
 use crate::util::parse_pem;
 
 static OID_ED25519: Lazy<ObjectIdentifier> =
@@ -35,8 +35,11 @@ impl EddsaJwsAlgorithm {
     ///
     /// # Arguments
     /// * `input` - A private key of common or traditinal PEM format.
-    pub fn signer_from_pem(&self, input: impl AsRef<[u8]>) -> Result<EddsaJwsSigner, JoseError> {
-        (|| -> anyhow::Result<EddsaJwsSigner> {
+    pub fn signer_from_pem(
+        &self,
+        input: impl AsRef<[u8]>,
+    ) -> Result<Box<dyn JwsSigner>, JoseError> {
+        (|| -> anyhow::Result<Box<dyn JwsSigner>> {
             let (alg, data) = parse_pem(input.as_ref())?;
             let pkey = match alg.as_str() {
                 "PRIVATE KEY" => {
@@ -71,11 +74,11 @@ impl EddsaJwsAlgorithm {
                 alg => bail!("Inappropriate algorithm: {}", alg),
             };
 
-            Ok(EddsaJwsSigner {
+            Ok(Box::new(EddsaJwsSigner {
                 algorithm: self.clone(),
                 private_key: pkey,
                 key_id: None,
-            })
+            }))
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
@@ -84,19 +87,22 @@ impl EddsaJwsAlgorithm {
     ///
     /// # Arguments
     /// * `input` - A private key that is a DER encoded PKCS#8 PrivateKeyInfo.
-    pub fn signer_from_der(&self, input: impl AsRef<[u8]>) -> Result<EddsaJwsSigner, JoseError> {
-        (|| -> anyhow::Result<EddsaJwsSigner> {
+    pub fn signer_from_der(
+        &self,
+        input: impl AsRef<[u8]>,
+    ) -> Result<Box<dyn JwsSigner>, JoseError> {
+        (|| -> anyhow::Result<Box<dyn JwsSigner>> {
             let pkey = if let Some(_) = self.detect_pkcs8(input.as_ref(), false)? {
                 PKey::private_key_from_der(input.as_ref())?
             } else {
                 bail!("The EdDSA private key must be wrapped by PKCS#8 format.");
             };
 
-            Ok(EddsaJwsSigner {
+            Ok(Box::new(EddsaJwsSigner {
                 algorithm: self.clone(),
                 private_key: pkey,
                 key_id: None,
-            })
+            }))
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
@@ -114,8 +120,8 @@ impl EddsaJwsAlgorithm {
     pub fn verifier_from_pem(
         &self,
         input: impl AsRef<[u8]>,
-    ) -> Result<EddsaJwsVerifier, JoseError> {
-        (|| -> anyhow::Result<EddsaJwsVerifier> {
+    ) -> Result<Box<dyn JwsVerifier>, JoseError> {
+        (|| -> anyhow::Result<Box<dyn JwsVerifier>> {
             let (alg, data) = parse_pem(input.as_ref())?;
             let pkey = match alg.as_str() {
                 "PUBLIC KEY" => {
@@ -150,11 +156,11 @@ impl EddsaJwsAlgorithm {
                 alg => bail!("Unacceptable algorithm: {}", alg),
             };
 
-            Ok(EddsaJwsVerifier {
+            Ok(Box::new(EddsaJwsVerifier {
                 algorithm: self.clone(),
                 public_key: pkey,
                 key_id: None,
-            })
+            }))
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
@@ -166,19 +172,19 @@ impl EddsaJwsAlgorithm {
     pub fn verifier_from_der(
         &self,
         input: impl AsRef<[u8]>,
-    ) -> Result<EddsaJwsVerifier, JoseError> {
-        (|| -> anyhow::Result<EddsaJwsVerifier> {
+    ) -> Result<Box<dyn JwsVerifier>, JoseError> {
+        (|| -> anyhow::Result<Box<dyn JwsVerifier>> {
             let pkey = if let Some(_) = self.detect_pkcs8(input.as_ref(), true)? {
                 PKey::public_key_from_der(input.as_ref())?
             } else {
                 bail!("The EdDSA public key must be wrapped by PKCS#8 format.");
             };
 
-            Ok(EddsaJwsVerifier {
+            Ok(Box::new(EddsaJwsVerifier {
                 algorithm: self.clone(),
                 public_key: pkey,
                 key_id: None,
-            })
+            }))
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
@@ -278,7 +284,7 @@ impl JwsAlgorithm for EddsaJwsAlgorithm {
                 val => bail!("A parameter kty must be {}: {}", self.key_type(), val),
             }
             match jwk.key_use() {
-                Some(val) if val == "sig" => {},
+                Some(val) if val == "sig" => {}
                 None => {}
                 Some(val) => bail!("A parameter use must be sig: {}", val),
             }
@@ -302,10 +308,7 @@ impl JwsAlgorithm for EddsaJwsAlgorithm {
                 None => bail!("A parameter crv is required."),
             };
             let d = match jwk.parameter("d") {
-                Some(Value::String(val)) => base64::decode_config(
-                    val,
-                    base64::URL_SAFE_NO_PAD,
-                )?,
+                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
                 Some(_) => bail!("A parameter d must be a string."),
                 None => bail!("A parameter d is required."),
             };
@@ -332,7 +335,7 @@ impl JwsAlgorithm for EddsaJwsAlgorithm {
                 val => bail!("A parameter kty must be {}: {}", self.key_type(), val),
             }
             match jwk.key_use() {
-                Some(val) if val == "sig" => {},
+                Some(val) if val == "sig" => {}
                 None => {}
                 Some(val) => bail!("A parameter use must be sig: {}", val),
             }
@@ -356,10 +359,7 @@ impl JwsAlgorithm for EddsaJwsAlgorithm {
                 None => bail!("A parameter crv is required."),
             };
             let x = match jwk.parameter("x") {
-                Some(Value::String(val)) => base64::decode_config(
-                    val,
-                    base64::URL_SAFE_NO_PAD,
-                )?,
+                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
                 Some(_) => bail!("A parameter x must be a string."),
                 None => bail!("A parameter x is required."),
             };
@@ -377,7 +377,7 @@ impl JwsAlgorithm for EddsaJwsAlgorithm {
     }
 }
 
-pub struct EddsaJwsSigner {
+struct EddsaJwsSigner {
     algorithm: EddsaJwsAlgorithm,
     private_key: PKey<Private>,
     key_id: Option<String>,
@@ -418,7 +418,7 @@ impl JwsSigner for EddsaJwsSigner {
     }
 }
 
-pub struct EddsaJwsVerifier {
+struct EddsaJwsVerifier {
     algorithm: EddsaJwsAlgorithm,
     public_key: PKey<Public>,
     key_id: Option<String>,
