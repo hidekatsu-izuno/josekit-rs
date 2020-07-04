@@ -4,7 +4,6 @@ use openssl::hash::MessageDigest;
 use openssl::pkey::{PKey, Private, Public};
 use openssl::sign::{Signer, Verifier};
 use serde_json::Value;
-use std::io::Read;
 
 use crate::der::oid::ObjectIdentifier;
 use crate::der::{DerBuilder, DerClass, DerReader, DerType};
@@ -296,6 +295,15 @@ impl JwsAlgorithm for EcdsaJwsAlgorithm {
         }
     }
 
+    fn signature_len(&self) -> usize {
+        match self {
+            Self::ES256 => 86,
+            Self::ES384 => 128,
+            Self::ES512 => 289,
+            Self::ES256K => 86,
+        }
+    }
+
     fn key_type(&self) -> &str {
         "EC"
     }
@@ -467,7 +475,7 @@ impl JwsSigner for EcdsaJwsSigner {
         self.key_id = None;
     }
 
-    fn sign(&self, message: &mut dyn Read) -> Result<Vec<u8>, JoseError> {
+    fn sign(&self, message: &[u8]) -> Result<Vec<u8>, JoseError> {
         (|| -> anyhow::Result<Vec<u8>> {
             let message_digest = match self.algorithm {
                 EcdsaJwsAlgorithm::ES256 => MessageDigest::sha256(),
@@ -477,15 +485,7 @@ impl JwsSigner for EcdsaJwsSigner {
             };
 
             let mut signer = Signer::new(message_digest, &self.private_key)?;
-
-            let mut buf = [0; 1024];
-            loop {
-                match message.read(&mut buf)? {
-                    0 => break,
-                    n => signer.update(&buf[..n])?,
-                }
-            }
-
+            signer.update(message)?;
             let signature = signer.sign_to_vec()?;
             Ok(signature)
         })()
@@ -519,7 +519,7 @@ impl JwsVerifier for EcdsaJwsVerifier {
         self.key_id = None;
     }
 
-    fn verify(&self, message: &mut dyn Read, signature: &[u8]) -> Result<(), JoseError> {
+    fn verify(&self, message: &[u8], signature: &[u8]) -> Result<(), JoseError> {
         (|| -> anyhow::Result<()> {
             let message_digest = match self.algorithm {
                 EcdsaJwsAlgorithm::ES256 => MessageDigest::sha256(),
@@ -529,15 +529,7 @@ impl JwsVerifier for EcdsaJwsVerifier {
             };
 
             let mut verifier = Verifier::new(message_digest, &self.public_key)?;
-
-            let mut buf = [0; 1024];
-            loop {
-                match message.read(&mut buf)? {
-                    0 => break,
-                    n => verifier.update(&buf[..n])?,
-                }
-            }
-
+            verifier.update(message)?;
             verifier.verify(signature)?;
             Ok(())
         })()
@@ -551,7 +543,7 @@ mod tests {
 
     use anyhow::Result;
     use std::fs::File;
-    use std::io::{Cursor, Read};
+    use std::io::Read;
     use std::path::PathBuf;
 
     #[test]
@@ -578,10 +570,10 @@ mod tests {
             })?;
 
             let signer = alg.signer_from_jwk(&Jwk::from_slice(&private_key)?)?;
-            let signature = signer.sign(&mut Cursor::new(input))?;
+            let signature = signer.sign(input)?;
 
             let verifier = alg.verifier_from_jwk(&Jwk::from_slice(&public_key)?)?;
-            verifier.verify(&mut Cursor::new(input), &signature)?;
+            verifier.verify(input, &signature)?;
         }
 
         Ok(())
@@ -611,10 +603,10 @@ mod tests {
             })?;
 
             let signer = alg.signer_from_pem(&private_key)?;
-            let signature = signer.sign(&mut Cursor::new(input))?;
+            let signature = signer.sign(input)?;
 
             let verifier = alg.verifier_from_pem(&public_key)?;
-            verifier.verify(&mut Cursor::new(input), &signature)?;
+            verifier.verify(input, &signature)?;
         }
 
         Ok(())
@@ -644,10 +636,10 @@ mod tests {
             })?;
 
             let signer = alg.signer_from_der(&private_key)?;
-            let signature = signer.sign(&mut Cursor::new(input))?;
+            let signature = signer.sign(input)?;
 
             let verifier = alg.verifier_from_der(&public_key)?;
-            verifier.verify(&mut Cursor::new(input), &signature)?;
+            verifier.verify(input, &signature)?;
         }
 
         Ok(())

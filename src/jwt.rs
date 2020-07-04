@@ -1,4 +1,3 @@
-use std::io::Cursor;
 use std::time::{Duration, SystemTime};
 
 use anyhow::bail;
@@ -7,7 +6,7 @@ use serde_json::{json, Map, Value};
 
 use crate::error::JoseError;
 use crate::jwk::{Jwk, JwkSet};
-use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier};
+use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier, extract_compact_header};
 
 /// Represents plain JWT object with header and payload.
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -289,63 +288,15 @@ impl Jwt {
     ) -> Result<Self, JoseError> {
         (|| -> anyhow::Result<Jwt> {
             let verifier = verifier.as_ref();
-            let parts: Vec<&str> = input.split('.').collect();
-            if parts.len() != 2 && parts.len() != 3 {
-                bail!("The JWT must be two or three parts separated by colon.");
-            }
+            let header = extract_compact_header(input)?;
+            let payload = verifier.deserialize_compact(&header, input)?;
 
-            let header_base64 = parts.get(0).unwrap();
-            let header_json = base64::decode_config(header_base64, base64::URL_SAFE_NO_PAD)?;
-            let mut header: Map<String, Value> = serde_json::from_slice(&header_json)?;
-
-            match header.get("alg") {
-                Some(alg) if alg == "none" => {
-                    if parts.len() != 2 {
-                        bail!("The JWT must not have signature part when alg = \"none\".");
-                    }
-                }
-                Some(_) => {
-                    if parts.len() != 3 {
-                        bail!("The JWT must have signature part when alg != \"none\".");
-                    }
-                }
-                None => bail!("The JWT alg header claim is required."),
-            };
-
-            let expected_alg = verifier.algorithm().name();
-            match header.get("alg") {
-                Some(Value::String(val)) if val == expected_alg => {}
-                Some(Value::String(val)) => {
-                    bail!("The JWT alg header claim is not {}: {}", expected_alg, val)
-                }
-                Some(_) => bail!("The JWT alg header claim must be a string."),
-                None => bail!("The JWT alg header claim is missing."),
-            }
-
-            let expected_kid = verifier.key_id();
-            match (expected_kid, header.get("kid")) {
-                (Some(expected), Some(actual)) if expected == actual => {}
-                (None, None) => {}
-                (Some(_), Some(actual)) => {
-                    bail!("The JWT kid header claim is mismatched: {}", actual)
-                }
-                _ => bail!("The JWT kid header claim is missing."),
-            }
-
+            let mut header = header;
             header.remove("alg");
 
-            let payload_base64 = parts.get(1).unwrap();
-            let payload_json = base64::decode_config(payload_base64, base64::URL_SAFE_NO_PAD)?;
-            let payload: Map<String, Value> = serde_json::from_slice(&payload_json)?;
+            let payload: Map<String, Value> = serde_json::from_slice(&payload)?;
 
             let jwt = Self::from_map(header, payload)?;
-
-            let signature_base64 = parts.get(2).unwrap();
-            let signature = base64::decode_config(signature_base64, base64::URL_SAFE_NO_PAD)?;
-
-            let message = format!("{}.{}", header_base64, payload_base64);
-            verifier.verify(&mut Cursor::new(message), &signature)?;
-
             Ok(jwt)
         })()
         .map_err(|err| match err.downcast::<JoseError>() {
@@ -395,68 +346,19 @@ impl Jwt {
         F: FnOnce(&dyn JwtHeaderClaims) -> Option<Box<dyn JwsVerifier>>,
     {
         (|| -> anyhow::Result<Jwt> {
-            let parts: Vec<&str> = input.split('.').collect();
-            if parts.len() != 2 && parts.len() != 3 {
-                bail!("The JWT must be two or three parts separated by colon.");
-            }
-
-            let header_base64 = parts.get(0).unwrap();
-            let header_json = base64::decode_config(header_base64, base64::URL_SAFE_NO_PAD)?;
-            let mut header: Map<String, Value> = serde_json::from_slice(&header_json)?;
-
-            match header.get("alg") {
-                Some(alg) if alg == "none" => {
-                    if parts.len() != 2 {
-                        bail!("The JWT must not have signature part when alg = \"none\".");
-                    }
-                }
-                Some(_) => {
-                    if parts.len() != 3 {
-                        bail!("The JWT must have signature part when alg != \"none\".");
-                    }
-                }
-                None => bail!("The JWT alg header claim is required."),
-            };
-
+            let header = extract_compact_header(input)?;
             let verifier = match verifier_selector(&header) {
                 Some(val) => val,
                 None => bail!("A verifier is not found."),
             };
 
-            let expected_alg = verifier.algorithm().name();
-            match header.get("alg") {
-                Some(Value::String(val)) if val == expected_alg => {}
-                Some(Value::String(val)) => {
-                    bail!("The JWT alg header claim is not {}: {}", expected_alg, val)
-                }
-                Some(_) => bail!("The JWT alg header claim must be a string."),
-                None => bail!("The JWT alg header claim is missing."),
-            }
-
-            let expected_kid = verifier.key_id();
-            match (expected_kid, header.get("kid")) {
-                (Some(expected), Some(actual)) if expected == actual => {}
-                (None, None) => {}
-                (Some(_), Some(actual)) => {
-                    bail!("The JWT kid header claim is mismatched: {}", actual)
-                }
-                _ => bail!("The JWT kid header claim is missing."),
-            }
-
+            let payload = verifier.deserialize_compact(&header, input)?;
+            let payload: Map<String, Value> = serde_json::from_slice(&payload)?;
+            
+            let mut header = header;
             header.remove("alg");
 
-            let payload_base64 = parts.get(1).unwrap();
-            let payload_json = base64::decode_config(payload_base64, base64::URL_SAFE_NO_PAD)?;
-            let payload: Map<String, Value> = serde_json::from_slice(&payload_json)?;
-
             let jwt = Self::from_map(header, payload)?;
-
-            let signature_base64 = parts.get(2).unwrap();
-            let signature = base64::decode_config(signature_base64, base64::URL_SAFE_NO_PAD)?;
-
-            let message = format!("{}.{}", header_base64, payload_base64);
-            verifier.verify(&mut Cursor::new(message), &signature)?;
-
             Ok(jwt)
         })()
         .map_err(|err| match err.downcast::<JoseError>() {
@@ -1087,17 +989,9 @@ impl Jwt {
             header.insert("kid".to_string(), json!(key_id));
         }
 
-        let header_json = serde_json::to_string(&header).unwrap();
-        let header_base64 = base64::encode_config(header_json, base64::URL_SAFE_NO_PAD);
-
         let payload_json = serde_json::to_string(&self.payload).unwrap();
-        let payload_base64 = base64::encode_config(payload_json, base64::URL_SAFE_NO_PAD);
-
-        let message = format!("{}.{}", header_base64, payload_base64);
-        let signature = signer.sign(&mut Cursor::new(&message))?;
-
-        let signature_base64 = base64::encode_config(signature, base64::URL_SAFE_NO_PAD);
-        Ok(format!("{}.{}", message, signature_base64))
+        let jwt = signer.serialize_compact(&header, &payload_json.as_bytes())?;
+        Ok(jwt)
     }
 }
 

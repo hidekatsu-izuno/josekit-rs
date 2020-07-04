@@ -4,7 +4,6 @@ use openssl::memcmp;
 use openssl::pkey::{PKey, Private};
 use openssl::sign::Signer;
 use serde_json::Value;
-use std::io::Read;
 
 use crate::error::JoseError;
 use crate::jwk::Jwk;
@@ -67,14 +66,22 @@ impl HmacJwsAlgorithm {
 impl JwsAlgorithm for HmacJwsAlgorithm {
     fn name(&self) -> &str {
         match self {
-            HmacJwsAlgorithm::HS256 => "HS256",
-            HmacJwsAlgorithm::HS384 => "HS384",
-            HmacJwsAlgorithm::HS512 => "HS512",
+            Self::HS256 => "HS256",
+            Self::HS384 => "HS384",
+            Self::HS512 => "HS512",
         }
     }
 
     fn key_type(&self) -> &str {
         "oct"
+    }
+
+    fn signature_len(&self) -> usize {
+        match self {
+            Self::HS256 => 43,
+            Self::HS384 => 64,
+            Self::HS512 => 86,
+        }
     }
 
     fn signer_from_jwk(&self, jwk: &Jwk) -> Result<Box<dyn JwsSigner>, JoseError> {
@@ -182,7 +189,7 @@ impl JwsSigner for HmacJwsSigner {
         self.key_id = None;
     }
 
-    fn sign(&self, message: &mut dyn Read) -> Result<Vec<u8>, JoseError> {
+    fn sign(&self, message: &[u8]) -> Result<Vec<u8>, JoseError> {
         (|| -> anyhow::Result<Vec<u8>> {
             let message_digest = match self.algorithm {
                 HmacJwsAlgorithm::HS256 => MessageDigest::sha256(),
@@ -191,15 +198,7 @@ impl JwsSigner for HmacJwsSigner {
             };
 
             let mut signer = Signer::new(message_digest, &self.private_key)?;
-
-            let mut buf = [0; 1024];
-            loop {
-                match message.read(&mut buf)? {
-                    0 => break,
-                    n => signer.update(&buf[..n])?,
-                }
-            }
-
+            signer.update(message)?;
             let signature = signer.sign_to_vec()?;
             Ok(signature)
         })()
@@ -233,7 +232,7 @@ impl JwsVerifier for HmacJwsVerifier {
         self.key_id = None;
     }
 
-    fn verify(&self, message: &mut dyn Read, signature: &[u8]) -> Result<(), JoseError> {
+    fn verify(&self, message: &[u8], signature: &[u8]) -> Result<(), JoseError> {
         (|| -> anyhow::Result<()> {
             let message_digest = match self.algorithm {
                 HmacJwsAlgorithm::HS256 => MessageDigest::sha256(),
@@ -242,15 +241,7 @@ impl JwsVerifier for HmacJwsVerifier {
             };
 
             let mut signer = Signer::new(message_digest, &self.private_key)?;
-
-            let mut buf = [0; 1024];
-            loop {
-                match message.read(&mut buf)? {
-                    0 => break,
-                    n => signer.update(&buf[..n])?,
-                }
-            }
-
+            signer.update(message)?;
             let new_signature = signer.sign_to_vec()?;
             if !memcmp::eq(&new_signature, &signature) {
                 bail!("Failed to verify.")
@@ -267,7 +258,7 @@ mod tests {
 
     use anyhow::Result;
     use std::fs::File;
-    use std::io::{Cursor, Read};
+    use std::io::Read;
     use std::path::PathBuf;
 
     #[test]
@@ -282,10 +273,10 @@ mod tests {
             let private_key = Jwk::from_slice(load_file("jwk/oct_private.jwk")?)?;
 
             let signer = alg.signer_from_jwk(&private_key)?;
-            let signature = signer.sign(&mut Cursor::new(input))?;
+            let signature = signer.sign(input)?;
 
             let verifier = alg.verifier_from_jwk(&private_key)?;
-            verifier.verify(&mut Cursor::new(input), &signature)?;
+            verifier.verify(input, &signature)?;
         }
 
         Ok(())
@@ -302,10 +293,10 @@ mod tests {
             HmacJwsAlgorithm::HS512,
         ] {
             let signer = alg.signer_from_slice(private_key)?;
-            let signature = signer.sign(&mut Cursor::new(input))?;
+            let signature = signer.sign(input)?;
 
             let verifier = alg.verifier_from_slice(private_key)?;
-            verifier.verify(&mut Cursor::new(input), &signature)?;
+            verifier.verify(input, &signature)?;
         }
 
         Ok(())

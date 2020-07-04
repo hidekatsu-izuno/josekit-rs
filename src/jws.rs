@@ -4,7 +4,8 @@ pub mod hmac;
 pub mod rsa;
 pub mod rsapss;
 
-use std::io::Read;
+use anyhow::bail;
+use serde_json::{Map, Value};
 
 use crate::error::JoseError;
 use crate::jwk::Jwk;
@@ -30,6 +31,9 @@ pub trait JwsAlgorithm {
 
     /// Return the "kty" (key type) header parameter value of JWS.
     fn key_type(&self) -> &str;
+    
+    /// Return the signature length of JWS.
+    fn signature_len(&self) -> usize;
 
     /// Return the signer from a JWK private key.
     ///
@@ -65,7 +69,31 @@ pub trait JwsSigner {
     ///
     /// # Arguments
     /// * `message` - The message data to sign.
-    fn sign(&self, message: &mut dyn Read) -> Result<Vec<u8>, JoseError>;
+    fn sign(&self, message: &[u8]) -> Result<Vec<u8>, JoseError>;
+
+    fn serialize_compact(&self, header: &Map<String, Value>, payload: &[u8]) -> Result<String, JoseError> {
+        let header = serde_json::to_string(&header).unwrap();
+        let header = base64::encode_config(header, base64::URL_SAFE_NO_PAD);
+        let payload = base64::encode_config(payload, base64::URL_SAFE_NO_PAD);
+        
+        let mut message = String::with_capacity(
+            header.len() 
+            + payload.len() 
+            + self.algorithm().signature_len()
+            + 2);
+        
+        message.push_str(&header);
+        message.push_str(".");
+        message.push_str(&payload);
+
+        let signature = self.sign(message.as_bytes())?;
+
+        let signature = base64::encode_config(signature, base64::URL_SAFE_NO_PAD);
+        message.push_str(".");
+        message.push_str(&signature);
+
+        Ok(message)
+    }
 }
 
 pub trait JwsVerifier {
@@ -90,5 +118,66 @@ pub trait JwsVerifier {
     /// # Arguments
     /// * `message` - a message data to verify.
     /// * `signature` - a signature data.
-    fn verify(&self, message: &mut dyn Read, signature: &[u8]) -> Result<(), JoseError>;
+    fn verify(&self, message: &[u8], signature: &[u8]) -> Result<(), JoseError>;
+
+    fn deserialize_compact(&self, header: &Map<String, Value>, input: &str) -> Result<Vec<u8>, JoseError> {
+        (|| -> anyhow::Result<Vec<u8>> {
+            let indexies: Vec<usize> = input.char_indices()
+                .filter(|(_, c)| c == &'.')
+                .map(|(i, _)| i)
+                .collect();
+            if indexies.len() != 2 {
+                bail!("The JWT must be two or three parts separated by colon.");
+            }
+
+            let expected_alg = self.algorithm().name();
+            match header.get("alg") {
+                Some(Value::String(val)) if val == expected_alg => {}
+                Some(Value::String(val)) => {
+                    bail!("The JWT alg header claim is not {}: {}", expected_alg, val)
+                }
+                Some(_) => bail!("The JWT alg header claim must be a string."),
+                None => bail!("The JWT alg header claim is required."),
+            }
+
+            let expected_kid = self.key_id();
+            match (expected_kid, header.get("kid")) {
+                (Some(expected), Some(actual)) if expected == actual => {}
+                (None, None) => {}
+                (Some(_), Some(actual)) => {
+                    bail!("The JWT kid header claim is mismatched: {}", actual)
+                }
+                _ => bail!("The JWT kid header claim is missing."),
+            }
+            
+            let message = &input[..(indexies[1])];
+            let payload = base64::decode_config(&input[(indexies[0] + 1)..(indexies[1])], base64::URL_SAFE_NO_PAD)?;
+            let signature = base64::decode_config(&input[(indexies[1] + 1)..], base64::URL_SAFE_NO_PAD)?;
+
+            self.verify(message.as_bytes(), &signature)?;
+
+            Ok(payload)
+        })()
+        .map_err(|err| match err.downcast::<JoseError>() {
+            Ok(err) => err,
+            Err(err) => JoseError::InvalidJwtFormat(err),
+        })
+    }
+}
+
+pub fn extract_compact_header(input: &str) -> Result<Map<String, Value>, JoseError> {
+    (|| -> anyhow::Result<Map<String, Value>> {
+        let index0 = match input.find('.') {
+            Some(val) => val,
+            None => bail!("The JWT must be two or three parts separated by colon."),
+        };
+
+        let header = base64::decode_config(&input[..index0], base64::URL_SAFE_NO_PAD)?;
+        let header: Map<String, Value> = serde_json::from_slice(&header)?;
+        Ok(header)
+    })()
+    .map_err(|err| match err.downcast::<JoseError>() {
+        Ok(err) => err,
+        Err(err) => JoseError::InvalidJwtFormat(err),
+    }) 
 }

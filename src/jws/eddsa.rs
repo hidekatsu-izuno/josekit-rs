@@ -3,7 +3,6 @@ use once_cell::sync::Lazy;
 use openssl::pkey::{PKey, Private, Public};
 use openssl::sign::{Signer, Verifier};
 use serde_json::Value;
-use std::io::Read;
 
 use crate::der::oid::ObjectIdentifier;
 use crate::der::{DerBuilder, DerReader, DerType};
@@ -277,6 +276,12 @@ impl JwsAlgorithm for EddsaJwsAlgorithm {
         "OKP"
     }
 
+    fn signature_len(&self) -> usize {
+        match self {
+            Self::EDDSA => 86,
+        }
+    }
+
     fn signer_from_jwk(&self, jwk: &Jwk) -> Result<Box<dyn JwsSigner>, JoseError> {
         (|| -> anyhow::Result<Box<dyn JwsSigner>> {
             match jwk.key_type() {
@@ -403,15 +408,11 @@ impl JwsSigner for EddsaJwsSigner {
         self.key_id = None;
     }
 
-    fn sign(&self, message: &mut dyn Read) -> Result<Vec<u8>, JoseError> {
+    fn sign(&self, message: &[u8]) -> Result<Vec<u8>, JoseError> {
         (|| -> anyhow::Result<Vec<u8>> {
             let mut signer = Signer::new_without_digest(&self.private_key)?;
             let mut signature = vec![0; signer.len()?];
-
-            let mut buf = Vec::new();
-            let _ = message.read_to_end(&mut buf);
-
-            signer.sign_oneshot(&mut signature, &buf)?;
+            signer.sign_oneshot(&mut signature, message)?;
             Ok(signature)
         })()
         .map_err(|err| JoseError::InvalidSignature(err))
@@ -444,14 +445,10 @@ impl JwsVerifier for EddsaJwsVerifier {
         self.key_id = None;
     }
 
-    fn verify(&self, message: &mut dyn Read, signature: &[u8]) -> Result<(), JoseError> {
+    fn verify(&self, message: &[u8], signature: &[u8]) -> Result<(), JoseError> {
         (|| -> anyhow::Result<()> {
             let mut verifier = Verifier::new_without_digest(&self.public_key)?;
-
-            let mut buf = Vec::new();
-            let _ = message.read_to_end(&mut buf);
-
-            verifier.verify_oneshot(signature, &buf)?;
+            verifier.verify_oneshot(signature, message)?;
             Ok(())
         })()
         .map_err(|err| JoseError::InvalidSignature(err))
@@ -464,7 +461,7 @@ mod tests {
 
     use anyhow::Result;
     use std::fs::File;
-    use std::io::{Cursor, Read};
+    use std::io::Read;
     use std::path::PathBuf;
 
     #[test]
@@ -477,10 +474,10 @@ mod tests {
         let public_key = load_file("jwk/OKP_Ed25519_private.jwk")?;
 
         let signer = alg.signer_from_jwk(&Jwk::from_slice(&private_key)?)?;
-        let signature = signer.sign(&mut Cursor::new(input))?;
+        let signature = signer.sign(input)?;
 
         let verifier = alg.verifier_from_jwk(&Jwk::from_slice(&public_key)?)?;
-        verifier.verify(&mut Cursor::new(input), &signature)?;
+        verifier.verify(input, &signature)?;
 
         Ok(())
     }
@@ -496,10 +493,10 @@ mod tests {
             let public_key = load_file(&format!("pem/{}_pkcs8_public.pem", crv))?;
 
             let signer = alg.signer_from_pem(&private_key)?;
-            let signature = signer.sign(&mut Cursor::new(input))?;
+            let signature = signer.sign(input)?;
 
             let verifier = alg.verifier_from_pem(&public_key)?;
-            verifier.verify(&mut Cursor::new(input), &signature)?;
+            verifier.verify(input, &signature)?;
         }
 
         Ok(())
@@ -516,10 +513,10 @@ mod tests {
             let public_key = load_file(&format!("der/{}_pkcs8_public.der", crv))?;
 
             let signer = alg.signer_from_der(&private_key)?;
-            let signature = signer.sign(&mut Cursor::new(input))?;
+            let signature = signer.sign(input)?;
 
             let verifier = alg.verifier_from_der(&public_key)?;
-            verifier.verify(&mut Cursor::new(input), &signature)?;
+            verifier.verify(input, &signature)?;
         }
 
         Ok(())
