@@ -2,14 +2,15 @@ use anyhow::bail;
 use once_cell::sync::Lazy;
 use openssl::pkey::{PKey, Private, Public};
 use openssl::sign::{Signer, Verifier};
-use serde_json::{Map, Value};
+use serde_json::Value;
 use std::io::Read;
 
 use crate::der::oid::ObjectIdentifier;
 use crate::der::{DerBuilder, DerReader, DerType};
 use crate::error::JoseError;
 use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier};
-use crate::util::{json_eq, json_get, json_in, parse_pem};
+use crate::jwk::Jwk;
+use crate::util::parse_pem;
 
 static OID_ED25519: Lazy<ObjectIdentifier> =
     Lazy::new(|| ObjectIdentifier::from_slice(&[1, 3, 101, 112]));
@@ -17,52 +18,13 @@ static OID_ED25519: Lazy<ObjectIdentifier> =
 static OID_ED448: Lazy<ObjectIdentifier> =
     Lazy::new(|| ObjectIdentifier::from_slice(&[1, 3, 101, 113]));
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum EddsaJwsAlgorithm {
     /// EdDSA signature algorithms
     EDDSA,
 }
 
 impl EddsaJwsAlgorithm {
-    /// Return a signer from a private key of OKP JWK format.
-    ///
-    /// # Arguments
-    /// * `input` - A private key of OKP JWK format.
-    pub fn signer_from_jwk(&self, input: impl AsRef<[u8]>) -> Result<EddsaJwsSigner, JoseError> {
-        (|| -> anyhow::Result<EddsaJwsSigner> {
-            let map: Map<String, Value> = serde_json::from_slice(input.as_ref())?;
-
-            let kid = json_get(&map, "kid", false)?;
-            json_eq(&map, "kty", "OKP", true)?;
-            json_eq(&map, "use", "sig", false)?;
-            json_in(&map, "key_ops", "sign", false)?;
-            json_eq(&map, "alg", &self.name(), false)?;
-            let crv = match map.get("crv") {
-                Some(Value::String(val)) if val == "Ed25519" => &OID_ED25519,
-                Some(Value::String(val)) if val == "Ed448" => &OID_ED448,
-                Some(val) => bail!("crv value is invalid: {:?}", val),
-                None => bail!("Key crv is missing."),
-            };
-            let d = base64::decode_config(
-                json_get(&map, "d", true)?.unwrap(),
-                base64::URL_SAFE_NO_PAD,
-            )?;
-
-            let mut builder = DerBuilder::new();
-            builder.append_octed_string_from_slice(&d);
-
-            let pkcs8 = self.to_pkcs8(&builder.build(), false, crv);
-            let pkey = PKey::private_key_from_der(&pkcs8)?;
-
-            Ok(EddsaJwsSigner {
-                algorithm: &self,
-                private_key: pkey,
-                key_id: kid.map(|val| val.to_string()),
-            })
-        })()
-        .map_err(|err| JoseError::InvalidKeyFormat(err))
-    }
-
     /// Return a signer from a private key of common or traditinal PEM format.
     ///
     /// Common PEM format is a DER and base64 encoded PKCS#8 PrivateKeyInfo
@@ -110,7 +72,7 @@ impl EddsaJwsAlgorithm {
             };
 
             Ok(EddsaJwsSigner {
-                algorithm: &self,
+                algorithm: self.clone(),
                 private_key: pkey,
                 key_id: None,
             })
@@ -131,48 +93,9 @@ impl EddsaJwsAlgorithm {
             };
 
             Ok(EddsaJwsSigner {
-                algorithm: &self,
+                algorithm: self.clone(),
                 private_key: pkey,
                 key_id: None,
-            })
-        })()
-        .map_err(|err| JoseError::InvalidKeyFormat(err))
-    }
-
-    /// Return a verifier from a key of OKP JWK format.
-    ///
-    /// # Arguments
-    /// * `input` - A key of OKP JWK format.
-    pub fn verifier_from_jwk(
-        &self,
-        input: impl AsRef<[u8]>,
-    ) -> Result<EddsaJwsVerifier, JoseError> {
-        (|| -> anyhow::Result<EddsaJwsVerifier> {
-            let map: Map<String, Value> = serde_json::from_slice(input.as_ref())?;
-
-            let kid = json_get(&map, "kid", false)?;
-            json_eq(&map, "kty", "OKP", true)?;
-            json_eq(&map, "use", "sig", false)?;
-            json_in(&map, "key_ops", "verify", false)?;
-            json_eq(&map, "alg", &self.name(), false)?;
-            let crv = match map.get("crv") {
-                Some(Value::String(val)) if val == "Ed25519" => &OID_ED25519,
-                Some(Value::String(val)) if val == "Ed448" => &OID_ED448,
-                Some(val) => bail!("crv value is invalid: {:?}", val),
-                None => bail!("Key crv is missing."),
-            };
-            let x = base64::decode_config(
-                json_get(&map, "x", true)?.unwrap(),
-                base64::URL_SAFE_NO_PAD,
-            )?;
-
-            let pkcs8 = self.to_pkcs8(&x, true, crv);
-            let pkey = PKey::public_key_from_der(&pkcs8)?;
-
-            Ok(EddsaJwsVerifier {
-                algorithm: &self,
-                public_key: pkey,
-                key_id: kid.map(|val| val.to_string()),
             })
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
@@ -228,7 +151,7 @@ impl EddsaJwsAlgorithm {
             };
 
             Ok(EddsaJwsVerifier {
-                algorithm: &self,
+                algorithm: self.clone(),
                 public_key: pkey,
                 key_id: None,
             })
@@ -252,7 +175,7 @@ impl EddsaJwsAlgorithm {
             };
 
             Ok(EddsaJwsVerifier {
-                algorithm: &self,
+                algorithm: self.clone(),
                 public_key: pkey,
                 key_id: None,
             })
@@ -343,16 +266,125 @@ impl JwsAlgorithm for EddsaJwsAlgorithm {
     fn name(&self) -> &str {
         "EdDSA"
     }
+
+    fn key_type(&self) -> &str {
+        "OKP"
+    }
+
+    fn signer_from_jwk(&self, jwk: &Jwk) -> Result<Box<dyn JwsSigner>, JoseError> {
+        (|| -> anyhow::Result<Box<dyn JwsSigner>> {
+            match jwk.key_type() {
+                val if val == self.key_type() => {}
+                val => bail!("A parameter kty must be {}: {}", self.key_type(), val),
+            }
+            match jwk.key_use() {
+                Some(val) if val == "sig" => {},
+                None => {}
+                Some(val) => bail!("A parameter use must be sig: {}", val),
+            }
+            match jwk.key_operations() {
+                Some(vals) if vals.iter().any(|e| e == "sign") => {}
+                None => {}
+                _ => bail!("A parameter key_ops must contains sign."),
+            }
+            match jwk.algorithm() {
+                Some(val) if val == self.name() => {}
+                None => {}
+                Some(val) => bail!("A parameter alg must be {} but {}", self.name(), val),
+            }
+            let key_id = jwk.key_id();
+
+            let curve = match jwk.parameter("crv") {
+                Some(Value::String(val)) if val == "Ed25519" => &OID_ED25519,
+                Some(Value::String(val)) if val == "Ed448" => &OID_ED448,
+                Some(Value::String(val)) => bail!("A parameter crv must is invalid: {}", val),
+                Some(_) => bail!("A parameter crv must be a string."),
+                None => bail!("A parameter crv is required."),
+            };
+            let d = match jwk.parameter("d") {
+                Some(Value::String(val)) => base64::decode_config(
+                    val,
+                    base64::URL_SAFE_NO_PAD,
+                )?,
+                Some(_) => bail!("A parameter d must be a string."),
+                None => bail!("A parameter d is required."),
+            };
+
+            let mut builder = DerBuilder::new();
+            builder.append_octed_string_from_slice(&d);
+
+            let pkcs8 = self.to_pkcs8(&builder.build(), false, curve);
+            let pkey = PKey::private_key_from_der(&pkcs8)?;
+
+            Ok(Box::new(EddsaJwsSigner {
+                algorithm: self.clone(),
+                private_key: pkey,
+                key_id: key_id.map(|val| val.to_string()),
+            }))
+        })()
+        .map_err(|err| JoseError::InvalidKeyFormat(err))
+    }
+
+    fn verifier_from_jwk(&self, jwk: &Jwk) -> Result<Box<dyn JwsVerifier>, JoseError> {
+        (|| -> anyhow::Result<Box<dyn JwsVerifier>> {
+            match jwk.key_type() {
+                val if val == self.key_type() => {}
+                val => bail!("A parameter kty must be {}: {}", self.key_type(), val),
+            }
+            match jwk.key_use() {
+                Some(val) if val == "sig" => {},
+                None => {}
+                Some(val) => bail!("A parameter use must be sig: {}", val),
+            }
+            match jwk.key_operations() {
+                Some(vals) if vals.iter().any(|e| e == "verify") => {}
+                None => {}
+                _ => bail!("A parameter key_ops must contains verify."),
+            }
+            match jwk.algorithm() {
+                Some(val) if val == self.name() => {}
+                None => {}
+                Some(val) => bail!("A parameter alg must be {} but {}", self.name(), val),
+            }
+            let key_id = jwk.key_id();
+
+            let curve = match jwk.parameter("crv") {
+                Some(Value::String(val)) if val == "Ed25519" => &OID_ED25519,
+                Some(Value::String(val)) if val == "Ed448" => &OID_ED448,
+                Some(Value::String(val)) => bail!("A parameter crv must is invalid: {}", val),
+                Some(_) => bail!("A parameter crv must be a string."),
+                None => bail!("A parameter crv is required."),
+            };
+            let x = match jwk.parameter("x") {
+                Some(Value::String(val)) => base64::decode_config(
+                    val,
+                    base64::URL_SAFE_NO_PAD,
+                )?,
+                Some(_) => bail!("A parameter x must be a string."),
+                None => bail!("A parameter x is required."),
+            };
+
+            let pkcs8 = self.to_pkcs8(&x, true, curve);
+            let pkey = PKey::public_key_from_der(&pkcs8)?;
+
+            Ok(Box::new(EddsaJwsVerifier {
+                algorithm: self.clone(),
+                public_key: pkey,
+                key_id: key_id.map(|val| val.to_string()),
+            }))
+        })()
+        .map_err(|err| JoseError::InvalidKeyFormat(err))
+    }
 }
 
-pub struct EddsaJwsSigner<'a> {
-    algorithm: &'a EddsaJwsAlgorithm,
+pub struct EddsaJwsSigner {
+    algorithm: EddsaJwsAlgorithm,
     private_key: PKey<Private>,
     key_id: Option<String>,
 }
 
-impl<'a> JwsSigner<EddsaJwsAlgorithm> for EddsaJwsSigner<'a> {
-    fn algorithm(&self) -> &EddsaJwsAlgorithm {
+impl JwsSigner for EddsaJwsSigner {
+    fn algorithm(&self) -> &dyn JwsAlgorithm {
         &self.algorithm
     }
 
@@ -386,14 +418,14 @@ impl<'a> JwsSigner<EddsaJwsAlgorithm> for EddsaJwsSigner<'a> {
     }
 }
 
-pub struct EddsaJwsVerifier<'a> {
-    algorithm: &'a EddsaJwsAlgorithm,
+pub struct EddsaJwsVerifier {
+    algorithm: EddsaJwsAlgorithm,
     public_key: PKey<Public>,
     key_id: Option<String>,
 }
 
-impl<'a> JwsVerifier<EddsaJwsAlgorithm> for EddsaJwsVerifier<'a> {
-    fn algorithm(&self) -> &EddsaJwsAlgorithm {
+impl JwsVerifier for EddsaJwsVerifier {
+    fn algorithm(&self) -> &dyn JwsAlgorithm {
         &self.algorithm
     }
 
@@ -444,10 +476,10 @@ mod tests {
         let private_key = load_file("jwk/OKP_Ed25519_private.jwk")?;
         let public_key = load_file("jwk/OKP_Ed25519_private.jwk")?;
 
-        let signer = alg.signer_from_jwk(&private_key)?;
+        let signer = alg.signer_from_jwk(&Jwk::from_slice(&private_key)?)?;
         let signature = signer.sign(&mut Cursor::new(input))?;
 
-        let verifier = alg.verifier_from_jwk(&public_key)?;
+        let verifier = alg.verifier_from_jwk(&Jwk::from_slice(&public_key)?)?;
         verifier.verify(&mut Cursor::new(input), &signature)?;
 
         Ok(())

@@ -7,7 +7,7 @@ use serde_json::{json, Map, Value};
 
 use crate::error::JoseError;
 use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier};
-use crate::jwk::Jwk;
+use crate::jwk::{Jwk, JwkSet};
 
 /// Represents plain JWT object with header and payload.
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -276,19 +276,33 @@ impl Jwt {
     /// # Arguments
     /// * `input` - JWT text.
     /// * `verifier` - A verifier of the siging algorithm.
-    pub fn deserialize_compact_with_verifier<T: JwsAlgorithm>(
+    pub fn deserialize_compact_with_verifier(
         input: &str,
-        verifier: &dyn JwsVerifier<T>,
+        verifier: &dyn JwsVerifier,
     ) -> Result<Self, JoseError> {
-        (|| -> anyhow::Result<Self> {
+        (|| -> anyhow::Result<Jwt> {
             let parts: Vec<&str> = input.split('.').collect();
-            if parts.len() != 3 {
-                bail!("The JWT must be three parts separated by colon.");
+            if parts.len() != 2 && parts.len() != 3 {
+                bail!("The JWT must be two or three parts separated by colon.");
             }
 
             let header_base64 = parts.get(0).unwrap();
             let header_json = base64::decode_config(header_base64, base64::URL_SAFE_NO_PAD)?;
             let mut header: Map<String, Value> = serde_json::from_slice(&header_json)?;
+
+            match header.get("alg") {
+                Some(alg) if alg == "none" => {
+                    if parts.len() != 2 {
+                        bail!("The JWT must not have signature part when alg = \"none\".");
+                    }
+                }
+                Some(_) => {
+                    if parts.len() != 3 {
+                        bail!("The JWT must have signature part when alg != \"none\".");
+                    }
+                }
+                None => bail!("The JWT alg header claim is required."),
+            };
 
             let expected_alg = verifier.algorithm().name();
             match header.get("alg") {
@@ -330,18 +344,38 @@ impl Jwt {
         })
     }
 
+    pub fn deserialize_compact_with_jwk(
+        input: &str,
+        algorithm: &dyn JwsAlgorithm,
+        jwk_set: &JwkSet,
+    ) -> Result<Self, JoseError> {
+        Self::deserialize_compact_with_verifier_selector(input, |header| -> Option<Box<dyn JwsVerifier>> {
+            let key_id = match header.key_id() {
+                Some(val) => val,
+                None => return None,
+            };
+
+            for jwk in jwk_set.get(key_id) {
+                match algorithm.verifier_from_jwk(jwk) {
+                    Ok(val) => return Some(val),
+                    Err(_) => {},
+                }
+            }
+            None
+        })
+    }
+
     /// Return a JWT contents that is decoded the input with a signing algorithm.
     ///
     /// # Arguments
     /// * `input` - JWT text.
     /// * `verifier_selector` - A function for selecting the siging algorithm.
-    pub fn deserialize_compact_with_verifier_selector<'a, T, F>(
+    pub fn deserialize_compact_with_verifier_selector<F>(
         input: &str,
         verifier_selector: F,
     ) -> Result<Self, JoseError>
     where
-        T: JwsAlgorithm + 'a,
-        F: FnOnce(&dyn JwtHeaderClaims) -> Box<&'a dyn JwsVerifier<T>>,
+        F: FnOnce(&dyn JwtHeaderClaims) -> Option<Box<dyn JwsVerifier>>,
     {
         (|| -> anyhow::Result<Jwt> {
             let parts: Vec<&str> = input.split('.').collect();
@@ -367,7 +401,10 @@ impl Jwt {
                 None => bail!("The JWT alg header claim is required."),
             };
 
-            let verifier = verifier_selector(&header);
+            let verifier = match verifier_selector(&header) {
+                Some(val) => val,
+                None => bail!("A verifier is not found."),
+            };
 
             let expected_alg = verifier.algorithm().name();
             match header.get("alg") {
@@ -970,9 +1007,9 @@ impl Jwt {
     /// # Arguments
     ///
     /// * `signer` - A signer of the siging algorithm.
-    pub fn serialize_compact_with_signer<T: JwsAlgorithm>(
+    pub fn serialize_compact_with_signer(
         &self,
-        signer: &impl JwsSigner<T>,
+        signer: &dyn JwsSigner,
     ) -> Result<String, JoseError> {
         let name = signer.algorithm().name();
 

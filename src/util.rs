@@ -1,63 +1,6 @@
 use anyhow::bail;
 use once_cell::sync::Lazy;
 use regex::bytes::{NoExpand, Regex};
-use serde_json::{Map, Value};
-
-pub fn json_eq(
-    map: &Map<String, Value>,
-    key: &str,
-    value: &str,
-    required: bool,
-) -> anyhow::Result<()> {
-    match map.get(key) {
-        Some(Value::String(val)) if val == value => Ok(()),
-        Some(Value::String(val)) => bail!("{} must be {}: {}", key, value, val),
-        Some(val) => bail!("{} must be string: {}", key, val),
-        None if !required => Ok(()),
-        None => bail!("{} is missing.", key),
-    }
-}
-
-pub fn json_in(
-    map: &Map<String, Value>,
-    key: &str,
-    value: &str,
-    required: bool,
-) -> anyhow::Result<()> {
-    match map.get(key) {
-        Some(Value::Array(val)) => {
-            let mut success = false;
-            for item in val {
-                if let Value::String(actual) = item {
-                    if actual == value {
-                        success = true;
-                        break;
-                    }
-                }
-            }
-            if !success && required {
-                bail!("{} must contain {}.", key, value);
-            }
-            Ok(())
-        }
-        Some(val) => bail!("{} must be array: {}", key, val),
-        None if !required => Ok(()),
-        None => bail!("{} is missing.", key),
-    }
-}
-
-pub fn json_get<'a>(
-    map: &'a Map<String, Value>,
-    key: &'a str,
-    required: bool,
-) -> anyhow::Result<Option<&'a str>> {
-    match map.get(key) {
-        Some(Value::String(val)) => Ok(Some(val)),
-        Some(val) => bail!("{} must be string: {}", key, val),
-        None if !required => Ok(None),
-        None => bail!("{} is missing.", key),
-    }
-}
 
 pub fn parse_pem(input: &[u8]) -> anyhow::Result<(String, Vec<u8>)> {
     static RE_PEM: Lazy<Regex> = Lazy::new(|| {

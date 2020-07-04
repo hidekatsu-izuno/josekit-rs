@@ -10,7 +10,7 @@ use crate::error::JoseError;
 use crate::jwk::Jwk;
 use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier};
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum HmacJwsAlgorithm {
     /// HMAC using SHA-256
     HS256,
@@ -23,21 +23,68 @@ pub enum HmacJwsAlgorithm {
 }
 
 impl HmacJwsAlgorithm {
-    /// Return a signer from a private key of oct JWK format.
+    /// Return a signer from a secret key.
     ///
     /// # Arguments
-    /// * `jwk` - A private key of oct JWK format.
-    pub fn signer_from_jwk(&self, jwk: &Jwk) -> Result<HmacJwsSigner, JoseError> {
+    /// * `data` - A secret key.
+    pub fn signer_from_slice(&self, input: impl AsRef<[u8]>) -> Result<HmacJwsSigner, JoseError> {
         (|| -> anyhow::Result<HmacJwsSigner> {
+            let pkey = PKey::hmac(input.as_ref())?;
+
+            Ok(HmacJwsSigner {
+                algorithm: self.clone(),
+                private_key: pkey,
+                key_id: None,
+            })
+        })()
+        .map_err(|err| JoseError::InvalidKeyFormat(err))
+    }
+
+    /// Return a verifier from a secret key.
+    ///
+    /// # Arguments
+    /// * `input` - A secret key.
+    pub fn verifier_from_slice(
+        &self,
+        input: impl AsRef<[u8]>,
+    ) -> Result<HmacJwsVerifier, JoseError> {
+        (|| -> anyhow::Result<HmacJwsVerifier> {
+            let pkey = PKey::hmac(input.as_ref())?;
+
+            Ok(HmacJwsVerifier {
+                algorithm: self.clone(),
+                private_key: pkey,
+                key_id: None,
+            })
+        })()
+        .map_err(|err| JoseError::InvalidKeyFormat(err))
+    }
+}
+
+impl JwsAlgorithm for HmacJwsAlgorithm {
+    fn name(&self) -> &str {
+        match self {
+            HmacJwsAlgorithm::HS256 => "HS256",
+            HmacJwsAlgorithm::HS384 => "HS384",
+            HmacJwsAlgorithm::HS512 => "HS512",
+        }
+    }
+    
+    fn key_type(&self) -> &str {
+        "oct"
+    }
+
+    fn signer_from_jwk(&self, jwk: &Jwk) -> Result<Box<dyn JwsSigner>, JoseError> {
+        (|| -> anyhow::Result<Box<dyn JwsSigner>> {
             match jwk.key_type() {
-                val if val == "oct" => {}
-                val => bail!("A parameter kty must be oct: {}", val),
-            };
+                val if val == self.key_type() => {}
+                val => bail!("A parameter kty must be {}: {}", self.key_type(), val),
+            }
             match jwk.key_use() {
                 Some(val) if val == "sig" => {},
                 None => {}
                 Some(val) => bail!("A parameter use must be sig: {}", val),
-            };
+            }
             match jwk.key_operations() {
                 Some(vals) if vals.iter().any(|e| e == "sign") => {}
                 None => {}
@@ -57,47 +104,26 @@ impl HmacJwsAlgorithm {
 
             let private_key = PKey::hmac(&k)?;
 
-            Ok(HmacJwsSigner {
-                algorithm: &self,
+            Ok(Box::new(HmacJwsSigner {
+                algorithm: self.clone(),
                 private_key,
                 key_id: key_id.map(|val| val.to_string()),
-            })
+            }))
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
-    /// Return a signer from a secret key.
-    ///
-    /// # Arguments
-    /// * `data` - A secret key.
-    pub fn signer_from_slice(&self, input: impl AsRef<[u8]>) -> Result<HmacJwsSigner, JoseError> {
-        (|| -> anyhow::Result<HmacJwsSigner> {
-            let pkey = PKey::hmac(input.as_ref())?;
-
-            Ok(HmacJwsSigner {
-                algorithm: &self,
-                private_key: pkey,
-                key_id: None,
-            })
-        })()
-        .map_err(|err| JoseError::InvalidKeyFormat(err))
-    }
-
-    /// Return a verifier from a private key of oct JWK format.
-    ///
-    /// # Arguments
-    /// * `jwk` - A secret key of oct JWK format.
-    pub fn verifier_from_jwk(&self, jwk: &Jwk) -> Result<HmacJwsVerifier, JoseError> {
-        (|| -> anyhow::Result<HmacJwsVerifier> {
+    fn verifier_from_jwk(&self, jwk: &Jwk) -> Result<Box<dyn JwsVerifier>, JoseError> {
+        (|| -> anyhow::Result<Box<dyn JwsVerifier>> {
             match jwk.key_type() {
-                val if val == "oct" => {}
-                val => bail!("A parameter kty must be oct: {}", val),
-            };
+                val if val == self.key_type() => {}
+                val => bail!("A parameter kty must be {}: {}", self.key_type(), val),
+            }
             match jwk.key_use() {
                 Some(val) if val == "sig" => {},
                 None => {}
                 Some(val) => bail!("A parameter use must be sig: {}", val),
-            };
+            }
             match jwk.key_operations() {
                 Some(vals) if vals.iter().any(|e| e == "verify") => {}
                 None => {}
@@ -117,54 +143,24 @@ impl HmacJwsAlgorithm {
 
             let private_key = PKey::hmac(&k)?;
 
-            Ok(HmacJwsVerifier {
-                algorithm: &self,
+            Ok(Box::new(HmacJwsVerifier {
+                algorithm: self.clone(),
                 private_key,
                 key_id: key_id.map(|val| val.to_string()),
-            })
-        })()
-        .map_err(|err| JoseError::InvalidKeyFormat(err))
-    }
-
-    /// Return a verifier from a secret key.
-    ///
-    /// # Arguments
-    /// * `input` - A secret key.
-    pub fn verifier_from_slice(
-        &self,
-        input: impl AsRef<[u8]>,
-    ) -> Result<HmacJwsVerifier, JoseError> {
-        (|| -> anyhow::Result<HmacJwsVerifier> {
-            let pkey = PKey::hmac(input.as_ref())?;
-
-            Ok(HmacJwsVerifier {
-                algorithm: &self,
-                private_key: pkey,
-                key_id: None,
-            })
+            }))
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 }
 
-impl JwsAlgorithm for HmacJwsAlgorithm {
-    fn name(&self) -> &str {
-        match self {
-            Self::HS256 => "HS256",
-            Self::HS384 => "HS384",
-            Self::HS512 => "HS512",
-        }
-    }
-}
-
-pub struct HmacJwsSigner<'a> {
-    algorithm: &'a HmacJwsAlgorithm,
+pub struct HmacJwsSigner {
+    algorithm: HmacJwsAlgorithm,
     private_key: PKey<Private>,
     key_id: Option<String>,
 }
 
-impl<'a> JwsSigner<HmacJwsAlgorithm> for HmacJwsSigner<'a> {
-    fn algorithm(&self) -> &HmacJwsAlgorithm {
+impl JwsSigner for HmacJwsSigner {
+    fn algorithm(&self) -> &dyn JwsAlgorithm {
         &self.algorithm
     }
 
@@ -208,14 +204,14 @@ impl<'a> JwsSigner<HmacJwsAlgorithm> for HmacJwsSigner<'a> {
     }
 }
 
-pub struct HmacJwsVerifier<'a> {
-    algorithm: &'a HmacJwsAlgorithm,
+pub struct HmacJwsVerifier {
+    algorithm: HmacJwsAlgorithm,
     private_key: PKey<Private>,
     key_id: Option<String>,
 }
 
-impl<'a> JwsVerifier<HmacJwsAlgorithm> for HmacJwsVerifier<'a> {
-    fn algorithm(&self) -> &HmacJwsAlgorithm {
+impl JwsVerifier for HmacJwsVerifier {
+    fn algorithm(&self) -> &dyn JwsAlgorithm {
         &self.algorithm
     }
 

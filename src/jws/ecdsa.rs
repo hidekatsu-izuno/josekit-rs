@@ -3,14 +3,15 @@ use once_cell::sync::Lazy;
 use openssl::hash::MessageDigest;
 use openssl::pkey::{PKey, Private, Public};
 use openssl::sign::{Signer, Verifier};
-use serde_json::{Map, Value};
+use serde_json::{Value};
 use std::io::Read;
 
 use crate::der::oid::ObjectIdentifier;
 use crate::der::{DerBuilder, DerClass, DerReader, DerType};
 use crate::error::JoseError;
 use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier};
-use crate::util::{json_eq, json_get, json_in, parse_pem};
+use crate::jwk::Jwk;
+use crate::util::parse_pem;
 
 static OID_ID_EC_PUBLIC_KEY: Lazy<ObjectIdentifier> =
     Lazy::new(|| ObjectIdentifier::from_slice(&[1, 2, 840, 10045, 2, 1]));
@@ -27,7 +28,7 @@ static OID_SECP521R1: Lazy<ObjectIdentifier> =
 static OID_SECP256K1: Lazy<ObjectIdentifier> =
     Lazy::new(|| ObjectIdentifier::from_slice(&[1, 3, 132, 0, 10]));
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum EcdsaJwsAlgorithm {
     /// ECDSA using P-256 and SHA-256
     ES256,
@@ -40,67 +41,6 @@ pub enum EcdsaJwsAlgorithm {
 }
 
 impl EcdsaJwsAlgorithm {
-    /// Return a signer from a private key of EC JWK format.
-    ///
-    /// # Arguments
-    /// * `input` - A private key of EC JWK format.
-    pub fn signer_from_jwk(&self, input: impl AsRef<[u8]>) -> Result<EcdsaJwsSigner, JoseError> {
-        (|| -> anyhow::Result<EcdsaJwsSigner> {
-            let map: Map<String, Value> = serde_json::from_slice(input.as_ref())?;
-
-            let kid = json_get(&map, "kid", false)?;
-            json_eq(&map, "kty", "EC", true)?;
-            json_eq(&map, "use", "sig", false)?;
-            json_in(&map, "key_ops", "sign", false)?;
-            json_eq(&map, "alg", self.name(), false)?;
-            json_eq(&map, "crv", self.curve_name(), true)?;
-            let d = base64::decode_config(
-                json_get(&map, "d", true)?.unwrap(),
-                base64::URL_SAFE_NO_PAD,
-            )?;
-            let x = base64::decode_config(
-                json_get(&map, "x", true)?.unwrap(),
-                base64::URL_SAFE_NO_PAD,
-            )?;
-            let y = base64::decode_config(
-                json_get(&map, "y", true)?.unwrap(),
-                base64::URL_SAFE_NO_PAD,
-            )?;
-
-            let mut builder = DerBuilder::new();
-            builder.begin(DerType::Sequence);
-            {
-                builder.append_integer_from_u8(1);
-                builder.append_octed_string_from_slice(&d);
-                builder.begin(DerType::Other(DerClass::ContextSpecific, 0));
-                {
-                    builder.append_object_identifier(self.curve_oid());
-                }
-                builder.end();
-                builder.begin(DerType::Other(DerClass::ContextSpecific, 1));
-                {
-                    let mut vec = Vec::with_capacity(x.len() + y.len());
-                    vec.push(0x04);
-                    vec.extend_from_slice(&x);
-                    vec.extend_from_slice(&y);
-                    builder.append_bit_string_from_slice(&vec, 0);
-                }
-                builder.end();
-            }
-            builder.end();
-
-            let pkcs8 = self.to_pkcs8(&builder.build(), false);
-            let pkey = PKey::private_key_from_der(&pkcs8)?;
-
-            Ok(EcdsaJwsSigner {
-                algorithm: &self,
-                private_key: pkey,
-                key_id: kid.map(|val| val.to_string()),
-            })
-        })()
-        .map_err(|err| JoseError::InvalidKeyFormat(err))
-    }
-
     /// Return a signer from a private key of common or traditinal PEM format.
     ///
     /// Common PEM format is a DER and base64 encoded PKCS#8 PrivateKeyInfo
@@ -132,7 +72,7 @@ impl EcdsaJwsAlgorithm {
             let pkey = PKey::private_key_from_der(pkcs8_ref)?;
 
             Ok(EcdsaJwsSigner {
-                algorithm: &self,
+                algorithm: self.clone(),
                 private_key: pkey,
                 key_id: None,
             })
@@ -157,52 +97,9 @@ impl EcdsaJwsAlgorithm {
             let pkey = PKey::private_key_from_der(pkcs8_ref)?;
 
             Ok(EcdsaJwsSigner {
-                algorithm: &self,
+                algorithm: self.clone(),
                 private_key: pkey,
                 key_id: None,
-            })
-        })()
-        .map_err(|err| JoseError::InvalidKeyFormat(err))
-    }
-
-    /// Return a verifier from a key of EC JWK format.
-    ///
-    /// # Arguments
-    /// * `input` - A key of EC JWK format.
-    pub fn verifier_from_jwk(
-        &self,
-        input: impl AsRef<[u8]>,
-    ) -> Result<EcdsaJwsVerifier, JoseError> {
-        (|| -> anyhow::Result<EcdsaJwsVerifier> {
-            let map: Map<String, Value> = serde_json::from_slice(input.as_ref())?;
-
-            let kid = json_get(&map, "kid", false)?;
-            json_eq(&map, "kty", "EC", true)?;
-            json_eq(&map, "use", "sig", false)?;
-            json_in(&map, "key_ops", "verify", false)?;
-            json_eq(&map, "alg", self.name(), false)?;
-            json_eq(&map, "crv", self.curve_name(), true)?;
-            let x = base64::decode_config(
-                json_get(&map, "x", true)?.unwrap(),
-                base64::URL_SAFE_NO_PAD,
-            )?;
-            let y = base64::decode_config(
-                json_get(&map, "y", true)?.unwrap(),
-                base64::URL_SAFE_NO_PAD,
-            )?;
-
-            let mut vec = Vec::with_capacity(x.len() + y.len());
-            vec.push(0x04);
-            vec.extend_from_slice(&x);
-            vec.extend_from_slice(&y);
-
-            let pkcs8 = self.to_pkcs8(&vec, true);
-            let pkey = PKey::public_key_from_der(&pkcs8)?;
-
-            Ok(EcdsaJwsVerifier {
-                algorithm: &self,
-                public_key: pkey,
-                key_id: kid.map(|val| val.to_string()),
             })
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
@@ -243,7 +140,7 @@ impl EcdsaJwsAlgorithm {
             let pkey = PKey::public_key_from_der(pkcs8_ref)?;
 
             Ok(EcdsaJwsVerifier {
-                algorithm: &self,
+                algorithm: self.clone(),
                 public_key: pkey,
                 key_id: None,
             })
@@ -271,7 +168,7 @@ impl EcdsaJwsAlgorithm {
             let pkey = PKey::public_key_from_der(pkcs8_ref)?;
 
             Ok(EcdsaJwsVerifier {
-                algorithm: &self,
+                algorithm: self.clone(),
                 public_key: pkey,
                 key_id: None,
             })
@@ -392,16 +289,171 @@ impl JwsAlgorithm for EcdsaJwsAlgorithm {
             Self::ES256K => "ES256K",
         }
     }
+
+    fn key_type(&self) -> &str {
+        "EC"
+    }
+
+    fn signer_from_jwk(&self, jwk: &Jwk) -> Result<Box<dyn JwsSigner>, JoseError> {
+        (|| -> anyhow::Result<Box<dyn JwsSigner>> {
+            match jwk.key_type() {
+                val if val == self.key_type() => {}
+                val => bail!("A parameter kty must be {}: {}", self.key_type(), val),
+            }
+            match jwk.key_use() {
+                Some(val) if val == "sig" => {},
+                None => {}
+                Some(val) => bail!("A parameter use must be sig: {}", val),
+            }
+            match jwk.key_operations() {
+                Some(vals) if vals.iter().any(|e| e == "sign") => {}
+                None => {}
+                _ => bail!("A parameter key_ops must contains sign."),
+            }
+            match jwk.algorithm() {
+                Some(val) if val == self.name() => {}
+                None => {}
+                Some(val) => bail!("A parameter alg must be {} but {}", self.name(), val),
+            }
+            let key_id = jwk.key_id();
+
+            match jwk.parameter("crv") {
+                Some(Value::String(val)) if val == self.curve_name() => {}
+                Some(Value::String(val)) => bail!("A parameter crv must be {} but {}", self.curve_name(), val),
+                Some(_) => bail!("A parameter crv must be a string."),
+                None => bail!("A parameter crv is required."),
+            }
+            let d = match jwk.parameter("d") {
+                Some(Value::String(val)) => base64::decode_config(
+                    val,
+                    base64::URL_SAFE_NO_PAD,
+                )?,
+                Some(_) => bail!("A parameter d must be a string."),
+                None => bail!("A parameter d is required."),
+            };
+            let x = match jwk.parameter("x") {
+                Some(Value::String(val)) => base64::decode_config(
+                    val,
+                    base64::URL_SAFE_NO_PAD,
+                )?,
+                Some(_) => bail!("A parameter x must be a string."),
+                None => bail!("A parameter x is required."),
+            };
+            let y = match jwk.parameter("y") {
+                Some(Value::String(val)) => base64::decode_config(
+                    val,
+                    base64::URL_SAFE_NO_PAD,
+                )?,
+                Some(_) => bail!("A parameter y must be a string."),
+                None => bail!("A parameter y is required."),
+            };
+
+            let mut builder = DerBuilder::new();
+            builder.begin(DerType::Sequence);
+            {
+                builder.append_integer_from_u8(1);
+                builder.append_octed_string_from_slice(&d);
+                builder.begin(DerType::Other(DerClass::ContextSpecific, 0));
+                {
+                    builder.append_object_identifier(self.curve_oid());
+                }
+                builder.end();
+                builder.begin(DerType::Other(DerClass::ContextSpecific, 1));
+                {
+                    let mut vec = Vec::with_capacity(x.len() + y.len());
+                    vec.push(0x04);
+                    vec.extend_from_slice(&x);
+                    vec.extend_from_slice(&y);
+                    builder.append_bit_string_from_slice(&vec, 0);
+                }
+                builder.end();
+            }
+            builder.end();
+
+            let pkcs8 = self.to_pkcs8(&builder.build(), false);
+            let pkey = PKey::private_key_from_der(&pkcs8)?;
+
+            Ok(Box::new(EcdsaJwsSigner {
+                algorithm: self.clone(),
+                private_key: pkey,
+                key_id: key_id.map(|val| val.to_string()),
+            }))
+        })()
+        .map_err(|err| JoseError::InvalidKeyFormat(err))
+    }
+
+    fn verifier_from_jwk(&self, jwk: &Jwk) -> Result<Box<dyn JwsVerifier>, JoseError> {
+        (|| -> anyhow::Result<Box<dyn JwsVerifier>> {
+            match jwk.key_type() {
+                val if val == self.key_type() => {}
+                val => bail!("A parameter kty must be {}: {}", self.key_type(), val),
+            }
+            match jwk.key_use() {
+                Some(val) if val == "sig" => {},
+                None => {}
+                Some(val) => bail!("A parameter use must be sig: {}", val),
+            }
+            match jwk.key_operations() {
+                Some(vals) if vals.iter().any(|e| e == "verify") => {}
+                None => {}
+                _ => bail!("A parameter key_ops must contains vefify."),
+            }
+            match jwk.algorithm() {
+                Some(val) if val == self.name() => {}
+                None => {}
+                Some(val) => bail!("A parameter alg must be {} but {}", self.name(), val),
+            }
+            let key_id = jwk.key_id();
+
+            match jwk.parameter("crv") {
+                Some(Value::String(val)) if val == self.curve_name() => {}
+                Some(Value::String(val)) => bail!("A parameter crv must be {} but {}", self.curve_name(), val),
+                Some(_) => bail!("A parameter crv must be a string."),
+                None => bail!("A parameter crv is required."),
+            }
+            let x = match jwk.parameter("x") {
+                Some(Value::String(val)) => base64::decode_config(
+                    val,
+                    base64::URL_SAFE_NO_PAD,
+                )?,
+                Some(_) => bail!("A parameter x must be a string."),
+                None => bail!("A parameter x is required."),
+            };
+            let y = match jwk.parameter("y") {
+                Some(Value::String(val)) => base64::decode_config(
+                    val,
+                    base64::URL_SAFE_NO_PAD,
+                )?,
+                Some(_) => bail!("A parameter y must be a string."),
+                None => bail!("A parameter y is required."),
+            };
+
+            let mut vec = Vec::with_capacity(x.len() + y.len());
+            vec.push(0x04);
+            vec.extend_from_slice(&x);
+            vec.extend_from_slice(&y);
+
+            let pkcs8 = self.to_pkcs8(&vec, true);
+            let pkey = PKey::public_key_from_der(&pkcs8)?;
+
+            Ok(Box::new(EcdsaJwsVerifier {
+                algorithm: self.clone(),
+                public_key: pkey,
+                key_id: key_id.map(|val| val.to_string()),
+            }))
+        })()
+        .map_err(|err| JoseError::InvalidKeyFormat(err))
+    }
 }
 
-pub struct EcdsaJwsSigner<'a> {
-    algorithm: &'a EcdsaJwsAlgorithm,
+pub struct EcdsaJwsSigner {
+    algorithm: EcdsaJwsAlgorithm,
     private_key: PKey<Private>,
     key_id: Option<String>,
 }
 
-impl<'a> JwsSigner<EcdsaJwsAlgorithm> for EcdsaJwsSigner<'a> {
-    fn algorithm(&self) -> &EcdsaJwsAlgorithm {
+impl JwsSigner for EcdsaJwsSigner {
+    fn algorithm(&self) -> &dyn JwsAlgorithm {
         &self.algorithm
     }
 
@@ -446,14 +498,14 @@ impl<'a> JwsSigner<EcdsaJwsAlgorithm> for EcdsaJwsSigner<'a> {
     }
 }
 
-pub struct EcdsaJwsVerifier<'a> {
-    algorithm: &'a EcdsaJwsAlgorithm,
+pub struct EcdsaJwsVerifier {
+    algorithm: EcdsaJwsAlgorithm,
     public_key: PKey<Public>,
     key_id: Option<String>,
 }
 
-impl<'a> JwsVerifier<EcdsaJwsAlgorithm> for EcdsaJwsVerifier<'a> {
-    fn algorithm(&self) -> &EcdsaJwsAlgorithm {
+impl JwsVerifier for EcdsaJwsVerifier {
+    fn algorithm(&self) -> &dyn JwsAlgorithm {
         &self.algorithm
     }
 
@@ -530,10 +582,10 @@ mod tests {
                 EcdsaJwsAlgorithm::ES256K => "jwk/EC_secp256k1_public.jwk",
             })?;
 
-            let signer = alg.signer_from_jwk(&private_key)?;
+            let signer = alg.signer_from_jwk(&Jwk::from_slice(&private_key)?)?;
             let signature = signer.sign(&mut Cursor::new(input))?;
 
-            let verifier = alg.verifier_from_jwk(&public_key)?;
+            let verifier = alg.verifier_from_jwk(&Jwk::from_slice(&public_key)?)?;
             verifier.verify(&mut Cursor::new(input), &signature)?;
         }
 
