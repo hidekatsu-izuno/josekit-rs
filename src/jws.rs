@@ -127,7 +127,7 @@ pub trait JwsVerifier {
                 .map(|(i, _)| i)
                 .collect();
             if indexies.len() != 2 {
-                bail!("The JWT must be two or three parts separated by colon.");
+                bail!("The signed JWT must be three parts separated by colon.");
             }
 
             let expected_alg = self.algorithm().name();
@@ -163,21 +163,4 @@ pub trait JwsVerifier {
             Err(err) => JoseError::InvalidJwtFormat(err),
         })
     }
-}
-
-pub fn extract_compact_header(input: &str) -> Result<Map<String, Value>, JoseError> {
-    (|| -> anyhow::Result<Map<String, Value>> {
-        let index0 = match input.find('.') {
-            Some(val) => val,
-            None => bail!("The JWT must be two or three parts separated by colon."),
-        };
-
-        let header = base64::decode_config(&input[..index0], base64::URL_SAFE_NO_PAD)?;
-        let header: Map<String, Value> = serde_json::from_slice(&header)?;
-        Ok(header)
-    })()
-    .map_err(|err| match err.downcast::<JoseError>() {
-        Ok(err) => err,
-        Err(err) => JoseError::InvalidJwtFormat(err),
-    }) 
 }

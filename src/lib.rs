@@ -5,6 +5,7 @@ pub mod der;
 pub mod error;
 pub mod jwk;
 pub mod jws;
+pub mod jwe;
 pub mod jwt;
 
 mod util;

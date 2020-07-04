@@ -6,7 +6,7 @@ use serde_json::{json, Map, Value};
 
 use crate::error::JoseError;
 use crate::jwk::{Jwk, JwkSet};
-use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier, extract_compact_header};
+use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier};
 
 /// Represents plain JWT object with header and payload.
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -244,7 +244,7 @@ impl Jwt {
         (|| -> anyhow::Result<Self> {
             let parts: Vec<&str> = input.split('.').collect();
             if parts.len() != 2 {
-                bail!("The JWT must be two parts separated by colon.");
+                bail!("The unsecured JWT must be two parts separated by colon.");
             }
 
             let header_base64 = parts.get(0).unwrap();
@@ -288,13 +288,19 @@ impl Jwt {
     ) -> Result<Self, JoseError> {
         (|| -> anyhow::Result<Jwt> {
             let verifier = verifier.as_ref();
-            let header = extract_compact_header(input)?;
+
+            let parts: Vec<&str> = input.split('.').collect();
+            if parts.len() != 3 {
+                bail!("The signed JWT must be three parts separated by colon.");
+            }
+    
+            let header = base64::decode_config(&parts[0], base64::URL_SAFE_NO_PAD)?;
+            let mut header: Map<String, Value> = serde_json::from_slice(&header)?;
+
             let payload = verifier.deserialize_compact(&header, input)?;
-
-            let mut header = header;
-            header.remove("alg");
-
             let payload: Map<String, Value> = serde_json::from_slice(&payload)?;
+
+            header.remove("alg");
 
             let jwt = Self::from_map(header, payload)?;
             Ok(jwt)
@@ -346,7 +352,14 @@ impl Jwt {
         F: FnOnce(&dyn JwtHeaderClaims) -> Option<Box<dyn JwsVerifier>>,
     {
         (|| -> anyhow::Result<Jwt> {
-            let header = extract_compact_header(input)?;
+            let parts: Vec<&str> = input.split('.').collect();
+            if parts.len() != 3 {
+                bail!("The signed JWT must be three parts separated by colon.");
+            }
+
+            let header = base64::decode_config(&parts[0], base64::URL_SAFE_NO_PAD)?;
+            let mut header: Map<String, Value> = serde_json::from_slice(&header)?;
+
             let verifier = match verifier_selector(&header) {
                 Some(val) => val,
                 None => bail!("A verifier is not found."),
@@ -355,7 +368,6 @@ impl Jwt {
             let payload = verifier.deserialize_compact(&header, input)?;
             let payload: Map<String, Value> = serde_json::from_slice(&payload)?;
             
-            let mut header = header;
             header.remove("alg");
 
             let jwt = Self::from_map(header, payload)?;
@@ -961,13 +973,13 @@ impl Jwt {
         let mut header = self.header.clone();
         header.insert("alg".to_string(), json!("none"));
 
-        let header_json = serde_json::to_string(&header).unwrap();
-        let header_base64 = base64::encode_config(header_json, base64::URL_SAFE_NO_PAD);
+        let header = serde_json::to_string(&header).unwrap();
+        let header = base64::encode_config(header, base64::URL_SAFE_NO_PAD);
 
-        let payload_json = serde_json::to_string(&self.payload).unwrap();
-        let payload_base64 = base64::encode_config(payload_json, base64::URL_SAFE_NO_PAD);
+        let payload = serde_json::to_string(&self.payload).unwrap();
+        let payload = base64::encode_config(payload, base64::URL_SAFE_NO_PAD);
 
-        Ok(format!("{}.{}", header_base64, payload_base64))
+        Ok(format!("{}.{}", header, payload))
     }
 
     /// Return the string repsentation of the JWT with the siginig algorithm.
