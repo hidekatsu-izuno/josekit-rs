@@ -1,17 +1,21 @@
 [package]
 name = "jwt_rs"
 version = "0.1.0"
-description = "JOSE (Javascript Object Signing and Encryption) library for rust (based on OpenSSL)."
+description = "JOSE (Javascript Object Signing and Encryption) library for Rust."
 homepage = "https://github.com/hidekatsu-izuno/jwt-rs"
 repository = "https://github.com/hidekatsu-izuno/jwt-rs"
 readme = "README.md"
 license = "MIT OR Apache-2.0"
 authors = ["Hidekatsu Izuno <hidekatsu.izuno@gmail.com>"]
-keywords = ["jwt", "web"]
+keywords = ["joes", "jwt", "jws", "web"]
 categories = ["authentication"]
 edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[features]
+default = ["openssl_1"]
+openssl_1 = ["openssl-sys", "openssl"]
 
 [dependencies]
 thiserror = "1"
@@ -22,5 +26,5 @@ serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 base64 = "0.12"
 chrono = "0.4"
-openssl-sys = "0.9"
-openssl = "0.10"
+openssl = { version = "0.10", optional = true }
+openssl-sys = { version = "0.9", optional = true }

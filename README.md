@@ -1,21 +1,21 @@
-# JWT-RS
+# IZN_JOSE
 
-JWT (JSON Web Token) library for rust (based on OpenSSL).
+JOSE (Javascript Object Signing and Encryption: JWT, JWS, JWE, JWA, JWK) library for Rust.
 
 ## Install
 
 ```toml
 [dependencies]
-jwt_rs = { git = "https://github.com/hidekatsu-izuno/jwt-rs" }
+izn_jose = { git = "https://github.com/hidekatsu-izuno/izn_jose" }
 ```
 
-This library depends on OpenSSL DLL. Read more about it [Crate openssl](https://docs.rs/openssl/0.10.29/openssl/). 
+This library depends on OpenSSL DLL. Read more about it [Crate openssl](https://docs.rs/openssl/). 
 
 ## Build
 
 ```sh
 sudo apt install build-essential pkg-config libssl-dev
-cd jwt-rs
+cd izn_jose
 cargo build --release
 ```
 
@@ -269,7 +269,7 @@ let decoded_jwt = Jwt::decode_with_verifier(&encoded_jwt, &verifier)?;
 
 ### Encrypted JWT
 
-Not supported at this time.
+Not supported yet.
 
 ### Unsecured JWT
 
@@ -282,6 +282,13 @@ jwt.set_subject("...");
 let encoded_jwt = jwt.encode_with_none()?;
 let decoded_jwt = Jwt::decode_with_none(&encoded_jwt)?;
 ```
+
+## ToDo
+
+- Generate keys
+- Support ring
+- Support JWS JSON Serialization
+- Support JWE
 
 ## License
 

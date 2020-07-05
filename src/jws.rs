@@ -3,12 +3,13 @@ pub mod eddsa;
 pub mod hmac;
 pub mod rsa;
 pub mod rsapss;
+pub mod multi_signer;
 
 use anyhow::bail;
 use serde_json::{Map, Value};
 
-use crate::error::JoseError;
 use crate::jwk::Jwk;
+use crate::error::JoseError;
 
 pub use crate::jws::ecdsa::EcdsaJwsAlgorithm::ES256;
 pub use crate::jws::ecdsa::EcdsaJwsAlgorithm::ES256K;

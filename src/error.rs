@@ -11,6 +11,9 @@ pub enum JoseError {
     #[error("Invalid JWK format: {0}")]
     InvalidJwkFormat(#[source] anyhow::Error),
 
+    #[error("Invalid JWS format: {0}")]
+    InvalidJwsFormat(#[source] anyhow::Error),
+
     #[error("Invalid key format: {0}")]
     InvalidKeyFormat(#[source] anyhow::Error),
 
