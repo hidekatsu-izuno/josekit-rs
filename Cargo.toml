@@ -16,6 +16,7 @@ edition = "2018"
 [features]
 default = ["openssl_1"]
 openssl_1 = ["openssl-sys", "openssl"]
+ring_0 = ["ring"]
 
 [dependencies]
 thiserror = "1"
@@ -28,3 +29,4 @@ base64 = "0.12"
 chrono = "0.4"
 openssl = { version = "0.10", optional = true }
 openssl-sys = { version = "0.9", optional = true }
+ring = { version = "0.16.15", optional = true }

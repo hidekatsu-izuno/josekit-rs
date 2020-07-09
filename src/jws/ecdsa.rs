@@ -344,36 +344,12 @@ impl JwsAlgorithm for EcdsaJwsAlgorithm {
                 Some(_) => bail!("A parameter d must be a string."),
                 None => bail!("A parameter d is required."),
             };
-            let x = match jwk.parameter("x") {
-                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
-                Some(_) => bail!("A parameter x must be a string."),
-                None => bail!("A parameter x is required."),
-            };
-            let y = match jwk.parameter("y") {
-                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
-                Some(_) => bail!("A parameter y must be a string."),
-                None => bail!("A parameter y is required."),
-            };
 
             let mut builder = DerBuilder::new();
             builder.begin(DerType::Sequence);
             {
                 builder.append_integer_from_u8(1);
                 builder.append_octed_string_from_slice(&d);
-                builder.begin(DerType::Other(DerClass::ContextSpecific, 0));
-                {
-                    builder.append_object_identifier(self.curve_oid());
-                }
-                builder.end();
-                builder.begin(DerType::Other(DerClass::ContextSpecific, 1));
-                {
-                    let mut vec = Vec::with_capacity(x.len() + y.len());
-                    vec.push(0x04);
-                    vec.extend_from_slice(&x);
-                    vec.extend_from_slice(&y);
-                    builder.append_bit_string_from_slice(&vec, 0);
-                }
-                builder.end();
             }
             builder.end();
 
@@ -431,7 +407,7 @@ impl JwsAlgorithm for EcdsaJwsAlgorithm {
                 None => bail!("A parameter y is required."),
             };
 
-            let mut vec = Vec::with_capacity(x.len() + y.len());
+            let mut vec = Vec::with_capacity(1 + x.len() + y.len());
             vec.push(0x04);
             vec.extend_from_slice(&x);
             vec.extend_from_slice(&y);

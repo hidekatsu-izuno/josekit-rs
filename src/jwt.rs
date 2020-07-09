@@ -6,7 +6,7 @@ use serde_json::{json, Map, Value};
 
 use crate::error::JoseError;
 use crate::jwk::{Jwk, JwkSet};
-use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier};
+use crate::jws::{JwsHeader, JwsAlgorithm, JwsSigner, JwsVerifier};
 
 /// Represents plain JWT object with header and payload.
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -25,27 +25,7 @@ pub struct Jwt {
     payload: Map<String, Value>,
 }
 
-pub trait JwtHeaderClaims {
-    /// Return the value for algorithm header claim (alg).
-    fn algorithm(&self) -> Option<&str>;
-
-    /// Return the value for token type header claim (typ).
-    fn token_type(&self) -> Option<&str>;
-
-    /// Return the value for content type header claim (cty).
-    fn content_type(&self) -> Option<&str>;
-
-    /// Return the value for key ID header claim (kid).
-    fn key_id(&self) -> Option<&str>;
-
-    /// Return the value of header claim of the specified key.
-    ///
-    /// # Arguments
-    /// * `key` - a key name of header claim
-    fn header_claim(&self, key: &str) -> Option<&Value>;
-}
-
-impl JwtHeaderClaims for Map<String, Value> {
+impl JwsHeader for Map<String, Value> {
     fn algorithm(&self) -> Option<&str> {
         match self.get("alg") {
             Some(Value::String(val)) => Some(val),
@@ -349,7 +329,7 @@ impl Jwt {
         verifier_selector: F,
     ) -> Result<Self, JoseError>
     where
-        F: FnOnce(&dyn JwtHeaderClaims) -> Option<Box<dyn JwsVerifier>>,
+        F: FnOnce(&dyn JwsHeader) -> Option<Box<dyn JwsVerifier>>,
     {
         (|| -> anyhow::Result<Jwt> {
             let parts: Vec<&str> = input.split('.').collect();
@@ -1222,7 +1202,7 @@ mod tests {
     use std::path::PathBuf;
 
     use crate::jws::{
-        ES256, ES256K, ES384, ES512, HS256, HS384, HS512, PS256, PS384, PS512, RS256, RS384, RS512,
+        ES256, ES256K, ES384, ES512, HS256, HS384, HS512, PS256, PS384, PS512, RS256, RS384, RS512, EDDSA
     };
 
     #[test]
@@ -1442,6 +1422,87 @@ mod tests {
             let to_jwt = Jwt::decode_with_verifier(&jwt_string, verifier)?;
 
             assert_eq!(from_jwt, to_jwt);
+        }
+
+        Ok(())
+    }
+    
+    #[test]
+    fn test_external_jwt_verify_with_hmac() -> Result<()> {
+        let jwk = Jwk::from_slice(&load_file("jwk/oct_private.jwk")?)?;
+
+        for alg in &[HS256, HS384, HS512] {
+            let verifier = alg.verifier_from_jwk(&jwk)?;
+            let jwt_str = &String::from_utf8(load_file(&format!("jwt/{}.jwt", alg.name()))?)?;
+            let jwt = Jwt::decode_with_verifier(&jwt_str, &verifier)?;
+
+            assert!(matches!(jwt.subject(), Some("test")));
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_external_jwt_verify_with_rsa() -> Result<()> {
+        let jwk = Jwk::from_slice(&load_file("jwk/RSA_public.jwk")?)?;
+
+        for alg in &[RS256, RS384, RS512] {
+            let verifier = alg.verifier_from_jwk(&jwk)?;
+            let jwt_str = &String::from_utf8(load_file(&format!("jwt/{}.jwt", alg.name()))?)?;
+            let jwt = Jwt::decode_with_verifier(&jwt_str, &verifier)?;
+
+            assert!(matches!(jwt.subject(), Some("test")));
+        }
+
+        Ok(())
+    }
+
+    
+    #[test]
+    fn test_external_jwt_verify_with_rsapss() -> Result<()> {
+        let jwk = Jwk::from_slice(&load_file("jwk/RSA_public.jwk")?)?;
+
+        for alg in &[PS256, PS384, PS512] {
+            let verifier = alg.verifier_from_jwk(&jwk)?;
+            let jwt_str = &String::from_utf8(load_file(&format!("jwt/{}.jwt", alg.name()))?)?;
+            let jwt = Jwt::decode_with_verifier(&jwt_str, &verifier)?;
+
+            assert!(matches!(jwt.subject(), Some("test")));
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_external_jwt_verify_with_ecdsa() -> Result<()> {
+        for alg in &[ES256, ES384, ES512, ES256K] {
+            let jwk = Jwk::from_slice(&load_file(match alg {
+                ES256 => "jwk/EC_P-256_public.jwk",
+                ES384 => "jwk/EC_P-384_public.jwk",
+                ES512 => "jwk/EC_P-521_public.jwk",
+                ES256K => "jwk/EC_secp256k1_public.jwk",
+            })?)?;
+            let verifier = alg.verifier_from_jwk(&jwk)?;
+            let jwt_str = &String::from_utf8(load_file(&format!("jwt/{}.jwt", alg.name()))?)?;
+            let jwt = Jwt::decode_with_verifier(&jwt_str, &verifier)?;
+
+            //assert!(matches!(jwt.subject(), Some("test")));
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_external_jwt_verify_with_eddsa() -> Result<()> {
+        for alg in &[EDDSA] {
+            let jwk = Jwk::from_slice(&load_file(match alg {
+                EDDSA => "jwk/OKP_Ed25519_public.jwk",
+            })?)?;
+            let verifier = alg.verifier_from_jwk(&jwk)?;
+            let jwt_str = &String::from_utf8(load_file(&format!("jwt/{}.jwt", alg.name()))?)?;
+            let jwt = Jwt::decode_with_verifier(&jwt_str, &verifier)?;
+
+            assert!(matches!(jwt.subject(), Some("test")));
         }
 
         Ok(())

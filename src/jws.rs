@@ -26,6 +26,27 @@ pub use crate::jws::rsapss::RsaPssJwsAlgorithm::PS256;
 pub use crate::jws::rsapss::RsaPssJwsAlgorithm::PS384;
 pub use crate::jws::rsapss::RsaPssJwsAlgorithm::PS512;
 
+
+pub trait JwsHeader {
+    /// Return the value for algorithm header claim (alg).
+    fn algorithm(&self) -> Option<&str>;
+
+    /// Return the value for token type header claim (typ).
+    fn token_type(&self) -> Option<&str>;
+
+    /// Return the value for content type header claim (cty).
+    fn content_type(&self) -> Option<&str>;
+
+    /// Return the value for key ID header claim (kid).
+    fn key_id(&self) -> Option<&str>;
+
+    /// Return the value of header claim of the specified key.
+    ///
+    /// # Arguments
+    /// * `key` - a key name of header claim
+    fn header_claim(&self, key: &str) -> Option<&Value>;
+}
+
 pub trait JwsAlgorithm {
     /// Return the "alg" (algorithm) header parameter value of JWS.
     fn name(&self) -> &str;
