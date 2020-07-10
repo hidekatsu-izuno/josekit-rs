@@ -6,7 +6,7 @@ use serde_json::{json, Map, Value};
 
 use crate::error::JoseError;
 use crate::jwk::{Jwk, JwkSet};
-use crate::jws::{JwsHeader, JwsAlgorithm, JwsSigner, JwsVerifier};
+use crate::jws::{JwsAlgorithm, JwsHeader, JwsSigner, JwsVerifier};
 
 /// Represents plain JWT object with header and payload.
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -16,6 +16,7 @@ pub struct Jwt {
     x509_certificate_sha256_thumbprint: Option<Vec<u8>>,
     x509_certificate_chain: Option<Vec<Vec<u8>>>,
     critical: Option<Vec<String>>,
+    nonce: Option<Vec<u8>>,
     header: Map<String, Value>,
 
     audience: Option<Vec<String>>,
@@ -54,6 +55,13 @@ impl JwsHeader for Map<String, Value> {
         }
     }
 
+    fn url(&self) -> Option<&str> {
+        match self.get("url") {
+            Some(Value::String(val)) => Some(val),
+            _ => None,
+        }
+    }
+
     fn header_claim(&self, key: &str) -> Option<&Value> {
         self.get(key)
     }
@@ -71,6 +79,7 @@ impl Jwt {
             x509_certificate_sha256_thumbprint: None,
             x509_certificate_chain: None,
             critical: None,
+            nonce: None,
             header: header,
 
             audience: None,
@@ -96,11 +105,16 @@ impl Jwt {
             let mut x509_certificate_sha256_thumbprint = None;
             let mut x509_certificate_chain = None;
             let mut critical = None;
+            let mut nonce = None;
             for (key, value) in &header {
                 match key.as_ref() {
-                    "jku" | "x5u" | "kid" | "typ" | "cty" => match value {
+                    "jku" | "x5u" | "kid" | "typ" | "cty" | "url" => match value {
                         Value::String(_) => {},
                         _ => bail!("The JWT {} header claim must be a string.", key),
+                    },
+                    "b64" => match value {
+                        Value::Bool(_) => {},
+                        _ => bail!("The JWT {} header claim must be a bool.", key),
                     },
                     "jwk" => jwk = match value {
                         Value::Object(vals) => Some(Jwk::from_map(vals.clone())?),
@@ -142,6 +156,10 @@ impl Jwt {
                             Some(vec)
                         },
                         _ => bail!("The JWT {} header claim must be a array.", key),
+                    },
+                    "nonce" => nonce = match value {
+                        Value::String(val) => Some(base64::decode_config(val, base64::URL_SAFE_NO_PAD)?),
+                        _ => bail!("The JWT {} header claim must be a string.", key),
                     },
                     _ => {},
                 }
@@ -202,6 +220,7 @@ impl Jwt {
                 x509_certificate_sha256_thumbprint,
                 x509_certificate_chain,
                 critical,
+                nonce,
                 header,
                 audience,
                 expires_at,
@@ -245,9 +264,16 @@ impl Jwt {
 
             header.remove("alg");
 
-            let payload_base64 = parts.get(1).unwrap();
-            let payload_json = base64::decode_config(payload_base64, base64::URL_SAFE_NO_PAD)?;
-            let payload: Map<String, Value> = serde_json::from_slice(&payload_json)?;
+            let payload = parts.get(1).unwrap();
+            let payload_base64;
+            let payload = match header.get("b64") {
+                Some(Value::Bool(false)) => payload.as_bytes(),
+                _ => {
+                    payload_base64 = base64::decode_config(payload, base64::URL_SAFE_NO_PAD)?;
+                    &payload_base64
+                }
+            };
+            let payload: Map<String, Value> = serde_json::from_slice(payload)?;
 
             Ok(Self::from_map(header, payload)?)
         })()
@@ -273,7 +299,7 @@ impl Jwt {
             if parts.len() != 3 {
                 bail!("The signed JWT must be three parts separated by colon.");
             }
-    
+
             let header = base64::decode_config(&parts[0], base64::URL_SAFE_NO_PAD)?;
             let mut header: Map<String, Value> = serde_json::from_slice(&header)?;
 
@@ -347,7 +373,7 @@ impl Jwt {
 
             let payload = verifier.deserialize_compact(&header, input)?;
             let payload: Map<String, Value> = serde_json::from_slice(&payload)?;
-            
+
             header.remove("alg");
 
             let jwt = Self::from_map(header, payload)?;
@@ -552,6 +578,59 @@ impl Jwt {
         }
     }
 
+    /// Set a value for base64url-encode payload header claim (b64).
+    ///
+    /// # Arguments
+    /// * `value` - is base64url-encode payload
+    pub fn set_base64url_encode_payload(&mut self, value: bool) {
+        self.header.insert("b64".to_string(), Value::Bool(value));
+    }
+
+    /// Return the value for base64url-encode payload header claim (b64).
+    pub fn base64url_encode_payload(&self) -> Option<&bool> {
+        match self.header.get("b64") {
+            Some(Value::Bool(val)) => Some(val),
+            _ => None,
+        }
+    }
+
+    /// Set a value for url header claim (url).
+    ///
+    /// # Arguments
+    /// * `value` - a url
+    pub fn set_url(&mut self, value: impl Into<String>) {
+        let value: String = value.into();
+        self.header.insert("url".to_string(), Value::String(value));
+    }
+
+    /// Return the value for url header claim (url).
+    pub fn url(&self) -> Option<&str> {
+        match self.header.get("url") {
+            Some(Value::String(val)) => Some(val),
+            _ => None,
+        }
+    }
+
+    /// Set a value for a nonce header claim (nonce).
+    ///
+    /// # Arguments
+    /// * `value` - A nonce
+    pub fn set_nonce(&mut self, value: Vec<u8>) {
+        self.header.insert(
+            "nonce".to_string(),
+            Value::String(base64::encode_config(&value, base64::URL_SAFE_NO_PAD)),
+        );
+        self.nonce = Some(value);
+    }
+
+    /// Return the value for nonce header claim (nonce).
+    pub fn nonce(&self) -> Option<&Vec<u8>> {
+        match self.nonce {
+            Some(ref val) => Some(val),
+            None => None,
+        }
+    }
+
     /// Set a value for header claim of a specified key.
     ///
     /// # Arguments
@@ -564,7 +643,7 @@ impl Jwt {
                     "The JWT {} header claim should not be setted expressly.",
                     key
                 ),
-                "jku" | "x5u" | "kid" | "typ" | "cty" => match &value {
+                "jku" | "x5u" | "kid" | "typ" | "cty" | "url" => match &value {
                     Some(Value::String(_)) => {
                         self.header.insert(key.to_string(), value.unwrap());
                     }
@@ -653,6 +732,17 @@ impl Jwt {
                         self.header.remove(key);
                     }
                     _ => bail!("The JWT {} header claim must be a array.", key),
+                },
+                "nonce" => match &value {
+                    Some(Value::String(val)) => {
+                        self.nonce = Some(base64::decode_config(val, base64::URL_SAFE_NO_PAD)?);
+                        self.header.insert(key.to_string(), value.unwrap());
+                    }
+                    None => {
+                        self.nonce = None;
+                        self.header.remove(key);
+                    }
+                    _ => bail!("The JWT {} header claim must be a string.", key),
                 },
                 _ => match &value {
                     Some(_) => {
@@ -1202,7 +1292,8 @@ mod tests {
     use std::path::PathBuf;
 
     use crate::jws::{
-        ES256, ES256K, ES384, ES512, HS256, HS384, HS512, PS256, PS384, PS512, RS256, RS384, RS512, EDDSA
+        EDDSA, ES256, ES256K, ES384, ES512, HS256, HS384, HS512, PS256, PS384, PS512, RS256, RS384,
+        RS512,
     };
 
     #[test]
@@ -1219,6 +1310,7 @@ mod tests {
         jwt.set_token_type("typ");
         jwt.set_content_type("cty");
         jwt.set_critical(vec!["crit0", "crit1"]);
+        jwt.set_nonce(b"nonce".to_vec());
         jwt.set_header_claim("header_claim", Some(json!("header_claim")))?;
 
         jwt.set_issuer("iss");
@@ -1248,6 +1340,7 @@ mod tests {
         assert!(matches!(jwt.key_id(), Some("kid")));
         assert!(matches!(jwt.token_type(), Some("typ")));
         assert!(matches!(jwt.content_type(), Some("cty")));
+        assert!(matches!(jwt.nonce(), Some(val) if val == &b"nonce".to_vec()));
         assert!(matches!(jwt.critical(), Some(vals) if vals == &vec!["crit0", "crit1"]));
         assert!(
             matches!(jwt.header_claim("header_claim"), Some(val) if val == &json!("header_claim"))
@@ -1426,7 +1519,7 @@ mod tests {
 
         Ok(())
     }
-    
+
     #[test]
     fn test_external_jwt_verify_with_hmac() -> Result<()> {
         let jwk = Jwk::from_slice(&load_file("jwk/oct_private.jwk")?)?;
@@ -1437,8 +1530,14 @@ mod tests {
             let jwt = Jwt::decode_with_verifier(&jwt_str, &verifier)?;
 
             assert_eq!(jwt.issuer(), Some("joe"));
-            assert_eq!(jwt.expires_at(), Some(&(SystemTime::UNIX_EPOCH + Duration::from_secs(1300819380))));
-            assert_eq!(jwt.payload_claim("http://example.com/is_root"), Some(&Value::Bool(true)));
+            assert_eq!(
+                jwt.expires_at(),
+                Some(&(SystemTime::UNIX_EPOCH + Duration::from_secs(1300819380)))
+            );
+            assert_eq!(
+                jwt.payload_claim("http://example.com/is_root"),
+                Some(&Value::Bool(true))
+            );
         }
 
         Ok(())
@@ -1454,14 +1553,19 @@ mod tests {
             let jwt = Jwt::decode_with_verifier(&jwt_str, &verifier)?;
 
             assert_eq!(jwt.issuer(), Some("joe"));
-            assert_eq!(jwt.expires_at(), Some(&(SystemTime::UNIX_EPOCH + Duration::from_secs(1300819380))));
-            assert_eq!(jwt.payload_claim("http://example.com/is_root"), Some(&Value::Bool(true)));
+            assert_eq!(
+                jwt.expires_at(),
+                Some(&(SystemTime::UNIX_EPOCH + Duration::from_secs(1300819380)))
+            );
+            assert_eq!(
+                jwt.payload_claim("http://example.com/is_root"),
+                Some(&Value::Bool(true))
+            );
         }
 
         Ok(())
     }
 
-    
     #[test]
     fn test_external_jwt_verify_with_rsapss() -> Result<()> {
         let jwk = Jwk::from_slice(&load_file("jwk/RSA_public.jwk")?)?;
@@ -1472,8 +1576,14 @@ mod tests {
             let jwt = Jwt::decode_with_verifier(&jwt_str, &verifier)?;
 
             assert_eq!(jwt.issuer(), Some("joe"));
-            assert_eq!(jwt.expires_at(), Some(&(SystemTime::UNIX_EPOCH + Duration::from_secs(1300819380))));
-            assert_eq!(jwt.payload_claim("http://example.com/is_root"), Some(&Value::Bool(true)));
+            assert_eq!(
+                jwt.expires_at(),
+                Some(&(SystemTime::UNIX_EPOCH + Duration::from_secs(1300819380)))
+            );
+            assert_eq!(
+                jwt.payload_claim("http://example.com/is_root"),
+                Some(&Value::Bool(true))
+            );
         }
 
         Ok(())
@@ -1493,8 +1603,14 @@ mod tests {
             let jwt = Jwt::decode_with_verifier(&jwt_str, &verifier)?;
 
             assert_eq!(jwt.issuer(), Some("joe"));
-            assert_eq!(jwt.expires_at(), Some(&(SystemTime::UNIX_EPOCH + Duration::from_secs(1300819380))));
-            assert_eq!(jwt.payload_claim("http://example.com/is_root"), Some(&Value::Bool(true)));
+            assert_eq!(
+                jwt.expires_at(),
+                Some(&(SystemTime::UNIX_EPOCH + Duration::from_secs(1300819380)))
+            );
+            assert_eq!(
+                jwt.payload_claim("http://example.com/is_root"),
+                Some(&Value::Bool(true))
+            );
         }
 
         Ok(())
@@ -1511,8 +1627,14 @@ mod tests {
             let jwt = Jwt::decode_with_verifier(&jwt_str, &verifier)?;
 
             assert_eq!(jwt.issuer(), Some("joe"));
-            assert_eq!(jwt.expires_at(), Some(&(SystemTime::UNIX_EPOCH + Duration::from_secs(1300819380))));
-            assert_eq!(jwt.payload_claim("http://example.com/is_root"), Some(&Value::Bool(true)));
+            assert_eq!(
+                jwt.expires_at(),
+                Some(&(SystemTime::UNIX_EPOCH + Duration::from_secs(1300819380)))
+            );
+            assert_eq!(
+                jwt.payload_claim("http://example.com/is_root"),
+                Some(&Value::Bool(true))
+            );
         }
 
         Ok(())

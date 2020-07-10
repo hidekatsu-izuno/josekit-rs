@@ -467,19 +467,19 @@ impl JwsSigner for EcdsaJwsSigner {
             let mut der_signature = Vec::with_capacity(6 + 32 + 32);
             let mut reader = DerReader::from_bytes(&signature);
             match reader.next()? {
-                Some(DerType::Sequence) => {},
+                Some(DerType::Sequence) => {}
                 _ => unreachable!("A generated signature is invalid."),
             }
             match reader.next()? {
                 Some(DerType::Integer) => {
                     der_signature.extend_from_slice(&reader.to_be_bytes(false));
-                },
+                }
                 _ => unreachable!("A generated signature is invalid."),
             }
             match reader.next()? {
                 Some(DerType::Integer) => {
                     der_signature.extend_from_slice(&reader.to_be_bytes(false));
-                },
+                }
                 _ => unreachable!("A generated signature is invalid."),
             }
             Ok(der_signature)

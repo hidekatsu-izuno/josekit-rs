@@ -1,15 +1,15 @@
 pub mod ecdsa;
 pub mod eddsa;
 pub mod hmac;
+pub mod multi_signer;
 pub mod rsa;
 pub mod rsapss;
-pub mod multi_signer;
 
-use anyhow::bail;
+use anyhow::{anyhow, bail};
 use serde_json::{Map, Value};
 
-use crate::jwk::Jwk;
 use crate::error::JoseError;
+use crate::jwk::Jwk;
 
 pub use crate::jws::ecdsa::EcdsaJwsAlgorithm::ES256;
 pub use crate::jws::ecdsa::EcdsaJwsAlgorithm::ES256K;
@@ -26,7 +26,6 @@ pub use crate::jws::rsapss::RsaPssJwsAlgorithm::PS256;
 pub use crate::jws::rsapss::RsaPssJwsAlgorithm::PS384;
 pub use crate::jws::rsapss::RsaPssJwsAlgorithm::PS512;
 
-
 pub trait JwsHeader {
     /// Return the value for algorithm header claim (alg).
     fn algorithm(&self) -> Option<&str>;
@@ -39,6 +38,9 @@ pub trait JwsHeader {
 
     /// Return the value for key ID header claim (kid).
     fn key_id(&self) -> Option<&str>;
+
+    /// Return the value for URL header claim (url).
+    fn url(&self) -> Option<&str>;
 
     /// Return the value of header claim of the specified key.
     ///
@@ -53,7 +55,7 @@ pub trait JwsAlgorithm {
 
     /// Return the "kty" (key type) header parameter value of JWS.
     fn key_type(&self) -> &str;
-    
+
     /// Return the signature length of JWS.
     fn signature_len(&self) -> usize;
 
@@ -75,7 +77,7 @@ pub trait JwsSigner {
     fn algorithm(&self) -> &dyn JwsAlgorithm;
 
     /// Return the source key ID.
-    /// The default value is a value of kid parameter in JWK. 
+    /// The default value is a value of kid parameter in JWK.
     fn key_id(&self) -> Option<&str>;
 
     /// Set a compared value for a kid header claim (kid).
@@ -93,17 +95,37 @@ pub trait JwsSigner {
     /// * `message` - The message data to sign.
     fn sign(&self, message: &[u8]) -> Result<Vec<u8>, JoseError>;
 
-    fn serialize_compact(&self, header: &Map<String, Value>, payload: &[u8]) -> Result<String, JoseError> {
+    fn serialize_compact(
+        &self,
+        header: &Map<String, Value>,
+        payload: &[u8],
+    ) -> Result<String, JoseError> {
+        let payload_base64;
+        let payload = match header.get("b64") {
+            Some(Value::Bool(false)) => match std::str::from_utf8(payload) {
+                Ok(val) => {
+                    if val.contains(".") {
+                        Err(JoseError::InvalidJwsFormat(anyhow!(
+                            "A JWS payload cannot contain dot."
+                        )))?;
+                    }
+                    val
+                }
+                Err(err) => Err(JoseError::InvalidJwsFormat(anyhow!("{}", err)))?,
+            },
+            _ => {
+                payload_base64 = base64::encode_config(payload, base64::URL_SAFE_NO_PAD);
+                &payload_base64
+            }
+        };
+
         let header = serde_json::to_string(&header).unwrap();
         let header = base64::encode_config(header, base64::URL_SAFE_NO_PAD);
-        let payload = base64::encode_config(payload, base64::URL_SAFE_NO_PAD);
-        
+
         let mut message = String::with_capacity(
-            header.len() 
-            + payload.len() 
-            + self.algorithm().signature_len()
-            + 2);
-        
+            header.len() + payload.len() + self.algorithm().signature_len() + 2,
+        );
+
         message.push_str(&header);
         message.push_str(".");
         message.push_str(&payload);
@@ -123,7 +145,7 @@ pub trait JwsVerifier {
     fn algorithm(&self) -> &dyn JwsAlgorithm;
 
     /// Return the source key ID.
-    /// The default value is a value of kid parameter in JWK. 
+    /// The default value is a value of kid parameter in JWK.
     fn key_id(&self) -> Option<&str>;
 
     /// Set a compared value for a kid header claim (kid).
@@ -142,9 +164,14 @@ pub trait JwsVerifier {
     /// * `signature` - a signature data.
     fn verify(&self, message: &[u8], signature: &[u8]) -> Result<(), JoseError>;
 
-    fn deserialize_compact(&self, header: &Map<String, Value>, input: &str) -> Result<Vec<u8>, JoseError> {
+    fn deserialize_compact(
+        &self,
+        header: &Map<String, Value>,
+        input: &str,
+    ) -> Result<Vec<u8>, JoseError> {
         (|| -> anyhow::Result<Vec<u8>> {
-            let indexies: Vec<usize> = input.char_indices()
+            let indexies: Vec<usize> = input
+                .char_indices()
                 .filter(|(_, c)| c == &'.')
                 .map(|(i, _)| i)
                 .collect();
@@ -171,10 +198,15 @@ pub trait JwsVerifier {
                 }
                 _ => bail!("The JWT kid header claim is missing."),
             }
-            
+
             let message = &input[..(indexies[1])];
-            let payload = base64::decode_config(&input[(indexies[0] + 1)..(indexies[1])], base64::URL_SAFE_NO_PAD)?;
-            let signature = base64::decode_config(&input[(indexies[1] + 1)..], base64::URL_SAFE_NO_PAD)?;
+            let payload = &input[(indexies[0] + 1)..(indexies[1])];
+            let payload = match header.get("b64") {
+                Some(Value::Bool(false)) => payload.as_bytes().to_vec(),
+                _ => base64::decode_config(payload, base64::URL_SAFE_NO_PAD)?,
+            };
+            let signature =
+                base64::decode_config(&input[(indexies[1] + 1)..], base64::URL_SAFE_NO_PAD)?;
 
             self.verify(message.as_bytes(), &signature)?;
 

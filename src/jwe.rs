@@ -1,5 +1,5 @@
-use crate::jwk::Jwk;
 use crate::error::JoseError;
+use crate::jwk::Jwk;
 
 pub trait JweEncryption {
     /// Return the "enc" (encryption) header parameter value of JWE.
@@ -18,10 +18,6 @@ pub trait JweEncryption {
     fn verifier_from_jwk(&self, jwk: &Jwk) -> Result<Box<dyn JweDecrypter>, JoseError>;
 }
 
-pub trait JweEncrypter {
+pub trait JweEncrypter {}
 
-}
-
-pub trait JweDecrypter {
-    
-}
+pub trait JweDecrypter {}

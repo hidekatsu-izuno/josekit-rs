@@ -1,7 +1,7 @@
 use serde_json::{json, Map, Value};
 
-use crate::jws::JwsSigner;
 use crate::error::JoseError;
+use crate::jws::JwsSigner;
 
 pub struct JwsMultiSigner {
     payload: String,
@@ -16,10 +16,11 @@ impl JwsMultiSigner {
         }
     }
 
-    fn add_signature(&mut self,
-        signer: &dyn JwsSigner, 
-        protected_header: &Map<String, Value>, 
-        unprotected_header:  &Map<String, Value>,
+    fn add_signature(
+        &mut self,
+        signer: &dyn JwsSigner,
+        protected_header: &Map<String, Value>,
+        unprotected_header: &Map<String, Value>,
     ) -> Result<(), JoseError> {
         let protected_header = serde_json::to_string(&protected_header).unwrap();
         let protected_header = base64::encode_config(protected_header, base64::URL_SAFE_NO_PAD);
@@ -38,7 +39,8 @@ impl JwsMultiSigner {
     }
 
     fn serialize_json(&self) -> Result<String, JoseError> {
-        Ok(format!("{{\"payload\":{},\"signatures\":{}}}", 
+        Ok(format!(
+            "{{\"payload\":{},\"signatures\":{}}}",
             &serde_json::to_string(&self.payload).unwrap(),
             &serde_json::to_string(&self.signatures).unwrap(),
         ))
