@@ -100,43 +100,57 @@ pub trait JwsSigner {
         header: &Map<String, Value>,
         payload: &[u8],
     ) -> Result<String, JoseError> {
-        let payload_base64;
-        let payload = match header.get("b64") {
-            Some(Value::Bool(false)) => match std::str::from_utf8(payload) {
-                Ok(val) => {
-                    if val.contains(".") {
-                        Err(JoseError::InvalidJwsFormat(anyhow!(
-                            "A JWS payload cannot contain dot."
-                        )))?;
+        (|| -> anyhow::Result<String> {
+            let mut b64 = true;
+            if let Some(Value::Bool(false)) = header.get("b64") {
+                if let Some(Value::Array(vals)) = header.get("crit") {
+                    if vals.iter().any(|e| e == "b64") {
+                        b64 = false;
+                    } else {
+                        bail!("The b64 header claim name must be in critical.");
                     }
-                    val
                 }
-                Err(err) => Err(JoseError::InvalidJwsFormat(anyhow!("{}", err)))?,
-            },
-            _ => {
+            }
+
+            let payload_base64;
+            let payload = if b64 {
                 payload_base64 = base64::encode_config(payload, base64::URL_SAFE_NO_PAD);
                 &payload_base64
-            }
-        };
+            } else {
+                match std::str::from_utf8(payload) {
+                    Ok(val) => {
+                        if val.contains(".") {
+                            bail!("A JWS payload cannot contain dot.");
+                        }
+                        val
+                    }
+                    Err(err) => bail!("{}", err),
+                }
+            };
 
-        let header = serde_json::to_string(&header).unwrap();
-        let header = base64::encode_config(header, base64::URL_SAFE_NO_PAD);
+            let header = serde_json::to_string(&header).unwrap();
+            let header = base64::encode_config(header, base64::URL_SAFE_NO_PAD);
 
-        let mut message = String::with_capacity(
-            header.len() + payload.len() + self.algorithm().signature_len() + 2,
-        );
+            let mut message = String::with_capacity(
+                header.len() + payload.len() + self.algorithm().signature_len() + 2,
+            );
 
-        message.push_str(&header);
-        message.push_str(".");
-        message.push_str(&payload);
+            message.push_str(&header);
+            message.push_str(".");
+            message.push_str(&payload);
 
-        let signature = self.sign(message.as_bytes())?;
+            let signature = self.sign(message.as_bytes())?;
 
-        let signature = base64::encode_config(signature, base64::URL_SAFE_NO_PAD);
-        message.push_str(".");
-        message.push_str(&signature);
+            let signature = base64::encode_config(signature, base64::URL_SAFE_NO_PAD);
+            message.push_str(".");
+            message.push_str(&signature);
 
-        Ok(message)
+            Ok(message)
+        })()
+        .map_err(|err| match err.downcast::<JoseError>() {
+            Ok(err) => err,
+            Err(err) => JoseError::InvalidJwtFormat(err),
+        })
     }
 }
 
@@ -199,14 +213,28 @@ pub trait JwsVerifier {
                 _ => bail!("The JWT kid header claim is missing."),
             }
 
+            let mut b64 = true;
+            if let Some(Value::Bool(false)) = header.get("b64") {
+                if let Some(Value::Array(vals)) = header.get("crit") {
+                    if vals.iter().any(|e| e == "b64") {
+                        b64 = false;
+                    } else {
+                        bail!("The b64 header claim name must be in critical.");
+                    }
+                }
+            }
+
             let message = &input[..(indexies[1])];
+
             let payload = &input[(indexies[0] + 1)..(indexies[1])];
-            let payload = match header.get("b64") {
-                Some(Value::Bool(false)) => payload.as_bytes().to_vec(),
-                _ => base64::decode_config(payload, base64::URL_SAFE_NO_PAD)?,
+            let payload = if b64 {
+                base64::decode_config(payload, base64::URL_SAFE_NO_PAD)?
+            } else {
+                payload.as_bytes().to_vec()
             };
-            let signature =
-                base64::decode_config(&input[(indexies[1] + 1)..], base64::URL_SAFE_NO_PAD)?;
+
+            let signature = &input[(indexies[1] + 1)..];
+            let signature = base64::decode_config(signature, base64::URL_SAFE_NO_PAD)?;
 
             self.verify(message.as_bytes(), &signature)?;
 

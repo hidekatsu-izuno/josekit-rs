@@ -100,6 +100,14 @@ impl Jwt {
         payload: Map<String, Value>,
     ) -> Result<Self, JoseError> {
         (|| -> anyhow::Result<Self> {
+            if let Some(Value::Bool(false)) = header.get("b64") {
+                if let Some(Value::Array(vals)) = header.get("crit") {
+                    if !vals.iter().any(|e| e == "b64") {
+                        bail!("The b64 header claim name must be in critical.");
+                    }
+                }
+            }
+
             let mut jwk = None;
             let mut x509_certificate_sha1_thumbprint = None;
             let mut x509_certificate_sha256_thumbprint = None;
@@ -262,16 +270,26 @@ impl Jwt {
                 Some(_) => bail!("A JWT of none alg cannot have kid header claim."),
             }
 
+            let mut b64 = true;
+            if let Some(Value::Bool(false)) = header.get("b64") {
+                if let Some(Value::Array(vals)) = header.get("crit") {
+                    if vals.iter().any(|e| e == "b64") {
+                        b64 = false;
+                    } else {
+                        bail!("The b64 header claim name must be in critical.");
+                    }
+                }
+            }
+
             header.remove("alg");
 
             let payload = parts.get(1).unwrap();
             let payload_base64;
-            let payload = match header.get("b64") {
-                Some(Value::Bool(false)) => payload.as_bytes(),
-                _ => {
-                    payload_base64 = base64::decode_config(payload, base64::URL_SAFE_NO_PAD)?;
-                    &payload_base64
-                }
+            let payload = if b64 {
+                payload_base64 = base64::decode_config(payload, base64::URL_SAFE_NO_PAD)?;
+                &payload_base64
+            } else {
+                payload.as_bytes()
             };
             let payload: Map<String, Value> = serde_json::from_slice(payload)?;
 
@@ -1310,6 +1328,7 @@ mod tests {
         jwt.set_token_type("typ");
         jwt.set_content_type("cty");
         jwt.set_critical(vec!["crit0", "crit1"]);
+        jwt.set_url("url");
         jwt.set_nonce(b"nonce".to_vec());
         jwt.set_header_claim("header_claim", Some(json!("header_claim")))?;
 
@@ -1340,6 +1359,7 @@ mod tests {
         assert!(matches!(jwt.key_id(), Some("kid")));
         assert!(matches!(jwt.token_type(), Some("typ")));
         assert!(matches!(jwt.content_type(), Some("cty")));
+        assert!(matches!(jwt.url(), Some("url")));
         assert!(matches!(jwt.nonce(), Some(val) if val == &b"nonce".to_vec()));
         assert!(matches!(jwt.critical(), Some(vals) if vals == &vec!["crit0", "crit1"]));
         assert!(
