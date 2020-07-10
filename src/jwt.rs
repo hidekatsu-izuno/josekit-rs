@@ -7,6 +7,7 @@ use serde_json::{json, Map, Value};
 use crate::error::JoseError;
 use crate::jwk::{Jwk, JwkSet};
 use crate::jws::{JwsAlgorithm, JwsHeader, JwsSigner, JwsVerifier};
+use crate::jwe::{JweAlgorithm, JweEncryption, JweEncrypter, JweDecrypter};
 
 /// Represents plain JWT object with header and payload.
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -341,7 +342,7 @@ impl Jwt {
     /// * `input` - a JWT string representation.
     /// * `algorithm` - a verifying algorithm.
     /// * `jwk_set` - a JWK set.
-    pub fn decode_by_jwk_set(
+    pub fn decode_with_verifier_in_jwk_set(
         input: &str,
         algorithm: impl AsRef<dyn JwsAlgorithm>,
         jwk_set: &JwkSet,
@@ -387,6 +388,111 @@ impl Jwt {
             let verifier = match verifier_selector(&header) {
                 Some(val) => val,
                 None => bail!("A verifier is not found."),
+            };
+
+            let payload = verifier.deserialize_compact(&header, input)?;
+            let payload: Map<String, Value> = serde_json::from_slice(&payload)?;
+
+            header.remove("alg");
+
+            let jwt = Self::from_map(header, payload)?;
+            Ok(jwt)
+        })()
+        .map_err(|err| match err.downcast::<JoseError>() {
+            Ok(err) => err,
+            Err(err) => JoseError::InvalidJwtFormat(err),
+        })
+    }
+
+    
+    /// Return the JWT object decoded by the selected decrypter.
+    ///
+    /// # Arguments
+    /// * `input` - a JWT string representation.
+    /// * `decrypter` - a decrypter of the decrypting algorithm.
+    pub fn decode_with_decrypter(
+        input: &str,
+        decrypter: impl AsRef<dyn JweDecrypter>,
+    ) -> Result<Self, JoseError> {
+        (|| -> anyhow::Result<Jwt> {
+            let decrypter = decrypter.as_ref();
+
+            let parts: Vec<&str> = input.split('.').collect();
+            if parts.len() != 5 {
+                bail!("The encrypted JWT must be five parts separated by colon.");
+            }
+
+            let header = base64::decode_config(&parts[0], base64::URL_SAFE_NO_PAD)?;
+            let mut header: Map<String, Value> = serde_json::from_slice(&header)?;
+
+            let payload = decrypter.deserialize_compact(&header, input)?;
+            let payload: Map<String, Value> = serde_json::from_slice(&payload)?;
+
+            header.remove("alg");
+
+            let jwt = Self::from_map(header, payload)?;
+            Ok(jwt)
+        })()
+        .map_err(|err| match err.downcast::<JoseError>() {
+            Ok(err) => err,
+            Err(err) => JoseError::InvalidJwtFormat(err),
+        })
+    }
+
+    /// Return the JWT object decoded by using a JWK set.
+    ///
+    /// # Arguments
+    /// * `input` - a JWT string representation.
+    /// * `algorithm` - a verifying algorithm.
+    /// * `jwk_set` - a JWK set.
+    pub fn decode_with_decrypter_in_jwk_set(
+        input: &str,
+        algorithm: impl AsRef<dyn JweAlgorithm>,
+        encryption: impl AsRef<dyn JweEncryption>,
+        jwk_set: &JwkSet,
+    ) -> Result<Self, JoseError> {
+        let algorithm = algorithm.as_ref();
+        let encryption = encryption.as_ref();
+        Self::decode_with_decrypter_selector(input, |header| -> Option<Box<dyn JweDecrypter>> {
+            let key_id = match header.key_id() {
+                Some(val) => val,
+                None => return None,
+            };
+
+            for jwk in jwk_set.get(key_id) {
+                match algorithm.decrypter_from_jwk(jwk, encryption) {
+                    Ok(val) => return Some(val),
+                    Err(_) => {}
+                }
+            }
+            None
+        })
+    }
+
+    /// Return the JWT object decoded with a selected verifying algorithm.
+    ///
+    /// # Arguments
+    /// * `input` - a JWT string representation.
+    /// * `verifier_selector` - a function for selecting the verifying algorithm.
+    pub fn decode_with_decrypter_selector<F>(
+        input: &str,
+        decrypter_selector: F,
+    ) -> Result<Self, JoseError>
+    where
+        F: FnOnce(&dyn JwsHeader) -> Option<Box<dyn JweDecrypter>>,
+    {
+        (|| -> anyhow::Result<Jwt> {
+            let parts: Vec<&str> = input.split('.').collect();
+            if parts.len() != 5 {
+                bail!("The encrypted JWT must be five parts separated by colon.");
+            }
+
+            let header = base64::decode_config(&parts[0], base64::URL_SAFE_NO_PAD)?;
+            let mut header: Map<String, Value> = serde_json::from_slice(&header)?;
+
+            let verifier = match decrypter_selector(&header) {
+                Some(val) => val,
+                None => bail!("A decrypter is not found."),
             };
 
             let payload = verifier.deserialize_compact(&header, input)?;
@@ -1091,6 +1197,30 @@ impl Jwt {
 
         let payload_json = serde_json::to_string(&self.payload).unwrap();
         let jwt = signer.serialize_compact(&header, &payload_json.as_bytes())?;
+        Ok(jwt)
+    }
+
+    /// Return the string repsentation of the JWT with the encrypting algorithm.
+    ///
+    /// # Arguments
+    ///
+    /// * `encrypter` - a encrypter object.
+    pub fn encode_with_encrypter(
+        &self,
+        encrypter: impl AsRef<dyn JweEncrypter>,
+    ) -> Result<String, JoseError> {
+        let encrypter = encrypter.as_ref();
+        let alg = encrypter.algorithm().name();
+
+        let mut header = self.header.clone();
+        header.insert("alg".to_string(), json!(alg));
+
+        if let Some(key_id) = encrypter.key_id() {
+            header.insert("kid".to_string(), json!(key_id));
+        }
+
+        let payload_json = serde_json::to_string(&self.payload).unwrap();
+        let jwt = encrypter.serialize_compact(&header, &payload_json.as_bytes())?;
         Ok(jwt)
     }
 }
