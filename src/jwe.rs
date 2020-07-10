@@ -4,7 +4,7 @@ pub mod alg_dir;
 pub mod alg_ecdh_es;
 pub mod alg_ecdh_es_aes;
 pub mod alg_aes_gcm;
-pub mod alg_pbes2_aes;
+pub mod alg_pbes2_hmac_aes;
 pub mod enc_aes_cbc_hmac;
 pub mod enc_aes_gcm;
 
