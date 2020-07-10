@@ -1436,7 +1436,9 @@ mod tests {
             let jwt_str = &String::from_utf8(load_file(&format!("jwt/{}.jwt", alg.name()))?)?;
             let jwt = Jwt::decode_with_verifier(&jwt_str, &verifier)?;
 
-            assert!(matches!(jwt.subject(), Some("test")));
+            assert_eq!(jwt.issuer(), Some("joe"));
+            assert_eq!(jwt.expires_at(), Some(&(SystemTime::UNIX_EPOCH + Duration::from_secs(1300819380))));
+            assert_eq!(jwt.payload_claim("http://example.com/is_root"), Some(&Value::Bool(true)));
         }
 
         Ok(())
@@ -1451,7 +1453,9 @@ mod tests {
             let jwt_str = &String::from_utf8(load_file(&format!("jwt/{}.jwt", alg.name()))?)?;
             let jwt = Jwt::decode_with_verifier(&jwt_str, &verifier)?;
 
-            assert!(matches!(jwt.subject(), Some("test")));
+            assert_eq!(jwt.issuer(), Some("joe"));
+            assert_eq!(jwt.expires_at(), Some(&(SystemTime::UNIX_EPOCH + Duration::from_secs(1300819380))));
+            assert_eq!(jwt.payload_claim("http://example.com/is_root"), Some(&Value::Bool(true)));
         }
 
         Ok(())
@@ -1467,7 +1471,9 @@ mod tests {
             let jwt_str = &String::from_utf8(load_file(&format!("jwt/{}.jwt", alg.name()))?)?;
             let jwt = Jwt::decode_with_verifier(&jwt_str, &verifier)?;
 
-            assert!(matches!(jwt.subject(), Some("test")));
+            assert_eq!(jwt.issuer(), Some("joe"));
+            assert_eq!(jwt.expires_at(), Some(&(SystemTime::UNIX_EPOCH + Duration::from_secs(1300819380))));
+            assert_eq!(jwt.payload_claim("http://example.com/is_root"), Some(&Value::Bool(true)));
         }
 
         Ok(())
@@ -1486,7 +1492,9 @@ mod tests {
             let jwt_str = &String::from_utf8(load_file(&format!("jwt/{}.jwt", alg.name()))?)?;
             let jwt = Jwt::decode_with_verifier(&jwt_str, &verifier)?;
 
-            //assert!(matches!(jwt.subject(), Some("test")));
+            assert_eq!(jwt.issuer(), Some("joe"));
+            assert_eq!(jwt.expires_at(), Some(&(SystemTime::UNIX_EPOCH + Duration::from_secs(1300819380))));
+            assert_eq!(jwt.payload_claim("http://example.com/is_root"), Some(&Value::Bool(true)));
         }
 
         Ok(())
@@ -1502,7 +1510,9 @@ mod tests {
             let jwt_str = &String::from_utf8(load_file(&format!("jwt/{}.jwt", alg.name()))?)?;
             let jwt = Jwt::decode_with_verifier(&jwt_str, &verifier)?;
 
-            assert!(matches!(jwt.subject(), Some("test")));
+            assert_eq!(jwt.issuer(), Some("joe"));
+            assert_eq!(jwt.expires_at(), Some(&(SystemTime::UNIX_EPOCH + Duration::from_secs(1300819380))));
+            assert_eq!(jwt.payload_claim("http://example.com/is_root"), Some(&Value::Bool(true)));
         }
 
         Ok(())

@@ -49,7 +49,17 @@ impl DerBuilder {
         self.append(DerType::Integer, &vec);
     }
 
-    pub fn append_integer_from_be_slice(&mut self, value: &[u8]) {
+    pub fn append_integer_from_be_slice(&mut self, value: &[u8], sign: bool) {
+        let mut vec;
+        let mut value = value;
+
+        if !sign && value.len() > 0 && value[0] & 0b10000000 != 0 {
+            vec = Vec::with_capacity(1 + value.len());
+            vec.push(0);
+            vec.extend_from_slice(value);
+            value = &vec;
+        }
+
         self.append(DerType::Integer, value);
     }
 

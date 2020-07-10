@@ -252,6 +252,25 @@ impl<R: Read> DerReader<R> {
         }
     }
 
+    pub fn to_be_bytes(&self, sign: bool) -> Vec<u8> {
+        if let DerType::Integer = self.der_type {
+            if let Some(contents) = &self.contents {
+                let mut vec = contents.to_vec();
+                if !sign && contents.len() > 0 && contents[0] == 0 {
+                    vec.remove(0);
+                }
+                vec
+            } else {
+                unreachable!();
+            }
+        } else {
+            panic!(
+                "{} type is not supported to convert to BitVec",
+                self.der_type
+            );
+        }
+    }
+
     pub fn to_bit_vec(&self) -> Result<(Vec<u8>, u8), DerError> {
         if let DerType::BitString = self.der_type {
             if let Some(contents) = &self.contents {

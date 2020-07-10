@@ -6,7 +6,7 @@ use openssl::sign::{Signer, Verifier};
 use serde_json::Value;
 
 use crate::der::oid::ObjectIdentifier;
-use crate::der::{DerBuilder, DerClass, DerReader, DerType};
+use crate::der::{DerBuilder, DerReader, DerType};
 use crate::error::JoseError;
 use crate::jwk::Jwk;
 use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier};
@@ -463,7 +463,26 @@ impl JwsSigner for EcdsaJwsSigner {
             let mut signer = Signer::new(message_digest, &self.private_key)?;
             signer.update(message)?;
             let signature = signer.sign_to_vec()?;
-            Ok(signature)
+
+            let mut der_signature = Vec::with_capacity(6 + 32 + 32);
+            let mut reader = DerReader::from_bytes(&signature);
+            match reader.next()? {
+                Some(DerType::Sequence) => {},
+                _ => unreachable!("A generated signature is invalid."),
+            }
+            match reader.next()? {
+                Some(DerType::Integer) => {
+                    der_signature.extend_from_slice(&reader.to_be_bytes(false));
+                },
+                _ => unreachable!("A generated signature is invalid."),
+            }
+            match reader.next()? {
+                Some(DerType::Integer) => {
+                    der_signature.extend_from_slice(&reader.to_be_bytes(false));
+                },
+                _ => unreachable!("A generated signature is invalid."),
+            }
+            Ok(der_signature)
         })()
         .map_err(|err| JoseError::InvalidSignature(err))
     }
@@ -497,6 +516,15 @@ impl JwsVerifier for EcdsaJwsVerifier {
 
     fn verify(&self, message: &[u8], signature: &[u8]) -> Result<(), JoseError> {
         (|| -> anyhow::Result<()> {
+            let mut der_builder = DerBuilder::new(); // 6 + 33 + 33
+            der_builder.begin(DerType::Sequence);
+            {
+                der_builder.append_integer_from_be_slice(&signature[..32], false);
+                der_builder.append_integer_from_be_slice(&signature[32..], false);
+            }
+            der_builder.end();
+            let der_signature = der_builder.build();
+
             let message_digest = match self.algorithm {
                 EcdsaJwsAlgorithm::ES256 => MessageDigest::sha256(),
                 EcdsaJwsAlgorithm::ES384 => MessageDigest::sha384(),
@@ -506,7 +534,7 @@ impl JwsVerifier for EcdsaJwsVerifier {
 
             let mut verifier = Verifier::new(message_digest, &self.public_key)?;
             verifier.update(message)?;
-            verifier.verify(signature)?;
+            verifier.verify(&der_signature)?;
             Ok(())
         })()
         .map_err(|err| JoseError::InvalidSignature(err))
