@@ -1,3 +1,7 @@
+use crate::jwe::{JweAlgorithm, JweEncryption, JweEncrypter, JweDecrypter};
+use crate::jwk::Jwk;
+use crate::error::JoseError;
+
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum AesCbcHmacJweEncryption {
     /// AES_128_CBC_HMAC_SHA_256 authenticated encryption algorithm
