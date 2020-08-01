@@ -4,13 +4,13 @@ use std::time::{Duration, SystemTime};
 
 use anyhow::bail;
 use chrono::{DateTime, Utc};
-use serde_json::{json, Map, Value, Number};
+use serde_json::{json, Map, Number, Value};
 
 use crate::error::JoseError;
 use crate::jose::JoseHeader;
+use crate::jwe::{JweAlgorithm, JweDecrypter, JweEncrypter, JweEncryption, JweHeader};
 use crate::jwk::JwkSet;
 use crate::jws::{JwsAlgorithm, JwsHeader, JwsSigner, JwsVerifier};
-use crate::jwe::{JweAlgorithm, JweHeader, JweEncryption, JweEncrypter, JweDecrypter};
 use crate::util::SourceValue;
 
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -20,9 +20,7 @@ pub struct JwtHeader {
 
 impl JwtHeader {
     pub fn new() -> Self {
-        Self {
-            claims: Map::new(),
-        }
+        Self { claims: Map::new() }
     }
 
     /// Set a value for token type header claim (typ).
@@ -62,15 +60,13 @@ impl JwtHeader {
 
 impl JoseHeader for JwtHeader {
     fn from_map(claims: Map<String, Value>) -> Result<Self, JoseError> {
-        Ok(Self {
-            claims,
-        })
+        Ok(Self { claims })
     }
 
     fn claims_set(&self) -> &Map<String, Value> {
         &self.claims
     }
-    
+
     fn set_claim(&mut self, key: &str, value: Option<Value>) -> Result<(), JoseError> {
         (|| -> anyhow::Result<()> {
             match &value {
@@ -90,8 +86,7 @@ impl JoseHeader for JwtHeader {
 
 impl Display for JwtHeader {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
-        let val = serde_json::to_string(self.claims_set())
-            .map_err(|_e| std::fmt::Error {})?;
+        let val = serde_json::to_string(self.claims_set()).map_err(|_e| std::fmt::Error {})?;
         fmt.write_str(&val)
     }
 }
@@ -109,7 +104,7 @@ impl JwtPayload {
             sources: HashMap::new(),
         }
     }
-    
+
     /// Return the JWT payload from map.
     ///
     /// # Arguments
@@ -120,21 +115,24 @@ impl JwtPayload {
             for (key, value) in &claims {
                 match key.as_ref() {
                     "iss" | "sub" | "jti" => match value {
-                        Value::String(_) => {},
+                        Value::String(_) => {}
                         _ => bail!("The JWT {} payload claim must be a string.", key),
                     },
                     "aud" => match value {
-                        Value::String(_) => {},
+                        Value::String(_) => {}
                         Value::Array(vals) => {
                             let mut vec = Vec::with_capacity(vals.len());
                             for val in vals {
                                 match val {
                                     Value::String(val) => vec.push(val.to_string()),
-                                    _ => bail!("An element of JWT {} payload claim must be a string.", key),
+                                    _ => bail!(
+                                        "An element of JWT {} payload claim must be a string.",
+                                        key
+                                    ),
                                 }
                             }
                             sources.insert(key.clone(), SourceValue::StringArray(vec));
-                        },
+                        }
                         _ => bail!("The JWT {} payload claim must be a string or array.", key),
                     },
                     "exp" | "nbf" | "iat" => match value {
@@ -142,23 +140,23 @@ impl JwtPayload {
                             Some(val) => {
                                 let val = SystemTime::UNIX_EPOCH + Duration::from_secs(val);
                                 sources.insert(key.clone(), SourceValue::SystemTime(val));
-                            },
-                            None => bail!("The JWT {} payload claim must be a positive integer within 64bit.", key),
+                            }
+                            None => bail!(
+                                "The JWT {} payload claim must be a positive integer within 64bit.",
+                                key
+                            ),
                         },
                         _ => bail!("The JWT {} payload claim must be a string type.", key),
                     },
-                    _ => {},
+                    _ => {}
                 }
             }
 
-            Ok(Self {
-                claims,
-                sources,
-            })
+            Ok(Self { claims, sources })
         })()
         .map_err(|err| match err.downcast::<JoseError>() {
             Ok(err) => err,
-            Err(err) => JoseError::InvalidJwtFormat(err)
+            Err(err) => JoseError::InvalidJwtFormat(err),
         })
     }
 
@@ -237,10 +235,12 @@ impl JwtPayload {
     /// * `value` - A expiration time on or after which the JWT must not be accepted for processing.
     pub fn set_expires_at(&mut self, value: SystemTime) {
         let key = "exp".to_string();
-        let val = Number::from(value
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .unwrap()
-            .as_secs());
+        let val = Number::from(
+            value
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap()
+                .as_secs(),
+        );
         self.claims.insert(key.clone(), Value::Number(val));
         self.sources.insert(key, SourceValue::SystemTime(value));
     }
@@ -260,10 +260,12 @@ impl JwtPayload {
     /// * `value` - A time before which the JWT must not be accepted for processing.
     pub fn set_not_before(&mut self, value: SystemTime) {
         let key = "nbf".to_string();
-        let val = Number::from(value
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .unwrap()
-            .as_secs());
+        let val = Number::from(
+            value
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap()
+                .as_secs(),
+        );
         self.claims.insert(key.clone(), Value::Number(val));
         self.sources.insert(key, SourceValue::SystemTime(value));
     }
@@ -283,10 +285,12 @@ impl JwtPayload {
     /// * `value` - a time at which the JWT was issued.
     pub fn set_issued_at(&mut self, value: SystemTime) {
         let key = "iat".to_string();
-        let val = Number::from(value
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .unwrap()
-            .as_secs());
+        let val = Number::from(
+            value
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap()
+                .as_secs(),
+        );
         self.claims.insert(key.clone(), Value::Number(val));
         self.sources.insert(key, SourceValue::SystemTime(value));
     }
@@ -352,7 +356,8 @@ impl JwtPayload {
                                 ),
                             }
                         }
-                        self.sources.insert(key.clone(), SourceValue::StringArray(vec));
+                        self.sources
+                            .insert(key.clone(), SourceValue::StringArray(vec));
                         self.claims.insert(key, value.unwrap());
                     }
                     None => {
@@ -366,7 +371,8 @@ impl JwtPayload {
                         Some(val) => {
                             let key = key.to_string();
                             let val = SystemTime::UNIX_EPOCH + Duration::from_secs(val);
-                            self.sources.insert(key.clone(), SourceValue::SystemTime(val));
+                            self.sources
+                                .insert(key.clone(), SourceValue::SystemTime(val));
                             self.claims.insert(key, value.unwrap());
                         }
                         None => bail!(
@@ -411,8 +417,7 @@ impl JwtPayload {
 
 impl Display for JwtPayload {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
-        let val = serde_json::to_string(self.claims_set())
-            .map_err(|_e| std::fmt::Error {})?;
+        let val = serde_json::to_string(self.claims_set()).map_err(|_e| std::fmt::Error {})?;
         fmt.write_str(&val)
     }
 }
@@ -467,10 +472,7 @@ impl Jwt<JwtHeader> {
             let payload: Map<String, Value> = serde_json::from_slice(&payload)?;
             let payload = JwtPayload::from_map(payload)?;
 
-            Ok(Self {
-                header,
-                payload,
-            })
+            Ok(Self { header, payload })
         })()
         .map_err(|err| match err.downcast::<JoseError>() {
             Ok(err) => err,
@@ -487,7 +489,7 @@ impl Jwt<JwsHeader> {
             payload: JwtPayload::new(),
         }
     }
-    
+
     /// Return the JWT object decoded by the selected verifier.
     ///
     /// # Arguments
@@ -513,17 +515,14 @@ impl Jwt<JwsHeader> {
             let payload: Map<String, Value> = serde_json::from_slice(&payload)?;
             let payload = JwtPayload::from_map(payload)?;
 
-            Ok(Self {
-                header,
-                payload,
-            })
+            Ok(Self { header, payload })
         })()
         .map_err(|err| match err.downcast::<JoseError>() {
             Ok(err) => err,
             Err(err) => JoseError::InvalidJwtFormat(err),
         })
     }
-    
+
     /// Return the JWT object decoded with a selected verifying algorithm.
     ///
     /// # Arguments
@@ -555,17 +554,14 @@ impl Jwt<JwsHeader> {
             let payload: Map<String, Value> = serde_json::from_slice(&payload)?;
             let payload = JwtPayload::from_map(payload)?;
 
-            Ok(Self {
-                header,
-                payload,
-            })
+            Ok(Self { header, payload })
         })()
         .map_err(|err| match err.downcast::<JoseError>() {
             Ok(err) => err,
             Err(err) => JoseError::InvalidJwtFormat(err),
         })
     }
-    
+
     /// Return the JWT object decoded by using a JWK set.
     ///
     /// # Arguments
@@ -578,20 +574,23 @@ impl Jwt<JwsHeader> {
         input: &str,
     ) -> Result<Self, JoseError> {
         let algorithm = algorithm.as_ref();
-        Self::decode_with_verifier_selector(|header| -> Option<Box<dyn JwsVerifier>> {
-            let key_id = match header.key_id() {
-                Some(val) => val,
-                None => return None,
-            };
+        Self::decode_with_verifier_selector(
+            |header| -> Option<Box<dyn JwsVerifier>> {
+                let key_id = match header.key_id() {
+                    Some(val) => val,
+                    None => return None,
+                };
 
-            for jwk in jwk_set.get(key_id) {
-                match algorithm.verifier_from_jwk(jwk) {
-                    Ok(val) => return Some(val),
-                    Err(_) => {}
+                for jwk in jwk_set.get(key_id) {
+                    match algorithm.verifier_from_jwk(jwk) {
+                        Ok(val) => return Some(val),
+                        Err(_) => {}
+                    }
                 }
-            }
-            None
-        }, input)
+                None
+            },
+            input,
+        )
     }
 }
 
@@ -603,7 +602,7 @@ impl Jwt<JweHeader> {
             payload: JwtPayload::new(),
         }
     }
-    
+
     /// Return the JWT object decoded by the selected decrypter.
     ///
     /// # Arguments
@@ -629,10 +628,7 @@ impl Jwt<JweHeader> {
             let payload: Map<String, Value> = serde_json::from_slice(&payload)?;
             let payload = JwtPayload::from_map(payload)?;
 
-            Ok(Self {
-                header,
-                payload,
-            })
+            Ok(Self { header, payload })
         })()
         .map_err(|err| match err.downcast::<JoseError>() {
             Ok(err) => err,
@@ -701,10 +697,7 @@ impl Jwt<JweHeader> {
             let payload: Map<String, Value> = serde_json::from_slice(&payload)?;
             let payload = JwtPayload::from_map(payload)?;
 
-            Ok(Self {
-                header,
-                payload,
-            })
+            Ok(Self { header, payload })
         })()
         .map_err(|err| match err.downcast::<JoseError>() {
             Ok(err) => err,
@@ -733,7 +726,7 @@ impl<T: JoseHeader> Jwt<T> {
             Err(err) => JoseError::InvalidJwtFormat(err),
         })
     }
-    
+
     /// Return the string repsentation of the JWT with the siginig algorithm.
     ///
     /// # Arguments
@@ -1004,11 +997,11 @@ mod tests {
     use std::io::Read;
     use std::path::PathBuf;
 
+    use crate::jwk::Jwk;
     use crate::jws::{
         EDDSA, ES256, ES256K, ES384, ES512, HS256, HS384, HS512, PS256, PS384, PS512, RS256, RS384,
         RS512,
     };
-    use crate::jwk::Jwk;
 
     #[test]
     fn test_new_header() -> Result<()> {
@@ -1049,9 +1042,7 @@ mod tests {
         assert!(matches!(header.url(), Some("url")));
         assert!(matches!(header.nonce(), Some(val) if val == &b"nonce".to_vec()));
         assert!(matches!(header.critical(), Some(vals) if vals == &vec!["crit0", "crit1"]));
-        assert!(
-            matches!(header.claim("header_claim"), Some(val) if val == &json!("header_claim"))
-        );
+        assert!(matches!(header.claim("header_claim"), Some(val) if val == &json!("header_claim")));
 
         Ok(())
     }
@@ -1089,7 +1080,9 @@ mod tests {
         let jwt_string = from_jwt.encode_unsecured()?;
         let to_jwt = Jwt::decode_unsecured(&jwt_string)?;
 
-        from_jwt.header.set_claim("alg", Some(Value::String("none".to_string())))?;
+        from_jwt
+            .header
+            .set_claim("alg", Some(Value::String("none".to_string())))?;
         assert_eq!(from_jwt, to_jwt);
 
         Ok(())
@@ -1108,7 +1101,9 @@ mod tests {
             let verifier = alg.verifier_from_slice(private_key)?;
             let to_jwt = Jwt::decode_with_verifier(&verifier, &jwt_string)?;
 
-            from_jwt.header.set_claim("alg", Some(Value::String(alg.name().to_string())))?;
+            from_jwt
+                .header
+                .set_claim("alg", Some(Value::String(alg.name().to_string())))?;
             assert_eq!(from_jwt, to_jwt);
         }
 
@@ -1130,7 +1125,9 @@ mod tests {
             let verifier = alg.verifier_from_pem(&public_key)?;
             let to_jwt = Jwt::decode_with_verifier(&verifier, &jwt_string)?;
 
-            from_jwt.header.set_claim("alg", Some(Value::String(alg.name().to_string())))?;
+            from_jwt
+                .header
+                .set_claim("alg", Some(Value::String(alg.name().to_string())))?;
             assert_eq!(from_jwt, to_jwt);
         }
 
@@ -1162,7 +1159,9 @@ mod tests {
             let verifier = alg.verifier_from_pem(&public_key)?;
             let to_jwt = Jwt::decode_with_verifier(&verifier, &jwt_string)?;
 
-            from_jwt.header.set_claim("alg", Some(Value::String(alg.name().to_string())))?;
+            from_jwt
+                .header
+                .set_claim("alg", Some(Value::String(alg.name().to_string())))?;
             assert_eq!(from_jwt, to_jwt);
         }
 
@@ -1184,7 +1183,9 @@ mod tests {
             let verifier = alg.verifier_from_der(&public_key)?;
             let to_jwt = Jwt::decode_with_verifier(&verifier, &jwt_string)?;
 
-            from_jwt.header.set_claim("alg", Some(Value::String(alg.name().to_string())))?;
+            from_jwt
+                .header
+                .set_claim("alg", Some(Value::String(alg.name().to_string())))?;
             assert_eq!(from_jwt, to_jwt);
         }
 
@@ -1216,7 +1217,9 @@ mod tests {
             let verifier = alg.verifier_from_pem(&public_key)?;
             let to_jwt = Jwt::decode_with_verifier(&verifier, &jwt_string)?;
 
-            from_jwt.header.set_claim("alg", Some(Value::String(alg.name().to_string())))?;
+            from_jwt
+                .header
+                .set_claim("alg", Some(Value::String(alg.name().to_string())))?;
             assert_eq!(from_jwt, to_jwt);
         }
 
@@ -1248,7 +1251,9 @@ mod tests {
             let verifier = alg.verifier_from_der(&public_key)?;
             let to_jwt = Jwt::decode_with_verifier(&verifier, &jwt_string)?;
 
-            from_jwt.header.set_claim("alg", Some(Value::String(alg.name().to_string())))?;
+            from_jwt
+                .header
+                .set_claim("alg", Some(Value::String(alg.name().to_string())))?;
             assert_eq!(from_jwt, to_jwt);
         }
 
@@ -1273,7 +1278,7 @@ mod tests {
         validator.set_audience("aud1");
         validator.set_claim("payload_claim", json!("payload_claim"));
         validator.validate(&payload)?;
-        
+
         Ok(())
     }
 

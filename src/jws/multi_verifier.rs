@@ -1,2 +1,1 @@
-pub struct JwsMultiVerifier {
-}
+pub struct JwsMultiVerifier {}

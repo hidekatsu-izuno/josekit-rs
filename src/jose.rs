@@ -1,5 +1,5 @@
+use serde_json::{Map, Value};
 use std::fmt::Display;
-use serde_json::{ Map, Value };
 
 use crate::error::JoseError;
 
@@ -21,10 +21,10 @@ pub trait JoseHeader: Clone + Display {
     fn algorithm(&self) -> Option<&str> {
         match self.claims_set().get("alg") {
             Some(Value::String(val)) => Some(&val),
-            _ => None
+            _ => None,
         }
     }
-    
+
     /// Return the value for header claim of a specified key.
     ///
     /// # Arguments
@@ -32,7 +32,7 @@ pub trait JoseHeader: Clone + Display {
     fn claim(&self, key: &str) -> Option<&Value> {
         self.claims_set().get(key)
     }
-    
+
     /// Return values for header claims set
     fn claims_set(&self) -> &Map<String, Value>;
 

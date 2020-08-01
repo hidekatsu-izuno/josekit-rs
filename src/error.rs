@@ -22,7 +22,7 @@ pub enum JoseError {
 
     #[error("Invalid claim: {0}")]
     InvalidClaim(#[source] anyhow::Error),
-    
+
     #[error("Invalid signature: {0}")]
     InvalidSignature(#[source] anyhow::Error),
 }

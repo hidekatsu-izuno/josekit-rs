@@ -1,6 +1,6 @@
-use crate::jwe::{JweAlgorithm, JweEncryption, JweEncrypter, JweDecrypter};
-use crate::jwk::Jwk;
 use crate::error::JoseError;
+use crate::jwe::{JweAlgorithm, JweDecrypter, JweEncrypter, JweEncryption};
+use crate::jwk::Jwk;
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum AesGcmJweEncryption {

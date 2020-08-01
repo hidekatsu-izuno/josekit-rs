@@ -1,10 +1,10 @@
-mod alg_rsaes;
 mod alg_aes;
+mod alg_aes_gcm;
 mod alg_dir;
 mod alg_ecdh_es;
 mod alg_ecdh_es_aes;
-mod alg_aes_gcm;
 mod alg_pbes2_hmac_aes;
+mod alg_rsaes;
 mod enc_aes_cbc_hmac;
 mod enc_aes_gcm;
 
@@ -64,7 +64,7 @@ impl JweHeader {
             sources: HashMap::new(),
         }
     }
-    
+
     /// Set a value for key ID header claim (kid).
     ///
     /// # Arguments
@@ -94,7 +94,7 @@ impl JoseHeader for JweHeader {
     fn claims_set(&self) -> &Map<String, Value> {
         &self.claims
     }
-    
+
     fn set_claim(&mut self, key: &str, value: Option<Value>) -> Result<(), JoseError> {
         (|| -> anyhow::Result<()> {
             match key {
@@ -120,8 +120,7 @@ impl JoseHeader for JweHeader {
 
 impl Display for JweHeader {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
-        let val = serde_json::to_string(self.claims_set())
-            .map_err(|_e| std::fmt::Error {})?;
+        let val = serde_json::to_string(self.claims_set()).map_err(|_e| std::fmt::Error {})?;
         fmt.write_str(&val)
     }
 }
@@ -135,14 +134,22 @@ pub trait JweAlgorithm {
     /// # Arguments
     /// * `jwk` - a JWK private key.
     /// * `encryption` - a JWE encryption algorithm.
-    fn encrypter_from_jwk(&self, jwk: &Jwk, encryption: &dyn JweEncryption) -> Result<Box<dyn JweEncrypter>, JoseError>;
+    fn encrypter_from_jwk(
+        &self,
+        jwk: &Jwk,
+        encryption: &dyn JweEncryption,
+    ) -> Result<Box<dyn JweEncrypter>, JoseError>;
 
     /// Return the decrypter from a JWK key.
     ///
     /// # Arguments
     /// * `jwk` - a JWK key.
     /// * `encryption` - a JWE encryption algorithm.
-    fn decrypter_from_jwk(&self, jwk: &Jwk, encryption: &dyn JweEncryption) -> Result<Box<dyn JweDecrypter>, JoseError>;
+    fn decrypter_from_jwk(
+        &self,
+        jwk: &Jwk,
+        encryption: &dyn JweEncryption,
+    ) -> Result<Box<dyn JweDecrypter>, JoseError>;
 }
 
 pub trait JweEncryption {
@@ -175,11 +182,7 @@ pub trait JweEncrypter {
     /// * `key` - The key data to encrypt.
     fn encrypt(&self, key: &[u8]) -> Result<Vec<u8>, JoseError>;
 
-    fn serialize_compact(
-        &self,
-        header: &JweHeader,
-        payload: &[u8],
-    ) -> Result<String, JoseError> {
+    fn serialize_compact(&self, header: &JweHeader, payload: &[u8]) -> Result<String, JoseError> {
         (|| -> anyhow::Result<String> {
             let mut b64 = true;
             if let Some(Value::Bool(false)) = header.claim("b64") {
@@ -223,17 +226,12 @@ pub trait JweDecrypter {
     /// * `key` - The encrypted key data.
     fn decrypt(&self, key: &[u8]) -> Result<Vec<u8>, JoseError>;
 
-    fn deserialize_compact(
-        &self,
-        header: &JweHeader,
-        input: &str,
-    ) -> Result<Vec<u8>, JoseError> {
-        (|| -> anyhow::Result<Vec<u8>> {
-            Ok(Vec::new())
-        })()
-        .map_err(|err| match err.downcast::<JoseError>() {
-            Ok(err) => err,
-            Err(err) => JoseError::InvalidJwtFormat(err),
+    fn deserialize_compact(&self, header: &JweHeader, input: &str) -> Result<Vec<u8>, JoseError> {
+        (|| -> anyhow::Result<Vec<u8>> { Ok(Vec::new()) })().map_err(|err| {
+            match err.downcast::<JoseError>() {
+                Ok(err) => err,
+                Err(err) => JoseError::InvalidJwtFormat(err),
+            }
         })
     }
 }

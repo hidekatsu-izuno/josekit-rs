@@ -1,8 +1,8 @@
+mod alg_ecdsa;
+mod alg_eddsa;
 mod alg_hmac;
 mod alg_rsa;
 mod alg_rsapss;
-mod alg_ecdsa;
-mod alg_eddsa;
 mod multi_signer;
 mod multi_verifier;
 
@@ -30,9 +30,9 @@ pub use crate::jws::alg_rsapss::RsaPssJwsAlgorithm::PS384;
 pub use crate::jws::alg_rsapss::RsaPssJwsAlgorithm::PS512;
 
 pub use crate::jws::alg_ecdsa::EcdsaJwsAlgorithm::ES256;
+pub use crate::jws::alg_ecdsa::EcdsaJwsAlgorithm::ES256K;
 pub use crate::jws::alg_ecdsa::EcdsaJwsAlgorithm::ES384;
 pub use crate::jws::alg_ecdsa::EcdsaJwsAlgorithm::ES512;
-pub use crate::jws::alg_ecdsa::EcdsaJwsAlgorithm::ES256K;
 
 pub use crate::jws::alg_eddsa::EddsaJwsAlgorithm::EDDSA;
 
@@ -77,7 +77,8 @@ impl JwsHeader {
     /// * `value` - a JWK
     pub fn set_jwk(&mut self, value: Jwk) {
         let key = "jwk".to_string();
-        self.claims.insert(key.clone(), Value::Object(value.as_ref().clone()));
+        self.claims
+            .insert(key.clone(), Value::Object(value.as_ref().clone()));
         self.sources.insert(key, SourceValue::Jwk(value));
     }
 
@@ -534,8 +535,7 @@ impl JoseHeader for JwsHeader {
 
 impl Display for JwsHeader {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
-        let val = serde_json::to_string(self.claims_set())
-            .map_err(|_e| std::fmt::Error {})?;
+        let val = serde_json::to_string(self.claims_set()).map_err(|_e| std::fmt::Error {})?;
         fmt.write_str(&val)
     }
 }
@@ -586,11 +586,7 @@ pub trait JwsSigner {
     /// * `message` - The message data to sign.
     fn sign(&self, message: &[u8]) -> Result<Vec<u8>, JoseError>;
 
-    fn serialize_compact(
-        &self,
-        header: &JwsHeader,
-        payload: &[u8],
-    ) -> Result<String, JoseError> {
+    fn serialize_compact(&self, header: &JwsHeader, payload: &[u8]) -> Result<String, JoseError> {
         (|| -> anyhow::Result<String> {
             let mut b64 = true;
             if let Some(&false) = header.base64url_encode_payload() {
@@ -669,11 +665,7 @@ pub trait JwsVerifier {
     /// * `signature` - a signature data.
     fn verify(&self, message: &[u8], signature: &[u8]) -> Result<(), JoseError>;
 
-    fn deserialize_compact(
-        &self,
-        header: &JwsHeader,
-        input: &str,
-    ) -> Result<Vec<u8>, JoseError> {
+    fn deserialize_compact(&self, header: &JwsHeader, input: &str) -> Result<Vec<u8>, JoseError> {
         (|| -> anyhow::Result<Vec<u8>> {
             let indexies: Vec<usize> = input
                 .char_indices()

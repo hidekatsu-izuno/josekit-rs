@@ -1,4 +1,4 @@
-# IZN_JOSE
+# josekit
 
 JOSE (Javascript Object Signing and Encryption: JWT, JWS, JWE, JWA, JWK) library for Rust.
 
@@ -6,16 +6,16 @@ JOSE (Javascript Object Signing and Encryption: JWT, JWS, JWE, JWA, JWK) library
 
 ```toml
 [dependencies]
-izn_jose = { git = "https://github.com/hidekatsu-izuno/izn_jose" }
+josekit = { git = "https://github.com/hidekatsu-izuno/josekit" }
 ```
 
-This library depends on OpenSSL DLL. Read more about it [Crate openssl](https://docs.rs/openssl/). 
+This library depends on OpenSSL DLL. Read more about [Crate openssl](https://docs.rs/openssl/). 
 
 ## Build
 
 ```sh
 sudo apt install build-essential pkg-config libssl-dev
-cd izn_jose
+cd josekit
 cargo build --release
 ```
 

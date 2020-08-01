@@ -22,6 +22,25 @@ pub enum HmacJwsAlgorithm {
 }
 
 impl HmacJwsAlgorithm {
+    /// Generate a JWK encoded oct private key.
+    ///
+    /// # Arguments
+    /// * `secret` - A secret key
+    pub fn generate_jwk(&self, secret: Vec<u8>) -> Result<Jwk, JoseError> {
+        (|| -> anyhow::Result<Jwk> {
+            let k = base64::encode_config(secret, base64::URL_SAFE_NO_PAD);
+
+            let mut jwk = Jwk::new("oct");
+            jwk.set_key_use("sig");
+            jwk.set_key_operations(vec!["sign"]);
+            jwk.set_algorithm(self.name());
+            jwk.set_parameter("k", Some(Value::String(k)))?;
+
+            Ok(jwk)
+        })()
+        .map_err(|err| JoseError::InvalidKeyFormat(err))
+    }
+
     /// Return a signer from a secret key.
     ///
     /// # Arguments

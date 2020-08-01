@@ -2,6 +2,7 @@ use anyhow::bail;
 use once_cell::sync::Lazy;
 use openssl::hash::MessageDigest;
 use openssl::pkey::{HasPublic, PKey, Private, Public};
+use openssl::rsa::Rsa;
 use openssl::sign::{Signer, Verifier};
 use serde_json::Value;
 
@@ -38,6 +39,118 @@ pub enum RsaPssJwsAlgorithm {
 }
 
 impl RsaPssJwsAlgorithm {
+    /// Generate a DER encoded RSA-PSS private key.
+    ///
+    /// # Arguments
+    /// * `bits` - RSA key length
+    /// * `raw` - If true, return a raw PKCS#1 RSAPrivateKey.
+    pub fn generate_der(&self, bits: u32, raw: bool) -> Result<Vec<u8>, JoseError> {
+        (|| -> anyhow::Result<Vec<u8>> {
+            if bits < 2048 {
+                bail!("key length must be 2048 or more.");
+            }
+
+            let rsa = Rsa::generate(bits)?;
+            let n = rsa.n().to_vec();
+            let e = rsa.e().to_vec();
+            let d = rsa.d().to_vec();
+            let p = rsa.p().unwrap().to_vec();
+            let q = rsa.q().unwrap().to_vec();
+            let dp = rsa.dmp1().unwrap().to_vec();
+            let dq = rsa.dmq1().unwrap().to_vec();
+            let qi = rsa.iqmp().unwrap().to_vec();
+            let mut builder = DerBuilder::new();
+            builder.begin(DerType::Sequence);
+            {
+                builder.append_integer_from_u8(0); // version
+                builder.append_integer_from_be_slice(&n, false); // n
+                builder.append_integer_from_be_slice(&e, false); // e
+                builder.append_integer_from_be_slice(&d, false); // d
+                builder.append_integer_from_be_slice(&p, false); // p
+                builder.append_integer_from_be_slice(&q, false); // q
+                builder.append_integer_from_be_slice(&dp, false); // d mod (p-1)
+                builder.append_integer_from_be_slice(&dq, false); // d mod (q-1)
+                builder.append_integer_from_be_slice(&qi, false); // (inverse of q) mod p
+            }
+            builder.end();
+            let der = builder.build();
+
+            if raw {
+                Ok(der)
+            } else {
+                Ok(self.to_pkcs8(&der, false))
+            }
+        })()
+        .map_err(|err| JoseError::InvalidKeyFormat(err))
+    }
+
+    /// Generate a PEM encoded RSA-PSS private key.
+    ///
+    /// # Arguments
+    /// * `bits` - RSA key length
+    /// * `traditional` - If true, return a traditionl format.
+    pub fn generate_pem(&self, bits: u32, traditional: bool) -> Result<Vec<u8>, JoseError> {
+        let der = self.generate_der(bits, false)?;
+        let der = base64::encode_config(&der, base64::STANDARD);
+        let alg = if traditional {
+            "RSA-PSS PRIVATE KEY"
+        } else {
+            "PRIVATE KEY"
+        };
+
+        let mut result = String::new();
+        result.push_str("-----BEGIN ");
+        result.push_str(alg);
+        result.push_str("-----\r\n");
+        for i in 0..((der.len() + 64 - 1) / 64) {
+            result.push_str(&der[(i * 64)..((i + 1) * 64)]);
+            result.push_str("\r\n");
+        }
+        result.push_str("-----END ");
+        result.push_str(alg);
+        result.push_str("-----\r\n");
+
+        Ok(result.into_bytes())
+    }
+
+    /// Generate a JWK encoded RSA private key.
+    ///
+    /// # Arguments
+    /// * `bits` - RSA key length
+    pub fn generate_jwk(&self, bits: u32) -> Result<Jwk, JoseError> {
+        (|| -> anyhow::Result<Jwk> {
+            if bits < 2048 {
+                bail!("key length must be 2048 or more.");
+            }
+
+            let rsa = Rsa::generate(bits)?;
+            let n = base64::encode_config(rsa.n().to_vec(), base64::URL_SAFE_NO_PAD);
+            let e = base64::encode_config(rsa.e().to_vec(), base64::URL_SAFE_NO_PAD);
+            let d = base64::encode_config(rsa.d().to_vec(), base64::URL_SAFE_NO_PAD);
+            let p = base64::encode_config(rsa.p().unwrap().to_vec(), base64::URL_SAFE_NO_PAD);
+            let q = base64::encode_config(rsa.q().unwrap().to_vec(), base64::URL_SAFE_NO_PAD);
+            let dp = base64::encode_config(rsa.dmp1().unwrap().to_vec(), base64::URL_SAFE_NO_PAD);
+            let dq = base64::encode_config(rsa.dmq1().unwrap().to_vec(), base64::URL_SAFE_NO_PAD);
+            let qi = base64::encode_config(rsa.iqmp().unwrap().to_vec(), base64::URL_SAFE_NO_PAD);
+
+            let mut jwk = Jwk::new("RSA");
+            jwk.set_key_use("sig");
+            jwk.set_key_operations(vec!["sign"]);
+            jwk.set_algorithm(self.name());
+            jwk.set_parameter("n", Some(Value::String(n)))?;
+            jwk.set_parameter("e", Some(Value::String(e)))?;
+            jwk.set_parameter("d", Some(Value::String(d)))?;
+            jwk.set_parameter("p", Some(Value::String(p)))?;
+            jwk.set_parameter("q", Some(Value::String(q)))?;
+            jwk.set_parameter("dp", Some(Value::String(dp)))?;
+            jwk.set_parameter("dq", Some(Value::String(dq)))?;
+            jwk.set_parameter("qi", Some(Value::String(qi)))?;
+
+            Ok(jwk)
+        })()
+        .map_err(|err| JoseError::InvalidKeyFormat(err))
+    }
+
     /// Return a signer from a private key of common or traditinal PEM format.
     ///
     /// Common PEM format is a DER and base64 encoded PKCS#8 PrivateKeyInfo
