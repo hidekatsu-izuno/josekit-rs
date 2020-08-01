@@ -8,11 +8,91 @@ pub mod alg_pbes2_hmac_aes;
 pub mod enc_aes_cbc_hmac;
 pub mod enc_aes_gcm;
 
+use std::collections::HashMap;
+use std::fmt::Display;
+
 use anyhow::bail;
 use serde_json::{Map, Value};
 
 use crate::error::JoseError;
+use crate::jose::JoseHeader;
 use crate::jwk::Jwk;
+use crate::util::SourceValue;
+
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub struct JweHeader {
+    claims: Map<String, Value>,
+    sources: HashMap<String, SourceValue>,
+}
+
+impl JweHeader {
+    pub fn new() -> Self {
+        Self {
+            claims: Map::new(),
+            sources: HashMap::new(),
+        }
+    }
+    
+    /// Set a value for key ID header claim (kid).
+    ///
+    /// # Arguments
+    /// * `value` - a key ID
+    pub fn set_key_id(&mut self, value: impl Into<String>) {
+        let value: String = value.into();
+        self.claims.insert("kid".to_string(), Value::String(value));
+    }
+
+    /// Return the value for key ID header claim (kid).
+    pub fn key_id(&self) -> Option<&str> {
+        match self.claims.get("kid") {
+            Some(Value::String(val)) => Some(val),
+            _ => None,
+        }
+    }
+}
+
+impl JoseHeader for JweHeader {
+    fn from_map(claims: Map<String, Value>) -> Result<Self, JoseError> {
+        Ok(Self {
+            claims,
+            sources: HashMap::new(),
+        })
+    }
+
+    fn claims_set(&self) -> &Map<String, Value> {
+        &self.claims
+    }
+    
+    fn set_claim(&mut self, key: &str, value: Option<Value>) -> Result<(), JoseError> {
+        (|| -> anyhow::Result<()> {
+            match key {
+                "alg" => bail!(
+                    "The Unsecured {} header claim should not be setted expressly.",
+                    key
+                ),
+                _ => match &value {
+                    Some(_) => {
+                        self.claims.insert(key.to_string(), value.unwrap());
+                    }
+                    None => {
+                        self.claims.remove(key);
+                    }
+                },
+            }
+
+            Ok(())
+        })()
+        .map_err(|err| JoseError::InvalidJwtFormat(err))
+    }
+}
+
+impl Display for JweHeader {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+        let val = serde_json::to_string(self.claims_set())
+            .map_err(|_e| std::fmt::Error {})?;
+        fmt.write_str(&val)
+    }
+}
 
 pub trait JweAlgorithm {
     /// Return the "alg" (algorithm) header parameter value of JWE.
@@ -65,13 +145,13 @@ pub trait JweEncrypter {
 
     fn serialize_compact(
         &self,
-        header: &Map<String, Value>,
+        header: &JweHeader,
         payload: &[u8],
     ) -> Result<String, JoseError> {
         (|| -> anyhow::Result<String> {
             let mut b64 = true;
-            if let Some(Value::Bool(false)) = header.get("b64") {
-                if let Some(Value::Array(vals)) = header.get("crit") {
+            if let Some(Value::Bool(false)) = header.claim("b64") {
+                if let Some(Value::Array(vals)) = header.claim("crit") {
                     if vals.iter().any(|e| e == "b64") {
                         b64 = false;
                     } else {
@@ -113,7 +193,7 @@ pub trait JweDecrypter {
 
     fn deserialize_compact(
         &self,
-        header: &Map<String, Value>,
+        header: &JweHeader,
         input: &str,
     ) -> Result<Vec<u8>, JoseError> {
         (|| -> anyhow::Result<Vec<u8>> {

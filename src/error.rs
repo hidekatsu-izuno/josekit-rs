@@ -17,9 +17,12 @@ pub enum JoseError {
     #[error("Invalid key format: {0}")]
     InvalidKeyFormat(#[source] anyhow::Error),
 
-    #[error("Invalid signature: {0}")]
-    InvalidSignature(#[source] anyhow::Error),
+    #[error("Invalid json: {0}")]
+    InvalidJson(#[source] anyhow::Error),
 
     #[error("Invalid claim: {0}")]
     InvalidClaim(#[source] anyhow::Error),
+    
+    #[error("Invalid signature: {0}")]
+    InvalidSignature(#[source] anyhow::Error),
 }

@@ -1,6 +1,19 @@
+use std::time::SystemTime;
 use anyhow::bail;
 use once_cell::sync::Lazy;
 use regex::bytes::{NoExpand, Regex};
+use serde_json::Value;
+
+use crate::jwk::Jwk;
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub enum SourceValue {
+    Jwk(Jwk),
+    Bytes(Vec<u8>),
+    BytesArray(Vec<Vec<u8>>),
+    StringArray(Vec<String>),
+    SystemTime(SystemTime),
+}
 
 pub fn parse_pem(input: &[u8]) -> anyhow::Result<(String, Vec<u8>)> {
     static RE_PEM: Lazy<Regex> = Lazy::new(|| {
