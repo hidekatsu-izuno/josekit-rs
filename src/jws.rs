@@ -1,10 +1,10 @@
-pub mod alg_hmac;
-pub mod alg_rsa;
-pub mod alg_rsapss;
-pub mod alg_ecdsa;
-pub mod alg_eddsa;
-pub mod multi_signer;
-pub mod multi_verifier;
+mod alg_hmac;
+mod alg_rsa;
+mod alg_rsapss;
+mod alg_ecdsa;
+mod alg_eddsa;
+mod multi_signer;
+mod multi_verifier;
 
 use std::collections::HashMap;
 use std::fmt::Display;
@@ -35,6 +35,9 @@ pub use crate::jws::alg_ecdsa::EcdsaJwsAlgorithm::ES512;
 pub use crate::jws::alg_ecdsa::EcdsaJwsAlgorithm::ES256K;
 
 pub use crate::jws::alg_eddsa::EddsaJwsAlgorithm::EDDSA;
+
+pub use crate::jws::multi_signer::JwsMultiSigner;
+pub use crate::jws::multi_verifier::JwsMultiVerifier;
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct JwsHeader {

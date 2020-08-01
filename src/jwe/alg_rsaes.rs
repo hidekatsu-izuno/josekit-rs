@@ -3,7 +3,7 @@ use crate::jwk::Jwk;
 use crate::error::JoseError;
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
-pub enum RsaJweAlgorithm {
+pub enum RsaesJweAlgorithm {
     /// RSAES-PKCS1-v1_5
     RSA1_5,
     /// RSAES OAEP using default parameters
@@ -12,7 +12,7 @@ pub enum RsaJweAlgorithm {
     RSA_OAEP_256,
 }
 
-impl JweAlgorithm for RsaJweAlgorithm {
+impl JweAlgorithm for RsaesJweAlgorithm {
     fn name(&self) -> &str {
         match self {
             Self::RSA1_5 => "RSA1_5",

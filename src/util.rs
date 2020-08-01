@@ -2,7 +2,6 @@ use std::time::SystemTime;
 use anyhow::bail;
 use once_cell::sync::Lazy;
 use regex::bytes::{NoExpand, Regex};
-use serde_json::Value;
 
 use crate::jwk::Jwk;
 

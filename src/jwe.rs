@@ -1,12 +1,12 @@
-pub mod alg_rsaes;
-pub mod alg_aes;
-pub mod alg_dir;
-pub mod alg_ecdh_es;
-pub mod alg_ecdh_es_aes;
-pub mod alg_aes_gcm;
-pub mod alg_pbes2_hmac_aes;
-pub mod enc_aes_cbc_hmac;
-pub mod enc_aes_gcm;
+mod alg_rsaes;
+mod alg_aes;
+mod alg_dir;
+mod alg_ecdh_es;
+mod alg_ecdh_es_aes;
+mod alg_aes_gcm;
+mod alg_pbes2_hmac_aes;
+mod enc_aes_cbc_hmac;
+mod enc_aes_gcm;
 
 use std::collections::HashMap;
 use std::fmt::Display;
@@ -18,6 +18,38 @@ use crate::error::JoseError;
 use crate::jose::JoseHeader;
 use crate::jwk::Jwk;
 use crate::util::SourceValue;
+
+pub use crate::jwe::alg_aes::AesJweAlgorithm::A128KW;
+pub use crate::jwe::alg_aes::AesJweAlgorithm::A192KW;
+pub use crate::jwe::alg_aes::AesJweAlgorithm::A256KW;
+
+pub use crate::jwe::alg_aes_gcm::AesGcmJweAlgorithm::A128GCMKW;
+pub use crate::jwe::alg_aes_gcm::AesGcmJweAlgorithm::A192GCMKW;
+pub use crate::jwe::alg_aes_gcm::AesGcmJweAlgorithm::A256GCMKW;
+
+pub use crate::jwe::alg_dir::DirJweAlgorithm::Dir;
+
+pub use crate::jwe::alg_ecdh_es::EcdhEsJweAlgorithm::ECDH_ES;
+
+pub use crate::jwe::alg_ecdh_es_aes::EcdhEsAesJweAlgorithm::ECDH_ES_A128KW;
+pub use crate::jwe::alg_ecdh_es_aes::EcdhEsAesJweAlgorithm::ECDH_ES_A192KW;
+pub use crate::jwe::alg_ecdh_es_aes::EcdhEsAesJweAlgorithm::ECDH_ES_A256KW;
+
+pub use crate::jwe::alg_pbes2_hmac_aes::Pbes2HmacAesJweAlgorithm::PBES2_HS256_A128KW;
+pub use crate::jwe::alg_pbes2_hmac_aes::Pbes2HmacAesJweAlgorithm::PBES2_HS384_A192KW;
+pub use crate::jwe::alg_pbes2_hmac_aes::Pbes2HmacAesJweAlgorithm::PBES2_HS512_A256KW;
+
+pub use crate::jwe::alg_rsaes::RsaesJweAlgorithm::RSA1_5;
+pub use crate::jwe::alg_rsaes::RsaesJweAlgorithm::RSA_OAEP;
+pub use crate::jwe::alg_rsaes::RsaesJweAlgorithm::RSA_OAEP_256;
+
+pub use crate::jwe::enc_aes_cbc_hmac::AesCbcHmacJweEncryption::A128CBC_HS256;
+pub use crate::jwe::enc_aes_cbc_hmac::AesCbcHmacJweEncryption::A192CBC_HS384;
+pub use crate::jwe::enc_aes_cbc_hmac::AesCbcHmacJweEncryption::A256CBC_HS512;
+
+pub use crate::jwe::enc_aes_gcm::AesGcmJweEncryption::A128GCM;
+pub use crate::jwe::enc_aes_gcm::AesGcmJweEncryption::A192GCM;
+pub use crate::jwe::enc_aes_gcm::AesGcmJweEncryption::A256GCM;
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct JweHeader {

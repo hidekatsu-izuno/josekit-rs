@@ -99,8 +99,8 @@ You can use any text as the key.
 ```rust
 use jwt_rs::{ Jwt, HS256 };
 
-let mut jwt = Jwt::new();
-jwt.set_subject("...");
+let mut jwt = Jwt::with_jws_header();
+jwt.payload.set_subject("...");
 
 let common_secret_key = b"secret";
 
@@ -108,8 +108,9 @@ let common_secret_key = b"secret";
 let signer = HS256.signer_from_bytes(private_key)?;
 let encoded_jwt = jwt.encode_with_signer(&signer)?;
 
-// Verifing JWT. HMAC signer can also be used by verifier.
-let decoded_jwt = Jwt::decode_with_verifier(&encoded_jwt, &signer)?;
+// Verifing JWT
+let verifier = HS256.signer_from_bytes(private_key)?
+let decoded_jwt = Jwt::decode_with_verifier(&verifier, &encoded_jwt)?;
 ```
 
 ### Signing a JWT by RSA
@@ -130,8 +131,8 @@ openssl pkey -in RSA_private.pem -pubout -outform PEM -out RSA_public.pem
 ```rust
 use jwt_rs::{ Jwt, RS256 };
 
-let mut jwt = Jwt::new();
-jwt.set_subject("...");
+let mut jwt = Jwt::with_jws_header();
+jwt.payload.set_subject("...");
 
 // Signing JWT
 let private_key = load_from_file("rsa_private.pem")?;
@@ -141,7 +142,7 @@ let encoded_jwt = jwt.encode_with_signer(&signer)?;
 // Verifing JWT
 let public_key = load_from_file("rsa_public.pem")?;
 let verifier = RS256.verifier_from_public_pem(&public_key)?;
-let decoded_jwt = Jwt::decode_with_verifier(&encoded_jwt, &verifier)?;
+let decoded_jwt = Jwt::decode_with_verifier(&verifier, &encoded_jwt)?;
 ```
 
 ### Signing a JWT by RSA-PSS
@@ -172,8 +173,8 @@ openssl pkey -in RSA-PSS_private.pem -pubout -outform PEM -out RSA-PSS_public.pe
 ```rust
 use jwt_rs::{ Jwt, PS256 };
 
-let mut jwt = Jwt::new();
-jwt.set_subject("...");
+let mut jwt = Jwt::with_jws_header();
+jwt.payload.set_subject("...");
 
 // Signing JWT
 let private_key = load_from_file("rsapss_private.pem")?;
@@ -183,7 +184,7 @@ let encoded_jwt = jwt.encode_with_signer(&signer)?;
 // Verifing JWT
 let public_key = load_from_file("rsapss_public.pem")?;
 let verifier = PS256.verifier_from_public_pem(&public_key)?;
-let decoded_jwt = Jwt::decode_with_verifier(&encoded_jwt, &verifier)?;
+let decoded_jwt = Jwt::decode_with_verifier(&verifier, &encoded_jwt)?;
 ```
 
 ### Signing a JWT by ECDSA
@@ -215,8 +216,8 @@ openssl pkey -in ECDSA_private.pem -pubout -outform PEM -out ECDSA_public.pem
 ```rust
 use jwt_rs::{ Jwt, ES256 };
 
-let mut jwt = Jwt::new();
-jwt.set_subject("...");
+let mut jwt = Jwt::with_jws_header();
+jwt.payload.set_subject("...");
 
 // Signing JWT
 let private_key = load_from_file("ECDSA_private.pem")?;
@@ -226,7 +227,7 @@ let encoded_jwt = jwt.encode_with_signer(&signer)?;
 // Verifing JWT
 let public_key = load_from_file("ECDSA_public.pem")?;
 let verifier = ES256.verifier_from_public_pem(&public_key)?;
-let decoded_jwt = Jwt::decode_with_verifier(&encoded_jwt, &verifier)?;
+let decoded_jwt = Jwt::decode_with_verifier(&verifier, &encoded_jwt)?;
 ```
 
 ### Signing a JWT by EdDSA
@@ -253,8 +254,8 @@ openssl pkey -in ECDSA_private.pem -pubout -outform PEM -out ECDSA_public.pem
 ```rust
 use jwt_rs::{ Jwt, EdDSA };
 
-let mut jwt = Jwt::new();
-jwt.set_subject("...");
+let mut jwt = Jwt::with_jws_header();
+jwt.payload.set_subject("...");
 
 // Signing JWT
 let private_key = load_from_file("EdDSA_private.pem")?;
@@ -264,7 +265,7 @@ let encoded_jwt = jwt.encode_with_signer(&signer)?;
 // Verifing JWT
 let public_key = load_from_file("EdDSA_public.pem")?;
 let verifier = EdDSA.verifier_from_public_pem(&public_key)?;
-let decoded_jwt = Jwt::decode_with_verifier(&encoded_jwt, &verifier)?;
+let decoded_jwt = Jwt::decode_with_verifier(&verifier, &encoded_jwt)?;
 ```
 
 ### Encrypted JWT
@@ -277,10 +278,10 @@ Not supported yet.
 use jwt_rs::Jwt;
 
 let mut jwt = Jwt::new();
-jwt.set_subject("...");
+jwt.payload.set_subject("...");
 
-let encoded_jwt = jwt.encode_with_none()?;
-let decoded_jwt = Jwt::decode_with_none(&encoded_jwt)?;
+let encoded_jwt = jwt.encode_unsecured()?;
+let decoded_jwt = Jwt::decode_unsecured(&encoded_jwt)?;
 ```
 
 ## ToDo
