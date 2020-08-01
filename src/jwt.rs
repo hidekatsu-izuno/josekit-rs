@@ -968,7 +968,7 @@ impl JwtPayloadValidator {
                     );
                 }
 
-                if issued_at < &max_issued_time {
+                if issued_at > &max_issued_time {
                     bail!(
                         "The issued time is too new: {}",
                         DateTime::<Utc>::from(*issued_at)
@@ -1268,7 +1268,10 @@ mod tests {
         payload.set_claim("payload_claim", Some(json!("payload_claim")))?;
 
         let mut validator = JwtPayloadValidator::new();
+        validator.set_base_time(SystemTime::UNIX_EPOCH + Duration::from_secs(30));
         validator.set_issuer("iss");
+        validator.set_audience("aud1");
+        validator.set_claim("payload_claim", json!("payload_claim"));
         validator.validate(&payload)?;
         
         Ok(())
