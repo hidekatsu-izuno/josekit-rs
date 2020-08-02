@@ -34,7 +34,7 @@ impl RsaJwsAlgorithm {
     /// # Arguments
     /// * `bits` - RSA key length
     /// * `raw` - If true, return a raw PKCS#1 RSAPrivateKey.
-    pub fn generate_der(&self, bits: u32, raw: bool) -> Result<Vec<u8>, JoseError> {
+    pub fn generate_der_private_key(&self, bits: u32, raw: bool) -> Result<Vec<u8>, JoseError> {
         (|| -> anyhow::Result<Vec<u8>> {
             if bits < 2048 {
                 bail!("key length must be 2048 or more.");
@@ -57,8 +57,8 @@ impl RsaJwsAlgorithm {
     /// # Arguments
     /// * `bits` - RSA key length
     /// * `traditional` - If true, return a traditionl format.
-    pub fn generate_pem(&self, bits: u32, traditional: bool) -> Result<Vec<u8>, JoseError> {
-        let der = self.generate_der(bits, traditional)?;
+    pub fn generate_pem_private_key(&self, bits: u32, traditional: bool) -> Result<Vec<u8>, JoseError> {
+        let der = self.generate_der_private_key(bits, traditional)?;
         let der = base64::encode_config(&der, base64::STANDARD);
         let alg = if traditional {
             "RSA PRIVATE KEY"
@@ -85,7 +85,7 @@ impl RsaJwsAlgorithm {
     ///
     /// # Arguments
     /// * `bits` - RSA key length
-    pub fn generate_jwk(&self, bits: u32) -> Result<Jwk, JoseError> {
+    pub fn generate_jwk_private_key(&self, bits: u32) -> Result<Jwk, JoseError> {
         (|| -> anyhow::Result<Jwk> {
             if bits < 2048 {
                 bail!("key length must be 2048 or more.");
@@ -619,6 +619,27 @@ mod tests {
     use std::fs::File;
     use std::io::Read;
     use std::path::PathBuf;
+
+    #[test]
+    fn sign_and_verify_rsa_generated_der() -> Result<()> {
+        let input = b"abcde12345";
+
+        for alg in &[
+            RsaJwsAlgorithm::RS256,
+            RsaJwsAlgorithm::RS384,
+            RsaJwsAlgorithm::RS512,
+        ] {
+            let private_key = alg.generate_der_private_key(2048, false)?;
+
+            let signer = alg.signer_from_der(&private_key)?;
+            let signature = signer.sign(input)?;
+
+            // let verifier = alg.verifier_from_der(&public_key)?;
+            // verifier.verify(input, &signature)?;
+        }
+
+        Ok(())
+    }
 
     #[test]
     fn sign_and_verify_rsa_jwt() -> Result<()> {

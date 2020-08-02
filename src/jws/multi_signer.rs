@@ -9,14 +9,14 @@ pub struct JwsMultiSigner {
 }
 
 impl JwsMultiSigner {
-    fn new(payload: &[u8]) -> Self {
+    pub fn new(payload: &[u8]) -> Self {
         JwsMultiSigner {
             payload: base64::encode_config(payload, base64::URL_SAFE_NO_PAD),
             signatures: Vec::new(),
         }
     }
 
-    fn add_signature(
+    pub fn add_signature(
         &mut self,
         signer: &dyn JwsSigner,
         protected_header: &Map<String, Value>,
@@ -38,7 +38,7 @@ impl JwsMultiSigner {
         Ok(())
     }
 
-    fn serialize_json(&self) -> Result<String, JoseError> {
+    pub fn serialize_json(&self) -> Result<String, JoseError> {
         Ok(format!(
             "{{\"payload\":{},\"signatures\":{}}}",
             &serde_json::to_string(&self.payload).unwrap(),

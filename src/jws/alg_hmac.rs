@@ -22,11 +22,11 @@ pub enum HmacJwsAlgorithm {
 }
 
 impl HmacJwsAlgorithm {
-    /// Generate a JWK encoded oct private key.
+    /// Make a JWK encoded oct private key.
     ///
     /// # Arguments
     /// * `secret` - A secret key
-    pub fn generate_jwk(&self, secret: Vec<u8>) -> Result<Jwk, JoseError> {
+    pub fn make_jwk_secret_key(&self, secret: Vec<u8>) -> Result<Jwk, JoseError> {
         (|| -> anyhow::Result<Jwk> {
             let k = base64::encode_config(secret, base64::URL_SAFE_NO_PAD);
 

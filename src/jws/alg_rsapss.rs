@@ -44,7 +44,7 @@ impl RsaPssJwsAlgorithm {
     /// # Arguments
     /// * `bits` - RSA key length
     /// * `raw` - If true, return a raw PKCS#1 RSAPrivateKey.
-    pub fn generate_der(&self, bits: u32, raw: bool) -> Result<Vec<u8>, JoseError> {
+    pub fn generate_der_private_key(&self, bits: u32, raw: bool) -> Result<Vec<u8>, JoseError> {
         (|| -> anyhow::Result<Vec<u8>> {
             if bits < 2048 {
                 bail!("key length must be 2048 or more.");
@@ -67,8 +67,8 @@ impl RsaPssJwsAlgorithm {
     /// # Arguments
     /// * `bits` - RSA key length
     /// * `traditional` - If true, return a traditionl format.
-    pub fn generate_pem(&self, bits: u32, traditional: bool) -> Result<Vec<u8>, JoseError> {
-        let der = self.generate_der(bits, false)?;
+    pub fn generate_pem_private_key(&self, bits: u32, traditional: bool) -> Result<Vec<u8>, JoseError> {
+        let der = self.generate_der_private_key(bits, false)?;
         let der = base64::encode_config(&der, base64::STANDARD);
         let alg = if traditional {
             "RSA-PSS PRIVATE KEY"
@@ -95,7 +95,7 @@ impl RsaPssJwsAlgorithm {
     ///
     /// # Arguments
     /// * `bits` - RSA key length
-    pub fn generate_jwk(&self, bits: u32) -> Result<Jwk, JoseError> {
+    pub fn generate_jwk_keypair(&self, bits: u32) -> Result<Jwk, JoseError> {
         (|| -> anyhow::Result<Jwk> {
             if bits < 2048 {
                 bail!("key length must be 2048 or more.");

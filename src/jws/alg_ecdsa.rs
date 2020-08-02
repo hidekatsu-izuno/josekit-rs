@@ -46,7 +46,7 @@ impl EcdsaJwsAlgorithm {
     ///
     /// # Arguments
     /// * `raw` - If true, return a raw ECPrivateKey.
-    pub fn generate_der(&self, raw: bool) -> Result<Vec<u8>, JoseError> {
+    pub fn generate_der_private_key(&self, raw: bool) -> Result<Vec<u8>, JoseError> {
         (|| -> anyhow::Result<Vec<u8>> {
             let ec_group = EcGroup::from_curve_name(match self {
                 Self::ES256 => Nid::X9_62_PRIME256V1,
@@ -70,8 +70,8 @@ impl EcdsaJwsAlgorithm {
     ///
     /// # Arguments
     /// * `traditional` - If true, return a traditionl format.
-    pub fn generate_pem(&self, traditional: bool) -> Result<Vec<u8>, JoseError> {
-        let der = self.generate_der(traditional)?;
+    pub fn generate_pem_private_key(&self, traditional: bool) -> Result<Vec<u8>, JoseError> {
+        let der = self.generate_der_private_key(traditional)?;
         let der = base64::encode_config(&der, base64::STANDARD);
         let alg = if traditional {
             "EC PRIVATE KEY"
@@ -97,7 +97,7 @@ impl EcdsaJwsAlgorithm {
     /// Generate a JWK encoded EC private key.
     ///
     /// # Arguments
-    pub fn generate_jwk(&self) -> Result<Jwk, JoseError> {
+    pub fn generate_jwk_keypair(&self) -> Result<Jwk, JoseError> {
         (|| -> anyhow::Result<Jwk> {
             let ec_group = EcGroup::from_curve_name(match self {
                 Self::ES256 => Nid::X9_62_PRIME256V1,

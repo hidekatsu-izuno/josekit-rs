@@ -58,7 +58,7 @@ impl EddsaJwsAlgorithm {
     ///
     /// # Arguments
     /// * `curve` - EdDSA curve algorithm
-    pub fn generate_der(&self, curve: EddsaCurve) -> Result<Vec<u8>, JoseError> {
+    pub fn generate_der_private_key(&self, curve: EddsaCurve) -> Result<Vec<u8>, JoseError> {
         (|| -> anyhow::Result<Vec<u8>> {
             let pkey = match curve {
                 EddsaCurve::ED25519 => PKey::generate_ed25519()?,
@@ -76,8 +76,8 @@ impl EddsaJwsAlgorithm {
     /// # Arguments
     /// * `curve` - EdDSA curve algorithm
     /// * `traditional` - If true, return a traditionl format.
-    pub fn generate_pem(&self, curve: EddsaCurve, traditional: bool) -> Result<Vec<u8>, JoseError> {
-        let der = self.generate_der(curve)?;
+    pub fn generate_pem_private_key(&self, curve: EddsaCurve, traditional: bool) -> Result<Vec<u8>, JoseError> {
+        let der = self.generate_der_private_key(curve)?;
         let der = base64::encode_config(&der, base64::STANDARD);
         let alg = if traditional {
             match curve {
@@ -107,7 +107,7 @@ impl EddsaJwsAlgorithm {
     ///
     /// # Arguments
     /// * `curve` - EdDSA curve algorithm
-    pub fn generate_jwk(&self, curve: EddsaCurve) -> Result<Jwk, JoseError> {
+    pub fn generate_jwk_keypair(&self, curve: EddsaCurve) -> Result<Jwk, JoseError> {
         (|| -> anyhow::Result<Jwk> {
             let pkey = match curve {
                 EddsaCurve::ED25519 => PKey::generate_ed25519()?,
@@ -650,7 +650,7 @@ mod tests {
 
     #[test]
     fn test_generate_jwt() -> Result<()> {
-        let _jwk = EddsaJwsAlgorithm::EDDSA.generate_jwk(EddsaCurve::ED25519)?;
+        let _jwk = EddsaJwsAlgorithm::EDDSA.generate_jwk_keypair(EddsaCurve::ED25519)?;
 
         Ok(())
     }
