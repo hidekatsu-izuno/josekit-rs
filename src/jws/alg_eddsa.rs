@@ -22,7 +22,7 @@ static OID_ED448: Lazy<ObjectIdentifier> =
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum EddsaCurve {
     ED25519,
-    ED448
+    ED448,
 }
 
 impl EddsaCurve {
@@ -32,7 +32,7 @@ impl EddsaCurve {
             Self::ED448 => "ED448",
         }
     }
-    
+
     fn oid(&self) -> &ObjectIdentifier {
         match self {
             Self::ED25519 => &*OID_ED25519,
@@ -121,7 +121,7 @@ impl EddsaJwsAlgorithm {
                 Ok(Some(DerType::Sequence)) => {}
                 _ => bail!("Invalid private key."),
             }
-            
+
             match reader.next() {
                 Ok(Some(DerType::Integer)) => {
                     if reader.to_u8()? != 0 {
@@ -151,15 +151,15 @@ impl EddsaJwsAlgorithm {
             }
 
             let d = match reader.next() {
-                Ok(Some(DerType::OctetString))  => {
+                Ok(Some(DerType::OctetString)) => {
                     base64::encode_config(reader.contents().unwrap(), base64::URL_SAFE_NO_PAD)
-                },
+                }
                 _ => bail!("Invalid private key."),
             };
 
             let public_der = pkey.public_key_to_der()?;
             let mut reader = DerReader::from_bytes(&public_der);
-            
+
             match reader.next() {
                 Ok(Some(DerType::Sequence)) => {}
                 _ => bail!("Invalid private key."),
@@ -169,7 +169,7 @@ impl EddsaJwsAlgorithm {
                 Ok(Some(DerType::Sequence)) => {}
                 _ => bail!("Invalid private key."),
             }
-            
+
             match reader.next() {
                 Ok(Some(DerType::ObjectIdentifier)) => {
                     if &reader.to_object_identifier()? != curve.oid() {

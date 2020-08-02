@@ -141,7 +141,7 @@ impl EcdsaJwsAlgorithm {
                     if &reader.to_object_identifier()? != self.curve_oid() {
                         bail!("Invalid private key.");
                     }
-                },
+                }
                 _ => bail!("Invalid private key."),
             }
 
