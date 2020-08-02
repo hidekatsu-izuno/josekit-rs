@@ -32,7 +32,7 @@ impl HmacJwsAlgorithm {
 
             let mut jwk = Jwk::new("oct");
             jwk.set_key_use("sig");
-            jwk.set_key_operations(vec!["sign"]);
+            jwk.set_key_operations(vec!["sign", "verify"]);
             jwk.set_algorithm(self.name());
             jwk.set_parameter("k", Some(Value::String(k)))?;
 

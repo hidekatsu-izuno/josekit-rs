@@ -51,29 +51,7 @@ impl RsaPssJwsAlgorithm {
             }
 
             let rsa = Rsa::generate(bits)?;
-            let n = rsa.n().to_vec();
-            let e = rsa.e().to_vec();
-            let d = rsa.d().to_vec();
-            let p = rsa.p().unwrap().to_vec();
-            let q = rsa.q().unwrap().to_vec();
-            let dp = rsa.dmp1().unwrap().to_vec();
-            let dq = rsa.dmq1().unwrap().to_vec();
-            let qi = rsa.iqmp().unwrap().to_vec();
-            let mut builder = DerBuilder::new();
-            builder.begin(DerType::Sequence);
-            {
-                builder.append_integer_from_u8(0); // version
-                builder.append_integer_from_be_slice(&n, false); // n
-                builder.append_integer_from_be_slice(&e, false); // e
-                builder.append_integer_from_be_slice(&d, false); // d
-                builder.append_integer_from_be_slice(&p, false); // p
-                builder.append_integer_from_be_slice(&q, false); // q
-                builder.append_integer_from_be_slice(&dp, false); // d mod (p-1)
-                builder.append_integer_from_be_slice(&dq, false); // d mod (q-1)
-                builder.append_integer_from_be_slice(&qi, false); // (inverse of q) mod p
-            }
-            builder.end();
-            let der = builder.build();
+            let der = rsa.private_key_to_der()?;
 
             if raw {
                 Ok(der)
@@ -135,7 +113,7 @@ impl RsaPssJwsAlgorithm {
 
             let mut jwk = Jwk::new("RSA");
             jwk.set_key_use("sig");
-            jwk.set_key_operations(vec!["sign"]);
+            jwk.set_key_operations(vec!["sign", "verify"]);
             jwk.set_algorithm(self.name());
             jwk.set_parameter("n", Some(Value::String(n)))?;
             jwk.set_parameter("e", Some(Value::String(e)))?;

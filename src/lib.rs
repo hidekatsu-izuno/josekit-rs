@@ -1,6 +1,6 @@
-//! # JWT-RS
+//! # josekit
 //!
-//! `jwt_rs` is a JWT (JSON Web Token) library (based on OpenSSL).
+//! `josekit` is a JOSE (Javascript Object Signing and Encryption: JWT, JWS, JWE, JWA, JWK) library.
 pub mod der;
 pub mod error;
 pub mod jose;

@@ -1,7 +1,7 @@
 use anyhow::bail;
 use serde::ser::SerializeMap;
 use serde::{Serialize, Serializer};
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value};
 use std::io::Read;
 use std::string::ToString;
 
@@ -20,7 +20,7 @@ pub struct Jwk {
 impl Jwk {
     pub fn new(key_type: &str) -> Self {
         let mut params = Map::new();
-        params.insert("kty".to_string(), json!(key_type));
+        params.insert("kty".to_string(), Value::String(key_type.to_string()));
         Self {
             key_operations: None,
             x509_certificate_chain: None,

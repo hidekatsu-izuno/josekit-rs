@@ -271,6 +271,21 @@ impl<R: Read> DerReader<R> {
         }
     }
 
+    pub fn to_vec(&self) -> Result<Vec<u8>, DerError> {
+        if let DerType::OctetString = self.der_type {
+            if let Some(contents) = &self.contents {
+                Ok(contents.to_vec())
+            } else {
+                unreachable!();
+            }
+        } else {
+            panic!(
+                "{} type is not supported to convert to OctetString",
+                self.der_type
+            );
+        }
+    }
+
     pub fn to_bit_vec(&self) -> Result<(Vec<u8>, u8), DerError> {
         if let DerType::BitString = self.der_type {
             if let Some(contents) = &self.contents {

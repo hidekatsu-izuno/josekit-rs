@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use anyhow::bail;
 use once_cell::sync::Lazy;
 use openssl::pkey::{PKey, Private, Public};
@@ -18,12 +20,194 @@ static OID_ED448: Lazy<ObjectIdentifier> =
     Lazy::new(|| ObjectIdentifier::from_slice(&[1, 3, 101, 113]));
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
+pub enum EddsaCurve {
+    ED25519,
+    ED448
+}
+
+impl EddsaCurve {
+    pub fn name(&self) -> &str {
+        match self {
+            Self::ED25519 => "ED25519",
+            Self::ED448 => "ED448",
+        }
+    }
+    
+    fn oid(&self) -> &ObjectIdentifier {
+        match self {
+            Self::ED25519 => &*OID_ED25519,
+            Self::ED448 => &*OID_ED448,
+        }
+    }
+}
+
+impl Display for EddsaCurve {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+        fmt.write_str(self.name())
+    }
+}
+
+#[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum EddsaJwsAlgorithm {
     /// EdDSA signature algorithms
     EDDSA,
 }
 
 impl EddsaJwsAlgorithm {
+    /// Generate a DER encoded EdDSA private key.
+    ///
+    /// # Arguments
+    /// * `curve` - EdDSA curve algorithm
+    pub fn generate_der(&self, curve: EddsaCurve) -> Result<Vec<u8>, JoseError> {
+        (|| -> anyhow::Result<Vec<u8>> {
+            let pkey = match curve {
+                EddsaCurve::ED25519 => PKey::generate_ed25519()?,
+                EddsaCurve::ED448 => PKey::generate_ed448()?,
+            };
+            let der = pkey.private_key_to_der()?;
+
+            Ok(der)
+        })()
+        .map_err(|err| JoseError::InvalidKeyFormat(err))
+    }
+
+    /// Generate a PEM encoded EdDSA private key.
+    ///
+    /// # Arguments
+    /// * `curve` - EdDSA curve algorithm
+    /// * `traditional` - If true, return a traditionl format.
+    pub fn generate_pem(&self, curve: EddsaCurve, traditional: bool) -> Result<Vec<u8>, JoseError> {
+        let der = self.generate_der(curve)?;
+        let der = base64::encode_config(&der, base64::STANDARD);
+        let alg = if traditional {
+            match curve {
+                EddsaCurve::ED25519 => "ED25519 PRIVATE KEY",
+                EddsaCurve::ED448 => "ED448 PRIVATE KEY",
+            }
+        } else {
+            "PRIVATE KEY"
+        };
+
+        let mut result = String::new();
+        result.push_str("-----BEGIN ");
+        result.push_str(alg);
+        result.push_str("-----\r\n");
+        for i in 0..((der.len() + 64 - 1) / 64) {
+            result.push_str(&der[(i * 64)..((i + 1) * 64)]);
+            result.push_str("\r\n");
+        }
+        result.push_str("-----END ");
+        result.push_str(alg);
+        result.push_str("-----\r\n");
+
+        Ok(result.into_bytes())
+    }
+
+    /// Generate a JWK encoded EdDSA private key.
+    ///
+    /// # Arguments
+    /// * `curve` - EdDSA curve algorithm
+    pub fn generate_jwk(&self, curve: EddsaCurve) -> Result<Jwk, JoseError> {
+        (|| -> anyhow::Result<Jwk> {
+            let pkey = match curve {
+                EddsaCurve::ED25519 => PKey::generate_ed25519()?,
+                EddsaCurve::ED448 => PKey::generate_ed448()?,
+            };
+
+            let private_der = pkey.private_key_to_der()?;
+            let mut reader = DerReader::from_bytes(&private_der);
+
+            match reader.next() {
+                Ok(Some(DerType::Sequence)) => {}
+                _ => bail!("Invalid private key."),
+            }
+            
+            match reader.next() {
+                Ok(Some(DerType::Integer)) => {
+                    if reader.to_u8()? != 0 {
+                        bail!("Invalid private key.");
+                    }
+                }
+                _ => bail!("Invalid private key."),
+            }
+
+            match reader.next() {
+                Ok(Some(DerType::Sequence)) => {}
+                _ => bail!("Invalid private key."),
+            }
+
+            match reader.next() {
+                Ok(Some(DerType::ObjectIdentifier)) => {
+                    if &reader.to_object_identifier()? != curve.oid() {
+                        bail!("Invalid private key.");
+                    }
+                }
+                _ => bail!("Invalid private key."),
+            }
+
+            match reader.next() {
+                Ok(Some(DerType::EndOfContents)) => {}
+                _ => bail!("Invalid private key."),
+            }
+
+            let d = match reader.next() {
+                Ok(Some(DerType::OctetString))  => {
+                    base64::encode_config(reader.contents().unwrap(), base64::URL_SAFE_NO_PAD)
+                },
+                _ => bail!("Invalid private key."),
+            };
+
+            let public_der = pkey.public_key_to_der()?;
+            let mut reader = DerReader::from_bytes(&public_der);
+            
+            match reader.next() {
+                Ok(Some(DerType::Sequence)) => {}
+                _ => bail!("Invalid private key."),
+            }
+
+            match reader.next() {
+                Ok(Some(DerType::Sequence)) => {}
+                _ => bail!("Invalid private key."),
+            }
+            
+            match reader.next() {
+                Ok(Some(DerType::ObjectIdentifier)) => {
+                    if &reader.to_object_identifier()? != curve.oid() {
+                        bail!("Invalid private key.");
+                    }
+                }
+                _ => bail!("Invalid private key."),
+            }
+
+            match reader.next() {
+                Ok(Some(DerType::EndOfContents)) => {}
+                _ => bail!("Invalid private key."),
+            }
+
+            let x = match reader.next() {
+                Ok(Some(DerType::BitString)) => {
+                    if let (x, 0) = reader.to_bit_vec()? {
+                        base64::encode_config(x, base64::URL_SAFE_NO_PAD)
+                    } else {
+                        bail!("Invalid private key.")
+                    }
+                }
+                _ => bail!("Invalid private key."),
+            };
+
+            let mut jwk = Jwk::new("OKP");
+            jwk.set_key_use("sig");
+            jwk.set_key_operations(vec!["sign", "verify"]);
+            jwk.set_algorithm(self.name());
+            jwk.set_parameter("crv", Some(Value::String(curve.name().to_string())))?;
+            jwk.set_parameter("d", Some(Value::String(d)))?;
+            jwk.set_parameter("x", Some(Value::String(x)))?;
+
+            Ok(jwk)
+        })()
+        .map_err(|err| JoseError::InvalidKeyFormat(err))
+    }
+
     /// Return a signer from a private key of common or traditinal PEM format.
     ///
     /// Common PEM format is a DER and base64 encoded PKCS#8 PrivateKeyInfo
@@ -463,6 +647,13 @@ mod tests {
     use std::fs::File;
     use std::io::Read;
     use std::path::PathBuf;
+
+    #[test]
+    fn test_generate_jwt() -> Result<()> {
+        let _jwk = EddsaJwsAlgorithm::EDDSA.generate_jwk(EddsaCurve::ED25519)?;
+
+        Ok(())
+    }
 
     #[test]
     fn sign_and_verify_eddsa_jwt() -> Result<()> {

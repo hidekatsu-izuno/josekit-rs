@@ -1,12 +1,14 @@
 use anyhow::bail;
 use once_cell::sync::Lazy;
+use openssl::ec::{EcGroup, EcKey};
 use openssl::hash::MessageDigest;
+use openssl::nid::Nid;
 use openssl::pkey::{PKey, Private, Public};
 use openssl::sign::{Signer, Verifier};
 use serde_json::Value;
 
 use crate::der::oid::ObjectIdentifier;
-use crate::der::{DerBuilder, DerReader, DerType};
+use crate::der::{DerBuilder, DerClass, DerReader, DerType};
 use crate::error::JoseError;
 use crate::jwk::Jwk;
 use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier};
@@ -40,6 +42,143 @@ pub enum EcdsaJwsAlgorithm {
 }
 
 impl EcdsaJwsAlgorithm {
+    /// Generate a DER encoded EC private key.
+    ///
+    /// # Arguments
+    /// * `raw` - If true, return a raw ECPrivateKey.
+    pub fn generate_der(&self, raw: bool) -> Result<Vec<u8>, JoseError> {
+        (|| -> anyhow::Result<Vec<u8>> {
+            let ec_group = EcGroup::from_curve_name(match self {
+                Self::ES256 => Nid::X9_62_PRIME256V1,
+                Self::ES384 => Nid::SECP384R1,
+                Self::ES512 => Nid::SECP521R1,
+                Self::ES256K => Nid::SECP256K1,
+            })?;
+            let ec = EcKey::generate(&ec_group)?;
+            let der = ec.private_key_to_der()?;
+
+            if raw {
+                Ok(der)
+            } else {
+                Ok(self.to_pkcs8(&der, false))
+            }
+        })()
+        .map_err(|err| JoseError::InvalidKeyFormat(err))
+    }
+
+    /// Generate a PEM encoded EC private key.
+    ///
+    /// # Arguments
+    /// * `traditional` - If true, return a traditionl format.
+    pub fn generate_pem(&self, traditional: bool) -> Result<Vec<u8>, JoseError> {
+        let der = self.generate_der(traditional)?;
+        let der = base64::encode_config(&der, base64::STANDARD);
+        let alg = if traditional {
+            "EC PRIVATE KEY"
+        } else {
+            "PRIVATE KEY"
+        };
+
+        let mut result = String::new();
+        result.push_str("-----BEGIN ");
+        result.push_str(alg);
+        result.push_str("-----\r\n");
+        for i in 0..((der.len() + 64 - 1) / 64) {
+            result.push_str(&der[(i * 64)..((i + 1) * 64)]);
+            result.push_str("\r\n");
+        }
+        result.push_str("-----END ");
+        result.push_str(alg);
+        result.push_str("-----\r\n");
+
+        Ok(result.into_bytes())
+    }
+
+    /// Generate a JWK encoded EC private key.
+    ///
+    /// # Arguments
+    pub fn generate_jwk(&self) -> Result<Jwk, JoseError> {
+        (|| -> anyhow::Result<Jwk> {
+            let ec_group = EcGroup::from_curve_name(match self {
+                Self::ES256 => Nid::X9_62_PRIME256V1,
+                Self::ES384 => Nid::SECP384R1,
+                Self::ES512 => Nid::SECP521R1,
+                Self::ES256K => Nid::SECP256K1,
+            })?;
+            let ec = EcKey::generate(&ec_group)?;
+
+            let private_der = ec.private_key_to_der()?;
+            let mut reader = DerReader::from_bytes(&private_der);
+
+            match reader.next() {
+                Ok(Some(DerType::Sequence)) => {}
+                _ => bail!("Invalid private key."),
+            }
+
+            match reader.next() {
+                Ok(Some(DerType::Integer)) => {
+                    if reader.to_u8()? != 1 {
+                        bail!("Invalid private key.")
+                    }
+                }
+                _ => bail!("Invalid private key."),
+            }
+
+            let d = match reader.next() {
+                Ok(Some(DerType::OctetString)) => {
+                    base64::encode_config(reader.contents().unwrap(), base64::URL_SAFE_NO_PAD)
+                }
+                _ => bail!("Invalid private key."),
+            };
+
+            match reader.next() {
+                Ok(Some(DerType::Other(DerClass::ContextSpecific, 0))) => {}
+                _ => bail!("Invalid private key."),
+            }
+
+            match reader.next() {
+                Ok(Some(DerType::ObjectIdentifier)) => {
+                    if &reader.to_object_identifier()? != self.curve_oid() {
+                        bail!("Invalid private key.");
+                    }
+                },
+                _ => bail!("Invalid private key."),
+            }
+
+            match reader.next() {
+                Ok(Some(DerType::Other(DerClass::ContextSpecific, 1))) => {}
+                _ => bail!("Invalid private key."),
+            }
+
+            let (x, y) = match reader.next() {
+                Ok(Some(DerType::BitString)) => {
+                    let (public_der, len) = reader.to_bit_vec()?;
+                    if len == 0 && public_der.len() == 65 && public_der[0] == 0x04 {
+                        (
+                            base64::encode_config(&public_der[1..33], base64::URL_SAFE_NO_PAD),
+                            base64::encode_config(&public_der[33..65], base64::URL_SAFE_NO_PAD),
+                        )
+                    } else {
+                        bail!("Invalid private key.")
+                    }
+                }
+                _ => bail!("Invalid private key."),
+            };
+
+            let mut jwk = Jwk::new("EC");
+            jwk.set_key_use("sig");
+            jwk.set_key_operations(vec!["sign", "verify"]);
+            jwk.set_algorithm(self.name());
+            jwk.set_parameter("crv", Some(Value::String(self.curve_name().to_string())))?;
+            jwk.set_parameter("d", Some(Value::String(d)))?;
+            jwk.set_parameter("x", Some(Value::String(x)))?;
+            jwk.set_parameter("y", Some(Value::String(y)))?;
+
+            Ok(jwk)
+        })()
+        .map_err(|err| JoseError::InvalidKeyFormat(err))
+    }
+
     /// Return a signer from a private key of common or traditinal PEM format.
     ///
     /// Common PEM format is a DER and base64 encoded PKCS#8 PrivateKeyInfo
