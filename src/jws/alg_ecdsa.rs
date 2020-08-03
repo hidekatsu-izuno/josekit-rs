@@ -1,5 +1,6 @@
 use anyhow::bail;
 use once_cell::sync::Lazy;
+use openssl::bn::{BigNum, BigNumContext};
 use openssl::ec::{EcGroup, EcKey};
 use openssl::hash::MessageDigest;
 use openssl::nid::Nid;
@@ -10,7 +11,7 @@ use serde_json::Value;
 use crate::der::oid::ObjectIdentifier;
 use crate::der::{DerBuilder, DerClass, DerReader, DerType};
 use crate::error::JoseError;
-use crate::jwk::Jwk;
+use crate::jwk::{Jwk, KeyPair};
 use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier};
 use crate::util::parse_pem;
 
@@ -42,6 +43,26 @@ pub enum EcdsaJwsAlgorithm {
 }
 
 impl EcdsaJwsAlgorithm {
+    /// Generate ECDSA key pair.
+    pub fn generate_keypair(&self) -> Result<EcdsaKeyPair, JoseError> {
+        (|| -> anyhow::Result<EcdsaKeyPair> {
+            let ec_group = EcGroup::from_curve_name(match self {
+                Self::ES256 => Nid::X9_62_PRIME256V1,
+                Self::ES384 => Nid::SECP384R1,
+                Self::ES512 => Nid::SECP521R1,
+                Self::ES256K => Nid::SECP256K1,
+            })?;
+            let ec_key = EcKey::generate(&ec_group)?;
+            let pkey = PKey::from_ec_key(ec_key)?;
+
+            Ok(EcdsaKeyPair {
+                algorithm: self.clone(),
+                pkey,
+            })
+        })()
+        .map_err(|err| JoseError::InvalidKeyFormat(err))
+    }
+
     /// Generate a DER encoded EC private key.
     ///
     /// # Arguments
@@ -564,6 +585,96 @@ impl JwsAlgorithm for EcdsaJwsAlgorithm {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct EcdsaKeyPair {
+    algorithm: EcdsaJwsAlgorithm,
+    pkey: PKey<Private>,
+}
+
+impl EcdsaKeyPair {
+    pub fn to_raw_private_key(&self) -> Vec<u8> {
+        let ec_key = self.pkey.ec_key().unwrap();
+        ec_key.private_key_to_der().unwrap()
+    }
+
+    pub fn to_traditional_pem_private_key(&self) -> Vec<u8> {
+        let ec_key = self.pkey.ec_key().unwrap();
+        ec_key.private_key_to_pem().unwrap()
+    }
+
+    fn to_jwk(&self, private: bool, public: bool) -> Jwk {
+        let ec_key = self.pkey.ec_key().unwrap();
+
+        let mut jwk = Jwk::new("EC");
+        jwk.set_key_use("sig");
+        jwk.set_key_operations({
+            let mut key_ops = Vec::new();
+            if private {
+                key_ops.push("sign");
+            }
+            if public {
+                key_ops.push("verify");
+            }
+            key_ops
+        });
+        jwk.set_algorithm(self.algorithm.name());
+        jwk.set_parameter("crv", Some(Value::String({
+            self.algorithm.curve_name().to_string()
+        }))).unwrap();
+        if private {
+            let private_key = ec_key.private_key();
+            let d = base64::encode_config(&private_key.to_vec(), base64::URL_SAFE_NO_PAD);
+
+            jwk.set_parameter("d", Some(Value::String(d))).unwrap();
+        }
+        if public {
+            let public_key = ec_key.public_key();
+            let mut x = BigNum::new().unwrap();
+            let mut y = BigNum::new().unwrap();
+            let mut ctx = BigNumContext::new().unwrap();
+            public_key.affine_coordinates_gfp(ec_key.group(), &mut x, &mut y, &mut ctx).unwrap();
+            let x = base64::encode_config(&x.to_vec(), base64::URL_SAFE_NO_PAD);
+            let y = base64::encode_config(&y.to_vec(), base64::URL_SAFE_NO_PAD);
+
+            jwk.set_parameter("x", Some(Value::String(x))).unwrap();
+            jwk.set_parameter("y", Some(Value::String(y))).unwrap();
+        }
+
+        jwk
+    }
+}
+
+impl KeyPair for EcdsaKeyPair {
+    fn to_der_private_key(&self) -> Vec<u8> {
+        self.pkey.private_key_to_der().unwrap()
+    }
+
+    fn to_der_public_key(&self) -> Vec<u8> {
+        self.pkey.public_key_to_der().unwrap()
+    }
+
+    fn to_pem_private_key(&self) -> Vec<u8> {
+        self.pkey.private_key_to_pem_pkcs8().unwrap()
+    }
+
+    fn to_pem_public_key(&self) -> Vec<u8> {
+        self.pkey.public_key_to_pem().unwrap()
+    }
+
+    fn to_jwk_private_key(&self) -> Jwk {
+        self.to_jwk(true, false)
+    }
+
+    fn to_jwk_public_key(&self) -> Jwk {
+        self.to_jwk(false, true)
+    }
+
+    fn to_jwk_keypair(&self) -> Jwk {
+        self.to_jwk(true, true)
+    }
+}
+
+#[derive(Debug, Clone)]
 struct EcdsaJwsSigner {
     algorithm: EcdsaJwsAlgorithm,
     private_key: PKey<Private>,
@@ -627,6 +738,7 @@ impl JwsSigner for EcdsaJwsSigner {
     }
 }
 
+#[derive(Debug, Clone)]
 struct EcdsaJwsVerifier {
     algorithm: EcdsaJwsAlgorithm,
     public_key: PKey<Public>,

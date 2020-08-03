@@ -26,7 +26,7 @@ impl HmacJwsAlgorithm {
     ///
     /// # Arguments
     /// * `secret` - A secret key
-    pub fn make_jwk_secret_key(&self, secret: Vec<u8>) -> Result<Jwk, JoseError> {
+    pub fn to_jwk_key(&self, secret: Vec<u8>) -> Result<Jwk, JoseError> {
         (|| -> anyhow::Result<Jwk> {
             let k = base64::encode_config(secret, base64::URL_SAFE_NO_PAD);
 

@@ -460,17 +460,13 @@ impl RsaKeyPair {
     }
 
     pub fn to_traditional_pem_private_key(&self) -> Vec<u8> {
-        let der = self.to_raw_private_key();
-        let der = base64::encode_config(&der, base64::STANDARD);
+        let rsa = self.pkey.rsa().unwrap();
+        rsa.private_key_to_pem().unwrap()
+    }
 
-        let mut result = String::new();
-        result.push_str("-----BEGIN RSA PRIVATE KEY-----\r\n");
-        for i in 0..((der.len() + 64 - 1) / 64) {
-            result.push_str(&der[(i * 64)..((i + 1) * 64)]);
-            result.push_str("\r\n");
-        }
-        result.push_str("-----END RSA PRIVATE KEY-----\r\n");
-        result.into_bytes()
+    pub fn to_traditional_pem_public_key(&self) -> Vec<u8> {
+        let rsa = self.pkey.rsa().unwrap();
+        rsa.public_key_to_pem_pkcs1().unwrap()
     }
 
     fn to_jwk(&self, private: bool, public: bool) -> Jwk {

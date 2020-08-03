@@ -9,7 +9,7 @@ use serde_json::Value;
 use crate::der::oid::ObjectIdentifier;
 use crate::der::{DerBuilder, DerReader, DerType};
 use crate::error::JoseError;
-use crate::jwk::Jwk;
+use crate::jwk::{Jwk, KeyPair};
 use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier};
 use crate::util::parse_pem;
 
@@ -54,156 +54,22 @@ pub enum EddsaJwsAlgorithm {
 }
 
 impl EddsaJwsAlgorithm {
-    /// Generate a DER encoded EdDSA private key.
+    /// Generate a EdDSA keypair
     ///
     /// # Arguments
     /// * `curve` - EdDSA curve algorithm
-    pub fn generate_der_private_key(&self, curve: EddsaCurve) -> Result<Vec<u8>, JoseError> {
-        (|| -> anyhow::Result<Vec<u8>> {
-            let pkey = match curve {
-                EddsaCurve::ED25519 => PKey::generate_ed25519()?,
-                EddsaCurve::ED448 => PKey::generate_ed448()?,
-            };
-            let der = pkey.private_key_to_der()?;
-
-            Ok(der)
-        })()
-        .map_err(|err| JoseError::InvalidKeyFormat(err))
-    }
-
-    /// Generate a PEM encoded EdDSA private key.
-    ///
-    /// # Arguments
-    /// * `curve` - EdDSA curve algorithm
-    /// * `traditional` - If true, return a traditionl format.
-    pub fn generate_pem_private_key(&self, curve: EddsaCurve, traditional: bool) -> Result<Vec<u8>, JoseError> {
-        let der = self.generate_der_private_key(curve)?;
-        let der = base64::encode_config(&der, base64::STANDARD);
-        let alg = if traditional {
-            match curve {
-                EddsaCurve::ED25519 => "ED25519 PRIVATE KEY",
-                EddsaCurve::ED448 => "ED448 PRIVATE KEY",
-            }
-        } else {
-            "PRIVATE KEY"
-        };
-
-        let mut result = String::new();
-        result.push_str("-----BEGIN ");
-        result.push_str(alg);
-        result.push_str("-----\r\n");
-        for i in 0..((der.len() + 64 - 1) / 64) {
-            result.push_str(&der[(i * 64)..((i + 1) * 64)]);
-            result.push_str("\r\n");
-        }
-        result.push_str("-----END ");
-        result.push_str(alg);
-        result.push_str("-----\r\n");
-
-        Ok(result.into_bytes())
-    }
-
-    /// Generate a JWK encoded EdDSA private key.
-    ///
-    /// # Arguments
-    /// * `curve` - EdDSA curve algorithm
-    pub fn generate_jwk_keypair(&self, curve: EddsaCurve) -> Result<Jwk, JoseError> {
-        (|| -> anyhow::Result<Jwk> {
+    pub fn generate_keypair(&self, curve: EddsaCurve) -> Result<EddsaKeyPair, JoseError> {
+        (|| -> anyhow::Result<EddsaKeyPair> {
             let pkey = match curve {
                 EddsaCurve::ED25519 => PKey::generate_ed25519()?,
                 EddsaCurve::ED448 => PKey::generate_ed448()?,
             };
 
-            let private_der = pkey.private_key_to_der()?;
-            let mut reader = DerReader::from_bytes(&private_der);
-
-            match reader.next() {
-                Ok(Some(DerType::Sequence)) => {}
-                _ => bail!("Invalid private key."),
-            }
-
-            match reader.next() {
-                Ok(Some(DerType::Integer)) => {
-                    if reader.to_u8()? != 0 {
-                        bail!("Invalid private key.");
-                    }
-                }
-                _ => bail!("Invalid private key."),
-            }
-
-            match reader.next() {
-                Ok(Some(DerType::Sequence)) => {}
-                _ => bail!("Invalid private key."),
-            }
-
-            match reader.next() {
-                Ok(Some(DerType::ObjectIdentifier)) => {
-                    if &reader.to_object_identifier()? != curve.oid() {
-                        bail!("Invalid private key.");
-                    }
-                }
-                _ => bail!("Invalid private key."),
-            }
-
-            match reader.next() {
-                Ok(Some(DerType::EndOfContents)) => {}
-                _ => bail!("Invalid private key."),
-            }
-
-            let d = match reader.next() {
-                Ok(Some(DerType::OctetString)) => {
-                    base64::encode_config(reader.contents().unwrap(), base64::URL_SAFE_NO_PAD)
-                }
-                _ => bail!("Invalid private key."),
-            };
-
-            let public_der = pkey.public_key_to_der()?;
-            let mut reader = DerReader::from_bytes(&public_der);
-
-            match reader.next() {
-                Ok(Some(DerType::Sequence)) => {}
-                _ => bail!("Invalid private key."),
-            }
-
-            match reader.next() {
-                Ok(Some(DerType::Sequence)) => {}
-                _ => bail!("Invalid private key."),
-            }
-
-            match reader.next() {
-                Ok(Some(DerType::ObjectIdentifier)) => {
-                    if &reader.to_object_identifier()? != curve.oid() {
-                        bail!("Invalid private key.");
-                    }
-                }
-                _ => bail!("Invalid private key."),
-            }
-
-            match reader.next() {
-                Ok(Some(DerType::EndOfContents)) => {}
-                _ => bail!("Invalid private key."),
-            }
-
-            let x = match reader.next() {
-                Ok(Some(DerType::BitString)) => {
-                    if let (x, 0) = reader.to_bit_vec()? {
-                        base64::encode_config(x, base64::URL_SAFE_NO_PAD)
-                    } else {
-                        bail!("Invalid private key.")
-                    }
-                }
-                _ => bail!("Invalid private key."),
-            };
-
-            let mut jwk = Jwk::new("OKP");
-            jwk.set_key_use("sig");
-            jwk.set_key_operations(vec!["sign", "verify"]);
-            jwk.set_algorithm(self.name());
-            jwk.set_parameter("crv", Some(Value::String(curve.name().to_string())))?;
-            jwk.set_parameter("d", Some(Value::String(d)))?;
-            jwk.set_parameter("x", Some(Value::String(x)))?;
-
-            Ok(jwk)
+            Ok(EddsaKeyPair {
+                algorithm: self.clone(),
+                curve,
+                pkey
+            })
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
@@ -451,6 +317,176 @@ impl EddsaJwsAlgorithm {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct EddsaKeyPair {
+    algorithm: EddsaJwsAlgorithm,
+    curve: EddsaCurve,
+    pkey: PKey<Private>,
+}
+
+impl EddsaKeyPair {
+    pub fn to_traditional_pem_private_key(&self) -> Vec<u8> {
+        let der = self.pkey.private_key_to_der().unwrap();
+        let der = base64::encode_config(&der, base64::STANDARD);
+        let alg = match self.curve {
+            EddsaCurve::ED25519 => "ED25519 PRIVATE KEY",
+            EddsaCurve::ED448 => "ED448 PRIVATE KEY",
+        };
+
+        let mut result = String::new();
+        result.push_str("-----BEGIN ");
+        result.push_str(alg);
+        result.push_str("-----\r\n");
+        for i in 0..((der.len() + 64 - 1) / 64) {
+            result.push_str(&der[(i * 64)..((i + 1) * 64)]);
+            result.push_str("\r\n");
+        }
+        result.push_str("-----END ");
+        result.push_str(alg);
+        result.push_str("-----\r\n");
+
+        result.into_bytes()
+    }
+
+    fn to_jwk(&self, private: bool, public: bool) -> Jwk {
+        let mut jwk = Jwk::new("OKP");
+        jwk.set_key_use("sig");
+        jwk.set_key_operations({
+            let mut key_ops = Vec::new();
+            if private {
+                key_ops.push("sign");
+            }
+            if public {
+                key_ops.push("verify");
+            }
+            key_ops
+        });
+        jwk.set_algorithm(self.algorithm.name());
+        jwk.set_parameter("crv", Some(Value::String(
+            self.curve.name().to_string()
+        ))).unwrap();
+        if private {
+            let private_der = self.pkey.private_key_to_der().unwrap();
+            let mut reader = DerReader::from_bytes(&private_der);
+    
+            match reader.next() {
+                Ok(Some(DerType::Sequence)) => {}
+                _ => unreachable!("Invalid private key."),
+            }
+    
+            match reader.next() {
+                Ok(Some(DerType::Integer)) => {
+                    if reader.to_u8().unwrap() != 0 {
+                        unreachable!("Invalid private key.");
+                    }
+                }
+                _ => unreachable!("Invalid private key."),
+            }
+    
+            match reader.next() {
+                Ok(Some(DerType::Sequence)) => {}
+                _ => unreachable!("Invalid private key."),
+            }
+    
+            match reader.next() {
+                Ok(Some(DerType::ObjectIdentifier)) => {
+                    if &reader.to_object_identifier().unwrap() != self.curve.oid() {
+                        unreachable!("Invalid private key.");
+                    }
+                }
+                _ => unreachable!("Invalid private key."),
+            }
+    
+            match reader.next() {
+                Ok(Some(DerType::EndOfContents)) => {}
+                _ => unreachable!("Invalid private key."),
+            }
+    
+            let d = match reader.next() {
+                Ok(Some(DerType::OctetString)) => {
+                    base64::encode_config(reader.contents().unwrap(), base64::URL_SAFE_NO_PAD)
+                }
+                _ => unreachable!("Invalid private key."),
+            };
+    
+            jwk.set_parameter("d", Some(Value::String(d))).unwrap();
+        }
+        if public {
+            let public_der = self.pkey.public_key_to_der().unwrap();
+            let mut reader = DerReader::from_bytes(&public_der);
+    
+            match reader.next() {
+                Ok(Some(DerType::Sequence)) => {}
+                _ => unreachable!("Invalid private key."),
+            }
+    
+            match reader.next() {
+                Ok(Some(DerType::Sequence)) => {}
+                _ => unreachable!("Invalid private key."),
+            }
+    
+            match reader.next() {
+                Ok(Some(DerType::ObjectIdentifier)) => {
+                    if &reader.to_object_identifier().unwrap() != self.curve.oid() {
+                        unreachable!("Invalid private key.");
+                    }
+                }
+                _ => unreachable!("Invalid private key."),
+            }
+    
+            match reader.next() {
+                Ok(Some(DerType::EndOfContents)) => {}
+                _ => unreachable!("Invalid private key."),
+            }
+    
+            let x = match reader.next() {
+                Ok(Some(DerType::BitString)) => {
+                    if let (x, 0) = reader.to_bit_vec().unwrap() {
+                        base64::encode_config(x, base64::URL_SAFE_NO_PAD)
+                    } else {
+                        unreachable!("Invalid private key.")
+                    }
+                }
+                _ => unreachable!("Invalid private key."),
+            };
+
+            jwk.set_parameter("x", Some(Value::String(x))).unwrap();
+        }
+
+        jwk
+    }
+}
+
+impl KeyPair for EddsaKeyPair {
+    fn to_der_private_key(&self) -> Vec<u8> {
+        self.pkey.private_key_to_der().unwrap()
+    }
+
+    fn to_der_public_key(&self) -> Vec<u8> {
+        self.pkey.public_key_to_der().unwrap()
+    }
+
+    fn to_pem_private_key(&self) -> Vec<u8> {
+        self.pkey.private_key_to_pem_pkcs8().unwrap()
+    }
+
+    fn to_pem_public_key(&self) -> Vec<u8> {
+        self.pkey.public_key_to_pem().unwrap()
+    }
+
+    fn to_jwk_private_key(&self) -> Jwk {
+        self.to_jwk(true, false)
+    }
+
+    fn to_jwk_public_key(&self) -> Jwk {
+        self.to_jwk(false, true)
+    }
+
+    fn to_jwk_keypair(&self) -> Jwk {
+        self.to_jwk(true, true)
+    }
+}
+
 impl JwsAlgorithm for EddsaJwsAlgorithm {
     fn name(&self) -> &str {
         "EdDSA"
@@ -566,6 +602,11 @@ impl JwsAlgorithm for EddsaJwsAlgorithm {
     }
 }
 
+pub struct EcdsaKeyPair {
+    algorithm: EddsaJwsAlgorithm,
+    pkey: PKey<Private>,
+}
+
 struct EddsaJwsSigner {
     algorithm: EddsaJwsAlgorithm,
     private_key: PKey<Private>,
@@ -650,7 +691,7 @@ mod tests {
 
     #[test]
     fn test_generate_jwt() -> Result<()> {
-        let _jwk = EddsaJwsAlgorithm::EDDSA.generate_jwk_keypair(EddsaCurve::ED25519)?;
+        let _keypair = EddsaJwsAlgorithm::EDDSA.generate_keypair(EddsaCurve::ED25519)?;
 
         Ok(())
     }

@@ -24,17 +24,21 @@ pub use crate::jws::alg_hmac::HmacJwsAlgorithm::HS512;
 pub use crate::jws::alg_rsa::RsaJwsAlgorithm::RS256;
 pub use crate::jws::alg_rsa::RsaJwsAlgorithm::RS384;
 pub use crate::jws::alg_rsa::RsaJwsAlgorithm::RS512;
+pub use crate::jws::alg_rsa::RsaKeyPair;
 
 pub use crate::jws::alg_rsapss::RsaPssJwsAlgorithm::PS256;
 pub use crate::jws::alg_rsapss::RsaPssJwsAlgorithm::PS384;
 pub use crate::jws::alg_rsapss::RsaPssJwsAlgorithm::PS512;
+pub use crate::jws::alg_rsapss::RsaPssKeyPair;
 
 pub use crate::jws::alg_ecdsa::EcdsaJwsAlgorithm::ES256;
 pub use crate::jws::alg_ecdsa::EcdsaJwsAlgorithm::ES256K;
 pub use crate::jws::alg_ecdsa::EcdsaJwsAlgorithm::ES384;
 pub use crate::jws::alg_ecdsa::EcdsaJwsAlgorithm::ES512;
+pub use crate::jws::alg_ecdsa::EcdsaKeyPair;
 
 pub use crate::jws::alg_eddsa::EddsaJwsAlgorithm::EDDSA;
+pub use crate::jws::alg_eddsa::EddsaKeyPair;
 
 pub use crate::jws::multi_signer::JwsMultiSigner;
 pub use crate::jws::multi_verifier::JwsMultiVerifier;
