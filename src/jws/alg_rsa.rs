@@ -9,7 +9,7 @@ use serde_json::Value;
 use crate::der::oid::ObjectIdentifier;
 use crate::der::{DerBuilder, DerReader, DerType};
 use crate::error::JoseError;
-use crate::jwk::Jwk;
+use crate::jwk::{Jwk, KeyPair};
 use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier};
 use crate::util::parse_pem;
 
@@ -29,100 +29,23 @@ pub enum RsaJwsAlgorithm {
 }
 
 impl RsaJwsAlgorithm {
-    /// Generate a DER encoded RSA private key.
+    /// Generate RSA key pair.
     ///
     /// # Arguments
     /// * `bits` - RSA key length
-    /// * `raw` - If true, return a raw PKCS#1 RSAPrivateKey.
-    pub fn generate_der_private_key(&self, bits: u32, raw: bool) -> Result<Vec<u8>, JoseError> {
-        (|| -> anyhow::Result<Vec<u8>> {
+    pub fn generate_keypair(&self, bits: u32) -> Result<RsaKeyPair, JoseError> {
+        (|| -> anyhow::Result<RsaKeyPair> {
             if bits < 2048 {
                 bail!("key length must be 2048 or more.");
             }
 
             let rsa = Rsa::generate(bits)?;
-            let der = rsa.private_key_to_der()?;
+            let pkey = PKey::from_rsa(rsa)?;
 
-            if raw {
-                Ok(der)
-            } else {
-                Ok(self.to_pkcs8(&der, false))
-            }
-        })()
-        .map_err(|err| JoseError::InvalidKeyFormat(err))
-    }
-
-    /// Generate a PEM encoded RSA private key.
-    ///
-    /// # Arguments
-    /// * `bits` - RSA key length
-    /// * `traditional` - If true, return a traditionl format.
-    pub fn generate_pem_private_key(&self, bits: u32, traditional: bool) -> Result<Vec<u8>, JoseError> {
-        let der = self.generate_der_private_key(bits, traditional)?;
-        let der = base64::encode_config(&der, base64::STANDARD);
-        let alg = if traditional {
-            "RSA PRIVATE KEY"
-        } else {
-            "PRIVATE KEY"
-        };
-
-        let mut result = String::new();
-        result.push_str("-----BEGIN ");
-        result.push_str(alg);
-        result.push_str("-----\r\n");
-        for i in 0..((der.len() + 64 - 1) / 64) {
-            result.push_str(&der[(i * 64)..((i + 1) * 64)]);
-            result.push_str("\r\n");
-        }
-        result.push_str("-----END ");
-        result.push_str(alg);
-        result.push_str("-----\r\n");
-
-        Ok(result.into_bytes())
-    }
-
-    /// Generate a JWK encoded RSA private key.
-    ///
-    /// # Arguments
-    /// * `bits` - RSA key length
-    pub fn generate_jwk_private_key(&self, bits: u32) -> Result<Jwk, JoseError> {
-        (|| -> anyhow::Result<Jwk> {
-            if bits < 2048 {
-                bail!("key length must be 2048 or more.");
-            }
-
-            let rsa = Rsa::generate(bits)?;
-            let n = rsa.n().to_vec();
-            let n = base64::encode_config(n, base64::URL_SAFE_NO_PAD);
-            let e = rsa.e().to_vec();
-            let e = base64::encode_config(e, base64::URL_SAFE_NO_PAD);
-            let d = rsa.d().to_vec();
-            let d = base64::encode_config(d, base64::URL_SAFE_NO_PAD);
-            let p = rsa.p().unwrap().to_vec();
-            let p = base64::encode_config(p, base64::URL_SAFE_NO_PAD);
-            let q = rsa.q().unwrap().to_vec();
-            let q = base64::encode_config(q, base64::URL_SAFE_NO_PAD);
-            let dp = rsa.dmp1().unwrap().to_vec();
-            let dp = base64::encode_config(dp, base64::URL_SAFE_NO_PAD);
-            let dq = rsa.dmq1().unwrap().to_vec();
-            let dq = base64::encode_config(dq, base64::URL_SAFE_NO_PAD);
-            let qi = rsa.iqmp().unwrap().to_vec();
-            let qi = base64::encode_config(qi, base64::URL_SAFE_NO_PAD);
-
-            let mut jwk = Jwk::new("RSA");
-            jwk.set_key_use("sig");
-            jwk.set_key_operations(vec!["sign", "verify"]);
-            jwk.set_algorithm(self.name());
-            jwk.set_parameter("n", Some(Value::String(n)))?;
-            jwk.set_parameter("e", Some(Value::String(e)))?;
-            jwk.set_parameter("d", Some(Value::String(d)))?;
-            jwk.set_parameter("p", Some(Value::String(p)))?;
-            jwk.set_parameter("q", Some(Value::String(q)))?;
-            jwk.set_parameter("dp", Some(Value::String(dp)))?;
-            jwk.set_parameter("dq", Some(Value::String(dq)))?;
-            jwk.set_parameter("qi", Some(Value::String(qi)))?;
-
-            Ok(jwk)
+            Ok(RsaKeyPair {
+                algorithm: self.clone(),
+                pkey,
+            })
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
@@ -525,6 +448,116 @@ impl JwsAlgorithm for RsaJwsAlgorithm {
     }
 }
 
+pub struct RsaKeyPair {
+    algorithm: RsaJwsAlgorithm,
+    pkey: PKey<Private>,
+}
+
+impl RsaKeyPair {
+    pub fn to_raw_private_key(&self) -> Vec<u8> {
+        let rsa = self.pkey.rsa().unwrap();
+        rsa.private_key_to_der().unwrap()
+    }
+
+    pub fn to_traditional_pem_private_key(&self) -> Vec<u8> {
+        let der = self.to_raw_private_key();
+        let der = base64::encode_config(&der, base64::STANDARD);
+
+        let mut result = String::new();
+        result.push_str("-----BEGIN RSA PRIVATE KEY-----\r\n");
+        for i in 0..((der.len() + 64 - 1) / 64) {
+            result.push_str(&der[(i * 64)..((i + 1) * 64)]);
+            result.push_str("\r\n");
+        }
+        result.push_str("-----END RSA PRIVATE KEY-----\r\n");
+        result.into_bytes()
+    }
+
+    fn to_jwk(&self, private: bool, public: bool) -> Jwk {
+        let rsa = self.pkey.rsa().unwrap();
+
+        let mut jwk = Jwk::new("RSA");
+        jwk.set_key_use("sig");
+        jwk.set_key_operations({
+            let mut key_ops = Vec::new();
+            if private {
+                key_ops.push("sign");
+            }
+            if public {
+                key_ops.push("verify");
+            }
+            key_ops
+        });
+        jwk.set_algorithm(self.algorithm.name());
+
+        let n = rsa.n().to_vec();
+        let n = base64::encode_config(n, base64::URL_SAFE_NO_PAD);
+        jwk.set_parameter("n", Some(Value::String(n))).unwrap();
+
+        let e = rsa.e().to_vec();
+        let e = base64::encode_config(e, base64::URL_SAFE_NO_PAD);
+        jwk.set_parameter("e", Some(Value::String(e))).unwrap();
+
+        if private {
+            let d = rsa.d().to_vec();
+            let d = base64::encode_config(d, base64::URL_SAFE_NO_PAD);
+            jwk.set_parameter("d", Some(Value::String(d))).unwrap();
+
+            let p = rsa.p().unwrap().to_vec();
+            let p = base64::encode_config(p, base64::URL_SAFE_NO_PAD);
+            jwk.set_parameter("p", Some(Value::String(p))).unwrap();
+
+            let q = rsa.q().unwrap().to_vec();
+            let q = base64::encode_config(q, base64::URL_SAFE_NO_PAD);
+            jwk.set_parameter("q", Some(Value::String(q))).unwrap();
+
+            let dp = rsa.dmp1().unwrap().to_vec();
+            let dp = base64::encode_config(dp, base64::URL_SAFE_NO_PAD);
+            jwk.set_parameter("dp", Some(Value::String(dp))).unwrap();
+
+            let dq = rsa.dmq1().unwrap().to_vec();
+            let dq = base64::encode_config(dq, base64::URL_SAFE_NO_PAD);
+            jwk.set_parameter("dq", Some(Value::String(dq))).unwrap();
+
+            let qi = rsa.iqmp().unwrap().to_vec();
+            let qi = base64::encode_config(qi, base64::URL_SAFE_NO_PAD);
+            jwk.set_parameter("qi", Some(Value::String(qi))).unwrap();
+        }
+
+        jwk
+    }
+}
+
+impl KeyPair for RsaKeyPair {
+    fn to_der_private_key(&self) -> Vec<u8> {
+        self.pkey.private_key_to_der().unwrap()
+    }
+
+    fn to_der_public_key(&self) -> Vec<u8> {
+        self.pkey.public_key_to_der().unwrap()
+    }
+
+    fn to_pem_private_key(&self) -> Vec<u8> {
+        self.pkey.private_key_to_pem_pkcs8().unwrap()
+    }
+
+    fn to_pem_public_key(&self) -> Vec<u8> {
+        self.pkey.public_key_to_pem().unwrap()
+    }
+
+    fn to_jwk_private_key(&self) -> Jwk {
+        self.to_jwk(true, false)
+    }
+
+    fn to_jwk_public_key(&self) -> Jwk {
+        self.to_jwk(false, true)
+    }
+
+    fn to_jwk_keypair(&self) -> Jwk {
+        self.to_jwk(true, true)
+    }
+}
+
 pub struct RsaJwsSigner {
     algorithm: RsaJwsAlgorithm,
     private_key: PKey<Private>,
@@ -629,13 +662,13 @@ mod tests {
             RsaJwsAlgorithm::RS384,
             RsaJwsAlgorithm::RS512,
         ] {
-            let private_key = alg.generate_der_private_key(2048, false)?;
+            let keypair = alg.generate_keypair(2048)?;
 
-            let signer = alg.signer_from_der(&private_key)?;
+            let signer = alg.signer_from_der(&keypair.to_der_private_key())?;
             let signature = signer.sign(input)?;
 
-            // let verifier = alg.verifier_from_der(&public_key)?;
-            // verifier.verify(input, &signature)?;
+            let verifier = alg.verifier_from_der(&keypair.to_der_public_key())?;
+            verifier.verify(input, &signature)?;
         }
 
         Ok(())
