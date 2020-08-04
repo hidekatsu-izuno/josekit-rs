@@ -857,10 +857,10 @@ mod tests {
         ] {
             let keypair = alg.generate_keypair()?;
 
-            let signer = alg.signer_from_der(&keypair.to_pem_private_key())?;
+            let signer = alg.signer_from_pem(&keypair.to_pem_private_key())?;
             let signature = signer.sign(input)?;
 
-            let verifier = alg.verifier_from_der(&keypair.to_pem_public_key())?;
+            let verifier = alg.verifier_from_pem(&keypair.to_pem_public_key())?;
             verifier.verify(input, &signature)?;
         }
 
@@ -879,10 +879,10 @@ mod tests {
         ] {
             let keypair = alg.generate_keypair()?;
 
-            let signer = alg.signer_from_der(&keypair.to_traditional_pem_private_key())?;
+            let signer = alg.signer_from_pem(&keypair.to_traditional_pem_private_key())?;
             let signature = signer.sign(input)?;
 
-            let verifier = alg.verifier_from_der(&keypair.to_pem_public_key())?;
+            let verifier = alg.verifier_from_pem(&keypair.to_pem_public_key())?;
             verifier.verify(input, &signature)?;
         }
 

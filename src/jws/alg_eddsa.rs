@@ -453,7 +453,7 @@ impl EddsaKeyPair {
         result.push_str(alg);
         result.push_str("-----\r\n");
         for i in 0..((der.len() + 64 - 1) / 64) {
-            result.push_str(&der[(i * 64)..((i + 1) * 64)]);
+            result.push_str(&der[(i * 64)..std::cmp::min((i + 1) * 64, der.len())]);
             result.push_str("\r\n");
         }
         result.push_str("-----END ");
@@ -685,7 +685,6 @@ mod tests {
     use std::io::Read;
     use std::path::PathBuf;
 
-    
     #[test]
     fn sign_and_verify_eddsa_generated_der() -> Result<()> {
         let input = b"abcde12345";
@@ -718,10 +717,10 @@ mod tests {
             let alg = EddsaJwsAlgorithm::EDDSA;
             let keypair = alg.generate_keypair(curve)?;
 
-            let signer = alg.signer_from_der(&keypair.to_pem_private_key())?;
+            let signer = alg.signer_from_pem(&keypair.to_pem_private_key())?;
             let signature = signer.sign(input)?;
 
-            let verifier = alg.verifier_from_der(&keypair.to_pem_public_key())?;
+            let verifier = alg.verifier_from_pem(&keypair.to_pem_public_key())?;
             verifier.verify(input, &signature)?;
         }
 
@@ -739,10 +738,10 @@ mod tests {
             let alg = EddsaJwsAlgorithm::EDDSA;
             let keypair = alg.generate_keypair(curve)?;
 
-            let signer = alg.signer_from_der(&keypair.to_traditional_pem_private_key())?;
+            let signer = alg.signer_from_pem(&keypair.to_traditional_pem_private_key())?;
             let signature = signer.sign(input)?;
 
-            let verifier = alg.verifier_from_der(&keypair.to_pem_public_key())?;
+            let verifier = alg.verifier_from_pem(&keypair.to_pem_public_key())?;
             verifier.verify(input, &signature)?;
         }
 

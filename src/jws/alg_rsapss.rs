@@ -626,13 +626,13 @@ impl RsaPssKeyPair {
     }
 
     pub fn to_traditional_pem_private_key(&self) -> Vec<u8> {
-        let der = self.algorithm.to_pkcs8(&self.to_raw_private_key(), false);
+        let der = self.to_der_private_key();
         let der = base64::encode_config(&der, base64::STANDARD);
 
         let mut result = String::new();
         result.push_str("-----BEGIN RSA-PSS PRIVATE KEY-----\r\n");
         for i in 0..((der.len() + 64 - 1) / 64) {
-            result.push_str(&der[(i * 64)..((i + 1) * 64)]);
+            result.push_str(&der[(i * 64)..std::cmp::min((i + 1) * 64, der.len())]);
             result.push_str("\r\n");
         }
         result.push_str("-----END RSA-PSS PRIVATE KEY-----\r\n");
@@ -696,19 +696,39 @@ impl RsaPssKeyPair {
 
 impl KeyPair for RsaPssKeyPair {
     fn to_der_private_key(&self) -> Vec<u8> {
-        self.pkey.private_key_to_der().unwrap()
+        self.algorithm.to_pkcs8(&self.to_raw_private_key(), false)
     }
 
     fn to_der_public_key(&self) -> Vec<u8> {
-        self.pkey.public_key_to_der().unwrap()
+        self.algorithm.to_pkcs8(&self.to_raw_public_key(), true)
     }
 
     fn to_pem_private_key(&self) -> Vec<u8> {
-        self.pkey.private_key_to_pem_pkcs8().unwrap()
+        let der = self.to_der_private_key();
+        let der = base64::encode_config(&der, base64::STANDARD);
+
+        let mut result = String::new();
+        result.push_str("-----BEGIN PRIVATE KEY-----\r\n");
+        for i in 0..((der.len() + 64 - 1) / 64) {
+            result.push_str(&der[(i * 64)..std::cmp::min((i + 1) * 64, der.len())]);
+            result.push_str("\r\n");
+        }
+        result.push_str("-----END PRIVATE KEY-----\r\n");
+        result.into_bytes()
     }
 
     fn to_pem_public_key(&self) -> Vec<u8> {
-        self.pkey.public_key_to_pem().unwrap()
+        let der = self.to_der_public_key();
+        let der = base64::encode_config(&der, base64::STANDARD);
+
+        let mut result = String::new();
+        result.push_str("-----BEGIN PUBLIC KEY-----\r\n");
+        for i in 0..((der.len() + 64 - 1) / 64) {
+            result.push_str(&der[(i * 64)..((i + 1) * 64)]);
+            result.push_str("\r\n");
+        }
+        result.push_str("-----END PUBLIC KEY-----\r\n");
+        result.into_bytes()
     }
 
     fn to_jwk_private_key(&self) -> Jwk {
@@ -872,10 +892,10 @@ mod tests {
         ] {
             let keypair = alg.generate_keypair(2048)?;
 
-            let signer = alg.signer_from_der(&keypair.to_pem_private_key())?;
+            let signer = alg.signer_from_pem(&keypair.to_pem_private_key())?;
             let signature = signer.sign(input)?;
 
-            let verifier = alg.verifier_from_der(&keypair.to_pem_public_key())?;
+            let verifier = alg.verifier_from_pem(&keypair.to_pem_public_key())?;
             verifier.verify(input, &signature)?;
         }
 
@@ -893,10 +913,10 @@ mod tests {
         ] {
             let keypair = alg.generate_keypair(2048)?;
 
-            let signer = alg.signer_from_der(&keypair.to_traditional_pem_private_key())?;
+            let signer = alg.signer_from_pem(&keypair.to_traditional_pem_private_key())?;
             let signature = signer.sign(input)?;
 
-            let verifier = alg.verifier_from_der(&keypair.to_pem_public_key())?;
+            let verifier = alg.verifier_from_pem(&keypair.to_pem_public_key())?;
             verifier.verify(input, &signature)?;
         }
 
