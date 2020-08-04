@@ -26,19 +26,16 @@ impl HmacJwsAlgorithm {
     ///
     /// # Arguments
     /// * `secret` - A secret key
-    pub fn to_jwk_key(&self, secret: Vec<u8>) -> Result<Jwk, JoseError> {
-        (|| -> anyhow::Result<Jwk> {
-            let k = base64::encode_config(secret, base64::URL_SAFE_NO_PAD);
+    pub fn to_jwk(&self, secret: &[u8]) -> Jwk {
+        let k = base64::encode_config(secret, base64::URL_SAFE_NO_PAD);
 
-            let mut jwk = Jwk::new("oct");
-            jwk.set_key_use("sig");
-            jwk.set_key_operations(vec!["sign", "verify"]);
-            jwk.set_algorithm(self.name());
-            jwk.set_parameter("k", Some(Value::String(k)))?;
+        let mut jwk = Jwk::new("oct");
+        jwk.set_key_use("sig");
+        jwk.set_key_operations(vec!["sign", "verify"]);
+        jwk.set_algorithm(self.name());
+        jwk.set_parameter("k", Some(Value::String(k))).unwrap();
 
-            Ok(jwk)
-        })()
-        .map_err(|err| JoseError::InvalidKeyFormat(err))
+        jwk
     }
 
     /// Return a signer from a secret key.
@@ -279,6 +276,27 @@ mod tests {
     use std::fs::File;
     use std::io::Read;
     use std::path::PathBuf;
+
+    #[test]
+    fn sign_and_verify_hmac_generated_jwk() -> Result<()> {
+        let input = b"12345abcde";
+
+        for alg in &[
+            HmacJwsAlgorithm::HS256,
+            HmacJwsAlgorithm::HS384,
+            HmacJwsAlgorithm::HS512,
+        ] {
+            let private_key = alg.to_jwk(input);
+
+            let signer = alg.signer_from_jwk(&private_key)?;
+            let signature = signer.sign(input)?;
+
+            let verifier = alg.verifier_from_jwk(&private_key)?;
+            verifier.verify(input, &signature)?;
+        }
+
+        Ok(())
+    }
 
     #[test]
     fn sign_and_verify_hmac_jwk() -> Result<()> {

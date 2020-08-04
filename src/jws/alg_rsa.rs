@@ -464,6 +464,11 @@ impl RsaKeyPair {
         rsa.private_key_to_pem().unwrap()
     }
 
+    pub fn to_raw_public_key(&self) -> Vec<u8> {
+        let rsa = self.pkey.rsa().unwrap();
+        rsa.public_key_to_der_pkcs1().unwrap()
+    }
+
     pub fn to_traditional_pem_public_key(&self) -> Vec<u8> {
         let rsa = self.pkey.rsa().unwrap();
         rsa.public_key_to_pem_pkcs1().unwrap()
@@ -664,6 +669,90 @@ mod tests {
             let signature = signer.sign(input)?;
 
             let verifier = alg.verifier_from_der(&keypair.to_der_public_key())?;
+            verifier.verify(input, &signature)?;
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn sign_and_verify_rsa_generated_raw() -> Result<()> {
+        let input = b"abcde12345";
+
+        for alg in &[
+            RsaJwsAlgorithm::RS256,
+            RsaJwsAlgorithm::RS384,
+            RsaJwsAlgorithm::RS512,
+        ] {
+            let keypair = alg.generate_keypair(2048)?;
+
+            let signer = alg.signer_from_der(&keypair.to_raw_private_key())?;
+            let signature = signer.sign(input)?;
+
+            let verifier = alg.verifier_from_der(&keypair.to_raw_public_key())?;
+            verifier.verify(input, &signature)?;
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn sign_and_verify_rsa_generated_pem() -> Result<()> {
+        let input = b"abcde12345";
+
+        for alg in &[
+            RsaJwsAlgorithm::RS256,
+            RsaJwsAlgorithm::RS384,
+            RsaJwsAlgorithm::RS512,
+        ] {
+            let keypair = alg.generate_keypair(2048)?;
+
+            let signer = alg.signer_from_der(&keypair.to_pem_private_key())?;
+            let signature = signer.sign(input)?;
+
+            let verifier = alg.verifier_from_der(&keypair.to_pem_public_key())?;
+            verifier.verify(input, &signature)?;
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn sign_and_verify_rsa_generated_traditional_pem() -> Result<()> {
+        let input = b"abcde12345";
+
+        for alg in &[
+            RsaJwsAlgorithm::RS256,
+            RsaJwsAlgorithm::RS384,
+            RsaJwsAlgorithm::RS512,
+        ] {
+            let keypair = alg.generate_keypair(2048)?;
+
+            let signer = alg.signer_from_der(&keypair.to_traditional_pem_private_key())?;
+            let signature = signer.sign(input)?;
+
+            let verifier = alg.verifier_from_der(&keypair.to_traditional_pem_public_key())?;
+            verifier.verify(input, &signature)?;
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn sign_and_verify_rsa_generated_jwk() -> Result<()> {
+        let input = b"abcde12345";
+
+        for alg in &[
+            RsaJwsAlgorithm::RS256,
+            RsaJwsAlgorithm::RS384,
+            RsaJwsAlgorithm::RS512,
+        ] {
+            let keypair = alg.generate_keypair(2048)?;
+
+            let signer = alg.signer_from_jwk(&keypair.to_jwk_private_key())?;
+            let signature = signer.sign(input)?;
+
+            let verifier = alg.verifier_from_jwk(&keypair.to_jwk_public_key())?;
             verifier.verify(input, &signature)?;
         }
 

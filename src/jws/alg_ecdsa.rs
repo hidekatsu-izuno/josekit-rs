@@ -800,6 +800,116 @@ mod tests {
     use std::fs::File;
     use std::io::Read;
     use std::path::PathBuf;
+    
+    #[test]
+    fn sign_and_verify_ecdsa_generated_der() -> Result<()> {
+        let input = b"abcde12345";
+
+        for alg in &[
+            EcdsaJwsAlgorithm::ES256,
+            EcdsaJwsAlgorithm::ES384,
+            EcdsaJwsAlgorithm::ES512,
+            EcdsaJwsAlgorithm::ES256K,
+        ] {
+            let keypair = alg.generate_keypair()?;
+
+            let signer = alg.signer_from_der(&keypair.to_der_private_key())?;
+            let signature = signer.sign(input)?;
+
+            let verifier = alg.verifier_from_der(&keypair.to_der_public_key())?;
+            verifier.verify(input, &signature)?;
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn sign_and_verify_ecdsa_generated_raw() -> Result<()> {
+        let input = b"abcde12345";
+
+        for alg in &[
+            EcdsaJwsAlgorithm::ES256,
+            EcdsaJwsAlgorithm::ES384,
+            EcdsaJwsAlgorithm::ES512,
+            EcdsaJwsAlgorithm::ES256K,
+        ] {
+            let keypair = alg.generate_keypair()?;
+
+            let signer = alg.signer_from_der(&keypair.to_raw_private_key())?;
+            let signature = signer.sign(input)?;
+
+            let verifier = alg.verifier_from_der(&keypair.to_der_public_key())?;
+            verifier.verify(input, &signature)?;
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn sign_and_verify_ecdsa_generated_pem() -> Result<()> {
+        let input = b"abcde12345";
+
+        for alg in &[
+            EcdsaJwsAlgorithm::ES256,
+            EcdsaJwsAlgorithm::ES384,
+            EcdsaJwsAlgorithm::ES512,
+            EcdsaJwsAlgorithm::ES256K,
+        ] {
+            let keypair = alg.generate_keypair()?;
+
+            let signer = alg.signer_from_der(&keypair.to_pem_private_key())?;
+            let signature = signer.sign(input)?;
+
+            let verifier = alg.verifier_from_der(&keypair.to_pem_public_key())?;
+            verifier.verify(input, &signature)?;
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn sign_and_verify_ecdsa_generated_traditional_pem() -> Result<()> {
+        let input = b"abcde12345";
+
+        for alg in &[
+            EcdsaJwsAlgorithm::ES256,
+            EcdsaJwsAlgorithm::ES384,
+            EcdsaJwsAlgorithm::ES512,
+            EcdsaJwsAlgorithm::ES256K,
+        ] {
+            let keypair = alg.generate_keypair()?;
+
+            let signer = alg.signer_from_der(&keypair.to_traditional_pem_private_key())?;
+            let signature = signer.sign(input)?;
+
+            let verifier = alg.verifier_from_der(&keypair.to_pem_public_key())?;
+            verifier.verify(input, &signature)?;
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn sign_and_verify_ecdsa_generated_jwk() -> Result<()> {
+        let input = b"abcde12345";
+
+        for alg in &[
+            EcdsaJwsAlgorithm::ES256,
+            EcdsaJwsAlgorithm::ES384,
+            EcdsaJwsAlgorithm::ES512,
+            EcdsaJwsAlgorithm::ES256K,
+        ] {
+            let keypair = alg.generate_keypair()?;
+
+            let signer = alg.signer_from_jwk(&keypair.to_jwk_private_key())?;
+            let signature = signer.sign(input)?;
+
+            let verifier = alg.verifier_from_jwk(&keypair.to_jwk_public_key())?;
+            verifier.verify(input, &signature)?;
+        }
+
+        Ok(())
+    }
 
     #[test]
     fn sign_and_verify_ecdsa_jwt() -> Result<()> {
