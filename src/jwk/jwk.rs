@@ -1,9 +1,11 @@
+use std::fmt::Display;
+use std::io::Read;
+use std::string::ToString;
+
 use anyhow::bail;
 use serde::ser::SerializeMap;
 use serde::{Serialize, Serializer};
 use serde_json::{Map, Value};
-use std::io::Read;
-use std::string::ToString;
 
 use crate::error::JoseError;
 
@@ -452,8 +454,9 @@ impl Serialize for Jwk {
     }
 }
 
-impl ToString for Jwk {
-    fn to_string(&self) -> String {
-        serde_json::to_string(&self).unwrap()
+impl Display for Jwk {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+        let val = serde_json::to_string(&self).map_err(|_e| std::fmt::Error {})?;
+        fmt.write_str(&val)
     }
 }

@@ -240,7 +240,7 @@ impl RsaPssJwsAlgorithm {
                     Ok(Some(DerType::Integer)) => match reader.to_u8() {
                         Ok(val) => {
                             if val != 0 {
-                                bail!("Unrecognized version: {}", val);
+                                return Ok(false);
                             }
                         }
                         _ => return Ok(false),
@@ -259,7 +259,7 @@ impl RsaPssJwsAlgorithm {
                     Ok(Some(DerType::ObjectIdentifier)) => match reader.to_object_identifier() {
                         Ok(val) => {
                             if val != *OID_RSASSA_PSS {
-                                bail!("Incompatible oid: {}", val);
+                                return Ok(false);
                             }
                         }
                         _ => return Ok(false),
@@ -289,7 +289,7 @@ impl RsaPssJwsAlgorithm {
                                 match reader.to_object_identifier() {
                                     Ok(val) => {
                                         if val != *self.digest() {
-                                            bail!("Incompatible oid: {}", val);
+                                            return Ok(false);
                                         }
                                     }
                                     _ => return Ok(false),
@@ -320,7 +320,7 @@ impl RsaPssJwsAlgorithm {
                                 match reader.to_object_identifier() {
                                     Ok(val) => {
                                         if val != *OID_MGF1 {
-                                            bail!("Incompatible oid: {}", val);
+                                            return Ok(false);
                                         }
                                     }
                                     _ => return Ok(false),
@@ -340,7 +340,7 @@ impl RsaPssJwsAlgorithm {
                                     match reader.to_object_identifier() {
                                         Ok(val) => {
                                             if val != *self.digest() {
-                                                bail!("Incompatible oid: {}", val);
+                                                return Ok(false);
                                             }
                                         }
                                         _ => return Ok(false),
@@ -365,7 +365,7 @@ impl RsaPssJwsAlgorithm {
                         Ok(Some(DerType::Integer)) => match reader.to_u8() {
                             Ok(val) => {
                                 if val != self.salt_len() {
-                                    bail!("Incompatible salt length: {}", val);
+                                    return Ok(false);
                                 }
                             }
                             _ => return Ok(false),
@@ -724,7 +724,7 @@ impl KeyPair for RsaPssKeyPair {
         let mut result = String::new();
         result.push_str("-----BEGIN PUBLIC KEY-----\r\n");
         for i in 0..((der.len() + 64 - 1) / 64) {
-            result.push_str(&der[(i * 64)..((i + 1) * 64)]);
+            result.push_str(&der[(i * 64)..std::cmp::min((i + 1) * 64, der.len())]);
             result.push_str("\r\n");
         }
         result.push_str("-----END PUBLIC KEY-----\r\n");

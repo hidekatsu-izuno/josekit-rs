@@ -215,7 +215,7 @@ impl RsaJwsAlgorithm {
                     Ok(Some(DerType::Integer)) => match reader.to_u8() {
                         Ok(val) => {
                             if val != 0 {
-                                bail!("Unrecognized version: {}", val);
+                                return Ok(false);
                             }
                         }
                         _ => return Ok(false),
@@ -234,7 +234,7 @@ impl RsaJwsAlgorithm {
                     Ok(Some(DerType::ObjectIdentifier)) => match reader.to_object_identifier() {
                         Ok(val) => {
                             if val != *OID_RSA_ENCRYPTION {
-                                bail!("Incompatible oid: {}", val);
+                                return Ok(false);
                             }
                         }
                         _ => return Ok(false),

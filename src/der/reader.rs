@@ -289,7 +289,7 @@ impl<R: Read> DerReader<R> {
     pub fn to_bit_vec(&self) -> Result<(Vec<u8>, u8), DerError> {
         if let DerType::BitString = self.der_type {
             if let Some(contents) = &self.contents {
-                if contents.len() >= 2 {
+                if contents.len() < 2 {
                     return Err(DerError::InvalidLength(format!(
                         "Bit String content length must be 2 or more."
                     )));
@@ -302,7 +302,7 @@ impl<R: Read> DerReader<R> {
                     )));
                 }
 
-                Ok((contents.to_vec(), unused_bits))
+                Ok((contents[1..contents.len()].to_vec(), unused_bits))
             } else {
                 unreachable!();
             }

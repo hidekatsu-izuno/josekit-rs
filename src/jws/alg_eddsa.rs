@@ -28,8 +28,8 @@ pub enum EddsaCurve {
 impl EddsaCurve {
     pub fn name(&self) -> &str {
         match self {
-            Self::ED25519 => "ED25519",
-            Self::ED448 => "ED448",
+            Self::ED25519 => "Ed25519",
+            Self::ED448 => "Ed448",
         }
     }
 
@@ -258,7 +258,7 @@ impl EddsaJwsAlgorithm {
                     Ok(Some(DerType::Integer)) => match reader.to_u8() {
                         Ok(val) => {
                             if val != 0 {
-                                bail!("Unrecognized version: {}", val);
+                                return Ok(None);
                             }
                         }
                         _ => return Ok(None),
@@ -277,7 +277,7 @@ impl EddsaJwsAlgorithm {
                     Ok(Some(DerType::ObjectIdentifier)) => match reader.to_object_identifier() {
                         Ok(val) => {
                             if val != *OID_ED25519 && val != *OID_ED448 {
-                                bail!("Unsupported curve OID: {}", val);
+                                return Ok(None);
                             }
                             oid = val;
                         }
@@ -358,7 +358,7 @@ impl JwsAlgorithm for EddsaJwsAlgorithm {
             let curve = match jwk.parameter("crv") {
                 Some(Value::String(val)) if val == "Ed25519" => &OID_ED25519,
                 Some(Value::String(val)) if val == "Ed448" => &OID_ED448,
-                Some(Value::String(val)) => bail!("A parameter crv must is invalid: {}", val),
+                Some(Value::String(val)) => bail!("A parameter crv is invalid: {}", val),
                 Some(_) => bail!("A parameter crv must be a string."),
                 None => bail!("A parameter crv is required."),
             };
@@ -480,8 +480,10 @@ impl EddsaKeyPair {
         jwk.set_parameter("crv", Some(Value::String(
             self.curve.name().to_string()
         ))).unwrap();
+
         if private {
             let private_der = self.pkey.private_key_to_der().unwrap();
+
             let mut reader = DerReader::from_bytes(&private_der);
     
             match reader.next() {
@@ -519,7 +521,15 @@ impl EddsaKeyPair {
     
             let d = match reader.next() {
                 Ok(Some(DerType::OctetString)) => {
-                    base64::encode_config(reader.contents().unwrap(), base64::URL_SAFE_NO_PAD)
+                    let private_key = reader.contents().unwrap();
+                    let mut reader = DerReader::from_bytes(&private_key);
+                    match reader.next() {
+                        Ok(Some(DerType::OctetString)) => {
+                            let d = reader.contents().unwrap();
+                            base64::encode_config(d, base64::URL_SAFE_NO_PAD)
+                        },
+                        _ => unreachable!("Invalid private key."),
+                    }
                 }
                 _ => unreachable!("Invalid private key."),
             };
@@ -557,6 +567,7 @@ impl EddsaKeyPair {
             let x = match reader.next() {
                 Ok(Some(DerType::BitString)) => {
                     if let (x, 0) = reader.to_bit_vec().unwrap() {
+                        println!("{:X?}", x);
                         base64::encode_config(x, base64::URL_SAFE_NO_PAD)
                     } else {
                         unreachable!("Invalid private key.")
