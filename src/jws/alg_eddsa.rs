@@ -567,7 +567,6 @@ impl EddsaKeyPair {
             let x = match reader.next() {
                 Ok(Some(DerType::BitString)) => {
                     if let (x, 0) = reader.to_bit_vec().unwrap() {
-                        println!("{:X?}", x);
                         base64::encode_config(x, base64::URL_SAFE_NO_PAD)
                     } else {
                         unreachable!("Invalid private key.")
