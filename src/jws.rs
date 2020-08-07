@@ -1,8 +1,4 @@
-pub mod alg_ecdsa;
-pub mod alg_eddsa;
-pub mod alg_hmac;
-pub mod alg_rsa;
-pub mod alg_rsapss;
+pub mod alg;
 mod multi_signer;
 mod multi_verifier;
 
@@ -17,24 +13,24 @@ use crate::jose::JoseHeader;
 use crate::jwk::Jwk;
 use crate::util::SourceValue;
 
-pub use crate::jws::alg_hmac::HmacJwsAlgorithm::HS256;
-pub use crate::jws::alg_hmac::HmacJwsAlgorithm::HS384;
-pub use crate::jws::alg_hmac::HmacJwsAlgorithm::HS512;
+pub use crate::jws::alg::hmac::HmacJwsAlgorithm::HS256;
+pub use crate::jws::alg::hmac::HmacJwsAlgorithm::HS384;
+pub use crate::jws::alg::hmac::HmacJwsAlgorithm::HS512;
 
-pub use crate::jws::alg_rsa::RsaJwsAlgorithm::RS256;
-pub use crate::jws::alg_rsa::RsaJwsAlgorithm::RS384;
-pub use crate::jws::alg_rsa::RsaJwsAlgorithm::RS512;
+pub use crate::jws::alg::rsa::RsaJwsAlgorithm::RS256;
+pub use crate::jws::alg::rsa::RsaJwsAlgorithm::RS384;
+pub use crate::jws::alg::rsa::RsaJwsAlgorithm::RS512;
 
-pub use crate::jws::alg_rsapss::RsaPssJwsAlgorithm::PS256;
-pub use crate::jws::alg_rsapss::RsaPssJwsAlgorithm::PS384;
-pub use crate::jws::alg_rsapss::RsaPssJwsAlgorithm::PS512;
+pub use crate::jws::alg::rsapss::RsaPssJwsAlgorithm::PS256;
+pub use crate::jws::alg::rsapss::RsaPssJwsAlgorithm::PS384;
+pub use crate::jws::alg::rsapss::RsaPssJwsAlgorithm::PS512;
 
-pub use crate::jws::alg_ecdsa::EcdsaJwsAlgorithm::ES256;
-pub use crate::jws::alg_ecdsa::EcdsaJwsAlgorithm::ES256K;
-pub use crate::jws::alg_ecdsa::EcdsaJwsAlgorithm::ES384;
-pub use crate::jws::alg_ecdsa::EcdsaJwsAlgorithm::ES512;
+pub use crate::jws::alg::ecdsa::EcdsaJwsAlgorithm::ES256;
+pub use crate::jws::alg::ecdsa::EcdsaJwsAlgorithm::ES256K;
+pub use crate::jws::alg::ecdsa::EcdsaJwsAlgorithm::ES384;
+pub use crate::jws::alg::ecdsa::EcdsaJwsAlgorithm::ES512;
 
-pub use crate::jws::alg_eddsa::EddsaJwsAlgorithm::EDDSA;
+pub use crate::jws::alg::eddsa::EddsaJwsAlgorithm::EDDSA;
 
 pub use crate::jws::multi_signer::JwsMultiSigner;
 pub use crate::jws::multi_verifier::JwsMultiVerifier;
