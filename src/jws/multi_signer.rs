@@ -46,3 +46,26 @@ impl JwsMultiSigner {
         ))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::jws::{RS256, ES256};
+/*
+    #[test]
+    fn sign_multpile() -> Result<()> {
+        let payload = b"abcde012345";
+
+        let mut multi_signer = JwsMultiSigner::new(payload);
+
+        let keypair1 = RS256.generate_keypair(2048)?;
+        let signer1 = RS256.signer_from_der(keypair1.to_der_private_key())?;
+
+        let keypair2 = ES256.generate_keypair()?;
+
+        multi_signer.add_signature(signer: &dyn JwsSigner, protected_header: &Map<String, Value>, unprotected_header: &Map<String, Value>)
+
+        Ok(())
+    }
+*/
+}

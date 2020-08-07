@@ -286,10 +286,10 @@ let decoded_jwt = Jwt::decode_unsecured(&encoded_jwt)?;
 
 ## ToDo
 
-- Generate keys
-- Support ring
 - Support JWS JSON Serialization
 - Support JWE
+- Support JWE JSON Serialization
+- Support ring
 
 ## License
 

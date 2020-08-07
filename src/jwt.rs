@@ -496,12 +496,10 @@ impl Jwt<JwsHeader> {
     /// * `verifier` - a verifier of the signing algorithm.
     /// * `input` - a JWT string representation.
     pub fn decode_with_verifier(
-        verifier: impl AsRef<dyn JwsVerifier>,
+        verifier: &dyn JwsVerifier,
         input: &str,
     ) -> Result<Self, JoseError> {
         (|| -> anyhow::Result<Self> {
-            let verifier = verifier.as_ref();
-
             let parts: Vec<&str> = input.split('.').collect();
             if parts.len() != 3 {
                 bail!("The signed JWT must be three parts separated by colon.");
@@ -569,11 +567,10 @@ impl Jwt<JwsHeader> {
     /// * `algorithm` - a verifying algorithm.
     /// * `jwk_set` - a JWK set.
     pub fn decode_with_verifier_in_jwk_set(
-        algorithm: impl AsRef<dyn JwsAlgorithm>,
+        algorithm: &dyn JwsAlgorithm,
         jwk_set: &JwkSet,
         input: &str,
     ) -> Result<Self, JoseError> {
-        let algorithm = algorithm.as_ref();
         Self::decode_with_verifier_selector(
             |header| -> Option<Box<dyn JwsVerifier>> {
                 let key_id = match header.key_id() {
@@ -610,11 +607,9 @@ impl Jwt<JweHeader> {
     /// * `decrypter` - a decrypter of the decrypting algorithm.
     pub fn decode_with_decrypter(
         input: &str,
-        decrypter: impl AsRef<dyn JweDecrypter>,
+        decrypter: &dyn JweDecrypter,
     ) -> Result<Self, JoseError> {
         (|| -> anyhow::Result<Self> {
-            let decrypter = decrypter.as_ref();
-
             let parts: Vec<&str> = input.split('.').collect();
             if parts.len() != 5 {
                 bail!("The encrypted JWT must be five parts separated by colon.");
@@ -644,12 +639,10 @@ impl Jwt<JweHeader> {
     /// * `jwk_set` - a JWK set.
     pub fn decode_with_decrypter_in_jwk_set(
         input: &str,
-        algorithm: impl AsRef<dyn JweAlgorithm>,
-        encryption: impl AsRef<dyn JweEncryption>,
+        algorithm: &dyn JweAlgorithm,
+        encryption: &dyn JweEncryption,
         jwk_set: &JwkSet,
     ) -> Result<Self, JoseError> {
-        let algorithm = algorithm.as_ref();
-        let encryption = encryption.as_ref();
         Self::decode_with_decrypter_selector(input, |header| -> Option<Box<dyn JweDecrypter>> {
             let key_id = match header.key_id() {
                 Some(val) => val,
@@ -734,9 +727,8 @@ impl<T: JoseHeader> Jwt<T> {
     /// * `signer` - a signer object.
     pub fn encode_with_signer(
         &self,
-        signer: impl AsRef<dyn JwsSigner>,
+        signer: &dyn JwsSigner,
     ) -> Result<String, JoseError> {
-        let signer = signer.as_ref();
         let alg = signer.algorithm().name();
 
         let mut header = self.header.claims_set().clone();
@@ -759,9 +751,8 @@ impl<T: JoseHeader> Jwt<T> {
     /// * `encrypter` - a encrypter object.
     pub fn encode_with_encrypter(
         &self,
-        encrypter: impl AsRef<dyn JweEncrypter>,
+        encrypter: &dyn JweEncrypter,
     ) -> Result<String, JoseError> {
-        let encrypter = encrypter.as_ref();
         let alg = encrypter.algorithm().name();
 
         let mut header = self.header.claims_set().clone();
@@ -1212,7 +1203,7 @@ mod tests {
             from_jwt.header.set_token_type("JWT");
 
             let signer = alg.signer_from_pem(&private_key)?;
-            let jwt_string = from_jwt.encode_with_signer(signer)?;
+            let jwt_string = from_jwt.encode_with_signer(&signer)?;
 
             let verifier = alg.verifier_from_pem(&public_key)?;
             let to_jwt = Jwt::decode_with_verifier(&verifier, &jwt_string)?;
@@ -1289,7 +1280,7 @@ mod tests {
         for alg in &[HS256, HS384, HS512] {
             let verifier = alg.verifier_from_jwk(&jwk)?;
             let jwt_str = &String::from_utf8(load_file(&format!("jwt/{}.jwt", alg.name()))?)?;
-            let jwt = Jwt::decode_with_verifier(&verifier, &jwt_str)?;
+            let jwt = Jwt::decode_with_verifier(verifier.as_ref(), &jwt_str)?;
 
             assert_eq!(jwt.payload.issuer(), Some("joe"));
             assert_eq!(
@@ -1312,7 +1303,7 @@ mod tests {
         for alg in &[RS256, RS384, RS512] {
             let verifier = alg.verifier_from_jwk(&jwk)?;
             let jwt_str = &String::from_utf8(load_file(&format!("jwt/{}.jwt", alg.name()))?)?;
-            let jwt = Jwt::decode_with_verifier(&verifier, &jwt_str)?;
+            let jwt = Jwt::decode_with_verifier(verifier.as_ref(), &jwt_str)?;
 
             assert_eq!(jwt.payload.issuer(), Some("joe"));
             assert_eq!(
@@ -1335,7 +1326,7 @@ mod tests {
         for alg in &[PS256, PS384, PS512] {
             let verifier = alg.verifier_from_jwk(&jwk)?;
             let jwt_str = &String::from_utf8(load_file(&format!("jwt/{}.jwt", alg.name()))?)?;
-            let jwt = Jwt::decode_with_verifier(&verifier, &jwt_str)?;
+            let jwt = Jwt::decode_with_verifier(verifier.as_ref(), &jwt_str)?;
 
             assert_eq!(jwt.payload.issuer(), Some("joe"));
             assert_eq!(
@@ -1362,7 +1353,7 @@ mod tests {
             })?)?;
             let verifier = alg.verifier_from_jwk(&jwk)?;
             let jwt_str = &String::from_utf8(load_file(&format!("jwt/{}.jwt", alg.name()))?)?;
-            let jwt = Jwt::decode_with_verifier(&verifier, &jwt_str)?;
+            let jwt = Jwt::decode_with_verifier(verifier.as_ref(), &jwt_str)?;
 
             assert_eq!(jwt.payload.issuer(), Some("joe"));
             assert_eq!(
@@ -1386,7 +1377,7 @@ mod tests {
             })?)?;
             let verifier = alg.verifier_from_jwk(&jwk)?;
             let jwt_str = &String::from_utf8(load_file(&format!("jwt/{}.jwt", alg.name()))?)?;
-            let jwt = Jwt::decode_with_verifier(&verifier, &jwt_str)?;
+            let jwt = Jwt::decode_with_verifier(verifier.as_ref(), &jwt_str)?;
 
             assert_eq!(jwt.payload.issuer(), Some("joe"));
             assert_eq!(

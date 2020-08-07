@@ -1,3 +1,6 @@
+use std::collections::BTreeSet;
+use std::iter::Iterator;
+
 use anyhow::bail;
 use once_cell::sync::Lazy;
 use openssl::bn::{BigNum, BigNumContext};
@@ -13,7 +16,7 @@ use crate::der::{DerBuilder, DerReader, DerType};
 use crate::error::JoseError;
 use crate::jwk::{Jwk, KeyPair};
 use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier};
-use crate::util::parse_pem;
+use crate::util::{parse_pem, num_to_vec};
 
 static OID_ID_EC_PUBLIC_KEY: Lazy<ObjectIdentifier> =
     Lazy::new(|| ObjectIdentifier::from_slice(&[1, 2, 840, 10045, 2, 1]));
@@ -63,7 +66,34 @@ impl EcdsaJwsAlgorithm {
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
-    /// Return a signer from a private key of common or traditinal PEM format.
+    /// Create a EcDSA key pair from a private key that is a DER encoded PKCS#8 PrivateKeyInfo or ECPrivateKey.
+    ///
+    /// # Arguments
+    /// * `input` - A private key that is a DER encoded PKCS#8 PrivateKeyInfo or ECPrivateKey.
+    pub fn keypair_from_der(
+        &self,
+        input: impl AsRef<[u8]>,
+    ) -> Result<EcdsaKeyPair, JoseError> {
+        (|| -> anyhow::Result<EcdsaKeyPair> {
+            let pkcs8;
+            let pkcs8_ref = if self.detect_pkcs8(input.as_ref(), false)? {
+                input.as_ref()
+            } else {
+                pkcs8 = self.to_pkcs8(input.as_ref(), false);
+                &pkcs8
+            };
+
+            let pkey = PKey::private_key_from_der(pkcs8_ref)?;
+
+            Ok(EcdsaKeyPair {
+                algorithm: self.clone(),
+                pkey,
+            })
+        })()
+        .map_err(|err| JoseError::InvalidKeyFormat(err))
+    }
+
+    /// Create a EcDSA key pair from a private key of common or traditinal PEM format.
     ///
     /// Common PEM format is a DER and base64 encoded PKCS#8 PrivateKeyInfo
     /// that surrounded by "-----BEGIN/END PRIVATE KEY----".
@@ -73,11 +103,11 @@ impl EcdsaJwsAlgorithm {
     ///
     /// # Arguments
     /// * `input` - A private key of common or traditinal PEM format.
-    pub fn signer_from_pem(
+    pub fn keypair_from_pem(
         &self,
         input: impl AsRef<[u8]>,
-    ) -> Result<Box<dyn JwsSigner>, JoseError> {
-        (|| -> anyhow::Result<Box<dyn JwsSigner>> {
+    ) -> Result<EcdsaKeyPair, JoseError> {
+        (|| -> anyhow::Result<EcdsaKeyPair> {
             let (alg, data) = parse_pem(input.as_ref())?;
             let pkcs8;
             let pkcs8_ref = match alg.as_str() {
@@ -96,11 +126,10 @@ impl EcdsaJwsAlgorithm {
 
             let pkey = PKey::private_key_from_der(pkcs8_ref)?;
 
-            Ok(Box::new(EcdsaJwsSigner {
+            Ok(EcdsaKeyPair {
                 algorithm: self.clone(),
-                private_key: pkey,
-                key_id: None,
-            }))
+                pkey,
+            })
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
@@ -112,23 +141,57 @@ impl EcdsaJwsAlgorithm {
     pub fn signer_from_der(
         &self,
         input: impl AsRef<[u8]>,
-    ) -> Result<Box<dyn JwsSigner>, JoseError> {
-        (|| -> anyhow::Result<Box<dyn JwsSigner>> {
+    ) -> Result<EcdsaJwsSigner, JoseError> {
+        let keypair = self.keypair_from_der(input.as_ref())?;
+        Ok(EcdsaJwsSigner {
+            algorithm: keypair.algorithm,
+            private_key: keypair.pkey,
+            key_id: None,
+        })
+    }
+
+    /// Return a signer from a private key of common or traditinal PEM format.
+    ///
+    /// Common PEM format is a DER and base64 encoded PKCS#8 PrivateKeyInfo
+    /// that surrounded by "-----BEGIN/END PRIVATE KEY----".
+    ///
+    /// Traditional PEM format is a DER and base64 encoded ECPrivateKey
+    /// that surrounded by "-----BEGIN/END EC PRIVATE KEY----".
+    ///
+    /// # Arguments
+    /// * `input` - A private key of common or traditinal PEM format.
+    pub fn signer_from_pem(
+        &self,
+        input: impl AsRef<[u8]>,
+    ) -> Result<EcdsaJwsSigner, JoseError> {
+        let keypair = self.keypair_from_pem(input.as_ref())?;
+        Ok(EcdsaJwsSigner {
+            algorithm: keypair.algorithm,
+            private_key: keypair.pkey,
+            key_id: None,
+        })
+    }
+
+    /// Return a verifier from a public key that is a DER encoded SubjectPublicKeyInfo or ECPoint.
+    ///
+    /// # Arguments
+    /// * `input` - A public key that is a DER encoded SubjectPublicKeyInfo or ECPoint.
+    pub fn verifier_from_der(
+        &self,
+        input: impl AsRef<[u8]>,
+    ) -> Result<EcdsaJwsVerifier, JoseError> {
+        (|| -> anyhow::Result<EcdsaJwsVerifier> {
             let pkcs8;
-            let pkcs8_ref = if self.detect_pkcs8(input.as_ref(), false)? {
+            let pkcs8_ref = if self.detect_pkcs8(input.as_ref(), true)? {
                 input.as_ref()
             } else {
-                pkcs8 = self.to_pkcs8(input.as_ref(), false);
+                pkcs8 = self.to_pkcs8(input.as_ref(), true);
                 &pkcs8
             };
 
-            let pkey = PKey::private_key_from_der(pkcs8_ref)?;
+            let pkey = PKey::public_key_from_der(pkcs8_ref)?;
 
-            Ok(Box::new(EcdsaJwsSigner {
-                algorithm: self.clone(),
-                private_key: pkey,
-                key_id: None,
-            }))
+            Ok(EcdsaJwsVerifier::new(self, pkey, None))
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
@@ -146,8 +209,8 @@ impl EcdsaJwsAlgorithm {
     pub fn verifier_from_pem(
         &self,
         input: impl AsRef<[u8]>,
-    ) -> Result<Box<dyn JwsVerifier>, JoseError> {
-        (|| -> anyhow::Result<Box<dyn JwsVerifier>> {
+    ) -> Result<EcdsaJwsVerifier, JoseError> {
+        (|| -> anyhow::Result<EcdsaJwsVerifier> {
             let (alg, data) = parse_pem(input.as_ref())?;
 
             let pkcs8;
@@ -167,39 +230,7 @@ impl EcdsaJwsAlgorithm {
 
             let pkey = PKey::public_key_from_der(pkcs8_ref)?;
 
-            Ok(Box::new(EcdsaJwsVerifier {
-                algorithm: self.clone(),
-                public_key: pkey,
-                key_id: None,
-            }))
-        })()
-        .map_err(|err| JoseError::InvalidKeyFormat(err))
-    }
-
-    /// Return a verifier from a public key that is a DER encoded SubjectPublicKeyInfo or ECPoint.
-    ///
-    /// # Arguments
-    /// * `input` - A public key that is a DER encoded SubjectPublicKeyInfo or ECPoint.
-    pub fn verifier_from_der(
-        &self,
-        input: impl AsRef<[u8]>,
-    ) -> Result<Box<dyn JwsVerifier>, JoseError> {
-        (|| -> anyhow::Result<Box<dyn JwsVerifier>> {
-            let pkcs8;
-            let pkcs8_ref = if self.detect_pkcs8(input.as_ref(), true)? {
-                input.as_ref()
-            } else {
-                pkcs8 = self.to_pkcs8(input.as_ref(), true);
-                &pkcs8
-            };
-
-            let pkey = PKey::public_key_from_der(pkcs8_ref)?;
-
-            Ok(Box::new(EcdsaJwsVerifier {
-                algorithm: self.clone(),
-                public_key: pkey,
-                key_id: None,
-            }))
+            Ok(EcdsaJwsVerifier::new(self, pkey, None))
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
@@ -219,6 +250,15 @@ impl EcdsaJwsAlgorithm {
             Self::ES384 => &*OID_SECP384R1,
             Self::ES512 => &*OID_SECP521R1,
             Self::ES256K => &*OID_SECP256K1,
+        }
+    }
+
+    fn curve_coordinate_size(&self) -> usize {
+        match self {
+            Self::ES256 => 32,
+            Self::ES384 => 48,
+            Self::ES512 => 66,
+            Self::ES256K => 32,
         }
     }
 
@@ -409,7 +449,6 @@ impl JwsAlgorithm for EcdsaJwsAlgorithm {
                 None => {}
                 Some(val) => bail!("A parameter alg must be {} but {}", self.name(), val),
             }
-            let key_id = jwk.key_id();
 
             match jwk.parameter("crv") {
                 Some(Value::String(val)) if val == self.curve_name() => {}
@@ -437,12 +476,9 @@ impl JwsAlgorithm for EcdsaJwsAlgorithm {
 
             let pkcs8 = self.to_pkcs8(&vec, true);
             let pkey = PKey::public_key_from_der(&pkcs8)?;
+            let key_id = jwk.key_id().map(|val| val.to_string());
 
-            Ok(Box::new(EcdsaJwsVerifier {
-                algorithm: self.clone(),
-                public_key: pkey,
-                key_id: key_id.map(|val| val.to_string()),
-            }))
+            Ok(Box::new(EcdsaJwsVerifier::new(self, pkey, key_id)))
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
@@ -485,8 +521,9 @@ impl EcdsaKeyPair {
             self.algorithm.curve_name().to_string()
         }))).unwrap();
         if private {
-            let private_key = ec_key.private_key();
-            let d = base64::encode_config(&private_key.to_vec(), base64::URL_SAFE_NO_PAD);
+            let d = ec_key.private_key();
+            let d = num_to_vec(&d, self.algorithm.curve_coordinate_size());
+            let d = base64::encode_config(&d, base64::URL_SAFE_NO_PAD);
 
             jwk.set_parameter("d", Some(Value::String(d))).unwrap();
         }
@@ -496,8 +533,12 @@ impl EcdsaKeyPair {
             let mut y = BigNum::new().unwrap();
             let mut ctx = BigNumContext::new().unwrap();
             public_key.affine_coordinates_gfp(ec_key.group(), &mut x, &mut y, &mut ctx).unwrap();
-            let x = base64::encode_config(&x.to_vec(), base64::URL_SAFE_NO_PAD);
-            let y = base64::encode_config(&y.to_vec(), base64::URL_SAFE_NO_PAD);
+
+            let x = num_to_vec(&x, self.algorithm.curve_coordinate_size());
+            let x = base64::encode_config(&x, base64::URL_SAFE_NO_PAD);
+
+            let y = num_to_vec(&y, self.algorithm.curve_coordinate_size());
+            let y = base64::encode_config(&y, base64::URL_SAFE_NO_PAD);
 
             jwk.set_parameter("x", Some(Value::String(x))).unwrap();
             jwk.set_parameter("y", Some(Value::String(y))).unwrap();
@@ -537,7 +578,7 @@ impl KeyPair for EcdsaKeyPair {
 }
 
 #[derive(Debug, Clone)]
-struct EcdsaJwsSigner {
+pub struct EcdsaJwsSigner {
     algorithm: EcdsaJwsAlgorithm,
     private_key: PKey<Private>,
     key_id: Option<String>,
@@ -601,10 +642,30 @@ impl JwsSigner for EcdsaJwsSigner {
 }
 
 #[derive(Debug, Clone)]
-struct EcdsaJwsVerifier {
+pub struct EcdsaJwsVerifier {
     algorithm: EcdsaJwsAlgorithm,
     public_key: PKey<Public>,
     key_id: Option<String>,
+    acceptable_criticals: BTreeSet<String>,
+}
+
+impl EcdsaJwsVerifier {
+    fn new(
+        algorithm: &EcdsaJwsAlgorithm,
+        public_key: PKey<Public>,
+        key_id: Option<String>,
+    ) -> Self {
+        Self {
+            algorithm: algorithm.clone(),
+            public_key,
+            key_id,
+            acceptable_criticals: {
+                let mut set = BTreeSet::new();
+                set.insert("b64".to_string());
+                set
+            }
+        }
+    }
 }
 
 impl JwsVerifier for EcdsaJwsVerifier {
@@ -623,8 +684,20 @@ impl JwsVerifier for EcdsaJwsVerifier {
         self.key_id = Some(key_id.to_string());
     }
 
-    fn unset_key_id(&mut self) {
+    fn remove_key_id(&mut self) {
         self.key_id = None;
+    }
+
+    fn is_acceptable_critical(&self, name: &str) -> bool {
+        self.acceptable_criticals.contains(name)
+    }
+
+    fn add_acceptable_critical(&mut self, name: &str) {
+        self.acceptable_criticals.insert(name.to_string());
+    }
+
+    fn remove_acceptable_critical(&mut self, name: &str) {
+        self.acceptable_criticals.remove(name);
     }
 
     fn verify(&self, message: &[u8], signature: &[u8]) -> Result<(), JoseError> {

@@ -1,8 +1,8 @@
-mod alg_ecdsa;
-mod alg_eddsa;
-mod alg_hmac;
-mod alg_rsa;
-mod alg_rsapss;
+pub mod alg_ecdsa;
+pub mod alg_eddsa;
+pub mod alg_hmac;
+pub mod alg_rsa;
+pub mod alg_rsapss;
 mod multi_signer;
 mod multi_verifier;
 
@@ -24,21 +24,17 @@ pub use crate::jws::alg_hmac::HmacJwsAlgorithm::HS512;
 pub use crate::jws::alg_rsa::RsaJwsAlgorithm::RS256;
 pub use crate::jws::alg_rsa::RsaJwsAlgorithm::RS384;
 pub use crate::jws::alg_rsa::RsaJwsAlgorithm::RS512;
-pub use crate::jws::alg_rsa::RsaKeyPair;
 
 pub use crate::jws::alg_rsapss::RsaPssJwsAlgorithm::PS256;
 pub use crate::jws::alg_rsapss::RsaPssJwsAlgorithm::PS384;
 pub use crate::jws::alg_rsapss::RsaPssJwsAlgorithm::PS512;
-pub use crate::jws::alg_rsapss::RsaPssKeyPair;
 
 pub use crate::jws::alg_ecdsa::EcdsaJwsAlgorithm::ES256;
 pub use crate::jws::alg_ecdsa::EcdsaJwsAlgorithm::ES256K;
 pub use crate::jws::alg_ecdsa::EcdsaJwsAlgorithm::ES384;
 pub use crate::jws::alg_ecdsa::EcdsaJwsAlgorithm::ES512;
-pub use crate::jws::alg_ecdsa::EcdsaKeyPair;
 
 pub use crate::jws::alg_eddsa::EddsaJwsAlgorithm::EDDSA;
-pub use crate::jws::alg_eddsa::EddsaKeyPair;
 
 pub use crate::jws::multi_signer::JwsMultiSigner;
 pub use crate::jws::multi_verifier::JwsMultiVerifier;
@@ -659,8 +655,26 @@ pub trait JwsVerifier {
     /// * `key_id` - a key ID
     fn set_key_id(&mut self, key_id: &str);
 
-    /// Unset a compared value for a kid header claim (kid).
-    fn unset_key_id(&mut self);
+    /// Remove a compared value for a kid header claim (kid).
+    fn remove_key_id(&mut self);
+
+    /// Test a critical header claim name is acceptable.
+    /// 
+    /// # Arguments
+    /// * `name` - a critical header claim name
+    fn is_acceptable_critical(&self, name: &str) -> bool;
+
+    /// Add a acceptable critical header claim name
+    /// 
+    /// # Arguments
+    /// * `name` - a acceptable critical header claim name
+    fn add_acceptable_critical(&mut self, name: &str);
+
+    /// Remove a acceptable critical header claim name
+    /// 
+    /// # Arguments
+    /// * `name` - a acceptable critical header claim name
+    fn remove_acceptable_critical(&mut self, name: &str);
 
     /// Verify the data by the signature.
     ///
@@ -698,6 +712,14 @@ pub trait JwsVerifier {
                     bail!("The JWT kid header claim is mismatched: {}", actual)
                 }
                 _ => bail!("The JWT kid header claim is missing."),
+            }
+ 
+            if let Some(critical) = header.critical() {
+                for name in critical {
+                    if !self.is_acceptable_critical(name) {
+                        bail!("The critical name '{}' is not supported.", name);
+                    }
+                }
             }
 
             let mut b64 = true;

@@ -1,3 +1,6 @@
+use std::collections::BTreeSet;
+use std::iter::Iterator;
+
 use anyhow::bail;
 use openssl::hash::MessageDigest;
 use openssl::memcmp;
@@ -45,15 +48,15 @@ impl HmacJwsAlgorithm {
     pub fn signer_from_slice(
         &self,
         input: impl AsRef<[u8]>,
-    ) -> Result<Box<dyn JwsSigner>, JoseError> {
-        (|| -> anyhow::Result<Box<dyn JwsSigner>> {
+    ) -> Result<HmacJwsSigner, JoseError> {
+        (|| -> anyhow::Result<HmacJwsSigner> {
             let pkey = PKey::hmac(input.as_ref())?;
 
-            Ok(Box::new(HmacJwsSigner {
+            Ok(HmacJwsSigner {
                 algorithm: self.clone(),
                 private_key: pkey,
                 key_id: None,
-            }))
+            })
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
@@ -65,15 +68,11 @@ impl HmacJwsAlgorithm {
     pub fn verifier_from_slice(
         &self,
         input: impl AsRef<[u8]>,
-    ) -> Result<Box<dyn JwsVerifier>, JoseError> {
-        (|| -> anyhow::Result<Box<dyn JwsVerifier>> {
+    ) -> Result<HmacJwsVerifier, JoseError> {
+        (|| -> anyhow::Result<HmacJwsVerifier> {
             let pkey = PKey::hmac(input.as_ref())?;
 
-            Ok(Box::new(HmacJwsVerifier {
-                algorithm: self.clone(),
-                private_key: pkey,
-                key_id: None,
-            }))
+            Ok(HmacJwsVerifier::new(self, pkey, None))
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
@@ -160,7 +159,7 @@ impl JwsAlgorithm for HmacJwsAlgorithm {
                 None => {}
                 Some(val) => bail!("A parameter alg must be {} but {}", self.name(), val),
             }
-            let key_id = jwk.key_id();
+
             let k = match jwk.parameter("k") {
                 Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
                 Some(val) => bail!("A parameter k must be string type but {:?}", val),
@@ -168,18 +167,16 @@ impl JwsAlgorithm for HmacJwsAlgorithm {
             };
 
             let private_key = PKey::hmac(&k)?;
+            let key_id = jwk.key_id().map(|val| val.to_string());
 
-            Ok(Box::new(HmacJwsVerifier {
-                algorithm: self.clone(),
-                private_key,
-                key_id: key_id.map(|val| val.to_string()),
-            }))
+            Ok(Box::new(HmacJwsVerifier::new(self, private_key, key_id)))
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 }
 
-struct HmacJwsSigner {
+#[derive(Debug, Clone)]
+pub struct HmacJwsSigner {
     algorithm: HmacJwsAlgorithm,
     private_key: PKey<Private>,
     key_id: Option<String>,
@@ -222,10 +219,31 @@ impl JwsSigner for HmacJwsSigner {
     }
 }
 
-struct HmacJwsVerifier {
+#[derive(Debug, Clone)]
+pub struct HmacJwsVerifier {
     algorithm: HmacJwsAlgorithm,
     private_key: PKey<Private>,
     key_id: Option<String>,
+    acceptable_criticals: BTreeSet<String>,
+}
+
+impl HmacJwsVerifier {
+    fn new(
+        algorithm: &HmacJwsAlgorithm,
+        private_key: PKey<Private>,
+        key_id: Option<String>,
+    ) -> Self {
+        Self {
+            algorithm: algorithm.clone(),
+            private_key,
+            key_id,
+            acceptable_criticals: {
+                let mut set = BTreeSet::new();
+                set.insert("b64".to_string());
+                set
+            }
+        }
+    }
 }
 
 impl JwsVerifier for HmacJwsVerifier {
@@ -244,8 +262,20 @@ impl JwsVerifier for HmacJwsVerifier {
         self.key_id = Some(key_id.to_string());
     }
 
-    fn unset_key_id(&mut self) {
+    fn remove_key_id(&mut self) {
         self.key_id = None;
+    }
+
+    fn is_acceptable_critical(&self, name: &str) -> bool {
+        self.acceptable_criticals.contains(name)
+    }
+
+    fn add_acceptable_critical(&mut self, name: &str) {
+        self.acceptable_criticals.insert(name.to_string());
+    }
+
+    fn remove_acceptable_critical(&mut self, name: &str) {
+        self.acceptable_criticals.remove(name);
     }
 
     fn verify(&self, message: &[u8], signature: &[u8]) -> Result<(), JoseError> {

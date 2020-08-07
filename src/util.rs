@@ -2,6 +2,7 @@ use anyhow::bail;
 use once_cell::sync::Lazy;
 use regex::bytes::{NoExpand, Regex};
 use std::time::SystemTime;
+use openssl::bn::BigNumRef;
 
 use crate::jwk::Jwk;
 
@@ -44,3 +45,18 @@ pub fn parse_pem(input: &[u8]) -> anyhow::Result<(String, Vec<u8>)> {
 
     Ok(result)
 }
+
+pub fn num_to_vec(num: &BigNumRef, len: usize) -> Vec<u8> {
+    let vec = num.to_vec();
+    if vec.len() < len {
+        let mut tmp = Vec::with_capacity(len);
+        for _ in 0..(len - vec.len()) {
+            tmp.push(0);
+        }
+        tmp.extend_from_slice(&vec);
+        tmp
+    } else {
+        vec
+    }
+}
+

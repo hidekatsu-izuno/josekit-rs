@@ -1,4 +1,6 @@
 use std::fmt::Display;
+use std::collections::BTreeSet;
+use std::iter::Iterator;
 
 use anyhow::bail;
 use once_cell::sync::Lazy;
@@ -74,6 +76,109 @@ impl EddsaJwsAlgorithm {
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
+    /// Create a EdDSA key pair from a private key that is a DER encoded PKCS#8 PrivateKeyInfo.
+    ///
+    /// # Arguments
+    /// * `input` - A private key that is a DER encoded PKCS#8 PrivateKeyInfo.
+    pub fn keypair_from_der(
+        &self,
+        input: impl AsRef<[u8]>,
+    ) -> Result<EddsaKeyPair, JoseError> {
+        (|| -> anyhow::Result<EddsaKeyPair> {
+            let result =self.detect_pkcs8(input.as_ref(), false)?;
+            let (curve, pkey) = if let Some(curve) = result {
+                let pkey = PKey::private_key_from_der(input.as_ref())?;
+                (curve, pkey)
+            } else {
+                bail!("The EdDSA private key must be wrapped by PKCS#8 format.");
+            };
+
+            Ok(EddsaKeyPair {
+                algorithm: self.clone(),
+                curve,
+                pkey,
+            })
+        })()
+        .map_err(|err| JoseError::InvalidKeyFormat(err))
+    }
+
+    /// Create a EdDSA key pair from a private key of common or traditinal PEM format.
+    ///
+    /// Common PEM format is a DER and base64 encoded PKCS#8 PrivateKeyInfo
+    /// that surrounded by "-----BEGIN/END PRIVATE KEY----".
+    ///
+    /// Traditional PEM format is a DER and base64 encoded PKCS#8 PrivateKeyInfo
+    /// that surrounded by "-----BEGIN/END ED25519/ED448 PRIVATE KEY----".
+    ///
+    /// # Arguments
+    /// * `input` - A private key of common or traditinal PEM format.
+    pub fn keypair_from_pem(
+        &self,
+        input: impl AsRef<[u8]>,
+    ) -> Result<EddsaKeyPair, JoseError> {
+        (|| -> anyhow::Result<EddsaKeyPair> {
+            let (alg, data) = parse_pem(input.as_ref())?;
+            let (curve, pkey) = match alg.as_str() {
+                "PRIVATE KEY" => {
+                    if let Some(curve) = self.detect_pkcs8(&data, false)? {
+                        let pkey = PKey::private_key_from_der(&data)?;
+                        (curve, pkey)
+                    } else {
+                        bail!("The EdDSA private key must be wrapped by PKCS#8 format.");
+                    }
+                }
+                "ED25519 PRIVATE KEY" => {
+                    if let Some(curve) = self.detect_pkcs8(&data, false)? {
+                        if curve == EddsaCurve::ED25519 {
+                            let pkey = PKey::private_key_from_der(&data)?;
+                            (curve, pkey)
+                        } else {
+                            bail!("The EdDSA curve is mismatched: {}", curve.name());
+                        }
+                    } else {
+                        bail!("The EdDSA private key must be wrapped by PKCS#8 format.");
+                    }
+                }
+                "ED448 PRIVATE KEY" => {
+                    if let Some(curve) = self.detect_pkcs8(&data, false)? {
+                        if curve == EddsaCurve::ED448 {
+                            let pkey = PKey::private_key_from_der(&data)?;
+                            (curve, pkey)
+                        } else {
+                            bail!("The EdDSA curve is mismatched: {}", curve.name());
+                        }
+                    } else {
+                        bail!("The EdDSA private key must be wrapped by PKCS#8 format.");
+                    }
+                }
+                alg => bail!("Inappropriate algorithm: {}", alg),
+            };
+
+            Ok(EddsaKeyPair {
+                algorithm: self.clone(),
+                curve,
+                pkey,
+            })
+        })()
+        .map_err(|err| JoseError::InvalidKeyFormat(err))
+    }
+
+    /// Return a signer from a private key that is a DER encoded PKCS#8 PrivateKeyInfo.
+    ///
+    /// # Arguments
+    /// * `input` - A private key that is a DER encoded PKCS#8 PrivateKeyInfo.
+    pub fn signer_from_der(
+        &self,
+        input: impl AsRef<[u8]>,
+    ) -> Result<EddsaJwsSigner, JoseError> {
+        let keypair = self.keypair_from_der(input.as_ref())?;
+        Ok(EddsaJwsSigner {
+            algorithm: keypair.algorithm,
+            private_key: keypair.pkey,
+            key_id: None,
+        })
+    }
+
     /// Return a signer from a private key of common or traditinal PEM format.
     ///
     /// Common PEM format is a DER and base64 encoded PKCS#8 PrivateKeyInfo
@@ -87,71 +192,31 @@ impl EddsaJwsAlgorithm {
     pub fn signer_from_pem(
         &self,
         input: impl AsRef<[u8]>,
-    ) -> Result<Box<dyn JwsSigner>, JoseError> {
-        (|| -> anyhow::Result<Box<dyn JwsSigner>> {
-            let (alg, data) = parse_pem(input.as_ref())?;
-            let pkey = match alg.as_str() {
-                "PRIVATE KEY" => {
-                    if let Some(_) = self.detect_pkcs8(&data, false)? {
-                        PKey::private_key_from_der(&data)?
-                    } else {
-                        bail!("The EdDSA private key must be wrapped by PKCS#8 format.");
-                    }
-                }
-                "ED25519 PRIVATE KEY" => {
-                    if let Some(oid) = self.detect_pkcs8(&data, false)? {
-                        if oid == *OID_ED25519 {
-                            PKey::private_key_from_der(&data)?
-                        } else {
-                            bail!("The EdDSA curve is mismatched: {}", oid);
-                        }
-                    } else {
-                        bail!("The EdDSA private key must be wrapped by PKCS#8 format.");
-                    }
-                }
-                "ED448 PRIVATE KEY" => {
-                    if let Some(oid) = self.detect_pkcs8(&data, false)? {
-                        if oid == *OID_ED448 {
-                            PKey::private_key_from_der(&data)?
-                        } else {
-                            bail!("The EdDSA curve is mismatched: {}", oid);
-                        }
-                    } else {
-                        bail!("The EdDSA private key must be wrapped by PKCS#8 format.");
-                    }
-                }
-                alg => bail!("Inappropriate algorithm: {}", alg),
-            };
-
-            Ok(Box::new(EddsaJwsSigner {
-                algorithm: self.clone(),
-                private_key: pkey,
-                key_id: None,
-            }))
-        })()
-        .map_err(|err| JoseError::InvalidKeyFormat(err))
+    ) -> Result<EddsaJwsSigner, JoseError> {
+        let keypair = self.keypair_from_pem(input.as_ref())?;
+        Ok(EddsaJwsSigner {
+            algorithm: keypair.algorithm,
+            private_key: keypair.pkey,
+            key_id: None,
+        })
     }
 
-    /// Return a signer from a private key that is a DER encoded PKCS#8 PrivateKeyInfo.
+    /// Return a verifier from a public key that is a DER encoded SubjectPublicKeyInfo.
     ///
     /// # Arguments
-    /// * `input` - A private key that is a DER encoded PKCS#8 PrivateKeyInfo.
-    pub fn signer_from_der(
+    /// * `input` - A public key that is a DER encoded SubjectPublicKeyInfo.
+    pub fn verifier_from_der(
         &self,
         input: impl AsRef<[u8]>,
-    ) -> Result<Box<dyn JwsSigner>, JoseError> {
-        (|| -> anyhow::Result<Box<dyn JwsSigner>> {
-            let pkey = if let Some(_) = self.detect_pkcs8(input.as_ref(), false)? {
-                PKey::private_key_from_der(input.as_ref())?
+    ) -> Result<EddsaJwsVerifier, JoseError> {
+        (|| -> anyhow::Result<EddsaJwsVerifier> {
+            let pkey = if let Some(_) = self.detect_pkcs8(input.as_ref(), true)? {
+                PKey::public_key_from_der(input.as_ref())?
             } else {
-                bail!("The EdDSA private key must be wrapped by PKCS#8 format.");
+                bail!("The EdDSA public key must be wrapped by PKCS#8 format.");
             };
 
-            Ok(Box::new(EddsaJwsSigner {
-                algorithm: self.clone(),
-                private_key: pkey,
-                key_id: None,
-            }))
+            Ok(EddsaJwsVerifier::new(self, pkey, None))
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
@@ -169,8 +234,8 @@ impl EddsaJwsAlgorithm {
     pub fn verifier_from_pem(
         &self,
         input: impl AsRef<[u8]>,
-    ) -> Result<Box<dyn JwsVerifier>, JoseError> {
-        (|| -> anyhow::Result<Box<dyn JwsVerifier>> {
+    ) -> Result<EddsaJwsVerifier, JoseError> {
+        (|| -> anyhow::Result<EddsaJwsVerifier> {
             let (alg, data) = parse_pem(input.as_ref())?;
             let pkey = match alg.as_str() {
                 "PUBLIC KEY" => {
@@ -181,22 +246,22 @@ impl EddsaJwsAlgorithm {
                     }
                 }
                 "ED25519 PUBLIC KEY" => {
-                    if let Some(oid) = self.detect_pkcs8(&data, true)? {
-                        if oid == *OID_ED25519 {
+                    if let Some(curve) = self.detect_pkcs8(&data, true)? {
+                        if curve == EddsaCurve::ED25519 {
                             PKey::public_key_from_der(&data)?
                         } else {
-                            bail!("The EdDSA curve is mismatched: {}", oid);
+                            bail!("The EdDSA curve is mismatched: {}", curve.name());
                         }
                     } else {
                         bail!("The EdDSA public key must be wrapped by PKCS#8 format.");
                     }
                 }
                 "ED448 PUBLIC KEY" => {
-                    if let Some(oid) = self.detect_pkcs8(&data, true)? {
-                        if oid == *OID_ED448 {
+                    if let Some(curve) = self.detect_pkcs8(&data, true)? {
+                        if curve == EddsaCurve::ED448 {
                             PKey::public_key_from_der(&data)?
                         } else {
-                            bail!("The EdDSA curve is mismatched: {}", oid);
+                            bail!("The EdDSA curve is mismatched: {}", curve.name());
                         }
                     } else {
                         bail!("The EdDSA public key must be wrapped by PKCS#8 format.");
@@ -205,35 +270,7 @@ impl EddsaJwsAlgorithm {
                 alg => bail!("Unacceptable algorithm: {}", alg),
             };
 
-            Ok(Box::new(EddsaJwsVerifier {
-                algorithm: self.clone(),
-                public_key: pkey,
-                key_id: None,
-            }))
-        })()
-        .map_err(|err| JoseError::InvalidKeyFormat(err))
-    }
-
-    /// Return a verifier from a public key that is a DER encoded SubjectPublicKeyInfo.
-    ///
-    /// # Arguments
-    /// * `input` - A public key that is a DER encoded SubjectPublicKeyInfo.
-    pub fn verifier_from_der(
-        &self,
-        input: impl AsRef<[u8]>,
-    ) -> Result<Box<dyn JwsVerifier>, JoseError> {
-        (|| -> anyhow::Result<Box<dyn JwsVerifier>> {
-            let pkey = if let Some(_) = self.detect_pkcs8(input.as_ref(), true)? {
-                PKey::public_key_from_der(input.as_ref())?
-            } else {
-                bail!("The EdDSA public key must be wrapped by PKCS#8 format.");
-            };
-
-            Ok(Box::new(EddsaJwsVerifier {
-                algorithm: self.clone(),
-                public_key: pkey,
-                key_id: None,
-            }))
+            Ok(EddsaJwsVerifier::new(self, pkey, None))
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
@@ -242,8 +279,8 @@ impl EddsaJwsAlgorithm {
         &self,
         input: &[u8],
         is_public: bool,
-    ) -> anyhow::Result<Option<ObjectIdentifier>> {
-        let oid;
+    ) -> anyhow::Result<Option<EddsaCurve>> {
+        let curve;
         let mut reader = DerReader::from_reader(input);
 
         match reader.next() {
@@ -273,14 +310,10 @@ impl EddsaJwsAlgorithm {
             }
 
             {
-                match reader.next() {
+                curve = match reader.next() {
                     Ok(Some(DerType::ObjectIdentifier)) => match reader.to_object_identifier() {
-                        Ok(val) => {
-                            if val != *OID_ED25519 && val != *OID_ED448 {
-                                return Ok(None);
-                            }
-                            oid = val;
-                        }
+                        Ok(val) if val == *OID_ED25519 => EddsaCurve::ED25519,
+                        Ok(val) if val == *OID_ED448 => EddsaCurve::ED448,
                         _ => return Ok(None),
                     },
                     _ => return Ok(None),
@@ -288,7 +321,7 @@ impl EddsaJwsAlgorithm {
             }
         }
 
-        Ok(Some(oid))
+        Ok(Some(curve))
     }
 
     fn to_pkcs8(&self, input: &[u8], is_public: bool, crv: &ObjectIdentifier) -> Vec<u8> {
@@ -404,7 +437,6 @@ impl JwsAlgorithm for EddsaJwsAlgorithm {
                 None => {}
                 Some(val) => bail!("A parameter alg must be {} but {}", self.name(), val),
             }
-            let key_id = jwk.key_id();
 
             let curve = match jwk.parameter("crv") {
                 Some(Value::String(val)) if val == "Ed25519" => &OID_ED25519,
@@ -421,12 +453,9 @@ impl JwsAlgorithm for EddsaJwsAlgorithm {
 
             let pkcs8 = self.to_pkcs8(&x, true, curve);
             let pkey = PKey::public_key_from_der(&pkcs8)?;
+            let key_id = jwk.key_id().map(|val| val.to_string());
 
-            Ok(Box::new(EddsaJwsVerifier {
-                algorithm: self.clone(),
-                public_key: pkey,
-                key_id: key_id.map(|val| val.to_string()),
-            }))
+            Ok(Box::new(EddsaJwsVerifier::new(self, pkey, key_id)))
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
@@ -613,7 +642,7 @@ impl KeyPair for EddsaKeyPair {
 }
 
 #[derive(Debug, Clone)]
-struct EddsaJwsSigner {
+pub struct EddsaJwsSigner {
     algorithm: EddsaJwsAlgorithm,
     private_key: PKey<Private>,
     key_id: Option<String>,
@@ -650,10 +679,31 @@ impl JwsSigner for EddsaJwsSigner {
     }
 }
 
-struct EddsaJwsVerifier {
+#[derive(Debug, Clone)]
+pub struct EddsaJwsVerifier {
     algorithm: EddsaJwsAlgorithm,
     public_key: PKey<Public>,
     key_id: Option<String>,
+    acceptable_criticals: BTreeSet<String>,
+}
+
+impl EddsaJwsVerifier {
+    fn new(
+        algorithm: &EddsaJwsAlgorithm,
+        public_key: PKey<Public>,
+        key_id: Option<String>,
+    ) -> Self {
+        Self {
+            algorithm: algorithm.clone(),
+            public_key,
+            key_id,
+            acceptable_criticals: {
+                let mut set = BTreeSet::new();
+                set.insert("b64".to_string());
+                set
+            }
+        }
+    }
 }
 
 impl JwsVerifier for EddsaJwsVerifier {
@@ -672,8 +722,20 @@ impl JwsVerifier for EddsaJwsVerifier {
         self.key_id = Some(key_id.to_string());
     }
 
-    fn unset_key_id(&mut self) {
+    fn remove_key_id(&mut self) {
         self.key_id = None;
+    }
+
+    fn is_acceptable_critical(&self, name: &str) -> bool {
+        self.acceptable_criticals.contains(name)
+    }
+
+    fn add_acceptable_critical(&mut self, name: &str) {
+        self.acceptable_criticals.insert(name.to_string());
+    }
+
+    fn remove_acceptable_critical(&mut self, name: &str) {
+        self.acceptable_criticals.remove(name);
     }
 
     fn verify(&self, message: &[u8], signature: &[u8]) -> Result<(), JoseError> {
