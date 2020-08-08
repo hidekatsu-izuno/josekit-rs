@@ -19,31 +19,31 @@ impl<'a> JwsMultiSigner<'a> {
     pub fn add_signer(
         &mut self,
         signer: impl JwsSigner + 'a,
-        protected_header: Option<JwsHeader>,
-        unprotected_header: Option<JwsHeader>,
+        protected: Option<&JwsHeader>,
+        header: Option<&JwsHeader>,
     ) -> Result<(), JoseError> {
         (|| -> anyhow::Result<()> {
             let mut sig_item = Map::new();
 
             let mut protected_map;
-            let protected;
-            if let Some(val) = protected_header {
+            let protected_base64;
+            if let Some(val) = protected {
                 protected_map = val.claims_set().clone();
                 protected_map.insert("alg".to_string(), Value::String(signer.algorithm().name().to_string()));
 
                 let json = serde_json::to_string(&protected_map).unwrap();
-                protected = base64::encode_config(json, base64::URL_SAFE_NO_PAD);
-                sig_item.insert("protected".to_string(), Value::String(protected));
+                protected_base64 = base64::encode_config(json, base64::URL_SAFE_NO_PAD);
+                sig_item.insert("protected".to_string(), Value::String(protected_base64));
             } else {
                 protected_map = Map::new();
                 protected_map.insert("alg".to_string(), Value::String(signer.algorithm().name().to_string()));
 
                 let json = serde_json::to_string(&protected_map).unwrap();
-                protected = base64::encode_config(json, base64::URL_SAFE_NO_PAD);
-                sig_item.insert("protected".to_string(), Value::String(protected));
+                protected_base64 = base64::encode_config(json, base64::URL_SAFE_NO_PAD);
+                sig_item.insert("protected".to_string(), Value::String(protected_base64));
             }
 
-            if let Some(val) = unprotected_header {
+            if let Some(val) = header {
                 let map = val.claims_set().clone();
                 for key in map.keys() {
                     if protected_map.contains_key(key) {
@@ -107,13 +107,14 @@ mod tests {
         let signer1 = RS256.signer_from_der(keypair1.to_der_private_key())?;
         let protected1 = JwsHeader::new();
         let header1 = JwsHeader::new();
-        multi_signer.add_signer(signer1, Some(protected1), Some(header1))?;
+        multi_signer.add_signer(signer1, Some(&protected1), Some(&header1))?;
 
         let keypair2 = ES256.generate_keypair()?;
         let signer2 = ES256.signer_from_der(keypair2.to_der_private_key())?;
         let protected2 = JwsHeader::new();
-        let header2 = JwsHeader::new();
-        multi_signer.add_signer(signer2, Some(protected2), Some(header2))?;
+        let mut header2 = JwsHeader::new();
+        header2.set_key_id("key_id");
+        multi_signer.add_signer(signer2, Some(&protected2), Some(&header2))?;
 
         println!("{}", multi_signer.serialize_json(payload)?);
 

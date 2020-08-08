@@ -705,11 +705,7 @@ impl EddsaJwsVerifier {
             algorithm: algorithm.clone(),
             public_key,
             key_id,
-            acceptable_criticals: {
-                let mut set = BTreeSet::new();
-                set.insert("b64".to_string());
-                set
-            }
+            acceptable_criticals: BTreeSet::new()
         }
     }
 }

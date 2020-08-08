@@ -570,6 +570,11 @@ pub trait JwsSigner {
     /// * `message` - The message data to sign.
     fn sign(&self, message: &[u8]) -> Result<Vec<u8>, JoseError>;
 
+    /// Return a representation of the data that is formatted by compact serialization.
+    ///
+    /// # Arguments
+    /// * `header` - The JWS heaser claims.
+    /// * `payload` - The payload data.
     fn serialize_compact(&self, header: &JwsHeader, payload: &[u8]) -> Result<String, JoseError> {
         (|| -> anyhow::Result<String> {
             let mut b64 = true;
@@ -577,8 +582,6 @@ pub trait JwsSigner {
                 if let Some(vals) = header.critical() {
                     if vals.iter().any(|e| e == "b64") {
                         b64 = false;
-                    } else {
-                        bail!("The b64 header claim name must be in critical.");
                     }
                 }
             }
@@ -617,6 +620,77 @@ pub trait JwsSigner {
             message.push_str(&signature);
 
             Ok(message)
+        })()
+        .map_err(|err| match err.downcast::<JoseError>() {
+            Ok(err) => err,
+            Err(err) => JoseError::InvalidJwtFormat(err),
+        })
+    }
+
+    /// Return a representation of the data that is formatted by flattened json serialization.
+    ///
+    /// # Arguments
+    /// * `protected` - The JWS protected header claims.
+    /// * `header` - The JWS unprotected header claims.
+    /// * `payload` - The payload data.
+    fn serialize_flattened_json(&self, protected: Option<JwsHeader>, header: Option<JwsHeader>, payload: &[u8]) -> Result<String, JoseError> {
+        (|| -> anyhow::Result<String> {
+            let mut result = Map::new();
+            let mut b64 = true;
+
+            let mut protected_map = if let Some(val) = protected {
+                if let Some(vals) = val.critical() {
+                    if vals.iter().any(|e| e == "b64") {
+                        if let Some(&false) = val.base64url_encode_payload() {
+                            b64 = false;
+                        }
+                    }
+                }
+
+                val.claims_set().clone()
+            } else {
+                Map::new()
+            };
+            protected_map.insert("alg".to_string(), Value::String(self.algorithm().name().to_string()));
+            
+            if let Some(val) = &header {
+                for key in val.claims_set().keys() {
+                    if protected_map.contains_key(key) {
+                        bail!("Duplicate key exists: {}", key);
+                    }
+                }
+            }
+
+            let protected_json = serde_json::to_string(&protected_map)?;
+            let protected_base64 = base64::encode_config(protected_json, base64::URL_SAFE_NO_PAD);
+
+            let payload_base64;
+            let payload = if b64 {
+                payload_base64 = base64::encode_config(payload, base64::URL_SAFE_NO_PAD);
+                &payload_base64
+            } else {
+                match std::str::from_utf8(payload) {
+                    Ok(val) => val,
+                    Err(err) => bail!("{}", err),
+                }
+            };
+
+            let message = format!("{}.{}", &protected_base64, payload);
+
+            result.insert("protected".to_string(), Value::String(protected_base64));
+
+            if let Some(val) = &header {
+                result.insert("header".to_string(), Value::Object(val.claims_set().clone()));
+            }
+
+            result.insert("payload".to_string(), Value::String(payload.to_string()));
+
+            let signature = self.sign(message.as_bytes())?;
+            let signature = base64::encode_config(&signature, base64::URL_SAFE_NO_PAD);
+            result.insert("signature".to_string(), Value::String(signature));
+
+            let result_json = serde_json::to_string(&result)?;
+            Ok(result_json)
         })()
         .map_err(|err| match err.downcast::<JoseError>() {
             Ok(err) => err,

@@ -500,6 +500,10 @@ impl Jwt<JwsHeader> {
         input: &str,
     ) -> Result<Self, JoseError> {
         (|| -> anyhow::Result<Self> {
+            if verifier.is_acceptable_critical("b64") {
+                bail!("JWT is not support b64 header claim.")
+            }
+
             let parts: Vec<&str> = input.split('.').collect();
             if parts.len() != 3 {
                 bail!("The signed JWT must be three parts separated by colon.");
@@ -547,6 +551,10 @@ impl Jwt<JwsHeader> {
                 Some(val) => val,
                 None => bail!("A verifier is not found."),
             };
+
+            if verifier.is_acceptable_critical("b64") {
+                bail!("JWT is not support b64 header claim.")
+            }
 
             let payload = verifier.deserialize_compact(&header, input)?;
             let payload: Map<String, Value> = serde_json::from_slice(&payload)?;
@@ -732,19 +740,31 @@ impl<T: JoseHeader> Jwt<T> {
         &self,
         signer: &dyn JwsSigner,
     ) -> Result<String, JoseError> {
-        let alg = signer.algorithm().name();
+        (|| -> anyhow::Result<String> {
+            let alg = signer.algorithm().name();
 
-        let mut header = self.header.claims_set().clone();
-        header.insert("alg".to_string(), Value::String(alg.to_string()));
+            let mut header = self.header.claims_set().clone();
+            header.insert("alg".to_string(), Value::String(alg.to_string()));
 
-        if let Some(key_id) = signer.key_id() {
-            header.insert("kid".to_string(), Value::String(key_id.to_string()));
-        }
+            if let Some(key_id) = signer.key_id() {
+                header.insert("kid".to_string(), Value::String(key_id.to_string()));
+            }
 
-        let header = JwsHeader::from_map(header)?;
-        let payload = &self.payload.to_string();
-        let jwt = signer.serialize_compact(&header, &payload.as_bytes())?;
-        Ok(jwt)
+            let header = JwsHeader::from_map(header)?;
+            if let Some(vals) = header.critical() {
+                if vals.iter().any(|e| e == "b64") {
+                    bail!("JWT is not support b64 header claim.");
+                }
+            }
+
+            let payload = &self.payload.to_string();
+            let jwt = signer.serialize_compact(&header, &payload.as_bytes())?;
+            Ok(jwt)
+        })()
+        .map_err(|err| match err.downcast::<JoseError>() {
+            Ok(err) => err,
+            Err(err) => JoseError::InvalidJwtFormat(err),
+        })
     }
 
     /// Return the string repsentation of the JWT with the encrypting algorithm.
@@ -766,7 +786,6 @@ impl<T: JoseHeader> Jwt<T> {
         }
 
         let header = JweHeader::from_map(header)?;
-
         let payload_json = self.payload.to_string();
         let jwt = encrypter.serialize_compact(&header, &payload_json.as_bytes())?;
         Ok(jwt)
