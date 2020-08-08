@@ -35,6 +35,235 @@ pub use crate::jws::alg::eddsa::EddsaJwsAlgorithm::EDDSA;
 pub use crate::jws::multi_signer::JwsMultiSigner;
 pub use crate::jws::multi_verifier::JwsMultiVerifier;
 
+pub struct Jws;
+
+impl Jws {
+    /// Return a representation of the data that is formatted by compact serialization.
+    ///
+    /// # Arguments
+    /// * `signer` - The JWS signer.
+    /// * `header` - The JWS heaser claims.
+    /// * `payload` - The payload data.
+    pub fn serialize_compact(
+        signer: &dyn JwsSigner,
+        header: &JwsHeader,
+        payload: &[u8],
+    ) -> Result<String, JoseError> {
+        (|| -> anyhow::Result<String> {
+            let mut b64 = true;
+            if let Some(vals) = header.critical() {
+                if vals.iter().any(|e| e == "b64") {
+                    if let Some(val) = header.base64url_encode_payload() {
+                        b64 = *val;
+                    }
+                }
+            }
+
+            let payload_base64;
+            let payload = if b64 {
+                payload_base64 = base64::encode_config(payload, base64::URL_SAFE_NO_PAD);
+                &payload_base64
+            } else {
+                match std::str::from_utf8(payload) {
+                    Ok(val) => {
+                        if val.contains(".") {
+                            bail!("A JWS payload cannot contain dot.");
+                        }
+                        val
+                    }
+                    Err(err) => bail!("{}", err),
+                }
+            };
+
+            let header = header.to_string();
+            let header = base64::encode_config(header, base64::URL_SAFE_NO_PAD);
+
+            let mut message = String::with_capacity(
+                header.len() + payload.len() + signer.algorithm().signature_len() + 2,
+            );
+
+            message.push_str(&header);
+            message.push_str(".");
+            message.push_str(&payload);
+
+            let signature = signer.sign(message.as_bytes())?;
+
+            let signature = base64::encode_config(signature, base64::URL_SAFE_NO_PAD);
+            message.push_str(".");
+            message.push_str(&signature);
+
+            Ok(message)
+        })()
+        .map_err(|err| match err.downcast::<JoseError>() {
+            Ok(err) => err,
+            Err(err) => JoseError::InvalidJwtFormat(err),
+        })
+    }
+
+    /// Return a representation of the data that is formatted by flattened json serialization.
+    ///
+    /// # Arguments
+    /// * `signer` - The JWS signer.
+    /// * `protected` - The JWS protected header claims.
+    /// * `header` - The JWS unprotected header claims.
+    /// * `payload` - The payload data.
+    pub fn serialize_flattened_json(
+        signer: &dyn JwsSigner,
+        protected: Option<JwsHeader>,
+        header: Option<JwsHeader>,
+        payload: &[u8],
+    ) -> Result<String, JoseError> {
+        (|| -> anyhow::Result<String> {
+            let mut result = Map::new();
+            let mut b64 = true;
+
+            let mut protected_map = if let Some(val) = protected {
+                if let Some(vals) = val.critical() {
+                    if vals.iter().any(|e| e == "b64") {
+                        if let Some(val) = val.base64url_encode_payload() {
+                            b64 = *val;
+                        }
+                    }
+                }
+
+                val.claims_set().clone()
+            } else {
+                Map::new()
+            };
+            protected_map.insert(
+                "alg".to_string(),
+                Value::String(signer.algorithm().name().to_string()),
+            );
+
+            if let Some(val) = &header {
+                for key in val.claims_set().keys() {
+                    if protected_map.contains_key(key) {
+                        bail!("Duplicate key exists: {}", key);
+                    }
+                }
+            }
+
+            let protected_json = serde_json::to_string(&protected_map)?;
+            let protected_base64 = base64::encode_config(protected_json, base64::URL_SAFE_NO_PAD);
+
+            let payload_base64;
+            let payload = if b64 {
+                payload_base64 = base64::encode_config(payload, base64::URL_SAFE_NO_PAD);
+                &payload_base64
+            } else {
+                match std::str::from_utf8(payload) {
+                    Ok(val) => val,
+                    Err(err) => bail!("{}", err),
+                }
+            };
+
+            let message = format!("{}.{}", &protected_base64, payload);
+
+            result.insert("protected".to_string(), Value::String(protected_base64));
+
+            if let Some(val) = &header {
+                result.insert(
+                    "header".to_string(),
+                    Value::Object(val.claims_set().clone()),
+                );
+            }
+
+            result.insert("payload".to_string(), Value::String(payload.to_string()));
+
+            let signature = signer.sign(message.as_bytes())?;
+            let signature = base64::encode_config(&signature, base64::URL_SAFE_NO_PAD);
+            result.insert("signature".to_string(), Value::String(signature));
+
+            let result_json = serde_json::to_string(&result)?;
+            Ok(result_json)
+        })()
+        .map_err(|err| match err.downcast::<JoseError>() {
+            Ok(err) => err,
+            Err(err) => JoseError::InvalidJwtFormat(err),
+        })
+    }
+
+    /// Deserialize the input that is formatted by compact serialization.
+    ///
+    /// # Arguments
+    /// * `verifier` - The JWS verifier.
+    /// * `header` - The decoded JWS header claims.
+    /// * `input` - The input data.
+    pub fn deserialize_compact(
+        verifier: &dyn JwsVerifier,
+        header: &JwsHeader,
+        input: &str,
+    ) -> Result<Vec<u8>, JoseError> {
+        (|| -> anyhow::Result<Vec<u8>> {
+            let indexies: Vec<usize> = input
+                .char_indices()
+                .filter(|(_, c)| c == &'.')
+                .map(|(i, _)| i)
+                .collect();
+            if indexies.len() != 2 {
+                bail!("The signed JWT must be three parts separated by colon.");
+            }
+
+            let expected_alg = verifier.algorithm().name();
+            match header.claim("alg") {
+                Some(Value::String(val)) if val == expected_alg => {}
+                Some(Value::String(val)) => {
+                    bail!("The JWT alg header claim is not {}: {}", expected_alg, val)
+                }
+                Some(_) => bail!("The JWT alg header claim must be a string."),
+                None => bail!("The JWT alg header claim is required."),
+            }
+
+            let expected_kid = verifier.key_id();
+            match (expected_kid, header.claim("kid")) {
+                (Some(expected), Some(actual)) if expected == actual => {}
+                (None, None) => {}
+                (Some(_), Some(actual)) => {
+                    bail!("The JWT kid header claim is mismatched: {}", actual)
+                }
+                _ => bail!("The JWT kid header claim is missing."),
+            }
+
+            if let Some(critical) = header.critical() {
+                for name in critical {
+                    if !verifier.is_acceptable_critical(name) {
+                        bail!("The critical name '{}' is not supported.", name);
+                    }
+                }
+            }
+
+            let mut b64 = true;
+            if let Some(vals) = header.critical() {
+                if vals.iter().any(|e| e == "b64") {
+                    if let Some(val) = header.base64url_encode_payload() {
+                        b64 = *val;
+                    }
+                }
+            }
+
+            let message = &input[..(indexies[1])];
+
+            let payload = &input[(indexies[0] + 1)..(indexies[1])];
+            let payload = if b64 {
+                base64::decode_config(payload, base64::URL_SAFE_NO_PAD)?
+            } else {
+                payload.as_bytes().to_vec()
+            };
+
+            let signature = &input[(indexies[1] + 1)..];
+            let signature = base64::decode_config(signature, base64::URL_SAFE_NO_PAD)?;
+
+            verifier.verify(message.as_bytes(), &signature)?;
+
+            Ok(payload)
+        })()
+        .map_err(|err| match err.downcast::<JoseError>() {
+            Ok(err) => err,
+            Err(err) => JoseError::InvalidJwtFormat(err),
+        })
+    }
+}
+
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct JwsHeader {
     claims: Map<String, Value>,
@@ -569,145 +798,6 @@ pub trait JwsSigner {
     /// # Arguments
     /// * `message` - The message data to sign.
     fn sign(&self, message: &[u8]) -> Result<Vec<u8>, JoseError>;
-
-    /// Return a representation of the data that is formatted by compact serialization.
-    ///
-    /// # Arguments
-    /// * `header` - The JWS heaser claims.
-    /// * `payload` - The payload data.
-    fn serialize_compact(&self, header: &JwsHeader, payload: &[u8]) -> Result<String, JoseError> {
-        (|| -> anyhow::Result<String> {
-            let mut b64 = true;
-            if let Some(vals) = header.critical() {
-                if vals.iter().any(|e| e == "b64") {
-                    if let Some(val) = header.base64url_encode_payload() {
-                        b64 = *val;
-                    }
-                }
-            }
-
-            let payload_base64;
-            let payload = if b64 {
-                payload_base64 = base64::encode_config(payload, base64::URL_SAFE_NO_PAD);
-                &payload_base64
-            } else {
-                match std::str::from_utf8(payload) {
-                    Ok(val) => {
-                        if val.contains(".") {
-                            bail!("A JWS payload cannot contain dot.");
-                        }
-                        val
-                    }
-                    Err(err) => bail!("{}", err),
-                }
-            };
-
-            let header = header.to_string();
-            let header = base64::encode_config(header, base64::URL_SAFE_NO_PAD);
-
-            let mut message = String::with_capacity(
-                header.len() + payload.len() + self.algorithm().signature_len() + 2,
-            );
-
-            message.push_str(&header);
-            message.push_str(".");
-            message.push_str(&payload);
-
-            let signature = self.sign(message.as_bytes())?;
-
-            let signature = base64::encode_config(signature, base64::URL_SAFE_NO_PAD);
-            message.push_str(".");
-            message.push_str(&signature);
-
-            Ok(message)
-        })()
-        .map_err(|err| match err.downcast::<JoseError>() {
-            Ok(err) => err,
-            Err(err) => JoseError::InvalidJwtFormat(err),
-        })
-    }
-
-    /// Return a representation of the data that is formatted by flattened json serialization.
-    ///
-    /// # Arguments
-    /// * `protected` - The JWS protected header claims.
-    /// * `header` - The JWS unprotected header claims.
-    /// * `payload` - The payload data.
-    fn serialize_flattened_json(
-        &self,
-        protected: Option<JwsHeader>,
-        header: Option<JwsHeader>,
-        payload: &[u8],
-    ) -> Result<String, JoseError> {
-        (|| -> anyhow::Result<String> {
-            let mut result = Map::new();
-            let mut b64 = true;
-
-            let mut protected_map = if let Some(val) = protected {
-                if let Some(vals) = val.critical() {
-                    if vals.iter().any(|e| e == "b64") {
-                        if let Some(val) = val.base64url_encode_payload() {
-                            b64 = *val;
-                        }
-                    }
-                }
-
-                val.claims_set().clone()
-            } else {
-                Map::new()
-            };
-            protected_map.insert(
-                "alg".to_string(),
-                Value::String(self.algorithm().name().to_string()),
-            );
-
-            if let Some(val) = &header {
-                for key in val.claims_set().keys() {
-                    if protected_map.contains_key(key) {
-                        bail!("Duplicate key exists: {}", key);
-                    }
-                }
-            }
-
-            let protected_json = serde_json::to_string(&protected_map)?;
-            let protected_base64 = base64::encode_config(protected_json, base64::URL_SAFE_NO_PAD);
-
-            let payload_base64;
-            let payload = if b64 {
-                payload_base64 = base64::encode_config(payload, base64::URL_SAFE_NO_PAD);
-                &payload_base64
-            } else {
-                match std::str::from_utf8(payload) {
-                    Ok(val) => val,
-                    Err(err) => bail!("{}", err),
-                }
-            };
-
-            let message = format!("{}.{}", &protected_base64, payload);
-
-            result.insert("protected".to_string(), Value::String(protected_base64));
-
-            if let Some(val) = &header {
-                result.insert(
-                    "header".to_string(),
-                    Value::Object(val.claims_set().clone()),
-                );
-            }
-
-            result.insert("payload".to_string(), Value::String(payload.to_string()));
-
-            let signature = self.sign(message.as_bytes())?;
-            let signature = base64::encode_config(&signature, base64::URL_SAFE_NO_PAD);
-            result.insert("signature".to_string(), Value::String(signature));
-
-            let result_json = serde_json::to_string(&result)?;
-            Ok(result_json)
-        })()
-        .map_err(|err| match err.downcast::<JoseError>() {
-            Ok(err) => err,
-            Err(err) => JoseError::InvalidJwtFormat(err),
-        })
-    }
 }
 
 pub trait JwsVerifier {
@@ -751,74 +841,4 @@ pub trait JwsVerifier {
     /// * `message` - a message data to verify.
     /// * `signature` - a signature data.
     fn verify(&self, message: &[u8], signature: &[u8]) -> Result<(), JoseError>;
-
-    fn deserialize_compact(&self, header: &JwsHeader, input: &str) -> Result<Vec<u8>, JoseError> {
-        (|| -> anyhow::Result<Vec<u8>> {
-            let indexies: Vec<usize> = input
-                .char_indices()
-                .filter(|(_, c)| c == &'.')
-                .map(|(i, _)| i)
-                .collect();
-            if indexies.len() != 2 {
-                bail!("The signed JWT must be three parts separated by colon.");
-            }
-
-            let expected_alg = self.algorithm().name();
-            match header.claim("alg") {
-                Some(Value::String(val)) if val == expected_alg => {}
-                Some(Value::String(val)) => {
-                    bail!("The JWT alg header claim is not {}: {}", expected_alg, val)
-                }
-                Some(_) => bail!("The JWT alg header claim must be a string."),
-                None => bail!("The JWT alg header claim is required."),
-            }
-
-            let expected_kid = self.key_id();
-            match (expected_kid, header.claim("kid")) {
-                (Some(expected), Some(actual)) if expected == actual => {}
-                (None, None) => {}
-                (Some(_), Some(actual)) => {
-                    bail!("The JWT kid header claim is mismatched: {}", actual)
-                }
-                _ => bail!("The JWT kid header claim is missing."),
-            }
-
-            if let Some(critical) = header.critical() {
-                for name in critical {
-                    if !self.is_acceptable_critical(name) {
-                        bail!("The critical name '{}' is not supported.", name);
-                    }
-                }
-            }
-
-            let mut b64 = true;
-            if let Some(vals) = header.critical() {
-                if vals.iter().any(|e| e == "b64") {
-                    if let Some(val) = header.base64url_encode_payload() {
-                        b64 = *val;
-                    }
-                }
-            }
-
-            let message = &input[..(indexies[1])];
-
-            let payload = &input[(indexies[0] + 1)..(indexies[1])];
-            let payload = if b64 {
-                base64::decode_config(payload, base64::URL_SAFE_NO_PAD)?
-            } else {
-                payload.as_bytes().to_vec()
-            };
-
-            let signature = &input[(indexies[1] + 1)..];
-            let signature = base64::decode_config(signature, base64::URL_SAFE_NO_PAD)?;
-
-            self.verify(message.as_bytes(), &signature)?;
-
-            Ok(payload)
-        })()
-        .map_err(|err| match err.downcast::<JoseError>() {
-            Ok(err) => err,
-            Err(err) => JoseError::InvalidJwtFormat(err),
-        })
-    }
 }

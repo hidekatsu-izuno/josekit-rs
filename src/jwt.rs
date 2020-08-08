@@ -8,9 +8,9 @@ use serde_json::{json, Map, Number, Value};
 
 use crate::error::JoseError;
 use crate::jose::JoseHeader;
-use crate::jwe::{JweDecrypter, JweEncrypter, JweHeader};
+use crate::jwe::{Jwe, JweDecrypter, JweEncrypter, JweHeader};
 use crate::jwk::{Jwk, JwkSet};
-use crate::jws::{JwsHeader, JwsSigner, JwsVerifier};
+use crate::jws::{Jws, JwsHeader, JwsSigner, JwsVerifier};
 use crate::util::SourceValue;
 
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -497,7 +497,7 @@ impl Jwt<JwsHeader> {
     /// * `input` - a JWT string representation.
     pub fn decode_with_verifier(
         input: &str,
-        verifier: &dyn JwsVerifier,
+        verifier: &impl JwsVerifier,
     ) -> Result<Self, JoseError> {
         (|| -> anyhow::Result<Self> {
             if verifier.is_acceptable_critical("b64") {
@@ -513,7 +513,7 @@ impl Jwt<JwsHeader> {
             let header: Map<String, Value> = serde_json::from_slice(&header)?;
             let header = JwsHeader::from_map(header)?;
 
-            let payload = verifier.deserialize_compact(&header, input)?;
+            let payload = Jws::deserialize_compact(verifier, &header, input)?;
             let payload: Map<String, Value> = serde_json::from_slice(&payload)?;
             let payload = JwtPayload::from_map(payload)?;
 
@@ -556,7 +556,7 @@ impl Jwt<JwsHeader> {
                 bail!("JWT is not support b64 header claim.")
             }
 
-            let payload = verifier.deserialize_compact(&header, input)?;
+            let payload = Jws::deserialize_compact(&*verifier, &header, input)?;
             let payload: Map<String, Value> = serde_json::from_slice(&payload)?;
             let payload = JwtPayload::from_map(payload)?;
 
@@ -627,7 +627,7 @@ impl Jwt<JweHeader> {
             let header: Map<String, Value> = serde_json::from_slice(&header)?;
             let header = JweHeader::from_map(header)?;
 
-            let payload = decrypter.deserialize_compact(&header, input)?;
+            let payload = Jwe::deserialize_compact(decrypter, &header, input)?;
             let payload: Map<String, Value> = serde_json::from_slice(&payload)?;
             let payload = JwtPayload::from_map(payload)?;
 
@@ -661,12 +661,12 @@ impl Jwt<JweHeader> {
             let header: Map<String, Value> = serde_json::from_slice(&header)?;
             let header = JweHeader::from_map(header)?;
 
-            let verifier = match decrypter_selector(&header) {
+            let decrypter = match decrypter_selector(&header) {
                 Some(val) => val,
                 None => bail!("A decrypter is not found."),
             };
 
-            let payload = verifier.deserialize_compact(&header, input)?;
+            let payload = Jwe::deserialize_compact(&*decrypter, &header, input)?;
             let payload: Map<String, Value> = serde_json::from_slice(&payload)?;
             let payload = JwtPayload::from_map(payload)?;
 
@@ -754,7 +754,7 @@ impl<T: JoseHeader> Jwt<T> {
             }
 
             let payload = &self.payload.to_string();
-            let jwt = signer.serialize_compact(&header, &payload.as_bytes())?;
+            let jwt = Jws::serialize_compact(signer, &header, &payload.as_bytes())?;
             Ok(jwt)
         })()
         .map_err(|err| match err.downcast::<JoseError>() {
@@ -780,7 +780,7 @@ impl<T: JoseHeader> Jwt<T> {
 
         let header = JweHeader::from_map(header)?;
         let payload_json = self.payload.to_string();
-        let jwt = encrypter.serialize_compact(&header, &payload_json.as_bytes())?;
+        let jwt = Jwe::serialize_compact(encrypter, &header, &payload_json.as_bytes())?;
         Ok(jwt)
     }
 }

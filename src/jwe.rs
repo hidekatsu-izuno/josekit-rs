@@ -44,6 +44,59 @@ pub use crate::jwe::enc::aes_gcm::AesGcmJweEncryption::A128GCM;
 pub use crate::jwe::enc::aes_gcm::AesGcmJweEncryption::A192GCM;
 pub use crate::jwe::enc::aes_gcm::AesGcmJweEncryption::A256GCM;
 
+pub struct Jwe;
+
+impl Jwe {
+    /// Return a representation of the data that is formatted by compact serialization.
+    ///
+    /// # Arguments
+    /// * `encrypter` - The JWS encrypter.
+    /// * `header` - The JWS heaser claims.
+    /// * `payload` - The payload data.
+    pub fn serialize_compact(
+        encrypter: &dyn JweEncrypter,
+        header: &JweHeader,
+        payload: &[u8],
+    ) -> Result<String, JoseError> {
+        (|| -> anyhow::Result<String> {
+            let mut b64 = true;
+            if let Some(Value::Bool(false)) = header.claim("b64") {
+                if let Some(Value::Array(vals)) = header.claim("crit") {
+                    if vals.iter().any(|e| e == "b64") {
+                        b64 = false;
+                    } else {
+                        bail!("The b64 header claim name must be in critical.");
+                    }
+                }
+            }
+            Ok("".to_string())
+        })()
+        .map_err(|err| match err.downcast::<JoseError>() {
+            Ok(err) => err,
+            Err(err) => JoseError::InvalidJwtFormat(err),
+        })
+    }
+
+    /// Deserialize the input that is formatted by compact serialization.
+    ///
+    /// # Arguments
+    /// * `decrypter` - The JWS decrypter.
+    /// * `header` - The decoded JWS header claims.
+    /// * `input` - The input data.
+    pub fn deserialize_compact(
+        decrypter: &dyn JweDecrypter,
+        header: &JweHeader,
+        input: &str,
+    ) -> Result<Vec<u8>, JoseError> {
+        (|| -> anyhow::Result<Vec<u8>> { Ok(Vec::new()) })().map_err(|err| {
+            match err.downcast::<JoseError>() {
+                Ok(err) => err,
+                Err(err) => JoseError::InvalidJwtFormat(err),
+            }
+        })
+    }
+}
+
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct JweHeader {
     claims: Map<String, Value>,
@@ -121,28 +174,6 @@ impl Display for JweHeader {
 pub trait JweAlgorithm {
     /// Return the "alg" (algorithm) header parameter value of JWE.
     fn name(&self) -> &str;
-
-    /// Return the encrypter from a JWK private key.
-    ///
-    /// # Arguments
-    /// * `jwk` - a JWK private key.
-    /// * `encryption` - a JWE encryption algorithm.
-    fn encrypter_from_jwk(
-        &self,
-        jwk: &Jwk,
-        encryption: &dyn JweEncryption,
-    ) -> Result<Box<dyn JweEncrypter>, JoseError>;
-
-    /// Return the decrypter from a JWK key.
-    ///
-    /// # Arguments
-    /// * `jwk` - a JWK key.
-    /// * `encryption` - a JWE encryption algorithm.
-    fn decrypter_from_jwk(
-        &self,
-        jwk: &Jwk,
-        encryption: &dyn JweEncryption,
-    ) -> Result<Box<dyn JweDecrypter>, JoseError>;
 }
 
 pub trait JweEncryption {
@@ -174,26 +205,6 @@ pub trait JweEncrypter {
     /// # Arguments
     /// * `key` - The key data to encrypt.
     fn encrypt(&self, key: &[u8]) -> Result<Vec<u8>, JoseError>;
-
-    fn serialize_compact(&self, header: &JweHeader, payload: &[u8]) -> Result<String, JoseError> {
-        (|| -> anyhow::Result<String> {
-            let mut b64 = true;
-            if let Some(Value::Bool(false)) = header.claim("b64") {
-                if let Some(Value::Array(vals)) = header.claim("crit") {
-                    if vals.iter().any(|e| e == "b64") {
-                        b64 = false;
-                    } else {
-                        bail!("The b64 header claim name must be in critical.");
-                    }
-                }
-            }
-            Ok("".to_string())
-        })()
-        .map_err(|err| match err.downcast::<JoseError>() {
-            Ok(err) => err,
-            Err(err) => JoseError::InvalidJwtFormat(err),
-        })
-    }
 }
 
 pub trait JweDecrypter {
@@ -218,13 +229,4 @@ pub trait JweDecrypter {
     /// # Arguments
     /// * `key` - The encrypted key data.
     fn decrypt(&self, key: &[u8]) -> Result<Vec<u8>, JoseError>;
-
-    fn deserialize_compact(&self, header: &JweHeader, input: &str) -> Result<Vec<u8>, JoseError> {
-        (|| -> anyhow::Result<Vec<u8>> { Ok(Vec::new()) })().map_err(|err| {
-            match err.downcast::<JoseError>() {
-                Ok(err) => err,
-                Err(err) => JoseError::InvalidJwtFormat(err),
-            }
-        })
-    }
 }
