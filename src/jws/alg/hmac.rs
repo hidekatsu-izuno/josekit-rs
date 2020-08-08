@@ -45,10 +45,7 @@ impl HmacJwsAlgorithm {
     ///
     /// # Arguments
     /// * `data` - A secret key.
-    pub fn signer_from_slice(
-        &self,
-        input: impl AsRef<[u8]>,
-    ) -> Result<HmacJwsSigner, JoseError> {
+    pub fn signer_from_slice(&self, input: impl AsRef<[u8]>) -> Result<HmacJwsSigner, JoseError> {
         (|| -> anyhow::Result<HmacJwsSigner> {
             let pkey = PKey::hmac(input.as_ref())?;
 
@@ -245,7 +242,7 @@ impl HmacJwsVerifier {
             algorithm: algorithm.clone(),
             private_key,
             key_id,
-            acceptable_criticals: BTreeSet::new()
+            acceptable_criticals: BTreeSet::new(),
         }
     }
 }

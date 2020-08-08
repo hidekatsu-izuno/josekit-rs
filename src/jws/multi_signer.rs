@@ -29,14 +29,20 @@ impl<'a> JwsMultiSigner<'a> {
             let protected_base64;
             if let Some(val) = protected {
                 protected_map = val.claims_set().clone();
-                protected_map.insert("alg".to_string(), Value::String(signer.algorithm().name().to_string()));
+                protected_map.insert(
+                    "alg".to_string(),
+                    Value::String(signer.algorithm().name().to_string()),
+                );
 
                 let json = serde_json::to_string(&protected_map).unwrap();
                 protected_base64 = base64::encode_config(json, base64::URL_SAFE_NO_PAD);
                 sig_item.insert("protected".to_string(), Value::String(protected_base64));
             } else {
                 protected_map = Map::new();
-                protected_map.insert("alg".to_string(), Value::String(signer.algorithm().name().to_string()));
+                protected_map.insert(
+                    "alg".to_string(),
+                    Value::String(signer.algorithm().name().to_string()),
+                );
 
                 let json = serde_json::to_string(&protected_map).unwrap();
                 protected_base64 = base64::encode_config(json, base64::URL_SAFE_NO_PAD);
@@ -56,16 +62,13 @@ impl<'a> JwsMultiSigner<'a> {
                 }
             }
 
-            self.signers.push((
-                Box::new(signer),
-                sig_item,
-            ));
+            self.signers.push((Box::new(signer), sig_item));
 
             Ok(())
         })()
         .map_err(|err| match err.downcast::<JoseError>() {
             Ok(err) => err,
-            Err(err) => JoseError::InvalidJwsFormat(err)
+            Err(err) => JoseError::InvalidJwsFormat(err),
         })
     }
 
@@ -78,15 +81,18 @@ impl<'a> JwsMultiSigner<'a> {
             let message = format!("{}.{}", protected, payload);
             let signature = signer.sign(message.as_bytes())?;
             let signature = base64::encode_config(&signature, base64::URL_SAFE_NO_PAD);
-            
+
             let mut sig_item = sig_item.clone();
             sig_item.insert("signature".to_string(), Value::String(signature));
             sig_vec.push(Value::Object(sig_item));
         }
 
         let signatures = serde_json::to_string(&sig_vec).unwrap();
-        let result = format!("{{\"signatures\":{},\"payload\":\"{}\"}}", &signatures, &payload);
-        
+        let result = format!(
+            "{{\"signatures\":{},\"payload\":\"{}\"}}",
+            &signatures, &payload
+        );
+
         Ok(result)
     }
 }
@@ -94,8 +100,8 @@ impl<'a> JwsMultiSigner<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::jws::{RS256, ES256};
     use crate::jwk::KeyPair;
+    use crate::jws::{ES256, RS256};
 
     #[test]
     fn sign_multpile() -> anyhow::Result<()> {

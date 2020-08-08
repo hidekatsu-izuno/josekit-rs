@@ -119,10 +119,7 @@ impl RsaJwsAlgorithm {
     ///
     /// # Arguments
     /// * `input` - A private key that is a DER encoded PKCS#8 PrivateKeyInfo or PKCS#1 RSAPrivateKey.
-    pub fn signer_from_der(
-        &self,
-        input: impl AsRef<[u8]>,
-    ) -> Result<RsaJwsSigner, JoseError> {
+    pub fn signer_from_der(&self, input: impl AsRef<[u8]>) -> Result<RsaJwsSigner, JoseError> {
         let keypair = self.keypair_from_der(input.as_ref())?;
         Ok(RsaJwsSigner {
             algorithm: keypair.algorithm,
@@ -141,10 +138,7 @@ impl RsaJwsAlgorithm {
     ///
     /// # Arguments
     /// * `input` - A private key of common or traditinal PEM format.
-    pub fn signer_from_pem(
-        &self,
-        input: impl AsRef<[u8]>,
-    ) -> Result<RsaJwsSigner, JoseError> {
+    pub fn signer_from_pem(&self, input: impl AsRef<[u8]>) -> Result<RsaJwsSigner, JoseError> {
         let keypair = self.keypair_from_pem(input.as_ref())?;
         Ok(RsaJwsSigner {
             algorithm: keypair.algorithm,
@@ -248,15 +242,12 @@ impl RsaJwsAlgorithm {
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
-    
+
     /// Return the verifier from a public key that is a DER encoded SubjectPublicKeyInfo or PKCS#1 RSAPublicKey.
     ///
     /// # Arguments
     /// * `input` - A public key that is a DER encoded SubjectPublicKeyInfo or PKCS#1 RSAPublicKey.
-    pub fn verifier_from_der(
-        &self,
-        input: impl AsRef<[u8]>,
-    ) -> Result<RsaJwsVerifier, JoseError> {
+    pub fn verifier_from_der(&self, input: impl AsRef<[u8]>) -> Result<RsaJwsVerifier, JoseError> {
         (|| -> anyhow::Result<RsaJwsVerifier> {
             let pkcs8;
             let pkcs8_ref = if self.detect_pkcs8(input.as_ref(), true)? {
@@ -269,7 +260,7 @@ impl RsaJwsAlgorithm {
             let pkey = PKey::public_key_from_der(pkcs8_ref)?;
             self.check_key(&pkey)?;
 
-            Ok(RsaJwsVerifier::new(self,pkey, None))
+            Ok(RsaJwsVerifier::new(self, pkey, None))
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
@@ -284,10 +275,7 @@ impl RsaJwsAlgorithm {
     ///
     /// # Arguments
     /// * `input` - A public key of common or traditional PEM format.
-    pub fn verifier_from_pem(
-        &self,
-        input: impl AsRef<[u8]>,
-    ) -> Result<RsaJwsVerifier, JoseError> {
+    pub fn verifier_from_pem(&self, input: impl AsRef<[u8]>) -> Result<RsaJwsVerifier, JoseError> {
         (|| -> anyhow::Result<RsaJwsVerifier> {
             let (alg, data) = parse_pem(input.as_ref())?;
 
@@ -639,16 +627,12 @@ pub struct RsaJwsVerifier {
 }
 
 impl RsaJwsVerifier {
-    fn new(
-        algorithm: &RsaJwsAlgorithm,
-        public_key: PKey<Public>,
-        key_id: Option<String>,
-    ) -> Self {
+    fn new(algorithm: &RsaJwsAlgorithm, public_key: PKey<Public>, key_id: Option<String>) -> Self {
         Self {
             algorithm: algorithm.clone(),
             public_key,
             key_id,
-            acceptable_criticals: BTreeSet::new()
+            acceptable_criticals: BTreeSet::new(),
         }
     }
 }

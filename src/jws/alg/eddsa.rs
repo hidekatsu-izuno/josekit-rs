@@ -1,5 +1,5 @@
-use std::fmt::Display;
 use std::collections::BTreeSet;
+use std::fmt::Display;
 use std::iter::Iterator;
 
 use anyhow::bail;
@@ -70,7 +70,7 @@ impl EddsaJwsAlgorithm {
             Ok(EddsaKeyPair {
                 algorithm: self.clone(),
                 curve: curve.clone(),
-                pkey
+                pkey,
             })
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
@@ -80,12 +80,9 @@ impl EddsaJwsAlgorithm {
     ///
     /// # Arguments
     /// * `input` - A private key that is a DER encoded PKCS#8 PrivateKeyInfo.
-    pub fn keypair_from_der(
-        &self,
-        input: impl AsRef<[u8]>,
-    ) -> Result<EddsaKeyPair, JoseError> {
+    pub fn keypair_from_der(&self, input: impl AsRef<[u8]>) -> Result<EddsaKeyPair, JoseError> {
         (|| -> anyhow::Result<EddsaKeyPair> {
-            let result =self.detect_pkcs8(input.as_ref(), false)?;
+            let result = self.detect_pkcs8(input.as_ref(), false)?;
             let (curve, pkey) = if let Some(curve) = result {
                 let pkey = PKey::private_key_from_der(input.as_ref())?;
                 (curve, pkey)
@@ -112,10 +109,7 @@ impl EddsaJwsAlgorithm {
     ///
     /// # Arguments
     /// * `input` - A private key of common or traditinal PEM format.
-    pub fn keypair_from_pem(
-        &self,
-        input: impl AsRef<[u8]>,
-    ) -> Result<EddsaKeyPair, JoseError> {
+    pub fn keypair_from_pem(&self, input: impl AsRef<[u8]>) -> Result<EddsaKeyPair, JoseError> {
         (|| -> anyhow::Result<EddsaKeyPair> {
             let (alg, data) = parse_pem(input.as_ref())?;
             let (curve, pkey) = match alg.as_str() {
@@ -167,10 +161,7 @@ impl EddsaJwsAlgorithm {
     ///
     /// # Arguments
     /// * `input` - A private key that is a DER encoded PKCS#8 PrivateKeyInfo.
-    pub fn signer_from_der(
-        &self,
-        input: impl AsRef<[u8]>,
-    ) -> Result<EddsaJwsSigner, JoseError> {
+    pub fn signer_from_der(&self, input: impl AsRef<[u8]>) -> Result<EddsaJwsSigner, JoseError> {
         let keypair = self.keypair_from_der(input.as_ref())?;
         Ok(EddsaJwsSigner {
             algorithm: keypair.algorithm,
@@ -189,10 +180,7 @@ impl EddsaJwsAlgorithm {
     ///
     /// # Arguments
     /// * `input` - A private key of common or traditinal PEM format.
-    pub fn signer_from_pem(
-        &self,
-        input: impl AsRef<[u8]>,
-    ) -> Result<EddsaJwsSigner, JoseError> {
+    pub fn signer_from_pem(&self, input: impl AsRef<[u8]>) -> Result<EddsaJwsSigner, JoseError> {
         let keypair = self.keypair_from_pem(input.as_ref())?;
         Ok(EddsaJwsSigner {
             algorithm: keypair.algorithm,
@@ -378,11 +366,7 @@ impl EddsaJwsAlgorithm {
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
-    fn detect_pkcs8(
-        &self,
-        input: &[u8],
-        is_public: bool,
-    ) -> anyhow::Result<Option<EddsaCurve>> {
+    fn detect_pkcs8(&self, input: &[u8], is_public: bool) -> anyhow::Result<Option<EddsaCurve>> {
         let curve;
         let mut reader = DerReader::from_reader(input);
 
@@ -514,20 +498,19 @@ impl EddsaKeyPair {
             key_ops
         });
         jwk.set_algorithm(self.algorithm.name());
-        jwk.set_parameter("crv", Some(Value::String(
-            self.curve.name().to_string()
-        ))).unwrap();
+        jwk.set_parameter("crv", Some(Value::String(self.curve.name().to_string())))
+            .unwrap();
 
         if private {
             let private_der = self.pkey.private_key_to_der().unwrap();
 
             let mut reader = DerReader::from_bytes(&private_der);
-    
+
             match reader.next() {
                 Ok(Some(DerType::Sequence)) => {}
                 _ => unreachable!("Invalid private key."),
             }
-    
+
             match reader.next() {
                 Ok(Some(DerType::Integer)) => {
                     if reader.to_u8().unwrap() != 0 {
@@ -536,12 +519,12 @@ impl EddsaKeyPair {
                 }
                 _ => unreachable!("Invalid private key."),
             }
-    
+
             match reader.next() {
                 Ok(Some(DerType::Sequence)) => {}
                 _ => unreachable!("Invalid private key."),
             }
-    
+
             match reader.next() {
                 Ok(Some(DerType::ObjectIdentifier)) => {
                     if &reader.to_object_identifier().unwrap() != self.curve.oid() {
@@ -550,12 +533,12 @@ impl EddsaKeyPair {
                 }
                 _ => unreachable!("Invalid private key."),
             }
-    
+
             match reader.next() {
                 Ok(Some(DerType::EndOfContents)) => {}
                 _ => unreachable!("Invalid private key."),
             }
-    
+
             let d = match reader.next() {
                 Ok(Some(DerType::OctetString)) => {
                     let private_key = reader.contents().unwrap();
@@ -564,29 +547,29 @@ impl EddsaKeyPair {
                         Ok(Some(DerType::OctetString)) => {
                             let d = reader.contents().unwrap();
                             base64::encode_config(d, base64::URL_SAFE_NO_PAD)
-                        },
+                        }
                         _ => unreachable!("Invalid private key."),
                     }
                 }
                 _ => unreachable!("Invalid private key."),
             };
-    
+
             jwk.set_parameter("d", Some(Value::String(d))).unwrap();
         }
         if public {
             let public_der = self.pkey.public_key_to_der().unwrap();
             let mut reader = DerReader::from_bytes(&public_der);
-    
+
             match reader.next() {
                 Ok(Some(DerType::Sequence)) => {}
                 _ => unreachable!("Invalid private key."),
             }
-    
+
             match reader.next() {
                 Ok(Some(DerType::Sequence)) => {}
                 _ => unreachable!("Invalid private key."),
             }
-    
+
             match reader.next() {
                 Ok(Some(DerType::ObjectIdentifier)) => {
                     if &reader.to_object_identifier().unwrap() != self.curve.oid() {
@@ -595,12 +578,12 @@ impl EddsaKeyPair {
                 }
                 _ => unreachable!("Invalid private key."),
             }
-    
+
             match reader.next() {
                 Ok(Some(DerType::EndOfContents)) => {}
                 _ => unreachable!("Invalid private key."),
             }
-    
+
             let x = match reader.next() {
                 Ok(Some(DerType::BitString)) => {
                     if let (x, 0) = reader.to_bit_vec().unwrap() {
@@ -705,7 +688,7 @@ impl EddsaJwsVerifier {
             algorithm: algorithm.clone(),
             public_key,
             key_id,
-            acceptable_criticals: BTreeSet::new()
+            acceptable_criticals: BTreeSet::new(),
         }
     }
 }
@@ -765,10 +748,7 @@ mod tests {
     fn sign_and_verify_eddsa_generated_der() -> Result<()> {
         let input = b"abcde12345";
 
-        for curve in &[
-            EddsaCurve::ED25519,
-            EddsaCurve::ED448,
-        ] {
+        for curve in &[EddsaCurve::ED25519, EddsaCurve::ED448] {
             let alg = EddsaJwsAlgorithm::EDDSA;
             let keypair = alg.generate_keypair(curve)?;
 
@@ -786,10 +766,7 @@ mod tests {
     fn sign_and_verify_eddsa_generated_pem() -> Result<()> {
         let input = b"abcde12345";
 
-        for curve in &[
-            EddsaCurve::ED25519,
-            EddsaCurve::ED448,
-        ] {
+        for curve in &[EddsaCurve::ED25519, EddsaCurve::ED448] {
             let alg = EddsaJwsAlgorithm::EDDSA;
             let keypair = alg.generate_keypair(curve)?;
 
@@ -807,10 +784,7 @@ mod tests {
     fn sign_and_verify_eddsa_generated_traditional_pem() -> Result<()> {
         let input = b"abcde12345";
 
-        for curve in &[
-            EddsaCurve::ED25519,
-            EddsaCurve::ED448,
-        ] {
+        for curve in &[EddsaCurve::ED25519, EddsaCurve::ED448] {
             let alg = EddsaJwsAlgorithm::EDDSA;
             let keypair = alg.generate_keypair(curve)?;
 
@@ -828,10 +802,7 @@ mod tests {
     fn sign_and_verify_eddsa_generated_jwk() -> Result<()> {
         let input = b"abcde12345";
 
-        for curve in &[
-            EddsaCurve::ED25519,
-            EddsaCurve::ED448,
-        ] {
+        for curve in &[EddsaCurve::ED25519, EddsaCurve::ED448] {
             let alg = EddsaJwsAlgorithm::EDDSA;
             let keypair = alg.generate_keypair(curve)?;
 

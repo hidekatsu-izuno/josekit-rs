@@ -67,10 +67,7 @@ impl RsaPssJwsAlgorithm {
     ///
     /// # Arguments
     /// * `input` - A private key that is a DER encoded PKCS#8 PrivateKeyInfo or PKCS#1 RSAPrivateKey.
-    pub fn keypair_from_der(
-        &self,
-        input: impl AsRef<[u8]>,
-    ) -> Result<RsaPssKeyPair, JoseError> {
+    pub fn keypair_from_der(&self, input: impl AsRef<[u8]>) -> Result<RsaPssKeyPair, JoseError> {
         (|| -> anyhow::Result<RsaPssKeyPair> {
             let pkcs8;
             let pkcs8_ref = if self.detect_pkcs8(input.as_ref(), false)? {
@@ -85,7 +82,7 @@ impl RsaPssJwsAlgorithm {
 
             Ok(RsaPssKeyPair {
                 algorithm: self.clone(),
-                pkey
+                pkey,
             })
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
@@ -101,10 +98,7 @@ impl RsaPssJwsAlgorithm {
     ///
     /// # Arguments
     /// * `input` - A private key of common or traditinal PEM format.
-    pub fn keypair_from_pem(
-        &self,
-        input: impl AsRef<[u8]>,
-    ) -> Result<RsaPssKeyPair, JoseError> {
+    pub fn keypair_from_pem(&self, input: impl AsRef<[u8]>) -> Result<RsaPssKeyPair, JoseError> {
         (|| -> anyhow::Result<RsaPssKeyPair> {
             let (alg, data) = parse_pem(input.as_ref())?;
 
@@ -135,10 +129,7 @@ impl RsaPssJwsAlgorithm {
     ///
     /// # Arguments
     /// * `input` - A private key that is a DER encoded PKCS#8 PrivateKeyInfo or PKCS#1 RSAPrivateKey.
-    pub fn signer_from_der(
-        &self,
-        input: impl AsRef<[u8]>,
-    ) -> Result<RsaPssJwsSigner, JoseError> {
+    pub fn signer_from_der(&self, input: impl AsRef<[u8]>) -> Result<RsaPssJwsSigner, JoseError> {
         let keypair = self.keypair_from_der(input.as_ref())?;
         Ok(RsaPssJwsSigner {
             algorithm: keypair.algorithm,
@@ -157,10 +148,7 @@ impl RsaPssJwsAlgorithm {
     ///
     /// # Arguments
     /// * `input` - A private key of common or traditinal PEM format.
-    pub fn signer_from_pem(
-        &self,
-        input: impl AsRef<[u8]>,
-    ) -> Result<RsaPssJwsSigner, JoseError> {
+    pub fn signer_from_pem(&self, input: impl AsRef<[u8]>) -> Result<RsaPssJwsSigner, JoseError> {
         let keypair = self.keypair_from_pem(input.as_ref())?;
         Ok(RsaPssJwsSigner {
             algorithm: keypair.algorithm,
@@ -840,7 +828,7 @@ impl RsaPssJwsVerifier {
             algorithm: algorithm.clone(),
             public_key,
             key_id,
-            acceptable_criticals: BTreeSet::new()
+            acceptable_criticals: BTreeSet::new(),
         }
     }
 }

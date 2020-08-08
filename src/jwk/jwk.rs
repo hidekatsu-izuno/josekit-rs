@@ -30,7 +30,7 @@ impl Jwk {
                 let mut params = Map::new();
                 params.insert("kty".to_string(), Value::String(key_type.to_string()));
                 params
-            }
+            },
         }
     }
 

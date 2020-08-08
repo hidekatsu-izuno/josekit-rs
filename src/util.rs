@@ -1,8 +1,8 @@
 use anyhow::bail;
 use once_cell::sync::Lazy;
+use openssl::bn::BigNumRef;
 use regex::bytes::{NoExpand, Regex};
 use std::time::SystemTime;
-use openssl::bn::BigNumRef;
 
 use crate::jwk::Jwk;
 
@@ -59,4 +59,3 @@ pub fn num_to_vec(num: &BigNumRef, len: usize) -> Vec<u8> {
         vec
     }
 }
-

@@ -633,7 +633,12 @@ pub trait JwsSigner {
     /// * `protected` - The JWS protected header claims.
     /// * `header` - The JWS unprotected header claims.
     /// * `payload` - The payload data.
-    fn serialize_flattened_json(&self, protected: Option<JwsHeader>, header: Option<JwsHeader>, payload: &[u8]) -> Result<String, JoseError> {
+    fn serialize_flattened_json(
+        &self,
+        protected: Option<JwsHeader>,
+        header: Option<JwsHeader>,
+        payload: &[u8],
+    ) -> Result<String, JoseError> {
         (|| -> anyhow::Result<String> {
             let mut result = Map::new();
             let mut b64 = true;
@@ -651,8 +656,11 @@ pub trait JwsSigner {
             } else {
                 Map::new()
             };
-            protected_map.insert("alg".to_string(), Value::String(self.algorithm().name().to_string()));
-            
+            protected_map.insert(
+                "alg".to_string(),
+                Value::String(self.algorithm().name().to_string()),
+            );
+
             if let Some(val) = &header {
                 for key in val.claims_set().keys() {
                     if protected_map.contains_key(key) {
@@ -680,7 +688,10 @@ pub trait JwsSigner {
             result.insert("protected".to_string(), Value::String(protected_base64));
 
             if let Some(val) = &header {
-                result.insert("header".to_string(), Value::Object(val.claims_set().clone()));
+                result.insert(
+                    "header".to_string(),
+                    Value::Object(val.claims_set().clone()),
+                );
             }
 
             result.insert("payload".to_string(), Value::String(payload.to_string()));
@@ -717,19 +728,19 @@ pub trait JwsVerifier {
     fn remove_key_id(&mut self);
 
     /// Test a critical header claim name is acceptable.
-    /// 
+    ///
     /// # Arguments
     /// * `name` - a critical header claim name
     fn is_acceptable_critical(&self, name: &str) -> bool;
 
     /// Add a acceptable critical header claim name
-    /// 
+    ///
     /// # Arguments
     /// * `name` - a acceptable critical header claim name
     fn add_acceptable_critical(&mut self, name: &str);
 
     /// Remove a acceptable critical header claim name
-    /// 
+    ///
     /// # Arguments
     /// * `name` - a acceptable critical header claim name
     fn remove_acceptable_critical(&mut self, name: &str);
@@ -771,7 +782,7 @@ pub trait JwsVerifier {
                 }
                 _ => bail!("The JWT kid header claim is missing."),
             }
- 
+
             if let Some(critical) = header.critical() {
                 for name in critical {
                     if !self.is_acceptable_critical(name) {

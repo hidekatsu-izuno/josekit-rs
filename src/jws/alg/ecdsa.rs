@@ -16,7 +16,7 @@ use crate::der::{DerBuilder, DerReader, DerType};
 use crate::error::JoseError;
 use crate::jwk::{Jwk, KeyPair};
 use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier};
-use crate::util::{parse_pem, num_to_vec};
+use crate::util::{num_to_vec, parse_pem};
 
 static OID_ID_EC_PUBLIC_KEY: Lazy<ObjectIdentifier> =
     Lazy::new(|| ObjectIdentifier::from_slice(&[1, 2, 840, 10045, 2, 1]));
@@ -70,10 +70,7 @@ impl EcdsaJwsAlgorithm {
     ///
     /// # Arguments
     /// * `input` - A private key that is a DER encoded PKCS#8 PrivateKeyInfo or ECPrivateKey.
-    pub fn keypair_from_der(
-        &self,
-        input: impl AsRef<[u8]>,
-    ) -> Result<EcdsaKeyPair, JoseError> {
+    pub fn keypair_from_der(&self, input: impl AsRef<[u8]>) -> Result<EcdsaKeyPair, JoseError> {
         (|| -> anyhow::Result<EcdsaKeyPair> {
             let pkcs8;
             let pkcs8_ref = if self.detect_pkcs8(input.as_ref(), false)? {
@@ -103,10 +100,7 @@ impl EcdsaJwsAlgorithm {
     ///
     /// # Arguments
     /// * `input` - A private key of common or traditinal PEM format.
-    pub fn keypair_from_pem(
-        &self,
-        input: impl AsRef<[u8]>,
-    ) -> Result<EcdsaKeyPair, JoseError> {
+    pub fn keypair_from_pem(&self, input: impl AsRef<[u8]>) -> Result<EcdsaKeyPair, JoseError> {
         (|| -> anyhow::Result<EcdsaKeyPair> {
             let (alg, data) = parse_pem(input.as_ref())?;
             let pkcs8;
@@ -138,10 +132,7 @@ impl EcdsaJwsAlgorithm {
     ///
     /// # Arguments
     /// * `input` - A private key that is a DER encoded PKCS#8 PrivateKeyInfo or ECPrivateKey.
-    pub fn signer_from_der(
-        &self,
-        input: impl AsRef<[u8]>,
-    ) -> Result<EcdsaJwsSigner, JoseError> {
+    pub fn signer_from_der(&self, input: impl AsRef<[u8]>) -> Result<EcdsaJwsSigner, JoseError> {
         let keypair = self.keypair_from_der(input.as_ref())?;
         Ok(EcdsaJwsSigner {
             algorithm: keypair.algorithm,
@@ -160,10 +151,7 @@ impl EcdsaJwsAlgorithm {
     ///
     /// # Arguments
     /// * `input` - A private key of common or traditinal PEM format.
-    pub fn signer_from_pem(
-        &self,
-        input: impl AsRef<[u8]>,
-    ) -> Result<EcdsaJwsSigner, JoseError> {
+    pub fn signer_from_pem(&self, input: impl AsRef<[u8]>) -> Result<EcdsaJwsSigner, JoseError> {
         let keypair = self.keypair_from_pem(input.as_ref())?;
         Ok(EcdsaJwsSigner {
             algorithm: keypair.algorithm,
@@ -525,9 +513,11 @@ impl EcdsaKeyPair {
             key_ops
         });
         jwk.set_algorithm(self.algorithm.name());
-        jwk.set_parameter("crv", Some(Value::String({
-            self.algorithm.curve_name().to_string()
-        }))).unwrap();
+        jwk.set_parameter(
+            "crv",
+            Some(Value::String({ self.algorithm.curve_name().to_string() })),
+        )
+        .unwrap();
         if private {
             let d = ec_key.private_key();
             let d = num_to_vec(&d, self.algorithm.curve_coordinate_size());
@@ -540,7 +530,9 @@ impl EcdsaKeyPair {
             let mut x = BigNum::new().unwrap();
             let mut y = BigNum::new().unwrap();
             let mut ctx = BigNumContext::new().unwrap();
-            public_key.affine_coordinates_gfp(ec_key.group(), &mut x, &mut y, &mut ctx).unwrap();
+            public_key
+                .affine_coordinates_gfp(ec_key.group(), &mut x, &mut y, &mut ctx)
+                .unwrap();
 
             let x = num_to_vec(&x, self.algorithm.curve_coordinate_size());
             let x = base64::encode_config(&x, base64::URL_SAFE_NO_PAD);
@@ -667,7 +659,7 @@ impl EcdsaJwsVerifier {
             algorithm: algorithm.clone(),
             public_key,
             key_id,
-            acceptable_criticals: BTreeSet::new()
+            acceptable_criticals: BTreeSet::new(),
         }
     }
 }
@@ -739,7 +731,7 @@ mod tests {
     use std::fs::File;
     use std::io::Read;
     use std::path::PathBuf;
-    
+
     #[test]
     fn sign_and_verify_ecdsa_generated_der() -> Result<()> {
         let input = b"abcde12345";
