@@ -545,18 +545,6 @@ pub trait JwsAlgorithm {
 
     /// Return the signature length of JWS.
     fn signature_len(&self) -> usize;
-
-    /// Return the signer from a JWK private key.
-    ///
-    /// # Arguments
-    /// * `jwk` - a JWK private key.
-    fn signer_from_jwk(&self, jwk: &Jwk) -> Result<Box<dyn JwsSigner>, JoseError>;
-
-    /// Return the verifier from a JWK key.
-    ///
-    /// # Arguments
-    /// * `jwk` - a JWK key.
-    fn verifier_from_jwk(&self, jwk: &Jwk) -> Result<Box<dyn JwsVerifier>, JoseError>;
 }
 
 pub trait JwsSigner {

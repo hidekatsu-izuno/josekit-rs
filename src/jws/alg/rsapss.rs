@@ -169,6 +169,102 @@ impl RsaPssJwsAlgorithm {
         })
     }
 
+    /// Return a signer from a private key that is formatted by a JWK of RSA type.
+    ///
+    /// # Arguments
+    /// * `jwk` - A private key that is formatted by a JWK of RSA type.
+    pub fn signer_from_jwk(&self, jwk: &Jwk) -> Result<RsaPssJwsSigner, JoseError> {
+        (|| -> anyhow::Result<RsaPssJwsSigner> {
+            match jwk.key_type() {
+                val if val == self.key_type() => {}
+                val => bail!("A parameter kty must be {}: {}", self.key_type(), val),
+            }
+            match jwk.key_use() {
+                Some(val) if val == "sig" => {}
+                None => {}
+                Some(val) => bail!("A parameter use must be sig: {}", val),
+            }
+            match jwk.key_operations() {
+                Some(vals) if vals.iter().any(|e| e == "sign") => {}
+                None => {}
+                _ => bail!("A parameter key_ops must contains sign."),
+            }
+            match jwk.algorithm() {
+                Some(val) if val == self.name() => {}
+                None => {}
+                Some(val) => bail!("A parameter alg must be {} but {}", self.name(), val),
+            }
+            let key_id = jwk.key_id();
+
+            let n = match jwk.parameter("n") {
+                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
+                Some(_) => bail!("A parameter n must be a string."),
+                None => bail!("A parameter n is required."),
+            };
+            let e = match jwk.parameter("e") {
+                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
+                Some(_) => bail!("A parameter e must be a string."),
+                None => bail!("A parameter e is required."),
+            };
+            let d = match jwk.parameter("d") {
+                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
+                Some(_) => bail!("A parameter d must be a string."),
+                None => bail!("A parameter d is required."),
+            };
+            let p = match jwk.parameter("p") {
+                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
+                Some(_) => bail!("A parameter p must be a string."),
+                None => bail!("A parameter p is required."),
+            };
+            let q = match jwk.parameter("q") {
+                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
+                Some(_) => bail!("A parameter q must be a string."),
+                None => bail!("A parameter q is required."),
+            };
+            let dp = match jwk.parameter("dp") {
+                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
+                Some(_) => bail!("A parameter dp must be a string."),
+                None => bail!("A parameter dp is required."),
+            };
+            let dq = match jwk.parameter("dq") {
+                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
+                Some(_) => bail!("A parameter dq must be a string."),
+                None => bail!("A parameter dq is required."),
+            };
+            let qi = match jwk.parameter("qi") {
+                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
+                Some(_) => bail!("A parameter qi must be a string."),
+                None => bail!("A parameter qi is required."),
+            };
+
+            let mut builder = DerBuilder::new();
+            builder.begin(DerType::Sequence);
+            {
+                builder.append_integer_from_u8(0); // version
+                builder.append_integer_from_be_slice(&n, false); // n
+                builder.append_integer_from_be_slice(&e, false); // e
+                builder.append_integer_from_be_slice(&d, false); // d
+                builder.append_integer_from_be_slice(&p, false); // p
+                builder.append_integer_from_be_slice(&q, false); // q
+                builder.append_integer_from_be_slice(&dp, false); // d mod (p-1)
+                builder.append_integer_from_be_slice(&dq, false); // d mod (q-1)
+                builder.append_integer_from_be_slice(&qi, false); // (inverse of q) mod p
+            }
+            builder.end();
+
+            let pkcs8 = self.to_pkcs8(&builder.build(), false);
+            let pkey = PKey::private_key_from_der(&pkcs8)?;
+            self.check_key(&pkey)?;
+
+            Ok(RsaPssJwsSigner {
+                algorithm: self.clone(),
+                private_key: pkey,
+                key_id: key_id.map(|val| val.to_string()),
+            })
+        })()
+        .map_err(|err| JoseError::InvalidKeyFormat(err))
+    }
+
     /// Return a verifier from a public key that is a DER encoded SubjectPublicKeyInfo or PKCS#1 RSAPublicKey.
     ///
     /// # Arguments
@@ -226,6 +322,61 @@ impl RsaPssJwsAlgorithm {
             self.check_key(&pkey)?;
 
             Ok(RsaPssJwsVerifier::new(self, pkey, None))
+        })()
+        .map_err(|err| JoseError::InvalidKeyFormat(err))
+    }
+
+    /// Return a verifier from a public key that is formatted by a JWK of RSA type.
+    ///
+    /// # Arguments
+    /// * `jwk` - A public key that is formatted by a JWK of RSA type.
+    pub fn verifier_from_jwk(&self, jwk: &Jwk) -> Result<RsaPssJwsVerifier, JoseError> {
+        (|| -> anyhow::Result<RsaPssJwsVerifier> {
+            match jwk.key_type() {
+                val if val == "RSA" => {}
+                val => bail!("A parameter kty must be RSA: {}", val),
+            };
+            match jwk.key_use() {
+                Some(val) if val == "sig" => {}
+                None => {}
+                Some(val) => bail!("A parameter use must be sig: {}", val),
+            };
+            match jwk.key_operations() {
+                Some(vals) if vals.iter().any(|e| e == "verify") => {}
+                None => {}
+                _ => bail!("A parameter key_ops must contains verify."),
+            }
+            match jwk.algorithm() {
+                Some(val) if val == self.name() => {}
+                None => {}
+                Some(val) => bail!("A parameter alg must be {} but {}", self.name(), val),
+            }
+
+            let n = match jwk.parameter("n") {
+                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
+                Some(_) => bail!("A parameter n must be a string."),
+                None => bail!("A parameter n is required."),
+            };
+            let e = match jwk.parameter("e") {
+                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
+                Some(_) => bail!("A parameter e must be a string."),
+                None => bail!("A parameter e is required."),
+            };
+
+            let mut builder = DerBuilder::new();
+            builder.begin(DerType::Sequence);
+            {
+                builder.append_integer_from_be_slice(&n, false); // n
+                builder.append_integer_from_be_slice(&e, false); // e
+            }
+            builder.end();
+
+            let pkcs8 = self.to_pkcs8(&builder.build(), true);
+            let pkey = PKey::public_key_from_der(&pkcs8)?;
+            self.check_key(&pkey)?;
+            let key_id = jwk.key_id().map(|val| val.to_string());
+
+            Ok(RsaPssJwsVerifier::new(self, pkey, key_id))
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
@@ -489,149 +640,6 @@ impl JwsAlgorithm for RsaPssJwsAlgorithm {
             Self::PS384 => 342,
             Self::PS512 => 342,
         }
-    }
-
-    fn signer_from_jwk(&self, jwk: &Jwk) -> Result<Box<dyn JwsSigner>, JoseError> {
-        (|| -> anyhow::Result<Box<dyn JwsSigner>> {
-            match jwk.key_type() {
-                val if val == self.key_type() => {}
-                val => bail!("A parameter kty must be {}: {}", self.key_type(), val),
-            }
-            match jwk.key_use() {
-                Some(val) if val == "sig" => {}
-                None => {}
-                Some(val) => bail!("A parameter use must be sig: {}", val),
-            }
-            match jwk.key_operations() {
-                Some(vals) if vals.iter().any(|e| e == "sign") => {}
-                None => {}
-                _ => bail!("A parameter key_ops must contains sign."),
-            }
-            match jwk.algorithm() {
-                Some(val) if val == self.name() => {}
-                None => {}
-                Some(val) => bail!("A parameter alg must be {} but {}", self.name(), val),
-            }
-            let key_id = jwk.key_id();
-
-            let n = match jwk.parameter("n") {
-                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
-                Some(_) => bail!("A parameter n must be a string."),
-                None => bail!("A parameter n is required."),
-            };
-            let e = match jwk.parameter("e") {
-                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
-                Some(_) => bail!("A parameter e must be a string."),
-                None => bail!("A parameter e is required."),
-            };
-            let d = match jwk.parameter("d") {
-                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
-                Some(_) => bail!("A parameter d must be a string."),
-                None => bail!("A parameter d is required."),
-            };
-            let p = match jwk.parameter("p") {
-                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
-                Some(_) => bail!("A parameter p must be a string."),
-                None => bail!("A parameter p is required."),
-            };
-            let q = match jwk.parameter("q") {
-                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
-                Some(_) => bail!("A parameter q must be a string."),
-                None => bail!("A parameter q is required."),
-            };
-            let dp = match jwk.parameter("dp") {
-                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
-                Some(_) => bail!("A parameter dp must be a string."),
-                None => bail!("A parameter dp is required."),
-            };
-            let dq = match jwk.parameter("dq") {
-                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
-                Some(_) => bail!("A parameter dq must be a string."),
-                None => bail!("A parameter dq is required."),
-            };
-            let qi = match jwk.parameter("qi") {
-                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
-                Some(_) => bail!("A parameter qi must be a string."),
-                None => bail!("A parameter qi is required."),
-            };
-
-            let mut builder = DerBuilder::new();
-            builder.begin(DerType::Sequence);
-            {
-                builder.append_integer_from_u8(0); // version
-                builder.append_integer_from_be_slice(&n, false); // n
-                builder.append_integer_from_be_slice(&e, false); // e
-                builder.append_integer_from_be_slice(&d, false); // d
-                builder.append_integer_from_be_slice(&p, false); // p
-                builder.append_integer_from_be_slice(&q, false); // q
-                builder.append_integer_from_be_slice(&dp, false); // d mod (p-1)
-                builder.append_integer_from_be_slice(&dq, false); // d mod (q-1)
-                builder.append_integer_from_be_slice(&qi, false); // (inverse of q) mod p
-            }
-            builder.end();
-
-            let pkcs8 = self.to_pkcs8(&builder.build(), false);
-            let pkey = PKey::private_key_from_der(&pkcs8)?;
-            self.check_key(&pkey)?;
-
-            Ok(Box::new(RsaPssJwsSigner {
-                algorithm: self.clone(),
-                private_key: pkey,
-                key_id: key_id.map(|val| val.to_string()),
-            }))
-        })()
-        .map_err(|err| JoseError::InvalidKeyFormat(err))
-    }
-
-    fn verifier_from_jwk(&self, jwk: &Jwk) -> Result<Box<dyn JwsVerifier>, JoseError> {
-        (|| -> anyhow::Result<Box<dyn JwsVerifier>> {
-            match jwk.key_type() {
-                val if val == "RSA" => {}
-                val => bail!("A parameter kty must be RSA: {}", val),
-            };
-            match jwk.key_use() {
-                Some(val) if val == "sig" => {}
-                None => {}
-                Some(val) => bail!("A parameter use must be sig: {}", val),
-            };
-            match jwk.key_operations() {
-                Some(vals) if vals.iter().any(|e| e == "verify") => {}
-                None => {}
-                _ => bail!("A parameter key_ops must contains verify."),
-            }
-            match jwk.algorithm() {
-                Some(val) if val == self.name() => {}
-                None => {}
-                Some(val) => bail!("A parameter alg must be {} but {}", self.name(), val),
-            }
-
-            let n = match jwk.parameter("n") {
-                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
-                Some(_) => bail!("A parameter n must be a string."),
-                None => bail!("A parameter n is required."),
-            };
-            let e = match jwk.parameter("e") {
-                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
-                Some(_) => bail!("A parameter e must be a string."),
-                None => bail!("A parameter e is required."),
-            };
-
-            let mut builder = DerBuilder::new();
-            builder.begin(DerType::Sequence);
-            {
-                builder.append_integer_from_be_slice(&n, false); // n
-                builder.append_integer_from_be_slice(&e, false); // e
-            }
-            builder.end();
-
-            let pkcs8 = self.to_pkcs8(&builder.build(), true);
-            let pkey = PKey::public_key_from_der(&pkcs8)?;
-            self.check_key(&pkey)?;
-            let key_id = jwk.key_id().map(|val| val.to_string());
-
-            Ok(Box::new(RsaPssJwsVerifier::new(self, pkey, key_id)))
-        })()
-        .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 }
 

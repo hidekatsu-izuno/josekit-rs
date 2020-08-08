@@ -9,8 +9,8 @@ use serde_json::{json, Map, Number, Value};
 use crate::error::JoseError;
 use crate::jose::JoseHeader;
 use crate::jwe::{JweAlgorithm, JweDecrypter, JweEncrypter, JweEncryption, JweHeader};
-use crate::jwk::JwkSet;
-use crate::jws::{JwsAlgorithm, JwsHeader, JwsSigner, JwsVerifier};
+use crate::jwk::{JwkSet, Jwk};
+use crate::jws::{JwsHeader, JwsSigner, JwsVerifier};
 use crate::util::SourceValue;
 
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -527,8 +527,8 @@ impl Jwt<JwsHeader> {
     /// * `input` - a JWT string representation.
     /// * `verifier_selector` - a function for selecting the verifying algorithm.
     pub fn decode_with_verifier_selector<F>(
-        verifier_selector: F,
         input: &str,
+        verifier_selector: F,
     ) -> Result<Self, JoseError>
     where
         F: FnOnce(&JwsHeader) -> Option<Box<dyn JwsVerifier>>,
@@ -566,12 +566,16 @@ impl Jwt<JwsHeader> {
     /// * `input` - a JWT string representation.
     /// * `algorithm` - a verifying algorithm.
     /// * `jwk_set` - a JWK set.
-    pub fn decode_with_verifier_in_jwk_set(
-        algorithm: &dyn JwsAlgorithm,
+    pub fn decode_with_verifier_in_jwk_set<F>(
         jwk_set: &JwkSet,
         input: &str,
-    ) -> Result<Self, JoseError> {
+        verifier_selecter: F
+    ) -> Result<Self, JoseError>
+    where
+    F: Fn(&Jwk) -> Option<Box<dyn JwsVerifier>>,
+     {
         Self::decode_with_verifier_selector(
+            input,
             |header| -> Option<Box<dyn JwsVerifier>> {
                 let key_id = match header.key_id() {
                     Some(val) => val,
@@ -579,14 +583,13 @@ impl Jwt<JwsHeader> {
                 };
 
                 for jwk in jwk_set.get(key_id) {
-                    match algorithm.verifier_from_jwk(jwk) {
-                        Ok(val) => return Some(val),
-                        Err(_) => {}
+                    match verifier_selecter(jwk) {
+                        Some(val) => return Some(val),
+                        None => {}
                     }
                 }
                 None
             },
-            input,
         )
     }
 }
@@ -988,6 +991,7 @@ mod tests {
     use std::io::Read;
     use std::path::PathBuf;
 
+    use crate::prelude::*;
     use crate::jwk::Jwk;
     use crate::jws::{
         EDDSA, ES256, ES256K, ES384, ES512, HS256, HS384, HS512, PS256, PS384, PS512, RS256, RS384,
@@ -1280,7 +1284,7 @@ mod tests {
         for alg in &[HS256, HS384, HS512] {
             let verifier = alg.verifier_from_jwk(&jwk)?;
             let jwt_str = &String::from_utf8(load_file(&format!("jwt/{}.jwt", alg.name()))?)?;
-            let jwt = Jwt::decode_with_verifier(verifier.as_ref(), &jwt_str)?;
+            let jwt = Jwt::decode_with_verifier(&verifier, &jwt_str)?;
 
             assert_eq!(jwt.payload.issuer(), Some("joe"));
             assert_eq!(
@@ -1303,7 +1307,7 @@ mod tests {
         for alg in &[RS256, RS384, RS512] {
             let verifier = alg.verifier_from_jwk(&jwk)?;
             let jwt_str = &String::from_utf8(load_file(&format!("jwt/{}.jwt", alg.name()))?)?;
-            let jwt = Jwt::decode_with_verifier(verifier.as_ref(), &jwt_str)?;
+            let jwt = Jwt::decode_with_verifier(&verifier, &jwt_str)?;
 
             assert_eq!(jwt.payload.issuer(), Some("joe"));
             assert_eq!(
@@ -1326,7 +1330,7 @@ mod tests {
         for alg in &[PS256, PS384, PS512] {
             let verifier = alg.verifier_from_jwk(&jwk)?;
             let jwt_str = &String::from_utf8(load_file(&format!("jwt/{}.jwt", alg.name()))?)?;
-            let jwt = Jwt::decode_with_verifier(verifier.as_ref(), &jwt_str)?;
+            let jwt = Jwt::decode_with_verifier(&verifier, &jwt_str)?;
 
             assert_eq!(jwt.payload.issuer(), Some("joe"));
             assert_eq!(
@@ -1353,7 +1357,7 @@ mod tests {
             })?)?;
             let verifier = alg.verifier_from_jwk(&jwk)?;
             let jwt_str = &String::from_utf8(load_file(&format!("jwt/{}.jwt", alg.name()))?)?;
-            let jwt = Jwt::decode_with_verifier(verifier.as_ref(), &jwt_str)?;
+            let jwt = Jwt::decode_with_verifier(&verifier, &jwt_str)?;
 
             assert_eq!(jwt.payload.issuer(), Some("joe"));
             assert_eq!(
@@ -1377,7 +1381,7 @@ mod tests {
             })?)?;
             let verifier = alg.verifier_from_jwk(&jwk)?;
             let jwt_str = &String::from_utf8(load_file(&format!("jwt/{}.jwt", alg.name()))?)?;
-            let jwt = Jwt::decode_with_verifier(verifier.as_ref(), &jwt_str)?;
+            let jwt = Jwt::decode_with_verifier(&verifier, &jwt_str)?;
 
             assert_eq!(jwt.payload.issuer(), Some("joe"));
             assert_eq!(

@@ -61,46 +61,12 @@ impl HmacJwsAlgorithm {
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
-    /// Return a verifier from a secret key.
+    /// Return a signer from a secret key that is formatted by a JWK of oct type.
     ///
     /// # Arguments
-    /// * `input` - A secret key.
-    pub fn verifier_from_slice(
-        &self,
-        input: impl AsRef<[u8]>,
-    ) -> Result<HmacJwsVerifier, JoseError> {
-        (|| -> anyhow::Result<HmacJwsVerifier> {
-            let pkey = PKey::hmac(input.as_ref())?;
-
-            Ok(HmacJwsVerifier::new(self, pkey, None))
-        })()
-        .map_err(|err| JoseError::InvalidKeyFormat(err))
-    }
-}
-
-impl JwsAlgorithm for HmacJwsAlgorithm {
-    fn name(&self) -> &str {
-        match self {
-            Self::HS256 => "HS256",
-            Self::HS384 => "HS384",
-            Self::HS512 => "HS512",
-        }
-    }
-
-    fn key_type(&self) -> &str {
-        "oct"
-    }
-
-    fn signature_len(&self) -> usize {
-        match self {
-            Self::HS256 => 43,
-            Self::HS384 => 64,
-            Self::HS512 => 86,
-        }
-    }
-
-    fn signer_from_jwk(&self, jwk: &Jwk) -> Result<Box<dyn JwsSigner>, JoseError> {
-        (|| -> anyhow::Result<Box<dyn JwsSigner>> {
+    /// * `jwk` - A secret key that is formatted by a JWK of oct type.
+    fn signer_from_jwk(&self, jwk: &Jwk) -> Result<HmacJwsSigner, JoseError> {
+        (|| -> anyhow::Result<HmacJwsSigner> {
             match jwk.key_type() {
                 val if val == self.key_type() => {}
                 val => bail!("A parameter kty must be {}: {}", self.key_type(), val),
@@ -129,17 +95,37 @@ impl JwsAlgorithm for HmacJwsAlgorithm {
 
             let private_key = PKey::hmac(&k)?;
 
-            Ok(Box::new(HmacJwsSigner {
+            Ok(HmacJwsSigner {
                 algorithm: self.clone(),
                 private_key,
                 key_id: key_id.map(|val| val.to_string()),
-            }))
+            })
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
-    fn verifier_from_jwk(&self, jwk: &Jwk) -> Result<Box<dyn JwsVerifier>, JoseError> {
-        (|| -> anyhow::Result<Box<dyn JwsVerifier>> {
+    /// Return a verifier from a secret key.
+    ///
+    /// # Arguments
+    /// * `input` - A secret key.
+    pub fn verifier_from_slice(
+        &self,
+        input: impl AsRef<[u8]>,
+    ) -> Result<HmacJwsVerifier, JoseError> {
+        (|| -> anyhow::Result<HmacJwsVerifier> {
+            let pkey = PKey::hmac(input.as_ref())?;
+
+            Ok(HmacJwsVerifier::new(self, pkey, None))
+        })()
+        .map_err(|err| JoseError::InvalidKeyFormat(err))
+    }
+
+    /// Return a verifier from a secret key that is formatted by a JWK of oct type.
+    ///
+    /// # Arguments
+    /// * `jwk` - A secret key that is formatted by a JWK of oct type.
+    pub fn verifier_from_jwk(&self, jwk: &Jwk) -> Result<HmacJwsVerifier, JoseError> {
+        (|| -> anyhow::Result<HmacJwsVerifier> {
             match jwk.key_type() {
                 val if val == self.key_type() => {}
                 val => bail!("A parameter kty must be {}: {}", self.key_type(), val),
@@ -169,9 +155,31 @@ impl JwsAlgorithm for HmacJwsAlgorithm {
             let private_key = PKey::hmac(&k)?;
             let key_id = jwk.key_id().map(|val| val.to_string());
 
-            Ok(Box::new(HmacJwsVerifier::new(self, private_key, key_id)))
+            Ok(HmacJwsVerifier::new(self, private_key, key_id))
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
+    }
+}
+
+impl JwsAlgorithm for HmacJwsAlgorithm {
+    fn name(&self) -> &str {
+        match self {
+            Self::HS256 => "HS256",
+            Self::HS384 => "HS384",
+            Self::HS512 => "HS512",
+        }
+    }
+
+    fn key_type(&self) -> &str {
+        "oct"
+    }
+
+    fn signature_len(&self) -> usize {
+        match self {
+            Self::HS256 => 43,
+            Self::HS384 => 64,
+            Self::HS512 => 86,
+        }
     }
 }
 

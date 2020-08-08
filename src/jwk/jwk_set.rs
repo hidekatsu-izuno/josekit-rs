@@ -16,7 +16,6 @@ use crate::jwk::jwk::Jwk;
 pub struct JwkSet {
     keys: Vec<Arc<Jwk>>,
     params: Map<String, Value>,
-
     kid_map: BTreeMap<(String, usize), Arc<Jwk>>,
 }
 

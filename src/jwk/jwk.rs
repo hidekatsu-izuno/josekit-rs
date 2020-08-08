@@ -21,14 +21,16 @@ pub struct Jwk {
 
 impl Jwk {
     pub fn new(key_type: &str) -> Self {
-        let mut params = Map::new();
-        params.insert("kty".to_string(), Value::String(key_type.to_string()));
         Self {
             key_operations: None,
             x509_certificate_chain: None,
             x509_certificate_sha1_thumbprint: None,
             x509_certificate_sha256_thumbprint: None,
-            params,
+            params: {
+                let mut params = Map::new();
+                params.insert("kty".to_string(), Value::String(key_type.to_string()));
+                params
+            }
         }
     }
 
