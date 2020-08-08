@@ -65,7 +65,7 @@ impl HmacJwsAlgorithm {
     ///
     /// # Arguments
     /// * `jwk` - A secret key that is formatted by a JWK of oct type.
-    fn signer_from_jwk(&self, jwk: &Jwk) -> Result<HmacJwsSigner, JoseError> {
+    pub fn signer_from_jwk(&self, jwk: &Jwk) -> Result<HmacJwsSigner, JoseError> {
         (|| -> anyhow::Result<HmacJwsSigner> {
             match jwk.key_type() {
                 val if val == self.key_type() => {}
