@@ -9,7 +9,6 @@ use serde_json::{Map, Value};
 
 use crate::error::JoseError;
 use crate::jose::JoseHeader;
-use crate::jwk::Jwk;
 use crate::util::SourceValue;
 
 pub use crate::jwe::alg::aes::AesJweAlgorithm::A128KW;
@@ -50,13 +49,13 @@ impl Jwe {
     /// Return a representation of the data that is formatted by compact serialization.
     ///
     /// # Arguments
-    /// * `encrypter` - The JWS encrypter.
     /// * `header` - The JWS heaser claims.
     /// * `payload` - The payload data.
+    /// * `encrypter` - The JWS encrypter.
     pub fn serialize_compact(
-        encrypter: &dyn JweEncrypter,
         header: &JweHeader,
         payload: &[u8],
+        encrypter: &dyn JweEncrypter,
     ) -> Result<String, JoseError> {
         (|| -> anyhow::Result<String> {
             let mut b64 = true;
@@ -80,9 +79,9 @@ impl Jwe {
     /// Deserialize the input that is formatted by compact serialization.
     ///
     /// # Arguments
-    /// * `decrypter` - The JWS decrypter.
-    /// * `header` - The decoded JWS header claims.
     /// * `input` - The input data.
+    /// * `header` - The decoded JWS header claims.
+    /// * `decrypter` - The JWS decrypter.
     pub fn deserialize_compact(
         decrypter: &dyn JweDecrypter,
         header: &JweHeader,

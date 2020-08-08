@@ -41,13 +41,13 @@ impl Jws {
     /// Return a representation of the data that is formatted by compact serialization.
     ///
     /// # Arguments
-    /// * `signer` - The JWS signer.
     /// * `header` - The JWS heaser claims.
     /// * `payload` - The payload data.
+    /// * `signer` - The JWS signer.
     pub fn serialize_compact(
-        signer: &dyn JwsSigner,
         header: &JwsHeader,
         payload: &[u8],
+        signer: &dyn JwsSigner,
     ) -> Result<String, JoseError> {
         (|| -> anyhow::Result<String> {
             let mut b64 = true;
@@ -103,15 +103,15 @@ impl Jws {
     /// Return a representation of the data that is formatted by flattened json serialization.
     ///
     /// # Arguments
-    /// * `signer` - The JWS signer.
     /// * `protected` - The JWS protected header claims.
     /// * `header` - The JWS unprotected header claims.
     /// * `payload` - The payload data.
+    /// * `signer` - The JWS signer.
     pub fn serialize_flattened_json(
-        signer: &dyn JwsSigner,
         protected: Option<JwsHeader>,
         header: Option<JwsHeader>,
         payload: &[u8],
+        signer: &dyn JwsSigner,
     ) -> Result<String, JoseError> {
         (|| -> anyhow::Result<String> {
             let mut result = Map::new();
@@ -186,15 +186,32 @@ impl Jws {
     /// Deserialize the input that is formatted by compact serialization.
     ///
     /// # Arguments
-    /// * `verifier` - The JWS verifier.
-    /// * `header` - The decoded JWS header claims.
     /// * `input` - The input data.
-    pub fn deserialize_compact(
-        verifier: &dyn JwsVerifier,
-        header: &JwsHeader,
+    /// * `header` - The decoded JWS header claims.
+    /// * `verifier` - The JWS verifier.
+    pub fn deserialize_compact<'a>(
         input: &str,
-    ) -> Result<Vec<u8>, JoseError> {
-        (|| -> anyhow::Result<Vec<u8>> {
+        verifier: &'a dyn JwsVerifier,
+    ) -> Result<(JwsHeader, Vec<u8>), JoseError> {
+        Self::deserialize_compact_with_verifier_selector(input, |header| {
+            Ok(Box::new(verifier))
+        })
+    }
+
+    /// Deserialize the input that is formatted by compact serialization.
+    ///
+    /// # Arguments
+    /// * `input` - The input data.
+    /// * `header` - The decoded JWS header claims.
+    /// * `verifier_selector` - a function for selecting the verifying algorithm.
+    pub fn deserialize_compact_with_verifier_selector<'a, F>(
+        input: &str,
+        verifier_selector: F,
+    ) -> Result<(JwsHeader, Vec<u8>), JoseError> 
+    where
+    F: FnOnce(&JwsHeader) -> Result<Box<&'a dyn JwsVerifier>, JoseError>,
+    {
+        (|| -> anyhow::Result<(JwsHeader, Vec<u8>)> {
             let indexies: Vec<usize> = input
                 .char_indices()
                 .filter(|(_, c)| c == &'.')
@@ -203,6 +220,13 @@ impl Jws {
             if indexies.len() != 2 {
                 bail!("The signed JWT must be three parts separated by colon.");
             }
+
+            let header = &input[0..indexies[0]];
+            let header = base64::decode_config(header, base64::URL_SAFE_NO_PAD)?;
+            let header: Map<String, Value> = serde_json::from_slice(&header)?;
+            let header = JwsHeader::from_map(header)?;
+
+            let verifier = verifier_selector(&header)?;
 
             let expected_alg = verifier.algorithm().name();
             match header.claim("alg") {
@@ -255,7 +279,7 @@ impl Jws {
 
             verifier.verify(message.as_bytes(), &signature)?;
 
-            Ok(payload)
+            Ok((header, payload))
         })()
         .map_err(|err| match err.downcast::<JoseError>() {
             Ok(err) => err,

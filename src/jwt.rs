@@ -509,11 +509,7 @@ impl Jwt<JwsHeader> {
                 bail!("The signed JWT must be three parts separated by colon.");
             }
 
-            let header = base64::decode_config(&parts[0], base64::URL_SAFE_NO_PAD)?;
-            let header: Map<String, Value> = serde_json::from_slice(&header)?;
-            let header = JwsHeader::from_map(header)?;
-
-            let payload = Jws::deserialize_compact(verifier, &header, input)?;
+            let (header, payload) = Jws::deserialize_compact(input, verifier)?;
             let payload: Map<String, Value> = serde_json::from_slice(&payload)?;
             let payload = JwtPayload::from_map(payload)?;
 
@@ -530,12 +526,12 @@ impl Jwt<JwsHeader> {
     /// # Arguments
     /// * `input` - a JWT string representation.
     /// * `verifier_selector` - a function for selecting the verifying algorithm.
-    pub fn decode_with_verifier_selector<F>(
+    pub fn decode_with_verifier_selector<'a, F>(
         input: &str,
         verifier_selector: F,
     ) -> Result<Self, JoseError>
     where
-        F: FnOnce(&JwsHeader) -> Option<Box<dyn JwsVerifier>>,
+        F: FnOnce(&JwsHeader) -> Option<Box<&'a dyn JwsVerifier>>,
     {
         (|| -> anyhow::Result<Self> {
             let parts: Vec<&str> = input.split('.').collect();
@@ -543,20 +539,23 @@ impl Jwt<JwsHeader> {
                 bail!("The signed JWT must be three parts separated by colon.");
             }
 
-            let header = base64::decode_config(&parts[0], base64::URL_SAFE_NO_PAD)?;
-            let header: Map<String, Value> = serde_json::from_slice(&header)?;
-            let header = JwsHeader::from_map(header)?;
-
-            let verifier = match verifier_selector(&header) {
-                Some(val) => val,
-                None => bail!("A verifier is not found."),
-            };
-
-            if verifier.is_acceptable_critical("b64") {
-                bail!("JWT is not support b64 header claim.")
-            }
-
-            let payload = Jws::deserialize_compact(&*verifier, &header, input)?;
+            let (header, payload) = Jws::deserialize_compact_with_verifier_selector(
+                input, 
+                |header| {
+                    (|| -> anyhow::Result<Box<&'a dyn JwsVerifier>> {
+                        let verifier = match verifier_selector(&header) {
+                            Some(val) => val,
+                            None => bail!("A verifier is not found."),
+                        };
+            
+                        if verifier.is_acceptable_critical("b64") {
+                            bail!("JWT is not support b64 header claim.")
+                        }
+                        Ok(verifier)
+                    })()
+                    .map_err(|err| JoseError::InvalidJwtFormat(err))
+                }
+            )?;
             let payload: Map<String, Value> = serde_json::from_slice(&payload)?;
             let payload = JwtPayload::from_map(payload)?;
 
@@ -580,9 +579,9 @@ impl Jwt<JwsHeader> {
         verifier_selecter: F,
     ) -> Result<Self, JoseError>
     where
-        F: Fn(&Jwk) -> Option<Box<dyn JwsVerifier>>,
+        F: Fn(&Jwk) -> Option<Box<&dyn JwsVerifier>>,
     {
-        Self::decode_with_verifier_selector(input, |header| -> Option<Box<dyn JwsVerifier>> {
+        Self::decode_with_verifier_selector(input, |header| {
             let key_id = match header.key_id() {
                 Some(val) => val,
                 None => return None,
@@ -754,7 +753,7 @@ impl<T: JoseHeader> Jwt<T> {
             }
 
             let payload = &self.payload.to_string();
-            let jwt = Jws::serialize_compact(signer, &header, &payload.as_bytes())?;
+            let jwt = Jws::serialize_compact(&header, &payload.as_bytes(), signer)?;
             Ok(jwt)
         })()
         .map_err(|err| match err.downcast::<JoseError>() {
@@ -780,7 +779,7 @@ impl<T: JoseHeader> Jwt<T> {
 
         let header = JweHeader::from_map(header)?;
         let payload_json = self.payload.to_string();
-        let jwt = Jwe::serialize_compact(encrypter, &header, &payload_json.as_bytes())?;
+        let jwt = Jwe::serialize_compact(&header, &payload_json.as_bytes(), encrypter)?;
         Ok(jwt)
     }
 }
