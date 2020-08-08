@@ -578,10 +578,10 @@ pub trait JwsSigner {
     fn serialize_compact(&self, header: &JwsHeader, payload: &[u8]) -> Result<String, JoseError> {
         (|| -> anyhow::Result<String> {
             let mut b64 = true;
-            if let Some(&false) = header.base64url_encode_payload() {
-                if let Some(vals) = header.critical() {
-                    if vals.iter().any(|e| e == "b64") {
-                        b64 = false;
+            if let Some(vals) = header.critical() {
+                if vals.iter().any(|e| e == "b64") {
+                    if let Some(val) = header.base64url_encode_payload() {
+                        b64 = *val;
                     }
                 }
             }
@@ -641,8 +641,8 @@ pub trait JwsSigner {
             let mut protected_map = if let Some(val) = protected {
                 if let Some(vals) = val.critical() {
                     if vals.iter().any(|e| e == "b64") {
-                        if let Some(&false) = val.base64url_encode_payload() {
-                            b64 = false;
+                        if let Some(val) = val.base64url_encode_payload() {
+                            b64 = *val;
                         }
                     }
                 }
@@ -781,12 +781,10 @@ pub trait JwsVerifier {
             }
 
             let mut b64 = true;
-            if let Some(Value::Bool(false)) = header.claim("b64") {
-                if let Some(Value::Array(vals)) = header.claim("crit") {
-                    if vals.iter().any(|e| e == "b64") {
-                        b64 = false;
-                    } else {
-                        bail!("The b64 header claim name must be in critical.");
+            if let Some(vals) = header.critical() {
+                if vals.iter().any(|e| e == "b64") {
+                    if let Some(val) = header.base64url_encode_payload() {
+                        b64 = *val;
                     }
                 }
             }
