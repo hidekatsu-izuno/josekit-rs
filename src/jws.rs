@@ -190,11 +190,11 @@ impl Jws {
     /// * `input` - The input data.
     /// * `header` - The decoded JWS header claims.
     /// * `verifier` - The JWS verifier.
-    pub fn deserialize_compact<'a>(
+    pub fn deserialize_compact(
         input: &str,
-        verifier: &'a dyn JwsVerifier,
+        verifier: &dyn JwsVerifier,
     ) -> Result<(JwsHeader, Vec<u8>), JoseError> {
-        Self::deserialize_compact_with_verifier_selector(
+        Self::deserialize_compact_with_selector(
             input, 
             |_header| Ok(Box::new(verifier)),
         )
@@ -206,9 +206,9 @@ impl Jws {
     /// * `input` - The input data.
     /// * `header` - The decoded JWS header claims.
     /// * `verifier_selector` - a function for selecting the verifying algorithm.
-    pub fn deserialize_compact_with_verifier_selector<'a, F>(
+    pub fn deserialize_compact_with_selector<'a, F>(
         input: &str,
-        verifier_selector: F,
+        selector: F,
     ) -> Result<(JwsHeader, Vec<u8>), JoseError>
     where
         F: FnOnce(&JwsHeader) -> Result<Box<&'a dyn JwsVerifier>, JoseError>,
@@ -228,7 +228,7 @@ impl Jws {
             let header: Map<String, Value> = serde_json::from_slice(&header)?;
             let header = JwsHeader::from_map(header)?;
 
-            let verifier = verifier_selector(&header)?;
+            let verifier = selector(&header)?;
 
             let expected_alg = verifier.algorithm().name();
             match header.claim("alg") {
@@ -298,7 +298,7 @@ impl Jws {
         input: &str,
         verifier: &'a dyn JwsVerifier,
     ) -> Result<(JwsHeader, Vec<u8>), JoseError> {
-        Self::deserialize_flattened_json_with_verifier_selector(
+        Self::deserialize_flattened_json_with_selector(
             input, 
             |_header| Ok(Box::new(verifier))
         )
@@ -309,10 +309,10 @@ impl Jws {
     /// # Arguments
     /// * `input` - The input data.
     /// * `header` - The decoded JWS header claims.
-    /// * `verifier_selector` - a function for selecting the verifying algorithm.
-    pub fn deserialize_flattened_json_with_verifier_selector<'a, F>(
+    /// * `selector` - a function for selecting the verifying algorithm.
+    pub fn deserialize_flattened_json_with_selector<'a, F>(
         input: &str,
-        verifier_selector: F,
+        selector: F,
     ) -> Result<(JwsHeader, Vec<u8>), JoseError>
     where
         F: FnOnce(&JwsHeader) -> Result<Box<&'a dyn JwsVerifier>, JoseError>,
@@ -345,7 +345,7 @@ impl Jws {
             }
 
             let header = JwsHeader::from_map(header)?;
-            let verifier = verifier_selector(&header)?;
+            let verifier = selector(&header)?;
 
             let expected_kid = verifier.key_id();
             match (expected_kid, header.claim("kid")) {
