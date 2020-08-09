@@ -8,7 +8,7 @@ use openssl::pkey::{PKey, Private};
 use openssl::sign::Signer;
 use serde_json::Value;
 
-use crate::error::JoseError;
+use crate::jose::JoseError;
 use crate::jwk::Jwk;
 use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier};
 

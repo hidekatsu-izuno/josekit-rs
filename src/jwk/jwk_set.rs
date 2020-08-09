@@ -8,7 +8,7 @@ use std::ops::Bound::Included;
 use std::string::ToString;
 use std::sync::Arc;
 
-use crate::error::JoseError;
+use crate::jose::JoseError;
 use crate::jwk::jwk::Jwk;
 
 /// Represents JWK set.

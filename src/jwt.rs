@@ -6,8 +6,7 @@ use anyhow::bail;
 use chrono::{DateTime, Utc};
 use serde_json::{json, Map, Number, Value};
 
-use crate::error::JoseError;
-use crate::jose::JoseHeader;
+use crate::jose::{JoseError, JoseHeader};
 use crate::jwe::{Jwe, JweDecrypter, JweEncrypter, JweHeader};
 use crate::jwk::{Jwk, JwkSet};
 use crate::jws::{Jws, JwsHeader, JwsSigner, JwsVerifier};

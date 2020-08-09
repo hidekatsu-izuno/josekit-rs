@@ -1,4 +1,4 @@
-use crate::error::JoseError;
+use crate::jose::JoseError;
 use crate::jwe::{JweAlgorithm, JweDecrypter, JweEncrypter, JweEncryption};
 use crate::jwk::Jwk;
 

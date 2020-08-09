@@ -1,8 +1,7 @@
 use anyhow::bail;
 use serde_json::{Map, Value};
 
-use crate::error::JoseError;
-use crate::jose::JoseHeader;
+use crate::jose::{JoseError, JoseHeader};
 use crate::jws::{JwsHeader, JwsSigner};
 
 pub struct JwsMultiSigner<'a> {

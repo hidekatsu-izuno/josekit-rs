@@ -10,7 +10,7 @@ use serde_json::Value;
 
 use crate::der::oid::ObjectIdentifier;
 use crate::der::{DerBuilder, DerReader, DerType};
-use crate::error::JoseError;
+use crate::jose::JoseError;
 use crate::jwk::{Jwk, KeyPair};
 use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier};
 use crate::util::parse_pem;

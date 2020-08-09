@@ -1,7 +1,9 @@
+mod error;
+
 use serde_json::{Map, Value};
 use std::fmt::Display;
 
-use crate::error::JoseError;
+pub use crate::jose::error::JoseError;
 
 pub trait JoseHeader: Clone + Display {
     fn from_slice(value: &[u8]) -> Result<Self, JoseError> {

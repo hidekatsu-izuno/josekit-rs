@@ -8,8 +8,7 @@ use std::fmt::Display;
 use anyhow::bail;
 use serde_json::{Map, Value};
 
-use crate::error::JoseError;
-use crate::jose::JoseHeader;
+use crate::jose::{JoseError, JoseHeader};
 use crate::jwk::Jwk;
 use crate::util::SourceValue;
 
