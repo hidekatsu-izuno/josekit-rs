@@ -12,6 +12,24 @@ pub enum Pbes2HmacAesJweAlgorithm {
     PBES2_HS512_A256KW,
 }
 
+impl Pbes2HmacAesJweAlgorithm {
+    pub fn encrypter_from_jwk(
+        &self,
+        jwk: &Jwk,
+        encryption: &dyn JweEncryption,
+    ) -> Result<Pbes2HmacAesJweEncrypter, JoseError> {
+        unimplemented!();
+    }
+
+    pub fn decrypter_from_jwk(
+        &self,
+        jwk: &Jwk,
+        encryption: &dyn JweEncryption,
+    ) -> Result<Pbes2HmacAesJweDecrypter, JoseError> {
+        unimplemented!();
+    }
+}
+
 impl JweAlgorithm for Pbes2HmacAesJweAlgorithm {
     fn name(&self) -> &str {
         match self {
@@ -20,20 +38,10 @@ impl JweAlgorithm for Pbes2HmacAesJweAlgorithm {
             Self::PBES2_HS512_A256KW => "PBES2-HS512+A256KW",
         }
     }
-
-    fn encrypter_from_jwk(
-        &self,
-        jwk: &Jwk,
-        encryption: &dyn JweEncryption,
-    ) -> Result<Box<dyn JweEncrypter>, JoseError> {
-        unimplemented!();
-    }
-
-    fn decrypter_from_jwk(
-        &self,
-        jwk: &Jwk,
-        encryption: &dyn JweEncryption,
-    ) -> Result<Box<dyn JweDecrypter>, JoseError> {
-        unimplemented!();
-    }
 }
+
+#[derive(Debug, Clone)]
+pub struct Pbes2HmacAesJweEncrypter;
+
+#[derive(Debug, Clone)]
+pub struct Pbes2HmacAesJweDecrypter;

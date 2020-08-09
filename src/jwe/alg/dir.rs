@@ -8,26 +8,34 @@ pub enum DirJweAlgorithm {
     Dir,
 }
 
+impl DirJweAlgorithm {
+    pub fn encrypter_from_jwk(
+        &self,
+        jwk: &Jwk,
+        encryption: &dyn JweEncryption,
+    ) -> Result<DirJweEncrypter, JoseError> {
+        unimplemented!();
+    }
+
+    pub fn decrypter_from_jwk(
+        &self,
+        jwk: &Jwk,
+        encryption: &dyn JweEncryption,
+    ) -> Result<DirJweDecrypter, JoseError> {
+        unimplemented!();
+    }
+}
+
 impl JweAlgorithm for DirJweAlgorithm {
     fn name(&self) -> &str {
         match self {
             Self::Dir => "dir",
         }
     }
-
-    fn encrypter_from_jwk(
-        &self,
-        jwk: &Jwk,
-        encryption: &dyn JweEncryption,
-    ) -> Result<Box<dyn JweEncrypter>, JoseError> {
-        unimplemented!();
-    }
-
-    fn decrypter_from_jwk(
-        &self,
-        jwk: &Jwk,
-        encryption: &dyn JweEncryption,
-    ) -> Result<Box<dyn JweDecrypter>, JoseError> {
-        unimplemented!();
-    }
 }
+
+#[derive(Debug, Clone)]
+pub struct DirJweEncrypter;
+
+#[derive(Debug, Clone)]
+pub struct DirJweDecrypter;

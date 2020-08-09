@@ -12,6 +12,24 @@ pub enum RsaesJweAlgorithm {
     RSA_OAEP_256,
 }
 
+impl RsaesJweAlgorithm {
+    pub fn encrypter_from_jwk(
+        &self,
+        jwk: &Jwk,
+        encryption: &dyn JweEncryption,
+    ) -> Result<RsaesJweEncrypter, JoseError> {
+        unimplemented!();
+    }
+
+    pub fn decrypter_from_jwk(
+        &self,
+        jwk: &Jwk,
+        encryption: &dyn JweEncryption,
+    ) -> Result<RsaesJweDecrypter, JoseError> {
+        unimplemented!();
+    }
+}
+
 impl JweAlgorithm for RsaesJweAlgorithm {
     fn name(&self) -> &str {
         match self {
@@ -20,20 +38,10 @@ impl JweAlgorithm for RsaesJweAlgorithm {
             Self::RSA_OAEP_256 => "RSA-OAEP-256",
         }
     }
-
-    fn encrypter_from_jwk(
-        &self,
-        jwk: &Jwk,
-        encryption: &dyn JweEncryption,
-    ) -> Result<Box<dyn JweEncrypter>, JoseError> {
-        unimplemented!();
-    }
-
-    fn decrypter_from_jwk(
-        &self,
-        jwk: &Jwk,
-        encryption: &dyn JweEncryption,
-    ) -> Result<Box<dyn JweDecrypter>, JoseError> {
-        unimplemented!();
-    }
 }
+
+#[derive(Debug, Clone)]
+pub struct RsaesJweEncrypter;
+
+#[derive(Debug, Clone)]
+pub struct RsaesJweDecrypter;

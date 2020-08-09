@@ -35,6 +35,8 @@ pub use crate::jws::alg::eddsa::EddsaJwsAlgorithm::EDDSA;
 pub use crate::jws::multi_signer::JwsMultiSigner;
 pub use crate::jws::multi_verifier::JwsMultiVerifier;
 
+/// Represents plain JWS object with header and payload.
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub struct Jws;
 
 impl Jws {
@@ -108,8 +110,8 @@ impl Jws {
     /// * `payload` - The payload data.
     /// * `signer` - The JWS signer.
     pub fn serialize_flattened_json(
-        protected: Option<JwsHeader>,
-        header: Option<JwsHeader>,
+        protected: Option<&JwsHeader>,
+        header: Option<&JwsHeader>,
         payload: &[u8],
         signer: &dyn JwsSigner,
     ) -> Result<String, JoseError> {
@@ -193,9 +195,10 @@ impl Jws {
         input: &str,
         verifier: &'a dyn JwsVerifier,
     ) -> Result<(JwsHeader, Vec<u8>), JoseError> {
-        Self::deserialize_compact_with_verifier_selector(input, |header| {
-            Ok(Box::new(verifier))
-        })
+        Self::deserialize_compact_with_verifier_selector(
+            input, 
+            |_header| Ok(Box::new(verifier)),
+        )
     }
 
     /// Deserialize the input that is formatted by compact serialization.
@@ -207,9 +210,9 @@ impl Jws {
     pub fn deserialize_compact_with_verifier_selector<'a, F>(
         input: &str,
         verifier_selector: F,
-    ) -> Result<(JwsHeader, Vec<u8>), JoseError> 
+    ) -> Result<(JwsHeader, Vec<u8>), JoseError>
     where
-    F: FnOnce(&JwsHeader) -> Result<Box<&'a dyn JwsVerifier>, JoseError>,
+        F: FnOnce(&JwsHeader) -> Result<Box<&'a dyn JwsVerifier>, JoseError>,
     {
         (|| -> anyhow::Result<(JwsHeader, Vec<u8>)> {
             let indexies: Vec<usize> = input
@@ -218,7 +221,7 @@ impl Jws {
                 .map(|(i, _)| i)
                 .collect();
             if indexies.len() != 2 {
-                bail!("The signed JWT must be three parts separated by colon.");
+                bail!("The signed token must be three parts separated by colon.");
             }
 
             let header = &input[0..indexies[0]];
@@ -232,10 +235,10 @@ impl Jws {
             match header.claim("alg") {
                 Some(Value::String(val)) if val == expected_alg => {}
                 Some(Value::String(val)) => {
-                    bail!("The JWT alg header claim is not {}: {}", expected_alg, val)
+                    bail!("The JWS alg header claim is not {}: {}", expected_alg, val)
                 }
-                Some(_) => bail!("The JWT alg header claim must be a string."),
-                None => bail!("The JWT alg header claim is required."),
+                Some(_) => bail!("The JWS alg header claim must be a string."),
+                None => bail!("The JWS alg header claim is required."),
             }
 
             let expected_kid = verifier.key_id();
@@ -243,9 +246,9 @@ impl Jws {
                 (Some(expected), Some(actual)) if expected == actual => {}
                 (None, None) => {}
                 (Some(_), Some(actual)) => {
-                    bail!("The JWT kid header claim is mismatched: {}", actual)
+                    bail!("The JWS kid header claim is mismatched: {}", actual)
                 }
-                _ => bail!("The JWT kid header claim is missing."),
+                _ => bail!("The JWS kid header claim is missing."),
             }
 
             if let Some(critical) = header.critical() {
@@ -265,8 +268,6 @@ impl Jws {
                 }
             }
 
-            let message = &input[..(indexies[1])];
-
             let payload = &input[(indexies[0] + 1)..(indexies[1])];
             let payload = if b64 {
                 base64::decode_config(payload, base64::URL_SAFE_NO_PAD)?
@@ -277,7 +278,126 @@ impl Jws {
             let signature = &input[(indexies[1] + 1)..];
             let signature = base64::decode_config(signature, base64::URL_SAFE_NO_PAD)?;
 
+            let message = &input[..(indexies[1])];
             verifier.verify(message.as_bytes(), &signature)?;
+
+            Ok((header, payload))
+        })()
+        .map_err(|err| match err.downcast::<JoseError>() {
+            Ok(err) => err,
+            Err(err) => JoseError::InvalidJwtFormat(err),
+        })
+    }
+
+    /// Deserialize the input that is formatted by flattened json serialization.
+    ///
+    /// # Arguments
+    /// * `input` - The input data.
+    /// * `header` - The decoded JWS header claims.
+    /// * `verifier` - The JWS verifier.
+    pub fn deserialize_flattened_json<'a>(
+        input: &str,
+        verifier: &'a dyn JwsVerifier,
+    ) -> Result<(JwsHeader, Vec<u8>), JoseError> {
+        Self::deserialize_flattened_json_with_verifier_selector(
+            input, 
+            |_header| Ok(Box::new(verifier))
+        )
+    }
+
+    /// Deserialize the input that is formatted by flattened json serialization.
+    ///
+    /// # Arguments
+    /// * `input` - The input data.
+    /// * `header` - The decoded JWS header claims.
+    /// * `verifier_selector` - a function for selecting the verifying algorithm.
+    pub fn deserialize_flattened_json_with_verifier_selector<'a, F>(
+        input: &str,
+        verifier_selector: F,
+    ) -> Result<(JwsHeader, Vec<u8>), JoseError>
+    where
+        F: FnOnce(&JwsHeader) -> Result<Box<&'a dyn JwsVerifier>, JoseError>,
+    {
+        (|| -> anyhow::Result<(JwsHeader, Vec<u8>)> {
+            let mut map: Map<String, Value> = serde_json::from_str(input)?;
+
+            let protected = match map.remove("protected") {
+                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
+                Some(_) => bail!("The protected field must be a string."),
+                None => bail!("The JWS alg header claim must be in protected."),
+            };
+
+            let mut header: Map<String, Value> = serde_json::from_slice(&protected)?;
+            if let None = header.get("alg") {
+                bail!("The JWS alg header claim must be in protected.");
+            }
+
+            match map.remove("header") {
+                Some(Value::Object(val)) => {
+                    for key in val.keys() {
+                        if header.contains_key(key) {
+                            bail!("Duplicate key exists: {}", key);
+                        }
+                    }
+                    header.extend(val);
+                }
+                Some(_) => bail!("The header field must be a object."),
+                None => {}
+            }
+
+            let header = JwsHeader::from_map(header)?;
+            let verifier = verifier_selector(&header)?;
+
+            let expected_kid = verifier.key_id();
+            match (expected_kid, header.claim("kid")) {
+                (Some(expected), Some(actual)) if expected == actual => {}
+                (None, None) => {}
+                (Some(_), Some(actual)) => {
+                    bail!("The JWS kid header claim is mismatched: {}", actual);
+                }
+                _ => bail!("The JWS kid header claim is missing."),
+            }
+
+            if let Some(critical) = header.critical() {
+                for name in critical {
+                    if !verifier.is_acceptable_critical(name) {
+                        bail!("The critical name '{}' is not supported.", name);
+                    }
+                }
+            }
+
+            let mut b64 = true;
+            if let Some(vals) = header.critical() {
+                if vals.iter().any(|e| e == "b64") {
+                    if let Some(val) = header.base64url_encode_payload() {
+                        b64 = *val;
+                    }
+                }
+            }
+
+            let payload = match map.remove("payload") {
+                Some(Value::String(val)) => {
+                    if b64 {
+                        base64::decode_config(val, base64::URL_SAFE_NO_PAD)?
+                    } else {
+                        val.into_bytes()
+                    }
+                }
+                Some(_) => bail!("The payload field must be string."),
+                None => bail!("The payload field is required."),
+            };
+
+            let signature = match map.remove("signature") {
+                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
+                Some(_) => bail!("The signature field must be string."),
+                None => bail!("The signature field is required."),
+            };
+
+            let mut message = protected;
+            message.extend(b".");
+            message.extend(&payload);
+
+            verifier.verify(&message, &signature)?;
 
             Ok((header, payload))
         })()

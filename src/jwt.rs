@@ -539,23 +539,21 @@ impl Jwt<JwsHeader> {
                 bail!("The signed JWT must be three parts separated by colon.");
             }
 
-            let (header, payload) = Jws::deserialize_compact_with_verifier_selector(
-                input, 
-                |header| {
+            let (header, payload) =
+                Jws::deserialize_compact_with_verifier_selector(input, |header| {
                     (|| -> anyhow::Result<Box<&'a dyn JwsVerifier>> {
                         let verifier = match verifier_selector(&header) {
                             Some(val) => val,
                             None => bail!("A verifier is not found."),
                         };
-            
+
                         if verifier.is_acceptable_critical("b64") {
                             bail!("JWT is not support b64 header claim.")
                         }
                         Ok(verifier)
                     })()
                     .map_err(|err| JoseError::InvalidJwtFormat(err))
-                }
-            )?;
+                })?;
             let payload: Map<String, Value> = serde_json::from_slice(&payload)?;
             let payload = JwtPayload::from_map(payload)?;
 

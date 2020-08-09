@@ -12,6 +12,24 @@ pub enum EcdhEsAesJweAlgorithm {
     ECDH_ES_A256KW,
 }
 
+impl EcdhEsAesJweAlgorithm {
+    pub fn encrypter_from_jwk(
+        &self,
+        jwk: &Jwk,
+        encryption: &dyn JweEncryption,
+    ) -> Result<EcdhEsAesJweEncrypter, JoseError> {
+        unimplemented!();
+    }
+
+    pub fn decrypter_from_jwk(
+        &self,
+        jwk: &Jwk,
+        encryption: &dyn JweEncryption,
+    ) -> Result<EcdhEsAesJweDecrypter, JoseError> {
+        unimplemented!();
+    }
+}
+
 impl JweAlgorithm for EcdhEsAesJweAlgorithm {
     fn name(&self) -> &str {
         match self {
@@ -20,20 +38,10 @@ impl JweAlgorithm for EcdhEsAesJweAlgorithm {
             Self::ECDH_ES_A256KW => "ECDH-ES+A128KW",
         }
     }
-
-    fn encrypter_from_jwk(
-        &self,
-        jwk: &Jwk,
-        encryption: &dyn JweEncryption,
-    ) -> Result<Box<dyn JweEncrypter>, JoseError> {
-        unimplemented!();
-    }
-
-    fn decrypter_from_jwk(
-        &self,
-        jwk: &Jwk,
-        encryption: &dyn JweEncryption,
-    ) -> Result<Box<dyn JweDecrypter>, JoseError> {
-        unimplemented!();
-    }
 }
+
+#[derive(Debug, Clone)]
+pub struct EcdhEsAesJweEncrypter;
+
+#[derive(Debug, Clone)]
+pub struct EcdhEsAesJweDecrypter;

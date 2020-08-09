@@ -58,16 +58,6 @@ impl Jwe {
         encrypter: &dyn JweEncrypter,
     ) -> Result<String, JoseError> {
         (|| -> anyhow::Result<String> {
-            let mut b64 = true;
-            if let Some(Value::Bool(false)) = header.claim("b64") {
-                if let Some(Value::Array(vals)) = header.claim("crit") {
-                    if vals.iter().any(|e| e == "b64") {
-                        b64 = false;
-                    } else {
-                        bail!("The b64 header claim name must be in critical.");
-                    }
-                }
-            }
             Ok("".to_string())
         })()
         .map_err(|err| match err.downcast::<JoseError>() {

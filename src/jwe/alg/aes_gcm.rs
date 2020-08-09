@@ -12,6 +12,24 @@ pub enum AesGcmJweAlgorithm {
     A256GCMKW,
 }
 
+impl AesGcmJweAlgorithm {
+    pub fn encrypter_from_jwk(
+        &self,
+        jwk: &Jwk,
+        encryption: &dyn JweEncryption,
+    ) -> Result<AesGcmJweEncrypter, JoseError> {
+        unimplemented!();
+    }
+
+    pub fn decrypter_from_jwk(
+        &self,
+        jwk: &Jwk,
+        encryption: &dyn JweEncryption,
+    ) -> Result<AesGcmJweDecrypter, JoseError> {
+        unimplemented!();
+    }
+}
+
 impl JweAlgorithm for AesGcmJweAlgorithm {
     fn name(&self) -> &str {
         match self {
@@ -20,20 +38,10 @@ impl JweAlgorithm for AesGcmJweAlgorithm {
             Self::A256GCMKW => "A256GCMKW",
         }
     }
-
-    fn encrypter_from_jwk(
-        &self,
-        jwk: &Jwk,
-        encryption: &dyn JweEncryption,
-    ) -> Result<Box<dyn JweEncrypter>, JoseError> {
-        unimplemented!();
-    }
-
-    fn decrypter_from_jwk(
-        &self,
-        jwk: &Jwk,
-        encryption: &dyn JweEncryption,
-    ) -> Result<Box<dyn JweDecrypter>, JoseError> {
-        unimplemented!();
-    }
 }
+
+#[derive(Debug, Clone)]
+pub struct AesGcmJweEncrypter;
+
+#[derive(Debug, Clone)]
+pub struct AesGcmJweDecrypter;
