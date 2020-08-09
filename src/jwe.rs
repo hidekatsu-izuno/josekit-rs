@@ -54,13 +54,25 @@ pub fn serialize_compact(
     payload: &[u8],
     encrypter: &dyn JweEncrypter,
 ) -> Result<String, JoseError> {
+    serialize_compact_with_selector(header, payload, |_header| Some(Box::new(encrypter)))
+}
+
+/// Return a representation of the data that is formatted by compact serialization.
+///
+/// # Arguments
+/// * `header` - The JWS heaser claims.
+/// * `payload` - The payload data.
+/// * `selector` - a function for selecting the signing algorithm.
+pub fn serialize_compact_with_selector<'a, F>(
+    header: &JweHeader,
+    payload: &[u8],
+    selector: F,
+) -> Result<String, JoseError>
+where
+    F: FnOnce(&JweHeader) -> Option<Box<&'a dyn JweEncrypter>>,
+{
     (|| -> anyhow::Result<String> {
-        let payload = base64::encode_config(payload, base64::URL_SAFE_NO_PAD);
-
-        let header = header.to_string();
-        let header = base64::encode_config(header, base64::URL_SAFE_NO_PAD);
-
-        unimplemented!();
+        unimplemented!("JWE is not supported yet.");
     })()
     .map_err(|err| match err.downcast::<JoseError>() {
         Ok(err) => err,
@@ -81,44 +93,32 @@ pub fn serialize_flattened_json(
     payload: &[u8],
     encrypter: &dyn JweEncrypter,
 ) -> Result<String, JoseError> {
+    serialize_flattened_json_with_selector(
+        protected, 
+        header, 
+        payload, 
+        |_header| Some(Box::new(encrypter))
+    )
+}
+
+/// Return a representation of the data that is formatted by flatted json serialization.
+///
+/// # Arguments
+/// * `protected` - The JWS protected header claims.
+/// * `header` - The JWS unprotected header claims.
+/// * `payload` - The payload data.
+/// * `selector` - a function for selecting the encrypting algorithm.
+pub fn serialize_flattened_json_with_selector<'a, F>(
+    protected: Option<&JweHeader>,
+    header: Option<&JweHeader>,
+    payload: &[u8],
+    selector: F,
+) -> Result<String, JoseError>
+where
+    F: FnOnce(&JweHeader) -> Option<Box<&'a dyn JweEncrypter>>,
+{
     (|| -> anyhow::Result<String> {
-        let mut result = Map::new();
-
-        let mut protected_map = if let Some(val) = protected {
-            val.claims_set().clone()
-        } else {
-            Map::new()
-        };
-        protected_map.insert(
-            "alg".to_string(),
-            Value::String(encrypter.algorithm().name().to_string()),
-        );
-
-        if let Some(val) = &header {
-            for key in val.claims_set().keys() {
-                if protected_map.contains_key(key) {
-                    bail!("Duplicate key exists: {}", key);
-                }
-            }
-        }
-
-        let protected_json = serde_json::to_string(&protected_map)?;
-        let protected_base64 = base64::encode_config(protected_json, base64::URL_SAFE_NO_PAD);
-
-        let payload = base64::encode_config(payload, base64::URL_SAFE_NO_PAD);
-
-        result.insert("protected".to_string(), Value::String(protected_base64));
-
-        if let Some(val) = header {
-            result.insert(
-                "header".to_string(),
-                Value::Object(val.claims_set().clone()),
-            );
-        }
-
-        result.insert("payload".to_string(), Value::String(payload.to_string()));
-
-        unimplemented!();
+        unimplemented!("JWE is not supported yet.");
     })()
     .map_err(|err| match err.downcast::<JoseError>() {
         Ok(err) => err,
@@ -151,50 +151,41 @@ where
     F: FnOnce(&JweHeader) -> Result<Box<&'a dyn JweDecrypter>, JoseError>,
 {
     (|| -> anyhow::Result<(JweHeader, Vec<u8>)> {
-        let indexies: Vec<usize> = input
-            .char_indices()
-            .filter(|(_, c)| c == &'.')
-            .map(|(i, _)| i)
-            .collect();
-        if indexies.len() != 4 {
-            bail!("The encrypted token must be five parts separated by colon.");
-        }
+        unimplemented!("JWE is not supported yet.");
+    })()
+    .map_err(|err| match err.downcast::<JoseError>() {
+        Ok(err) => err,
+        Err(err) => JoseError::InvalidJwtFormat(err),
+    })
+}
 
-        let header = &input[0..indexies[0]];
-        let header = base64::decode_config(header, base64::URL_SAFE_NO_PAD)?;
-        let header: Map<String, Value> = serde_json::from_slice(&header)?;
-        let header = JweHeader::from_map(header)?;
+/// Deserialize the input that is formatted by flattened json serialization.
+///
+/// # Arguments
+/// * `input` - The input data.
+/// * `header` - The decoded JWS header claims.
+/// * `decrypter` - The JWE decrypter.
+pub fn deserialize_flattened_json<'a>(
+    input: &str,
+    decrypter: &'a dyn JweDecrypter,
+) -> Result<(JweHeader, Vec<u8>), JoseError> {
+    deserialize_flattened_json_with_selector(input, |_header| Ok(Box::new(decrypter)))
+}
 
-        let verifier = selector(&header)?;
-
-        let expected_alg = verifier.algorithm().name();
-        match header.claim("alg") {
-            Some(Value::String(val)) if val == expected_alg => {}
-            Some(Value::String(val)) => {
-                bail!("The JWS alg header claim is not {}: {}", expected_alg, val)
-            }
-            Some(_) => bail!("The JWS alg header claim must be a string."),
-            None => bail!("The JWS alg header claim is required."),
-        }
-
-        let expected_kid = verifier.key_id();
-        match (expected_kid, header.claim("kid")) {
-            (Some(expected), Some(actual)) if expected == actual => {}
-            (None, None) => {}
-            (Some(_), Some(actual)) => {
-                bail!("The JWS kid header claim is mismatched: {}", actual)
-            }
-            _ => bail!("The JWS kid header claim is missing."),
-        }
-
-        if let Some(critical) = header.critical() {
-            for name in critical {
-                if !verifier.is_acceptable_critical(name) {
-                    bail!("The critical name '{}' is not supported.", name);
-                }
-            }
-        }
-
+/// Deserialize the input that is formatted by flattened json serialization.
+///
+/// # Arguments
+/// * `input` - The input data.
+/// * `header` - The decoded JWS header claims.
+/// * `selector` - a function for selecting the decrypting algorithm.
+pub fn deserialize_flattened_json_with_selector<'a, F>(
+    input: &str,
+    selector: F,
+) -> Result<(JweHeader, Vec<u8>), JoseError>
+where
+    F: FnOnce(&JweHeader) -> Result<Box<&'a dyn JweDecrypter>, JoseError>,
+{
+    (|| -> anyhow::Result<(JweHeader, Vec<u8>)> {
         unimplemented!("JWE is not supported yet.");
     })()
     .map_err(|err| match err.downcast::<JoseError>() {
