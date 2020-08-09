@@ -97,20 +97,24 @@ Three types of HMAC algorithms are available: HS256, HS384, and HS512.
 You can use any text as the key.
 
 ```rust
-use jwt_rs::{ Jwt, HS256 };
+use josekit::jws::{ JwsHeader, HS256 };
+use josekit::jwt::{ self, JwtPayload };
 
-let mut jwt = Jwt::with_jws_header();
-jwt.payload.set_subject("...");
+let mut header = JwsHeader::new();
+header.set_token_type("JWT");
+
+let mut payload = JwtPayload::new();
+payload.set_subject("subject");
 
 let common_secret_key = b"secret";
 
 // Signing JWT
 let signer = HS256.signer_from_bytes(private_key)?;
-let encoded_jwt = jwt.encode_with_signer(&signer)?;
+let jwt = jwt::encode_with_signer(&header, &payload, &signer)?;
 
 // Verifing JWT
 let verifier = HS256.signer_from_bytes(private_key)?
-let decoded_jwt = Jwt::decode_with_verifier(&verifier, &encoded_jwt)?;
+let (header, payload) = jwt::decode_with_verifier(&jwt, &verifier)?;
 ```
 
 ### Signing a JWT by RSA
@@ -129,20 +133,24 @@ openssl pkey -in RSA_private.pem -pubout -outform PEM -out RSA_public.pem
 ```
 
 ```rust
-use jwt_rs::{ Jwt, RS256 };
+use josekit::jws::{ JwsHeader, RS256 };
+use josekit::jwt::{ self, JwtPayload };
 
-let mut jwt = Jwt::with_jws_header();
-jwt.payload.set_subject("...");
+let mut header = JwsHeader::new();
+header.set_token_type("JWT");
+
+let mut payload = JwtPayload::new();
+payload.set_subject("subject");
 
 // Signing JWT
 let private_key = load_from_file("rsa_private.pem")?;
-let signer = RS256.signer_from_private_pem(&private_key)?;
-let encoded_jwt = jwt.encode_with_signer(&signer)?;
+let signer = RS256.signer_from_pem(&private_key)?;
+let jwt = jwt::encode_with_signer(&header, &payload, &signer)?;
 
 // Verifing JWT
 let public_key = load_from_file("rsa_public.pem")?;
-let verifier = RS256.verifier_from_public_pem(&public_key)?;
-let decoded_jwt = Jwt::decode_with_verifier(&verifier, &encoded_jwt)?;
+let verifier = RS256.verifier_from_pem(&public_key)?;
+let (header, payload) = jwt::decode_with_verifier(&jwt, &verifier)?;
 ```
 
 ### Signing a JWT by RSA-PSS
@@ -171,20 +179,24 @@ openssl pkey -in RSA-PSS_private.pem -pubout -outform PEM -out RSA-PSS_public.pe
 ```
 
 ```rust
-use jwt_rs::{ Jwt, PS256 };
+use josekit::jws::{ JwsHeader, PS256 };
+use josekit::jwt::{ self, JwtPayload };
 
-let mut jwt = Jwt::with_jws_header();
-jwt.payload.set_subject("...");
+let mut header = JwsHeader::new();
+header.set_token_type("JWT");
+
+let mut payload = JwtPayload::new();
+payload.set_subject("subject");
 
 // Signing JWT
 let private_key = load_from_file("rsapss_private.pem")?;
-let signer = PS256.signer_from_private_pem(&private_key)?;
-let encoded_jwt = jwt.encode_with_signer(&signer)?;
+let signer = PS256.signer_from_pem(&private_key)?;
+let jwt = jwt::encode_with_signer(&header, &payload, &signer)?;
 
 // Verifing JWT
 let public_key = load_from_file("rsapss_public.pem")?;
-let verifier = PS256.verifier_from_public_pem(&public_key)?;
-let decoded_jwt = Jwt::decode_with_verifier(&verifier, &encoded_jwt)?;
+let verifier = PS256.verifier_from_pem(&public_key)?;
+let (header, payload) = jwt::decode_with_verifier(&jwt, &verifier)?;
 ```
 
 ### Signing a JWT by ECDSA
@@ -214,20 +226,24 @@ openssl pkey -in ECDSA_private.pem -pubout -outform PEM -out ECDSA_public.pem
 ```
 
 ```rust
-use jwt_rs::{ Jwt, ES256 };
+use josekit::jws::{ JwsHeader, ES256 };
+use josekit::jwt::{ self, JwtPayload };
 
-let mut jwt = Jwt::with_jws_header();
-jwt.payload.set_subject("...");
+let mut header = JwsHeader::new();
+header.set_token_type("JWT");
+
+let mut payload = JwtPayload::new();
+payload.set_subject("subject");
 
 // Signing JWT
 let private_key = load_from_file("ECDSA_private.pem")?;
-let signer = ES256.signer_from_private_pem(&private_key)?;
-let encoded_jwt = jwt.encode_with_signer(&signer)?;
+let signer = ES256.signer_from_pem(&private_key)?;
+let jwt = jwt::encode_with_signer(&header, &payload, &signer)?;
 
 // Verifing JWT
 let public_key = load_from_file("ECDSA_public.pem")?;
-let verifier = ES256.verifier_from_public_pem(&public_key)?;
-let decoded_jwt = Jwt::decode_with_verifier(&verifier, &encoded_jwt)?;
+let verifier = ES256.verifier_from_pem(&public_key)?;
+let (header, payload) = jwt::decode_with_verifier(&jwt, &verifier)?;
 ```
 
 ### Signing a JWT by EdDSA
@@ -252,20 +268,24 @@ openssl pkey -in ECDSA_private.pem -pubout -outform PEM -out ECDSA_public.pem
 ```
 
 ```rust
-use jwt_rs::{ Jwt, EdDSA };
+use josekit::jws::{ JwsHeader, EdDSA };
+use josekit::jwt::{ self, JwtPayload };
 
-let mut jwt = Jwt::with_jws_header();
-jwt.payload.set_subject("...");
+let mut header = JwsHeader::new();
+header.set_token_type("JWT");
+
+let mut payload = JwtPayload::new();
+payload.set_subject("subject");
 
 // Signing JWT
 let private_key = load_from_file("EdDSA_private.pem")?;
-let signer = EdDSA.signer_from_private_pem(&private_key)?;
-let encoded_jwt = jwt.encode_with_signer(&signer)?;
+let signer = EdDSA.signer_from_pem(&private_key)?;
+let jwt = jwt::encode_with_signer(&header, &payload, &signer)?;
 
 // Verifing JWT
 let public_key = load_from_file("EdDSA_public.pem")?;
-let verifier = EdDSA.verifier_from_public_pem(&public_key)?;
-let decoded_jwt = Jwt::decode_with_verifier(&verifier, &encoded_jwt)?;
+let verifier = EdDSA.verifier_from_pem(&public_key)?;
+let (header, payload) = jwt::decode_with_verifier(&jwt, &verifier)?;
 ```
 
 ### Encrypted JWT
@@ -275,13 +295,16 @@ Not supported yet.
 ### Unsecured JWT
 
 ```rust
-use jwt_rs::Jwt;
+use josekit::jwt::{self, JwtHeader, JwtPayload};
 
-let mut jwt = Jwt::new();
-jwt.payload.set_subject("...");
+let mut header = JwtHeader::new();
+header.set_token_type("JWT");
 
-let encoded_jwt = jwt.encode_unsecured()?;
-let decoded_jwt = Jwt::decode_unsecured(&encoded_jwt)?;
+let mut payload = JwtPayload::new();
+payload.set_subject("subject");
+
+let jwt = jwt::encode_unsecured(&header, &payload)?;
+let (header, payload) = jwt::decode_unsecured(&jwt)?;
 ```
 
 ## ToDo
@@ -315,6 +338,7 @@ dual licensed as above, without any additional terms or conditions.
 - [RFC7517: JSON Web Key (JWK)](https://tools.ietf.org/html/rfc7517)
 - [RFC7518: JSON Web Algorithms (JWA)](https://tools.ietf.org/html/rfc7518)
 - [RFC7519: JSON Web Token (JWT)](https://tools.ietf.org/html/rfc7519)
+- [RFC7797: JSON Web Signature (JWS) Unencoded Payload Option](https://tools.ietf.org/html/rfc7797)
 - [RFC8017: PKCS #1: RSA Cryptography Specifications Version 2.2](https://tools.ietf.org/html/rfc8017)
 - [RFC5208: PKCS #8: Private-Key Information Syntax Specification Version 1.2](https://tools.ietf.org/html/rfc5208)
 - [RFC5280: Internet X.509 Public Key Infrastructure Certificate and Certificate Revocation List (CRL) Profile](https://tools.ietf.org/html/rfc5280)

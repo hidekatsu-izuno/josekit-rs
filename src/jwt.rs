@@ -7,24 +7,27 @@ use chrono::{DateTime, Utc};
 use serde_json::{json, Map, Number, Value};
 
 use crate::jose::{JoseError, JoseHeader};
-use crate::{ jws, jws::{JwsHeader, JwsSigner, JwsVerifier} };
-use crate::{ jwe, jwe::{JweDecrypter, JweEncrypter, JweHeader}};
+use crate::jws::{self, JwsHeader, JwsSigner, JwsVerifier};
+use crate::jwe::{self, JweDecrypter, JweEncrypter, JweHeader};
 use crate::jwk::{Jwk, JwkSet};
 use crate::util::SourceValue;
 
 /// Return the JWT object decoded with the "none" algorithm.
 ///
 /// # Arguments
+/// 
 /// * `input` - a JWT string representation.
-pub fn decode_unsecured(input: &str) -> Result<(JwtHeader, JwtPayload), JoseError> {
-    (|| -> anyhow::Result<(JwtHeader, JwtPayload)> {
+pub fn decode_unsecured(input: &str) -> Result<(JwsHeader, JwtPayload), JoseError> {
+    (|| -> anyhow::Result<(JwsHeader, JwtPayload)> {
         let parts: Vec<&str> = input.split('.').collect();
-        if parts.len() != 2 {
-            bail!("The unsecured JWT must be two parts separated by colon.");
+        if parts.len() != 3 {
+            bail!("The unsecured JWT must be three parts separated by colon.");
+        }
+        if parts[2].len() != 0 {
+            bail!("The unsecured JWT must not be signature.");
         }
 
-        let header = parts.get(0).unwrap();
-        let header = base64::decode_config(header, base64::URL_SAFE_NO_PAD)?;
+        let header = base64::decode_config(parts[0], base64::URL_SAFE_NO_PAD)?;
         let header: Map<String, Value> = serde_json::from_slice(&header)?;
 
         match header.get("alg") {
@@ -39,10 +42,9 @@ pub fn decode_unsecured(input: &str) -> Result<(JwtHeader, JwtPayload), JoseErro
             Some(_) => bail!("A JWT of none alg cannot have kid header claim."),
         }
 
-        let header = JwtHeader::from_map(header)?;
+        let header = JwsHeader::from_map(header)?;
 
-        let payload = parts.get(1).unwrap();
-        let payload = base64::decode_config(payload, base64::URL_SAFE_NO_PAD)?;
+        let payload = base64::decode_config(parts[1], base64::URL_SAFE_NO_PAD)?;
         let payload: Map<String, Value> = serde_json::from_slice(&payload)?;
         let payload = JwtPayload::from_map(payload)?;
 
@@ -216,7 +218,7 @@ where
 /// # Arguments
 /// * `header` - The JWT heaser claims.
 /// * `payload` - The payload data.
-pub fn encode_unsecured(header: &JwtHeader, payload: &JwtPayload) -> Result<String, JoseError> {
+pub fn encode_unsecured(header: &JwsHeader, payload: &JwtPayload) -> Result<String, JoseError> {
     (|| -> anyhow::Result<String> {
         let mut header = header.claims_set().clone();
         header.insert("alg".to_string(), Value::String("none".to_string()));
@@ -227,7 +229,7 @@ pub fn encode_unsecured(header: &JwtHeader, payload: &JwtPayload) -> Result<Stri
         let payload = payload.to_string();
         let payload = base64::encode_config(payload, base64::URL_SAFE_NO_PAD);
 
-        Ok(format!("{}.{}", header, payload))
+        Ok(format!("{}.{}.", header, payload))
     })()
     .map_err(|err| match err.downcast::<JoseError>() {
         Ok(err) => err,
@@ -269,90 +271,6 @@ pub fn encode_with_encrypter(header: &JweHeader, payload: &JwtPayload, encrypter
     let payload = payload.to_string();
     let jwt = jwe::serialize_compact(header, payload.as_bytes(), encrypter)?;
     Ok(jwt)
-}
-
-#[derive(Debug, Eq, PartialEq, Clone)]
-pub struct JwtHeader {
-    claims: Map<String, Value>,
-}
-
-impl JwtHeader {
-    pub fn new() -> Self {
-        Self { claims: Map::new() }
-    }
-
-    /// Set a value for token type header claim (typ).
-    ///
-    /// # Arguments
-    /// * `value` - a token type (e.g. "JWT")
-    pub fn set_token_type(&mut self, value: impl Into<String>) {
-        let value: String = value.into();
-        self.claims.insert("typ".to_string(), Value::String(value));
-    }
-
-    /// Return the value for token type header claim (typ).
-    pub fn token_type(&self) -> Option<&str> {
-        match self.claims.get("typ") {
-            Some(Value::String(val)) => Some(val),
-            _ => None,
-        }
-    }
-
-    /// Set a value for content type header claim (cty).
-    ///
-    /// # Arguments
-    /// * `value` - a content type (e.g. "JWT")
-    pub fn set_content_type(&mut self, value: impl Into<String>) {
-        let value: String = value.into();
-        self.claims.insert("cty".to_string(), Value::String(value));
-    }
-
-    /// Return the value for content type header claim (cty).
-    pub fn content_type(&self) -> Option<&str> {
-        match self.claims.get("cty") {
-            Some(Value::String(val)) => Some(val),
-            _ => None,
-        }
-    }
-}
-
-impl JoseHeader for JwtHeader {
-    fn from_map(claims: Map<String, Value>) -> Result<Self, JoseError> {
-        Ok(Self { claims })
-    }
-
-    fn claims_set(&self) -> &Map<String, Value> {
-        &self.claims
-    }
-
-    fn set_claim(&mut self, key: &str, value: Option<Value>) -> Result<(), JoseError> {
-        (|| -> anyhow::Result<()> {
-            match &value {
-                Some(_) => {
-                    self.claims.insert(key.to_string(), value.unwrap());
-                }
-                None => {
-                    self.claims.remove(key);
-                }
-            }
-
-            Ok(())
-        })()
-        .map_err(|err| JoseError::InvalidJwtFormat(err))
-    }
-}
-
-impl Into<Map<String, Value>> for JwtHeader {
-    fn into(self) -> Map<String, Value> {
-        self.claims
-    }
-}
-
-impl Display for JwtHeader {
-    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
-        let val = serde_json::to_string(self.claims_set()).map_err(|_e| std::fmt::Error {})?;
-        fmt.write_str(&val)
-    }
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Default)]
@@ -904,11 +822,11 @@ mod tests {
     use anyhow::Result;
     use serde_json::json;
 
-    use crate::{ jwt, jwt::{ JwtHeader, JwtPayload, JwtPayloadValidator } };
-    use crate::{ jws::{
+    use crate::jwt::{ self, JwtPayload, JwtPayloadValidator };
+    use crate::jws::{
         EdDSA, ES256, ES256K, ES384, ES512, HS256, HS384, HS512, PS256, PS384, PS512, RS256, RS384,
         RS512, JwsHeader
-    } };
+    };
     use crate::jwk::Jwk;
     use crate::prelude::*;
 
@@ -984,7 +902,7 @@ mod tests {
 
     #[test]
     fn test_jwt_unsecured() -> Result<()> {
-        let mut src_header = JwtHeader::new();
+        let mut src_header = JwsHeader::new();
         src_header.set_token_type("JWT");
         let src_payload = JwtPayload::new();
         let jwt_string = jwt::encode_unsecured(&src_header, &src_payload)?;
