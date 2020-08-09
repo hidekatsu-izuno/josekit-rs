@@ -2,6 +2,8 @@
 
 JOSE (Javascript Object Signing and Encryption: JWT, JWS, JWE, JWA, JWK) library for Rust.
 
+Notice: This package doesn't support JWE yet.
+
 ## Install
 
 ```toml
@@ -290,7 +292,7 @@ let (header, payload) = jwt::decode_with_verifier(&jwt, &verifier)?;
 
 ### Encrypted JWT
 
-Not supported yet.
+Not support yet.
 
 ### Unsecured JWT
 

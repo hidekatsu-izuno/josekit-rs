@@ -59,6 +59,7 @@ pub fn decode_unsecured(input: &str) -> Result<(JwsHeader, JwtPayload), JoseErro
 /// Return the JWT object decoded by the selected verifier.
 ///
 /// # Arguments
+/// 
 /// * `verifier` - a verifier of the signing algorithm.
 /// * `input` - a JWT string representation.
 pub fn decode_with_verifier(
@@ -71,6 +72,7 @@ pub fn decode_with_verifier(
 /// Return the JWT object decoded with a selected verifying algorithm.
 ///
 /// # Arguments
+/// 
 /// * `input` - a JWT string representation.
 /// * `verifier_selector` - a function for selecting the verifying algorithm.
 pub fn decode_with_verifier_selector<'a, F>(
@@ -109,6 +111,7 @@ where
 /// Return the JWT object decoded by using a JWK set.
 ///
 /// # Arguments
+/// 
 /// * `input` - a JWT string representation.
 /// * `algorithm` - a verifying algorithm.
 /// * `jwk_set` - a JWK set.
@@ -139,6 +142,7 @@ where
 /// Return the JWT object decoded by the selected decrypter.
 ///
 /// # Arguments
+/// 
 /// * `input` - a JWT string representation.
 /// * `decrypter` - a decrypter of the decrypting algorithm.
 pub fn decode_with_decrypter(
@@ -151,6 +155,7 @@ pub fn decode_with_decrypter(
 /// Return the JWT object decoded with a selected decrypting algorithm.
 ///
 /// # Arguments
+/// 
 /// * `input` - a JWT string representation.
 /// * `decrypter_selector` - a function for selecting the decrypting algorithm.
 pub fn decode_with_decrypter_selector<'a, F>(
@@ -186,6 +191,7 @@ where
 /// Return the JWT object decoded by using a JWK set.
 ///
 /// # Arguments
+/// 
 /// * `input` - a JWT string representation.
 /// * `jwk_set` - a JWK set.
 /// * `selector` - a function for selecting the decrypting algorithm.
@@ -216,6 +222,7 @@ where
 /// Return the string repsentation of the JWT with a "none" algorithm.
 /// 
 /// # Arguments
+/// 
 /// * `header` - The JWT heaser claims.
 /// * `payload` - The payload data.
 pub fn encode_unsecured(header: &JwsHeader, payload: &JwtPayload) -> Result<String, JoseError> {
@@ -240,6 +247,7 @@ pub fn encode_unsecured(header: &JwsHeader, payload: &JwtPayload) -> Result<Stri
 /// Return the string repsentation of the JWT with the siginig algorithm.
 ///
 /// # Arguments
+/// 
 /// * `header` - The JWS heaser claims.
 /// * `payload` - The payload data.
 /// * `signer` - a signer object.
@@ -264,6 +272,7 @@ pub fn encode_with_signer(header: &JwsHeader, payload: &JwtPayload, signer: &dyn
 /// Return the string repsentation of the JWT with the encrypting algorithm.
 ///
 /// # Arguments
+/// 
 /// * `header` - The JWE heaser claims.
 /// * `payload` - The payload data.
 /// * `encrypter` - a encrypter object.
@@ -280,6 +289,7 @@ pub struct JwtPayload {
 }
 
 impl JwtPayload {
+    /// Return a new JWT payload
     pub fn new() -> Self {
         Self {
             claims: Map::new(),
@@ -290,6 +300,7 @@ impl JwtPayload {
     /// Return the JWT payload from map.
     ///
     /// # Arguments
+    /// 
     /// * `claims` - JWT payload claims.
     pub fn from_map(claims: Map<String, Value>) -> Result<Self, JoseError> {
         (|| -> anyhow::Result<Self> {
@@ -345,6 +356,7 @@ impl JwtPayload {
     /// Set a value for issuer payload claim (iss).
     ///
     /// # Arguments
+    /// 
     /// * `value` - a issuer
     pub fn set_issuer(&mut self, value: impl Into<String>) {
         let value: String = value.into();
@@ -362,6 +374,7 @@ impl JwtPayload {
     /// Set a value for subject payload claim (sub).
     ///
     /// # Arguments
+    /// 
     /// * `value` - a subject
     pub fn set_subject(&mut self, value: impl Into<String>) {
         let value: String = value.into();
@@ -379,6 +392,7 @@ impl JwtPayload {
     /// Set values for audience payload claim (aud).
     ///
     /// # Arguments
+    /// 
     /// * `values` - a list of audiences
     pub fn set_audience(&mut self, values: Vec<impl Into<String>>) {
         let key = "aud".to_string();
@@ -414,6 +428,7 @@ impl JwtPayload {
     /// Set a system time for expires at payload claim (exp).
     ///
     /// # Arguments
+    /// 
     /// * `value` - A expiration time on or after which the JWT must not be accepted for processing.
     pub fn set_expires_at(&mut self, value: SystemTime) {
         let key = "exp".to_string();
@@ -439,6 +454,7 @@ impl JwtPayload {
     /// Set a system time for not before payload claim (nbf).
     ///
     /// # Arguments
+    /// 
     /// * `value` - A time before which the JWT must not be accepted for processing.
     pub fn set_not_before(&mut self, value: SystemTime) {
         let key = "nbf".to_string();
@@ -464,6 +480,7 @@ impl JwtPayload {
     /// Set a time for issued at payload claim (iat).
     ///
     /// # Arguments
+    /// 
     /// * `value` - a time at which the JWT was issued.
     pub fn set_issued_at(&mut self, value: SystemTime) {
         let key = "iat".to_string();
@@ -489,6 +506,7 @@ impl JwtPayload {
     /// Set a value for JWT ID payload claim (jti).
     ///
     /// # Arguments
+    /// 
     /// * `value` - a JWT ID
     pub fn set_jwt_id(&mut self, value: impl Into<String>) {
         let value: String = value.into();
@@ -506,6 +524,7 @@ impl JwtPayload {
     /// Set a value for payload claim of a specified key.
     ///
     /// # Arguments
+    /// 
     /// * `key` - a key name of payload claim
     /// * `value` - a typed value of payload claim
     pub fn set_claim(&mut self, key: &str, value: Option<Value>) -> Result<(), JoseError> {
@@ -586,6 +605,7 @@ impl JwtPayload {
     /// Return a value for payload claim of a specified key.
     ///
     /// # Arguments
+    /// 
     /// * `key` - a key name of payload claim
     pub fn claim(&self, key: &str) -> Option<&Value> {
         self.claims.get(key)
@@ -604,7 +624,7 @@ impl Display for JwtPayload {
     }
 }
 
-/// Represents JWT validator.
+/// Represents JWT payload validator.
 #[derive(Debug, Eq, PartialEq)]
 pub struct JwtPayloadValidator {
     base_time: Option<SystemTime>,
@@ -615,7 +635,8 @@ pub struct JwtPayloadValidator {
 }
 
 impl JwtPayloadValidator {
-    pub fn new() -> JwtPayloadValidator {
+    /// Return a new JwtPayloadValidator.
+    pub fn new() -> Self {
         Self {
             base_time: None,
             min_issued_time: None,
@@ -628,6 +649,7 @@ impl JwtPayloadValidator {
     /// Set a base time for time related claims (exp, nbf) validation.
     ///
     /// # Arguments
+    /// 
     /// * `base_time` - a min time
     pub fn set_base_time(&mut self, base_time: SystemTime) {
         self.base_time = Some(base_time);
@@ -641,6 +663,7 @@ impl JwtPayloadValidator {
     /// Set a minimum time for issued at payload claim (iat) validation.
     ///
     /// # Arguments
+    /// 
     /// * `min_issued_time` - a minimum time at which the JWT was issued.
     pub fn set_min_issued_time(&mut self, min_issued_time: SystemTime) {
         self.min_issued_time = Some(min_issued_time);
@@ -654,6 +677,7 @@ impl JwtPayloadValidator {
     /// Set a maximum time for issued at payload claim (iat) validation.
     ///
     /// # Arguments
+    /// 
     /// * `max_issued_time` - a maximum time at which the JWT was issued.
     pub fn set_max_issued_time(&mut self, max_issued_time: SystemTime) {
         self.max_issued_time = Some(max_issued_time);
@@ -667,6 +691,7 @@ impl JwtPayloadValidator {
     /// Set a value for issuer payload claim (iss) validation.
     ///
     /// # Arguments
+    /// 
     /// * `value` - a issuer
     pub fn set_issuer(&mut self, value: impl Into<String>) {
         let value: String = value.into();
@@ -684,6 +709,7 @@ impl JwtPayloadValidator {
     /// Set a value for subject payload claim (sub) validation.
     ///
     /// # Arguments
+    /// 
     /// * `value` - a subject
     pub fn set_subject(&mut self, value: impl Into<String>) {
         let value: String = value.into();
@@ -701,6 +727,7 @@ impl JwtPayloadValidator {
     /// Set a value for audience payload claim (aud) validation.
     ///
     /// # Arguments
+    /// 
     /// * `value` - a audience
     pub fn set_audience(&mut self, value: impl Into<String>) {
         let value: String = value.into();
@@ -718,6 +745,7 @@ impl JwtPayloadValidator {
     /// Set a value for JWT ID payload claim (jti) validation.
     ///
     /// # Arguments
+    /// 
     /// * `value` - A JWT ID
     pub fn set_jwt_id(&mut self, value: impl Into<String>) {
         let value: String = value.into();
@@ -735,6 +763,7 @@ impl JwtPayloadValidator {
     /// Set a value for payload claim of a specified key.
     ///
     /// # Arguments
+    /// 
     /// * `key` - a key name of payload claim
     /// * `value` - a typed value of payload claim
     pub fn set_claim(&mut self, key: &str, value: Value) {
@@ -744,6 +773,7 @@ impl JwtPayloadValidator {
     /// Return the value for payload claim of a specified key.
     ///
     /// # Arguments
+    /// 
     /// * `key` - a key name of payload claim
     pub fn claim(&self, key: &str) -> Option<&Value> {
         self.claims.get(key)
@@ -752,6 +782,7 @@ impl JwtPayloadValidator {
     /// Validate a decoded JWT payload.
     ///
     /// # Arguments
+    /// 
     /// * `payload` - a decoded JWT payload.
     pub fn validate(&self, payload: &JwtPayload) -> Result<(), JoseError> {
         (|| -> anyhow::Result<()> {

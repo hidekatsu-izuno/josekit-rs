@@ -37,6 +37,7 @@ pub use crate::jws::multi_verifier::JwsMultiVerifier;
 /// Return a representation of the data that is formatted by compact serialization.
 ///
 /// # Arguments
+/// 
 /// * `header` - The JWS heaser claims.
 /// * `payload` - The payload data.
 /// * `signer` - The JWS signer.
@@ -51,6 +52,7 @@ pub fn serialize_compact(
 /// Return a representation of the data that is formatted by compact serialization.
 ///
 /// # Arguments
+/// 
 /// * `header` - The JWS heaser claims.
 /// * `payload` - The payload data.
 /// * `selector` - a function for selecting the signing algorithm.
@@ -129,6 +131,7 @@ where
 /// Return a representation of the data that is formatted by flattened json serialization.
 ///
 /// # Arguments
+/// 
 /// * `protected` - The JWS protected header claims.
 /// * `header` - The JWS unprotected header claims.
 /// * `payload` - The payload data.
@@ -150,6 +153,7 @@ pub fn serialize_flattened_json(
 /// Return a representation of the data that is formatted by flatted json serialization.
 ///
 /// # Arguments
+/// 
 /// * `protected` - The JWS protected header claims.
 /// * `header` - The JWS unprotected header claims.
 /// * `payload` - The payload data.
@@ -246,6 +250,7 @@ where
 /// Deserialize the input that is formatted by compact serialization.
 ///
 /// # Arguments
+/// 
 /// * `input` - The input data.
 /// * `header` - The decoded JWS header claims.
 /// * `verifier` - The JWS verifier.
@@ -259,6 +264,7 @@ pub fn deserialize_compact(
 /// Deserialize the input that is formatted by compact serialization.
 ///
 /// # Arguments
+/// 
 /// * `input` - The input data.
 /// * `header` - The decoded JWS header claims.
 /// * `selector` - a function for selecting the verifying algorithm.
@@ -347,6 +353,7 @@ where
 /// Deserialize the input that is formatted by flattened json serialization.
 ///
 /// # Arguments
+/// 
 /// * `input` - The input data.
 /// * `header` - The decoded JWS header claims.
 /// * `verifier` - The JWS verifier.
@@ -360,6 +367,7 @@ pub fn deserialize_flattened_json<'a>(
 /// Deserialize the input that is formatted by flattened json serialization.
 ///
 /// # Arguments
+/// 
 /// * `input` - The input data.
 /// * `header` - The decoded JWS header claims.
 /// * `selector` - a function for selecting the verifying algorithm.
@@ -466,6 +474,7 @@ pub struct JwsHeader {
 }
 
 impl JwsHeader {
+    /// Return a JwsHeader instance.
     pub fn new() -> Self {
         Self {
             claims: Map::new(),
@@ -476,6 +485,7 @@ impl JwsHeader {
     /// Set a value for JWK set URL header claim (jku).
     ///
     /// # Arguments
+    /// 
     /// * `value` - a JWK set URL
     pub fn set_jwk_set_url(&mut self, value: impl Into<String>) {
         let value: String = value.into();
@@ -494,6 +504,7 @@ impl JwsHeader {
     /// Set a value for JWK header claim (jwk).
     ///
     /// # Arguments
+    /// 
     /// * `value` - a JWK
     pub fn set_jwk(&mut self, value: Jwk) {
         let key = "jwk".to_string();
@@ -514,6 +525,7 @@ impl JwsHeader {
     /// Set a value for X.509 URL header claim (x5u).
     ///
     /// # Arguments
+    /// 
     /// * `value` - a X.509 URL
     pub fn set_x509_url(&mut self, value: impl Into<String>) {
         let value: String = value.into();
@@ -532,6 +544,7 @@ impl JwsHeader {
     /// Set values for X.509 certificate chain header claim (x5c).
     ///
     /// # Arguments
+    /// 
     /// * `values` - X.509 certificate chain
     pub fn set_x509_certificate_chain(&mut self, values: Vec<Vec<u8>>) {
         let key = "x5c".to_string();
@@ -558,6 +571,7 @@ impl JwsHeader {
     /// Set a value for X.509 certificate SHA-1 thumbprint header claim (x5t).
     ///
     /// # Arguments
+    /// 
     /// * `value` - A X.509 certificate SHA-1 thumbprint
     pub fn set_x509_certificate_sha1_thumbprint(&mut self, value: Vec<u8>) {
         let key = "x5t".to_string();
@@ -578,6 +592,7 @@ impl JwsHeader {
     /// Set a value for a x509 certificate SHA-256 thumbprint header claim (x5t#S256).
     ///
     /// # Arguments
+    /// 
     /// * `value` - A x509 certificate SHA-256 thumbprint
     pub fn set_x509_certificate_sha256_thumbprint(&mut self, value: Vec<u8>) {
         let key = "x5t#S256".to_string();
@@ -599,6 +614,7 @@ impl JwsHeader {
     /// Set a value for key ID header claim (kid).
     ///
     /// # Arguments
+    /// 
     /// * `value` - a key ID
     pub fn set_key_id(&mut self, value: impl Into<String>) {
         let value: String = value.into();
@@ -616,6 +632,7 @@ impl JwsHeader {
     /// Set a value for token type header claim (typ).
     ///
     /// # Arguments
+    /// 
     /// * `value` - a token type (e.g. "JWT")
     pub fn set_token_type(&mut self, value: impl Into<String>) {
         let value: String = value.into();
@@ -633,6 +650,7 @@ impl JwsHeader {
     /// Set a value for content type header claim (cty).
     ///
     /// # Arguments
+    /// 
     /// * `value` - a content type (e.g. "JWT")
     pub fn set_content_type(&mut self, value: impl Into<String>) {
         let value: String = value.into();
@@ -650,6 +668,7 @@ impl JwsHeader {
     /// Set values for critical header claim (crit).
     ///
     /// # Arguments
+    /// 
     /// * `values` - critical claim names
     pub fn set_critical(&mut self, values: Vec<impl Into<String>>) {
         let key = "crit".to_string();
@@ -676,6 +695,7 @@ impl JwsHeader {
     /// Set a value for base64url-encode payload header claim (b64).
     ///
     /// # Arguments
+    /// 
     /// * `value` - is base64url-encode payload
     pub fn set_base64url_encode_payload(&mut self, value: bool) {
         self.claims.insert("b64".to_string(), Value::Bool(value));
@@ -692,6 +712,7 @@ impl JwsHeader {
     /// Set a value for url header claim (url).
     ///
     /// # Arguments
+    /// 
     /// * `value` - a url
     pub fn set_url(&mut self, value: impl Into<String>) {
         let value: String = value.into();
@@ -709,6 +730,7 @@ impl JwsHeader {
     /// Set a value for a nonce header claim (nonce).
     ///
     /// # Arguments
+    /// 
     /// * `value` - A nonce
     pub fn set_nonce(&mut self, value: Vec<u8>) {
         let key = "nonce".to_string();
@@ -970,7 +992,7 @@ pub trait JwsAlgorithm {
     /// Return the "alg" (algorithm) header parameter value of JWS.
     fn name(&self) -> &str;
 
-    /// Return the "kty" (key type) header parameter value of JWS.
+    /// Return the "kty" (key type) header parameter value of JWK.
     fn key_type(&self) -> &str;
 
     /// Return the signature length of JWS.
@@ -988,6 +1010,7 @@ pub trait JwsSigner {
     /// Set a compared value for a kid header claim (kid).
     ///
     /// # Arguments
+    /// 
     /// * `key_id` - a key ID
     fn set_key_id(&mut self, key_id: &str);
 
@@ -997,6 +1020,7 @@ pub trait JwsSigner {
     /// Return a signature of the data.
     ///
     /// # Arguments
+    /// 
     /// * `message` - The message data to sign.
     fn sign(&self, message: &[u8]) -> Result<Vec<u8>, JoseError>;
 }
@@ -1012,6 +1036,7 @@ pub trait JwsVerifier {
     /// Set a compared value for a kid header claim (kid).
     ///
     /// # Arguments
+    /// 
     /// * `key_id` - a key ID
     fn set_key_id(&mut self, key_id: &str);
 
@@ -1021,24 +1046,28 @@ pub trait JwsVerifier {
     /// Test a critical header claim name is acceptable.
     ///
     /// # Arguments
+    /// 
     /// * `name` - a critical header claim name
     fn is_acceptable_critical(&self, name: &str) -> bool;
 
     /// Add a acceptable critical header claim name
     ///
     /// # Arguments
+    /// 
     /// * `name` - a acceptable critical header claim name
     fn add_acceptable_critical(&mut self, name: &str);
 
     /// Remove a acceptable critical header claim name
     ///
     /// # Arguments
+    /// 
     /// * `name` - a acceptable critical header claim name
     fn remove_acceptable_critical(&mut self, name: &str);
 
     /// Verify the data by the signature.
     ///
     /// # Arguments
+    /// 
     /// * `message` - a message data to verify.
     /// * `signature` - a signature data.
     fn verify(&self, message: &[u8], signature: &[u8]) -> Result<(), JoseError>;

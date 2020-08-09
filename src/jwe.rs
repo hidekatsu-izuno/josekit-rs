@@ -46,6 +46,7 @@ pub use crate::jwe::enc::aes_gcm::AesGcmJweEncryption::A256Gcm;
 /// Return a representation of the data that is formatted by compact serialization.
 ///
 /// # Arguments
+/// 
 /// * `header` - The JWS heaser claims.
 /// * `payload` - The payload data.
 /// * `encrypter` - The JWS encrypter.
@@ -60,6 +61,7 @@ pub fn serialize_compact(
 /// Return a representation of the data that is formatted by compact serialization.
 ///
 /// # Arguments
+/// 
 /// * `header` - The JWS heaser claims.
 /// * `payload` - The payload data.
 /// * `selector` - a function for selecting the signing algorithm.
@@ -83,6 +85,7 @@ where
 /// Return a representation of the data that is formatted by flattened json serialization.
 ///
 /// # Arguments
+/// 
 /// * `protected` - The JWE protected header claims.
 /// * `header` - The JWE unprotected header claims.
 /// * `payload` - The payload data.
@@ -104,6 +107,7 @@ pub fn serialize_flattened_json(
 /// Return a representation of the data that is formatted by flatted json serialization.
 ///
 /// # Arguments
+/// 
 /// * `protected` - The JWS protected header claims.
 /// * `header` - The JWS unprotected header claims.
 /// * `payload` - The payload data.
@@ -129,6 +133,7 @@ where
 /// Deserialize the input that is formatted by compact serialization.
 ///
 /// # Arguments
+/// 
 /// * `input` - The input data.
 /// * `decrypter` - The JWS decrypter.
 pub fn deserialize_compact(
@@ -141,6 +146,7 @@ pub fn deserialize_compact(
 /// Deserialize the input that is formatted by compact serialization.
 ///
 /// # Arguments
+/// 
 /// * `input` - The input data.
 /// * `selector` - a function for selecting the decrypting algorithm.
 pub fn deserialize_compact_with_selector<'a, F>(
@@ -162,6 +168,7 @@ where
 /// Deserialize the input that is formatted by flattened json serialization.
 ///
 /// # Arguments
+/// 
 /// * `input` - The input data.
 /// * `header` - The decoded JWS header claims.
 /// * `decrypter` - The JWE decrypter.
@@ -175,6 +182,7 @@ pub fn deserialize_flattened_json<'a>(
 /// Deserialize the input that is formatted by flattened json serialization.
 ///
 /// # Arguments
+/// 
 /// * `input` - The input data.
 /// * `header` - The decoded JWS header claims.
 /// * `selector` - a function for selecting the decrypting algorithm.
@@ -201,6 +209,7 @@ pub struct JweHeader {
 }
 
 impl JweHeader {
+    /// Return a new JweHeader instance.
     pub fn new() -> Self {
         Self {
             claims: Map::new(),
@@ -211,6 +220,7 @@ impl JweHeader {
     /// Set a value for JWK set URL header claim (jku).
     ///
     /// # Arguments
+    /// 
     /// * `value` - a JWK set URL
     pub fn set_jwk_set_url(&mut self, value: impl Into<String>) {
         let value: String = value.into();
@@ -229,6 +239,7 @@ impl JweHeader {
     /// Set a value for JWK header claim (jwk).
     ///
     /// # Arguments
+    /// 
     /// * `value` - a JWK
     pub fn set_jwk(&mut self, value: Jwk) {
         let key = "jwk".to_string();
@@ -249,6 +260,7 @@ impl JweHeader {
     /// Set a value for X.509 URL header claim (x5u).
     ///
     /// # Arguments
+    /// 
     /// * `value` - a X.509 URL
     pub fn set_x509_url(&mut self, value: impl Into<String>) {
         let value: String = value.into();
@@ -267,6 +279,7 @@ impl JweHeader {
     /// Set values for X.509 certificate chain header claim (x5c).
     ///
     /// # Arguments
+    /// 
     /// * `values` - X.509 certificate chain
     pub fn set_x509_certificate_chain(&mut self, values: Vec<Vec<u8>>) {
         let key = "x5c".to_string();
@@ -293,6 +306,7 @@ impl JweHeader {
     /// Set a value for X.509 certificate SHA-1 thumbprint header claim (x5t).
     ///
     /// # Arguments
+    /// 
     /// * `value` - A X.509 certificate SHA-1 thumbprint
     pub fn set_x509_certificate_sha1_thumbprint(&mut self, value: Vec<u8>) {
         let key = "x5t".to_string();
@@ -313,6 +327,7 @@ impl JweHeader {
     /// Set a value for a x509 certificate SHA-256 thumbprint header claim (x5t#S256).
     ///
     /// # Arguments
+    /// 
     /// * `value` - A x509 certificate SHA-256 thumbprint
     pub fn set_x509_certificate_sha256_thumbprint(&mut self, value: Vec<u8>) {
         let key = "x5t#S256".to_string();
@@ -334,6 +349,7 @@ impl JweHeader {
     /// Set a value for key ID header claim (kid).
     ///
     /// # Arguments
+    /// 
     /// * `value` - a key ID
     pub fn set_key_id(&mut self, value: impl Into<String>) {
         let value: String = value.into();
@@ -351,6 +367,7 @@ impl JweHeader {
     /// Set a value for token type header claim (typ).
     ///
     /// # Arguments
+    /// 
     /// * `value` - a token type (e.g. "JWT")
     pub fn set_token_type(&mut self, value: impl Into<String>) {
         let value: String = value.into();
@@ -368,6 +385,7 @@ impl JweHeader {
     /// Set a value for content type header claim (cty).
     ///
     /// # Arguments
+    /// 
     /// * `value` - a content type (e.g. "JWT")
     pub fn set_content_type(&mut self, value: impl Into<String>) {
         let value: String = value.into();
@@ -385,6 +403,7 @@ impl JweHeader {
     /// Set values for critical header claim (crit).
     ///
     /// # Arguments
+    /// 
     /// * `values` - critical claim names
     pub fn set_critical(&mut self, values: Vec<impl Into<String>>) {
         let key = "crit".to_string();
@@ -485,6 +504,7 @@ pub trait JweEncrypter {
     /// Set a compared value for a kid header claim (kid).
     ///
     /// # Arguments
+    /// 
     /// * `key_id` - a key ID
     fn set_key_id(&mut self, key_id: &str);
 
@@ -494,6 +514,7 @@ pub trait JweEncrypter {
     /// Return a encypted key data.
     ///
     /// # Arguments
+    /// 
     /// * `key` - The key data to encrypt.
     fn encrypt(&self, key: &[u8]) -> Result<Vec<u8>, JoseError>;
 }
@@ -509,6 +530,7 @@ pub trait JweDecrypter {
     /// Set a compared value for a kid header claim (kid).
     ///
     /// # Arguments
+    /// 
     /// * `key_id` - a key ID
     fn set_key_id(&mut self, key_id: &str);
 
@@ -518,24 +540,28 @@ pub trait JweDecrypter {
     /// Test a critical header claim name is acceptable.
     ///
     /// # Arguments
+    /// 
     /// * `name` - a critical header claim name
     fn is_acceptable_critical(&self, name: &str) -> bool;
 
     /// Add a acceptable critical header claim name
     ///
     /// # Arguments
+    /// 
     /// * `name` - a acceptable critical header claim name
     fn add_acceptable_critical(&mut self, name: &str);
 
     /// Remove a acceptable critical header claim name
     ///
     /// # Arguments
+    /// 
     /// * `name` - a acceptable critical header claim name
     fn remove_acceptable_critical(&mut self, name: &str);
 
     /// Return a decypted key data.
     ///
     /// # Arguments
+    /// 
     /// * `key` - The encrypted key data.
     fn decrypt(&self, key: &[u8]) -> Result<Vec<u8>, JoseError>;
 }
