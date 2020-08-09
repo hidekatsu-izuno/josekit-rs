@@ -43,168 +43,164 @@ pub use crate::jwe::enc::aes_gcm::AesGcmJweEncryption::A128Gcm;
 pub use crate::jwe::enc::aes_gcm::AesGcmJweEncryption::A192Gcm;
 pub use crate::jwe::enc::aes_gcm::AesGcmJweEncryption::A256Gcm;
 
-pub struct Jwe;
+/// Return a representation of the data that is formatted by compact serialization.
+///
+/// # Arguments
+/// * `header` - The JWS heaser claims.
+/// * `payload` - The payload data.
+/// * `encrypter` - The JWS encrypter.
+pub fn serialize_compact(
+    header: &JweHeader,
+    payload: &[u8],
+    encrypter: &dyn JweEncrypter,
+) -> Result<String, JoseError> {
+    (|| -> anyhow::Result<String> {
+        let payload = base64::encode_config(payload, base64::URL_SAFE_NO_PAD);
 
-impl Jwe {
-    /// Return a representation of the data that is formatted by compact serialization.
-    ///
-    /// # Arguments
-    /// * `header` - The JWS heaser claims.
-    /// * `payload` - The payload data.
-    /// * `encrypter` - The JWS encrypter.
-    pub fn serialize_compact(
-        header: &JweHeader,
-        payload: &[u8],
-        encrypter: &dyn JweEncrypter,
-    ) -> Result<String, JoseError> {
-        (|| -> anyhow::Result<String> {
-            let payload = base64::encode_config(payload, base64::URL_SAFE_NO_PAD);
+        let header = header.to_string();
+        let header = base64::encode_config(header, base64::URL_SAFE_NO_PAD);
 
-            let header = header.to_string();
-            let header = base64::encode_config(header, base64::URL_SAFE_NO_PAD);
+        unimplemented!();
+    })()
+    .map_err(|err| match err.downcast::<JoseError>() {
+        Ok(err) => err,
+        Err(err) => JoseError::InvalidJwtFormat(err),
+    })
+}
 
-            unimplemented!();
-        })()
-        .map_err(|err| match err.downcast::<JoseError>() {
-            Ok(err) => err,
-            Err(err) => JoseError::InvalidJwtFormat(err),
-        })
-    }
+/// Return a representation of the data that is formatted by flattened json serialization.
+///
+/// # Arguments
+/// * `protected` - The JWE protected header claims.
+/// * `header` - The JWE unprotected header claims.
+/// * `payload` - The payload data.
+/// * `encrypter` - The JWS encrypter.
+pub fn serialize_flattened_json(
+    protected: Option<&JweHeader>,
+    header: Option<&JweHeader>,
+    payload: &[u8],
+    encrypter: &dyn JweEncrypter,
+) -> Result<String, JoseError> {
+    (|| -> anyhow::Result<String> {
+        let mut result = Map::new();
 
-    /// Return a representation of the data that is formatted by flattened json serialization.
-    ///
-    /// # Arguments
-    /// * `protected` - The JWE protected header claims.
-    /// * `header` - The JWE unprotected header claims.
-    /// * `payload` - The payload data.
-    /// * `encrypter` - The JWS encrypter.
-    pub fn serialize_flattened_json(
-        protected: Option<&JweHeader>,
-        header: Option<&JweHeader>,
-        payload: &[u8],
-        encrypter: &dyn JweEncrypter,
-    ) -> Result<String, JoseError> {
-        (|| -> anyhow::Result<String> {
-            let mut result = Map::new();
+        let mut protected_map = if let Some(val) = protected {
+            val.claims_set().clone()
+        } else {
+            Map::new()
+        };
+        protected_map.insert(
+            "alg".to_string(),
+            Value::String(encrypter.algorithm().name().to_string()),
+        );
 
-            let mut protected_map = if let Some(val) = protected {
-                val.claims_set().clone()
-            } else {
-                Map::new()
-            };
-            protected_map.insert(
-                "alg".to_string(),
-                Value::String(encrypter.algorithm().name().to_string()),
+        if let Some(val) = &header {
+            for key in val.claims_set().keys() {
+                if protected_map.contains_key(key) {
+                    bail!("Duplicate key exists: {}", key);
+                }
+            }
+        }
+
+        let protected_json = serde_json::to_string(&protected_map)?;
+        let protected_base64 = base64::encode_config(protected_json, base64::URL_SAFE_NO_PAD);
+
+        let payload = base64::encode_config(payload, base64::URL_SAFE_NO_PAD);
+
+        result.insert("protected".to_string(), Value::String(protected_base64));
+
+        if let Some(val) = header {
+            result.insert(
+                "header".to_string(),
+                Value::Object(val.claims_set().clone()),
             );
+        }
 
-            if let Some(val) = &header {
-                for key in val.claims_set().keys() {
-                    if protected_map.contains_key(key) {
-                        bail!("Duplicate key exists: {}", key);
-                    }
+        result.insert("payload".to_string(), Value::String(payload.to_string()));
+
+        unimplemented!();
+    })()
+    .map_err(|err| match err.downcast::<JoseError>() {
+        Ok(err) => err,
+        Err(err) => JoseError::InvalidJwtFormat(err),
+    })
+}
+
+/// Deserialize the input that is formatted by compact serialization.
+///
+/// # Arguments
+/// * `input` - The input data.
+/// * `decrypter` - The JWS decrypter.
+pub fn deserialize_compact(
+    input: &str,
+    decrypter: &dyn JweDecrypter,
+) -> Result<(JweHeader, Vec<u8>), JoseError> {
+    deserialize_compact_with_selector(input, |_header| Ok(Box::new(decrypter)))
+}
+
+/// Deserialize the input that is formatted by compact serialization.
+///
+/// # Arguments
+/// * `input` - The input data.
+/// * `selector` - a function for selecting the decrypting algorithm.
+pub fn deserialize_compact_with_selector<'a, F>(
+    input: &str,
+    selector: F,
+) -> Result<(JweHeader, Vec<u8>), JoseError>
+where
+    F: FnOnce(&JweHeader) -> Result<Box<&'a dyn JweDecrypter>, JoseError>,
+{
+    (|| -> anyhow::Result<(JweHeader, Vec<u8>)> {
+        let indexies: Vec<usize> = input
+            .char_indices()
+            .filter(|(_, c)| c == &'.')
+            .map(|(i, _)| i)
+            .collect();
+        if indexies.len() != 4 {
+            bail!("The encrypted token must be five parts separated by colon.");
+        }
+
+        let header = &input[0..indexies[0]];
+        let header = base64::decode_config(header, base64::URL_SAFE_NO_PAD)?;
+        let header: Map<String, Value> = serde_json::from_slice(&header)?;
+        let header = JweHeader::from_map(header)?;
+
+        let verifier = selector(&header)?;
+
+        let expected_alg = verifier.algorithm().name();
+        match header.claim("alg") {
+            Some(Value::String(val)) if val == expected_alg => {}
+            Some(Value::String(val)) => {
+                bail!("The JWS alg header claim is not {}: {}", expected_alg, val)
+            }
+            Some(_) => bail!("The JWS alg header claim must be a string."),
+            None => bail!("The JWS alg header claim is required."),
+        }
+
+        let expected_kid = verifier.key_id();
+        match (expected_kid, header.claim("kid")) {
+            (Some(expected), Some(actual)) if expected == actual => {}
+            (None, None) => {}
+            (Some(_), Some(actual)) => {
+                bail!("The JWS kid header claim is mismatched: {}", actual)
+            }
+            _ => bail!("The JWS kid header claim is missing."),
+        }
+
+        if let Some(critical) = header.critical() {
+            for name in critical {
+                if !verifier.is_acceptable_critical(name) {
+                    bail!("The critical name '{}' is not supported.", name);
                 }
             }
+        }
 
-            let protected_json = serde_json::to_string(&protected_map)?;
-            let protected_base64 = base64::encode_config(protected_json, base64::URL_SAFE_NO_PAD);
-
-            let payload = base64::encode_config(payload, base64::URL_SAFE_NO_PAD);
-
-            result.insert("protected".to_string(), Value::String(protected_base64));
-
-            if let Some(val) = header {
-                result.insert(
-                    "header".to_string(),
-                    Value::Object(val.claims_set().clone()),
-                );
-            }
-
-            result.insert("payload".to_string(), Value::String(payload.to_string()));
-
-            unimplemented!();
-        })()
-        .map_err(|err| match err.downcast::<JoseError>() {
-            Ok(err) => err,
-            Err(err) => JoseError::InvalidJwtFormat(err),
-        })
-    }
-
-    /// Deserialize the input that is formatted by compact serialization.
-    ///
-    /// # Arguments
-    /// * `input` - The input data.
-    /// * `decrypter` - The JWS decrypter.
-    pub fn deserialize_compact(
-        input: &str,
-        decrypter: &dyn JweDecrypter,
-    ) -> Result<(JweHeader, Vec<u8>), JoseError> {
-        Self::deserialize_compact_with_selector(input, |_header| Ok(Box::new(decrypter)))
-    }
-
-    /// Deserialize the input that is formatted by compact serialization.
-    ///
-    /// # Arguments
-    /// * `input` - The input data.
-    /// * `selector` - a function for selecting the decrypting algorithm.
-    pub fn deserialize_compact_with_selector<'a, F>(
-        input: &str,
-        selector: F,
-    ) -> Result<(JweHeader, Vec<u8>), JoseError>
-    where
-        F: FnOnce(&JweHeader) -> Result<Box<&'a dyn JweDecrypter>, JoseError>,
-    {
-        (|| -> anyhow::Result<(JweHeader, Vec<u8>)> {
-            let indexies: Vec<usize> = input
-                .char_indices()
-                .filter(|(_, c)| c == &'.')
-                .map(|(i, _)| i)
-                .collect();
-            if indexies.len() != 4 {
-                bail!("The encrypted token must be five parts separated by colon.");
-            }
-
-            let header = &input[0..indexies[0]];
-            let header = base64::decode_config(header, base64::URL_SAFE_NO_PAD)?;
-            let header: Map<String, Value> = serde_json::from_slice(&header)?;
-            let header = JweHeader::from_map(header)?;
-
-            let verifier = selector(&header)?;
-
-            let expected_alg = verifier.algorithm().name();
-            match header.claim("alg") {
-                Some(Value::String(val)) if val == expected_alg => {}
-                Some(Value::String(val)) => {
-                    bail!("The JWS alg header claim is not {}: {}", expected_alg, val)
-                }
-                Some(_) => bail!("The JWS alg header claim must be a string."),
-                None => bail!("The JWS alg header claim is required."),
-            }
-
-            let expected_kid = verifier.key_id();
-            match (expected_kid, header.claim("kid")) {
-                (Some(expected), Some(actual)) if expected == actual => {}
-                (None, None) => {}
-                (Some(_), Some(actual)) => {
-                    bail!("The JWS kid header claim is mismatched: {}", actual)
-                }
-                _ => bail!("The JWS kid header claim is missing."),
-            }
-
-            if let Some(critical) = header.critical() {
-                for name in critical {
-                    if !verifier.is_acceptable_critical(name) {
-                        bail!("The critical name '{}' is not supported.", name);
-                    }
-                }
-            }
-
-            unimplemented!("JWE is not supported yet.");
-        })()
-        .map_err(|err| match err.downcast::<JoseError>() {
-            Ok(err) => err,
-            Err(err) => JoseError::InvalidJwtFormat(err),
-        })
-    }
+        unimplemented!("JWE is not supported yet.");
+    })()
+    .map_err(|err| match err.downcast::<JoseError>() {
+        Ok(err) => err,
+        Err(err) => JoseError::InvalidJwtFormat(err),
+    })
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
