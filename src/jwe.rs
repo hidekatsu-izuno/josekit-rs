@@ -11,37 +11,37 @@ use crate::jose::{JoseError, JoseHeader};
 use crate::jwk::Jwk;
 use crate::util::SourceValue;
 
-pub use crate::jwe::alg::aes::AesJweAlgorithm::A128KW;
-pub use crate::jwe::alg::aes::AesJweAlgorithm::A192KW;
-pub use crate::jwe::alg::aes::AesJweAlgorithm::A256KW;
+pub use crate::jwe::alg::aes::AesJweAlgorithm::A128Kw;
+pub use crate::jwe::alg::aes::AesJweAlgorithm::A192Kw;
+pub use crate::jwe::alg::aes::AesJweAlgorithm::A256Kw;
 
-pub use crate::jwe::alg::aes_gcm::AesGcmJweAlgorithm::A128GCMKW;
-pub use crate::jwe::alg::aes_gcm::AesGcmJweAlgorithm::A192GCMKW;
-pub use crate::jwe::alg::aes_gcm::AesGcmJweAlgorithm::A256GCMKW;
+pub use crate::jwe::alg::aes_gcm::AesGcmJweAlgorithm::A128GcmKw;
+pub use crate::jwe::alg::aes_gcm::AesGcmJweAlgorithm::A192GcmKw;
+pub use crate::jwe::alg::aes_gcm::AesGcmJweAlgorithm::A256GcmKw;
 
 pub use crate::jwe::alg::dir::DirJweAlgorithm::Dir;
 
-pub use crate::jwe::alg::ecdh_es::EcdhEsJweAlgorithm::ECDH_ES;
+pub use crate::jwe::alg::ecdh_es::EcdhEsJweAlgorithm::EcdhEs;
 
-pub use crate::jwe::alg::ecdh_es_aes::EcdhEsAesJweAlgorithm::ECDH_ES_A128KW;
-pub use crate::jwe::alg::ecdh_es_aes::EcdhEsAesJweAlgorithm::ECDH_ES_A192KW;
-pub use crate::jwe::alg::ecdh_es_aes::EcdhEsAesJweAlgorithm::ECDH_ES_A256KW;
+pub use crate::jwe::alg::ecdh_es_aes::EcdhEsAesJweAlgorithm::EcdhEsA128Kw;
+pub use crate::jwe::alg::ecdh_es_aes::EcdhEsAesJweAlgorithm::EcdhEsA192Kw;
+pub use crate::jwe::alg::ecdh_es_aes::EcdhEsAesJweAlgorithm::EcdhEsA256Kw;
 
-pub use crate::jwe::alg::pbes2_hmac_aes::Pbes2HmacAesJweAlgorithm::PBES2_HS256_A128KW;
-pub use crate::jwe::alg::pbes2_hmac_aes::Pbes2HmacAesJweAlgorithm::PBES2_HS384_A192KW;
-pub use crate::jwe::alg::pbes2_hmac_aes::Pbes2HmacAesJweAlgorithm::PBES2_HS512_A256KW;
+pub use crate::jwe::alg::pbes2_hmac_aes::Pbes2HmacAesJweAlgorithm::Pbes2HS256A128Kw;
+pub use crate::jwe::alg::pbes2_hmac_aes::Pbes2HmacAesJweAlgorithm::Pbes2HS384A192Kw;
+pub use crate::jwe::alg::pbes2_hmac_aes::Pbes2HmacAesJweAlgorithm::Pbes2HS512A256Kw;
 
-pub use crate::jwe::alg::rsaes::RsaesJweAlgorithm::RSA1_5;
-pub use crate::jwe::alg::rsaes::RsaesJweAlgorithm::RSA_OAEP;
-pub use crate::jwe::alg::rsaes::RsaesJweAlgorithm::RSA_OAEP_256;
+pub use crate::jwe::alg::rsaes::RsaesJweAlgorithm::Rsa1_5;
+pub use crate::jwe::alg::rsaes::RsaesJweAlgorithm::RsaOaep;
+pub use crate::jwe::alg::rsaes::RsaesJweAlgorithm::RsaOaep256;
 
-pub use crate::jwe::enc::aes_cbc_hmac::AesCbcHmacJweEncryption::A128CBC_HS256;
-pub use crate::jwe::enc::aes_cbc_hmac::AesCbcHmacJweEncryption::A192CBC_HS384;
-pub use crate::jwe::enc::aes_cbc_hmac::AesCbcHmacJweEncryption::A256CBC_HS512;
+pub use crate::jwe::enc::aes_cbc_hmac::AesCbcHmacJweEncryption::A128CbcHS256;
+pub use crate::jwe::enc::aes_cbc_hmac::AesCbcHmacJweEncryption::A192CbcHS384;
+pub use crate::jwe::enc::aes_cbc_hmac::AesCbcHmacJweEncryption::A256CbcHS512;
 
-pub use crate::jwe::enc::aes_gcm::AesGcmJweEncryption::A128GCM;
-pub use crate::jwe::enc::aes_gcm::AesGcmJweEncryption::A192GCM;
-pub use crate::jwe::enc::aes_gcm::AesGcmJweEncryption::A256GCM;
+pub use crate::jwe::enc::aes_gcm::AesGcmJweEncryption::A128Gcm;
+pub use crate::jwe::enc::aes_gcm::AesGcmJweEncryption::A192Gcm;
+pub use crate::jwe::enc::aes_gcm::AesGcmJweEncryption::A256Gcm;
 
 pub struct Jwe;
 
@@ -69,7 +69,6 @@ impl Jwe {
             Ok(err) => err,
             Err(err) => JoseError::InvalidJwtFormat(err),
         })
-
     }
 
     /// Return a representation of the data that is formatted by flattened json serialization.
@@ -139,12 +138,9 @@ impl Jwe {
         input: &str,
         decrypter: &dyn JweDecrypter,
     ) -> Result<(JweHeader, Vec<u8>), JoseError> {
-        Self::deserialize_compact_with_selector(
-            input, 
-            |_header| Ok(Box::new(decrypter)),
-        )
+        Self::deserialize_compact_with_selector(input, |_header| Ok(Box::new(decrypter)))
     }
-    
+
     /// Deserialize the input that is formatted by compact serialization.
     ///
     /// # Arguments

@@ -504,10 +504,7 @@ impl Jwt<JwsHeader> {
         input: &str,
         verifier: &dyn JwsVerifier,
     ) -> Result<Self, JoseError> {
-        Self::decode_with_verifier_selector(
-            input,
-            |_header| Some(Box::new(verifier)),
-        )
+        Self::decode_with_verifier_selector(input, |_header| Some(Box::new(verifier)))
     }
 
     /// Return the JWT object decoded with a selected verifying algorithm.
@@ -523,24 +520,20 @@ impl Jwt<JwsHeader> {
         F: FnOnce(&JwsHeader) -> Option<Box<&'a dyn JwsVerifier>>,
     {
         (|| -> anyhow::Result<Self> {
-            let (header, payload) =
-                Jws::deserialize_compact_with_selector(
-                    input,
-                    |header| {
-                        (|| -> anyhow::Result<Box<&'a dyn JwsVerifier>> {
-                            let verifier = match verifier_selector(&header) {
-                                Some(val) => val,
-                                None => bail!("A verifier is not found."),
-                            };
+            let (header, payload) = Jws::deserialize_compact_with_selector(input, |header| {
+                (|| -> anyhow::Result<Box<&'a dyn JwsVerifier>> {
+                    let verifier = match verifier_selector(&header) {
+                        Some(val) => val,
+                        None => bail!("A verifier is not found."),
+                    };
 
-                            if verifier.is_acceptable_critical("b64") {
-                                bail!("JWT is not supported b64 header claim.")
-                            }
-                            Ok(verifier)
-                        })()
-                        .map_err(|err| JoseError::InvalidJwtFormat(err))
+                    if verifier.is_acceptable_critical("b64") {
+                        bail!("JWT is not supported b64 header claim.")
                     }
-                )?;
+                    Ok(verifier)
+                })()
+                .map_err(|err| JoseError::InvalidJwtFormat(err))
+            })?;
             let payload: Map<String, Value> = serde_json::from_slice(&payload)?;
             let payload = JwtPayload::from_map(payload)?;
 
@@ -601,10 +594,7 @@ impl Jwt<JweHeader> {
         input: &str,
         decrypter: &dyn JweDecrypter,
     ) -> Result<Self, JoseError> {
-        Self::decode_with_decrypter_selector(
-            input,
-            |_header| Some(Box::new(decrypter)),
-        )
+        Self::decode_with_decrypter_selector(input, |_header| Some(Box::new(decrypter)))
     }
 
     /// Return the JWT object decoded with a selected decrypting algorithm.
@@ -620,21 +610,17 @@ impl Jwt<JweHeader> {
         F: FnOnce(&JweHeader) -> Option<Box<&'a dyn JweDecrypter>>,
     {
         (|| -> anyhow::Result<Self> {
-            let (header, payload) =
-                Jwe::deserialize_compact_with_selector(
-                    input, 
-                    |header| {
-                        (|| -> anyhow::Result<Box<&'a dyn JweDecrypter>> {
-                            let decrypter = match decrypter_selector(&header) {
-                                Some(val) => val,
-                                None => bail!("A decrypter is not found."),
-                            };
+            let (header, payload) = Jwe::deserialize_compact_with_selector(input, |header| {
+                (|| -> anyhow::Result<Box<&'a dyn JweDecrypter>> {
+                    let decrypter = match decrypter_selector(&header) {
+                        Some(val) => val,
+                        None => bail!("A decrypter is not found."),
+                    };
 
-                            Ok(decrypter)
-                        })()
-                        .map_err(|err| JoseError::InvalidJwtFormat(err))
-                    }
-                )?;
+                    Ok(decrypter)
+                })()
+                .map_err(|err| JoseError::InvalidJwtFormat(err))
+            })?;
             let payload: Map<String, Value> = serde_json::from_slice(&payload)?;
             let payload = JwtPayload::from_map(payload)?;
 
@@ -660,23 +646,20 @@ impl Jwt<JweHeader> {
     where
         F: Fn(&Jwk) -> Option<Box<&dyn JweDecrypter>>,
     {
-        Self::decode_with_decrypter_selector(
-            input, 
-            |header| {
-                let key_id = match header.key_id() {
-                    Some(val) => val,
-                    None => return None,
-                };
+        Self::decode_with_decrypter_selector(input, |header| {
+            let key_id = match header.key_id() {
+                Some(val) => val,
+                None => return None,
+            };
 
-                for jwk in jwk_set.get(key_id) {
-                    match selector(jwk) {
-                        Some(val) => return Some(val),
-                        None => {}
-                    }
+            for jwk in jwk_set.get(key_id) {
+                match selector(jwk) {
+                    Some(val) => return Some(val),
+                    None => {}
                 }
-                None
             }
-        )
+            None
+        })
     }
 }
 

@@ -50,11 +50,7 @@ impl Jws {
         payload: &[u8],
         signer: &dyn JwsSigner,
     ) -> Result<String, JoseError> {
-        Self::serialize_compact_with_selector(
-            header, 
-            payload,
-            |_header| Some(Box::new(signer)),
-        )
+        Self::serialize_compact_with_selector(header, payload, |_header| Some(Box::new(signer)))
     }
 
     /// Return a representation of the data that is formatted by compact serialization.
@@ -92,10 +88,7 @@ impl Jws {
                 Value::String(signer.algorithm().name().to_string()),
             );
             if let Some(key_id) = signer.key_id() {
-                header.insert(
-                    "kid".to_string(),
-                    Value::String(key_id.to_string()),
-                );
+                header.insert("kid".to_string(), Value::String(key_id.to_string()));
             }
             let header = serde_json::to_string(&header)?;
             let header = base64::encode_config(header, base64::URL_SAFE_NO_PAD);
@@ -151,6 +144,30 @@ impl Jws {
         payload: &[u8],
         signer: &dyn JwsSigner,
     ) -> Result<String, JoseError> {
+        Self::serialize_flattened_json_with_selector(
+            protected, 
+            header, 
+            payload, 
+            |_header| Some(Box::new(signer))
+        )
+    }
+
+    /// Return a representation of the data that is formatted by flatted json serialization.
+    ///
+    /// # Arguments
+    /// * `protected` - The JWS protected header claims.
+    /// * `header` - The JWS unprotected header claims.
+    /// * `payload` - The payload data.
+    /// * `selector` - a function for selecting the signing algorithm.
+    pub fn serialize_flattened_json_with_selector<'a, F>(
+        protected: Option<&JwsHeader>,
+        header: Option<&JwsHeader>,
+        payload: &[u8],
+        selector: F,
+    ) -> Result<String, JoseError>
+    where
+        F: FnOnce(&JwsHeader) -> Option<Box<&'a dyn JwsSigner>>,
+    {
         (|| -> anyhow::Result<String> {
             let mut result = Map::new();
             let mut b64 = true;
@@ -169,23 +186,26 @@ impl Jws {
                 Map::new()
             };
 
-            protected_map.insert(
-                "alg".to_string(),
-                Value::String(signer.algorithm().name().to_string()),
-            );
-            if let Some(key_id) = signer.key_id() {
-                protected_map.insert(
-                    "kid".to_string(),
-                    Value::String(key_id.to_string()),
-                );
-            }
-
             if let Some(val) = header {
                 for key in val.claims_set().keys() {
                     if protected_map.contains_key(key) {
                         bail!("Duplicate key exists: {}", key);
                     }
                 }
+            }
+
+            let combined = JwsHeader::from_map(protected_map.clone())?;
+            let signer = match selector(&combined) {
+                Some(val) => val,
+                None => bail!("A signer is not found."),
+            };
+
+            protected_map.insert(
+                "alg".to_string(),
+                Value::String(signer.algorithm().name().to_string()),
+            );
+            if let Some(key_id) = signer.key_id() {
+                protected_map.insert("kid".to_string(), Value::String(key_id.to_string()));
             }
 
             let protected_json = serde_json::to_string(&protected_map)?;
@@ -238,10 +258,7 @@ impl Jws {
         input: &str,
         verifier: &dyn JwsVerifier,
     ) -> Result<(JwsHeader, Vec<u8>), JoseError> {
-        Self::deserialize_compact_with_selector(
-            input, 
-            |_header| Ok(Box::new(verifier)),
-        )
+        Self::deserialize_compact_with_selector(input, |_header| Ok(Box::new(verifier)))
     }
 
     /// Deserialize the input that is formatted by compact serialization.
@@ -342,10 +359,7 @@ impl Jws {
         input: &str,
         verifier: &'a dyn JwsVerifier,
     ) -> Result<(JwsHeader, Vec<u8>), JoseError> {
-        Self::deserialize_flattened_json_with_selector(
-            input, 
-            |_header| Ok(Box::new(verifier))
-        )
+        Self::deserialize_flattened_json_with_selector(input, |_header| Ok(Box::new(verifier)))
     }
 
     /// Deserialize the input that is formatted by flattened json serialization.

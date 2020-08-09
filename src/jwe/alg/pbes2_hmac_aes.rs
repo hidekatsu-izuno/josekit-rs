@@ -5,11 +5,11 @@ use crate::jwk::Jwk;
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum Pbes2HmacAesJweAlgorithm {
     /// PBES2 with HMAC SHA-256 and "A128KW" wrapping
-    PBES2_HS256_A128KW,
+    Pbes2HS256A128Kw,
     /// PBES2 with HMAC SHA-384 and "A192KW" wrapping
-    PBES2_HS384_A192KW,
+    Pbes2HS384A192Kw,
     /// PBES2 with HMAC SHA-512 and "A256KW" wrapping
-    PBES2_HS512_A256KW,
+    Pbes2HS512A256Kw,
 }
 
 impl Pbes2HmacAesJweAlgorithm {
@@ -33,9 +33,9 @@ impl Pbes2HmacAesJweAlgorithm {
 impl JweAlgorithm for Pbes2HmacAesJweAlgorithm {
     fn name(&self) -> &str {
         match self {
-            Self::PBES2_HS256_A128KW => "PBES2-HS256+A128KW",
-            Self::PBES2_HS384_A192KW => "PBES2-HS384+A192KW",
-            Self::PBES2_HS512_A256KW => "PBES2-HS512+A256KW",
+            Self::Pbes2HS256A128Kw => "PBES2-HS256+A128KW",
+            Self::Pbes2HS384A192Kw => "PBES2-HS384+A192KW",
+            Self::Pbes2HS512A256Kw => "PBES2-HS512+A256KW",
         }
     }
 }

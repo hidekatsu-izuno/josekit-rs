@@ -1,7 +1,7 @@
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum DeflateJweCompression {
     /// Compression with the DEFLATE [RFC1951] algorithm
-    DEF,
+    Def,
 }
 
 impl JweCompression for DeflateJweCompression {

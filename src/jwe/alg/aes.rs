@@ -5,11 +5,11 @@ use crate::jwk::Jwk;
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum AesJweAlgorithm {
     /// AES Key Wrap with default initial value using 128-bit key
-    A128KW,
+    A128Kw,
     /// AES Key Wrap with default initial value using 192-bit key
-    A192KW,
+    A192Kw,
     /// AES Key Wrap with default initial value using 256-bit key
-    A256KW,
+    A256Kw,
 }
 
 impl AesJweAlgorithm {
@@ -33,9 +33,9 @@ impl AesJweAlgorithm {
 impl JweAlgorithm for AesJweAlgorithm {
     fn name(&self) -> &str {
         match self {
-            Self::A128KW => "A128KW",
-            Self::A192KW => "A192KW",
-            Self::A256KW => "A256KW",
+            Self::A128Kw => "A128KW",
+            Self::A192Kw => "A192KW",
+            Self::A256Kw => "A256KW",
         }
     }
 }
