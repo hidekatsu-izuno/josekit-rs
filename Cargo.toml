@@ -1,9 +1,9 @@
 [package]
-name = "jwt_rs"
-version = "0.1.0"
+name = "josekit"
+version = "0.2.0"
 description = "JOSE (Javascript Object Signing and Encryption) library for Rust."
-homepage = "https://github.com/hidekatsu-izuno/jwt-rs"
-repository = "https://github.com/hidekatsu-izuno/jwt-rs"
+homepage = "https://github.com/hidekatsu-izuno/josekit-rs"
+repository = "https://github.com/hidekatsu-izuno/josekit-rs"
 readme = "README.md"
 license = "MIT OR Apache-2.0"
 authors = ["Hidekatsu Izuno <hidekatsu.izuno@gmail.com>"]
