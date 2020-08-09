@@ -83,6 +83,12 @@ impl JoseHeader for JwtHeader {
     }
 }
 
+impl Into<Map<String, Value>> for JwtHeader {
+    fn into(self) -> Map<String, Value> {
+        self.claims
+    }
+}
+
 impl Display for JwtHeader {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
         let val = serde_json::to_string(self.claims_set()).map_err(|_e| std::fmt::Error {})?;
@@ -517,11 +523,6 @@ impl Jwt<JwsHeader> {
         F: FnOnce(&JwsHeader) -> Option<Box<&'a dyn JwsVerifier>>,
     {
         (|| -> anyhow::Result<Self> {
-            let parts: Vec<&str> = input.split('.').collect();
-            if parts.len() != 3 {
-                bail!("The signed JWT must be three parts separated by colon.");
-            }
-
             let (header, payload) =
                 Jws::deserialize_compact_with_selector(
                     input,
@@ -707,24 +708,18 @@ impl<T: JoseHeader> Jwt<T> {
     /// * `signer` - a signer object.
     pub fn encode_with_signer(&self, signer: &dyn JwsSigner) -> Result<String, JoseError> {
         (|| -> anyhow::Result<String> {
-            let alg = signer.algorithm().name();
-
-            let mut header = self.header.claims_set().clone();
-            header.insert("alg".to_string(), Value::String(alg.to_string()));
-
-            if let Some(key_id) = signer.key_id() {
-                header.insert("kid".to_string(), Value::String(key_id.to_string()));
-            }
-
-            let header = JwsHeader::from_map(header)?;
-            if let Some(vals) = header.critical() {
-                if vals.iter().any(|e| e == "b64") {
+            if let Some(Value::Array(vals)) = self.header.claim("critical") {
+                if vals.iter().any(|e| match e {
+                    Value::String(val) if val == "b64" => true,
+                    _ => false,
+                }) {
                     bail!("JWT is not support b64 header claim.");
                 }
             }
 
+            let header = JwsHeader::from_map(self.header.claims_set().clone())?;
             let payload = &self.payload.to_string();
-            let jwt = Jws::serialize_compact(&header, &payload.as_bytes(), signer)?;
+            let jwt = Jws::serialize_compact(&header, payload.as_bytes(), signer)?;
             Ok(jwt)
         })()
         .map_err(|err| match err.downcast::<JoseError>() {

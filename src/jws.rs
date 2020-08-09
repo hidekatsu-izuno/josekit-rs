@@ -50,6 +50,27 @@ impl Jws {
         payload: &[u8],
         signer: &dyn JwsSigner,
     ) -> Result<String, JoseError> {
+        Self::serialize_compact_with_selector(
+            header, 
+            payload,
+            |_header| Some(Box::new(signer)),
+        )
+    }
+
+    /// Return a representation of the data that is formatted by compact serialization.
+    ///
+    /// # Arguments
+    /// * `header` - The JWS heaser claims.
+    /// * `payload` - The payload data.
+    /// * `selector` - a function for selecting the signing algorithm.
+    pub fn serialize_compact_with_selector<'a, F>(
+        header: &JwsHeader,
+        payload: &[u8],
+        selector: F,
+    ) -> Result<String, JoseError>
+    where
+        F: FnOnce(&JwsHeader) -> Option<Box<&'a dyn JwsSigner>>,
+    {
         (|| -> anyhow::Result<String> {
             let mut b64 = true;
             if let Some(vals) = header.critical() {
@@ -59,6 +80,25 @@ impl Jws {
                     }
                 }
             }
+
+            let signer = match selector(header) {
+                Some(val) => val,
+                None => bail!("A signer is not found."),
+            };
+
+            let mut header = header.claims_set().clone();
+            header.insert(
+                "alg".to_string(),
+                Value::String(signer.algorithm().name().to_string()),
+            );
+            if let Some(key_id) = signer.key_id() {
+                header.insert(
+                    "kid".to_string(),
+                    Value::String(key_id.to_string()),
+                );
+            }
+            let header = serde_json::to_string(&header)?;
+            let header = base64::encode_config(header, base64::URL_SAFE_NO_PAD);
 
             let payload_base64;
             let payload = if b64 {
@@ -75,9 +115,6 @@ impl Jws {
                     Err(err) => bail!("{}", err),
                 }
             };
-
-            let header = header.to_string();
-            let header = base64::encode_config(header, base64::URL_SAFE_NO_PAD);
 
             let mut message = String::with_capacity(
                 header.len() + payload.len() + signer.algorithm().signature_len() + 2,
@@ -131,12 +168,19 @@ impl Jws {
             } else {
                 Map::new()
             };
+
             protected_map.insert(
                 "alg".to_string(),
                 Value::String(signer.algorithm().name().to_string()),
             );
+            if let Some(key_id) = signer.key_id() {
+                protected_map.insert(
+                    "kid".to_string(),
+                    Value::String(key_id.to_string()),
+                );
+            }
 
-            if let Some(val) = &header {
+            if let Some(val) = header {
                 for key in val.claims_set().keys() {
                     if protected_map.contains_key(key) {
                         bail!("Duplicate key exists: {}", key);
@@ -205,7 +249,7 @@ impl Jws {
     /// # Arguments
     /// * `input` - The input data.
     /// * `header` - The decoded JWS header claims.
-    /// * `verifier_selector` - a function for selecting the verifying algorithm.
+    /// * `selector` - a function for selecting the verifying algorithm.
     pub fn deserialize_compact_with_selector<'a, F>(
         input: &str,
         selector: F,
@@ -898,6 +942,12 @@ impl JoseHeader for JwsHeader {
             Ok(())
         })()
         .map_err(|err| JoseError::InvalidJwtFormat(err))
+    }
+}
+
+impl Into<Map<String, Value>> for JwsHeader {
+    fn into(self) -> Map<String, Value> {
+        self.claims
     }
 }
 

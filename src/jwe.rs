@@ -58,7 +58,71 @@ impl Jwe {
         encrypter: &dyn JweEncrypter,
     ) -> Result<String, JoseError> {
         (|| -> anyhow::Result<String> {
-            unimplemented!("JWE is not supported yet.");
+            let payload = base64::encode_config(payload, base64::URL_SAFE_NO_PAD);
+
+            let header = header.to_string();
+            let header = base64::encode_config(header, base64::URL_SAFE_NO_PAD);
+
+            unimplemented!();
+        })()
+        .map_err(|err| match err.downcast::<JoseError>() {
+            Ok(err) => err,
+            Err(err) => JoseError::InvalidJwtFormat(err),
+        })
+
+    }
+
+    /// Return a representation of the data that is formatted by flattened json serialization.
+    ///
+    /// # Arguments
+    /// * `protected` - The JWE protected header claims.
+    /// * `header` - The JWE unprotected header claims.
+    /// * `payload` - The payload data.
+    /// * `encrypter` - The JWS encrypter.
+    pub fn serialize_flattened_json(
+        protected: Option<&JweHeader>,
+        header: Option<&JweHeader>,
+        payload: &[u8],
+        encrypter: &dyn JweEncrypter,
+    ) -> Result<String, JoseError> {
+        (|| -> anyhow::Result<String> {
+            let mut result = Map::new();
+
+            let mut protected_map = if let Some(val) = protected {
+                val.claims_set().clone()
+            } else {
+                Map::new()
+            };
+            protected_map.insert(
+                "alg".to_string(),
+                Value::String(encrypter.algorithm().name().to_string()),
+            );
+
+            if let Some(val) = &header {
+                for key in val.claims_set().keys() {
+                    if protected_map.contains_key(key) {
+                        bail!("Duplicate key exists: {}", key);
+                    }
+                }
+            }
+
+            let protected_json = serde_json::to_string(&protected_map)?;
+            let protected_base64 = base64::encode_config(protected_json, base64::URL_SAFE_NO_PAD);
+
+            let payload = base64::encode_config(payload, base64::URL_SAFE_NO_PAD);
+
+            result.insert("protected".to_string(), Value::String(protected_base64));
+
+            if let Some(val) = header {
+                result.insert(
+                    "header".to_string(),
+                    Value::Object(val.claims_set().clone()),
+                );
+            }
+
+            result.insert("payload".to_string(), Value::String(payload.to_string()));
+
+            unimplemented!();
         })()
         .map_err(|err| match err.downcast::<JoseError>() {
             Ok(err) => err,
@@ -397,6 +461,12 @@ impl JoseHeader for JweHeader {
     }
 }
 
+impl Into<Map<String, Value>> for JweHeader {
+    fn into(self) -> Map<String, Value> {
+        self.claims
+    }
+}
+
 impl Display for JweHeader {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
         let val = serde_json::to_string(self.claims_set()).map_err(|_e| std::fmt::Error {})?;
@@ -414,6 +484,11 @@ pub trait JweEncryption {
     fn name(&self) -> &str;
 
     fn encrypt(&self, message: &[u8]) -> Result<Vec<u8>, JoseError>;
+}
+
+pub trait JweCompression {
+    /// Return the "zip" (compression algorithm) header parameter value of JWE.
+    fn name(&self) -> &str;
 }
 
 pub trait JweEncrypter {

@@ -5,7 +5,7 @@ use std::fmt::Display;
 
 pub use crate::jose::error::JoseError;
 
-pub trait JoseHeader: Clone + Display {
+pub trait JoseHeader: Clone + Display + Into<Map<String, Value>> {
     fn from_slice(value: &[u8]) -> Result<Self, JoseError> {
         (|| -> anyhow::Result<Self> {
             let claims: Map<String, Value> = serde_json::from_slice(value)?;
