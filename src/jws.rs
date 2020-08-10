@@ -1,6 +1,4 @@
 pub mod alg;
-mod multi_signer;
-mod multi_verifier;
 
 use std::collections::HashMap;
 use std::fmt::Display;
@@ -30,9 +28,6 @@ pub use crate::jws::alg::ecdsa::EcdsaJwsAlgorithm::ES384;
 pub use crate::jws::alg::ecdsa::EcdsaJwsAlgorithm::ES512;
 
 pub use crate::jws::alg::eddsa::EddsaJwsAlgorithm::EdDSA;
-
-pub use crate::jws::multi_signer::JwsMultiSigner;
-pub use crate::jws::multi_verifier::JwsMultiVerifier;
 
 /// Return a representation of the data that is formatted by compact serialization.
 ///
@@ -106,21 +101,84 @@ where
             }
         };
 
-        let mut message = String::with_capacity(
-            header.len() + payload.len() + signer.algorithm().signature_len() + 2,
-        );
+        let capacity = header.len() + payload.len() + signer.algorithm().signature_len() + 2;
+        let mut message = String::with_capacity(capacity);
 
         message.push_str(&header);
         message.push_str(".");
         message.push_str(&payload);
 
         let signature = signer.sign(message.as_bytes())?;
-
         let signature = base64::encode_config(signature, base64::URL_SAFE_NO_PAD);
+
         message.push_str(".");
         message.push_str(&signature);
 
         Ok(message)
+    })()
+    .map_err(|err| match err.downcast::<JoseError>() {
+        Ok(err) => err,
+        Err(err) => JoseError::InvalidJwtFormat(err),
+    })
+}
+
+/// Return a representation of the data that is formatted by flattened json serialization.
+///
+/// # Arguments
+/// 
+/// * `protected` - The JWS protected header claims.
+/// * `header` - The JWS unprotected header claims.
+/// * `payload` - The payload data.
+/// * `signer` - The JWS signer.
+pub fn serialize_general_json(
+    payload: &[u8],
+    signer: &JwsMultiSigner,
+) -> Result<String, JoseError> {
+    (|| -> anyhow::Result<String> {
+        let payload = base64::encode_config(payload, base64::URL_SAFE_NO_PAD);
+
+        let mut json = String::new();
+        json.push_str("{\"signatures\":[");
+
+        for (i, (signer, protected, header)) in signer.signers.iter().enumerate() {
+            if i > 0 {
+                json.push_str(",");
+            }
+
+            let mut protected = match protected {
+                Some(val) => val.claims_set().clone(),
+                None => Map::new(),
+            };
+            protected.insert("alg".to_string(), Value::String(signer.algorithm().name().to_string()));
+
+            let protected = serde_json::to_string(&protected)?;
+            let protected = base64::encode_config(&protected, base64::URL_SAFE_NO_PAD);
+            
+            let message = format!("{}.{}", &protected, &payload);
+            
+            let signature = signer.sign(message.as_bytes())?;
+            let signature = base64::encode_config(&signature, base64::URL_SAFE_NO_PAD);
+
+            json.push_str("{\"protected\":\"");
+            json.push_str(&protected);
+            json.push_str("\"");
+            
+            if let Some(val) = header {
+                let header = serde_json::to_string(val.claims_set())?;
+                json.push_str(",\"header\":");
+                json.push_str(&header);
+            }
+
+            json.push_str(",\"signature\":\"");
+            json.push_str(&signature);
+            json.push_str("\"");
+        }
+        
+        json.push_str("],\"payload\":\"");
+        json.push_str(&payload);
+        json.push_str("\"}");
+
+        Ok(json)
     })()
     .map_err(|err| match err.downcast::<JoseError>() {
         Ok(err) => err,
@@ -1023,6 +1081,44 @@ pub trait JwsSigner {
     /// 
     /// * `message` - The message data to sign.
     fn sign(&self, message: &[u8]) -> Result<Vec<u8>, JoseError>;
+}
+
+pub struct JwsMultiSigner<'a> {
+    signers: Vec<(Box<dyn JwsSigner + 'a>, Option<&'a JwsHeader>, Option<&'a JwsHeader>)>,
+}
+
+impl<'a> JwsMultiSigner<'a> {
+    pub fn new() -> Self {
+        JwsMultiSigner {
+            signers: Vec::new(),
+        }
+    }
+
+    pub fn add_signer(
+        &mut self,
+        signer: impl JwsSigner + 'a,
+        protected: Option<&'a JwsHeader>,
+        header: Option<&'a JwsHeader>,
+    ) -> Result<(), JoseError> {
+        (|| -> anyhow::Result<()> {
+            if let Some(protected) = protected {
+                if let Some(header) = header {
+                    let protected_map = protected.claims_set();
+                    let header_map = header.claims_set();
+                    for key in header_map.keys() {
+                        if protected_map.contains_key(key) {
+                            bail!("Duplicate key exists: {}", key);
+                        }
+                    }
+                }
+            }
+
+            self.signers.push((Box::new(signer), protected, header));
+
+            Ok(())
+        })()
+        .map_err(|err| JoseError::InvalidJwsFormat(err))
+    }
 }
 
 pub trait JwsVerifier {

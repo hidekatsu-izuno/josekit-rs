@@ -1,3 +1,5 @@
+use std::collections::BTreeSet;
+
 use crate::jose::JoseError;
 use crate::jwe::{JweAlgorithm, JweDecrypter, JweEncrypter, JweEncryption};
 use crate::jwk::Jwk;
@@ -18,7 +20,7 @@ impl AesJweAlgorithm {
         jwk: &Jwk,
         encryption: &dyn JweEncryption,
     ) -> Result<AesJweEncrypter, JoseError> {
-        unimplemented!();
+        todo!();
     }
 
     pub fn decrypter_from_jwk(
@@ -26,7 +28,7 @@ impl AesJweAlgorithm {
         jwk: &Jwk,
         encryption: &dyn JweEncryption,
     ) -> Result<AesJweDecrypter, JoseError> {
-        unimplemented!();
+        todo!();
     }
 }
 
@@ -41,7 +43,76 @@ impl JweAlgorithm for AesJweAlgorithm {
 }
 
 #[derive(Debug, Clone)]
-pub struct AesJweEncrypter;
+pub struct AesJweEncrypter {
+    algorithm: AesJweAlgorithm,
+    key_id: Option<String>,
+}
+
+impl JweEncrypter for AesJweEncrypter {
+    fn algorithm(&self) -> &dyn JweAlgorithm {
+        &self.algorithm
+    }
+
+    fn key_id(&self) -> Option<&str> {
+        match &self.key_id {
+            Some(val) => Some(val.as_ref()),
+            None => None,
+        }
+    }
+
+    fn set_key_id(&mut self, key_id: &str) {
+        self.key_id = Some(key_id.to_string());
+    }
+
+    fn remove_key_id(&mut self) {
+        self.key_id = None;
+    }
+
+    fn encrypt(&self, key: &[u8]) -> Result<Vec<u8>, JoseError> {
+        todo!()
+    }
+}
 
 #[derive(Debug, Clone)]
-pub struct AesJweDecrypter;
+pub struct AesJweDecrypter {
+    algorithm: AesJweAlgorithm,
+    key_id: Option<String>,
+    acceptable_criticals: BTreeSet<String>,
+}
+
+impl JweDecrypter for AesJweDecrypter {
+    fn algorithm(&self) -> &dyn JweAlgorithm {
+        &self.algorithm
+    }
+
+    fn key_id(&self) -> Option<&str> {
+        match &self.key_id {
+            Some(val) => Some(val.as_ref()),
+            None => None,
+        }
+    }
+
+    fn set_key_id(&mut self, key_id: &str) {
+        self.key_id = Some(key_id.to_string());
+    }
+
+    fn remove_key_id(&mut self) {
+        self.key_id = None;
+    }
+
+    fn is_acceptable_critical(&self, name: &str) -> bool {
+        self.acceptable_criticals.contains(name)
+    }
+
+    fn add_acceptable_critical(&mut self, name: &str) {
+        self.acceptable_criticals.insert(name.to_string());
+    }
+
+    fn remove_acceptable_critical(&mut self, name: &str) {
+        self.acceptable_criticals.remove(name);
+    }
+
+    fn decrypt(&self, key: &[u8]) -> Result<Vec<u8>, JoseError> {
+        todo!()
+    }
+}

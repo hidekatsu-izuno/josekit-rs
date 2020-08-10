@@ -297,9 +297,10 @@ Not support yet.
 ### Unsecured JWT
 
 ```rust
-use josekit::jwt::{self, JwtHeader, JwtPayload};
+use josekit::jws::JwsHeader;
+use josekit::jwt::{self, JwtPayload};
 
-let mut header = JwtHeader::new();
+let mut header = JwsHeader::new();
 header.set_token_type("JWT");
 
 let mut payload = JwtPayload::new();
@@ -309,11 +310,21 @@ let jwt = jwt::encode_unsecured(&header, &payload)?;
 let (header, payload) = jwt::decode_unsecured(&jwt)?;
 ```
 
+### Validate payload
+
+```rust
+use josekit::jwt::{self, JwtPayloadValidator };
+
+let (header, payload) = jwt::decode_with_verifier(&jwt, &verifier)?;
+
+let mut validator = JwtPayloadValidator::new();
+validator.set_issuer("http://example.com");
+validator.validate(&payload)?;
+```
+
 ## ToDo
 
-- Support JWS JSON Serialization
 - Support JWE
-- Support JWE JSON Serialization
 - Support ring
 
 ## License
