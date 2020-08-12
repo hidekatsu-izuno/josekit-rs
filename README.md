@@ -8,7 +8,7 @@ Notice: This package doesn't support JWE yet.
 
 ```toml
 [dependencies]
-josekit = { git = "https://github.com/hidekatsu-izuno/josekit-rs" }
+josekit = "0.2.0"
 ```
 
 This library depends on OpenSSL DLL. Read more about [Crate openssl](https://docs.rs/openssl/). 
