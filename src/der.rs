@@ -1,7 +1,7 @@
-mod error;
 mod builder;
-mod reader;
+mod error;
 pub mod oid;
+mod reader;
 
 pub use crate::der::builder::DerBuilder;
 pub use crate::der::error::DerError;

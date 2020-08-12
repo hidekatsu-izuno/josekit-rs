@@ -7,9 +7,9 @@ pub use crate::jose::error::JoseError;
 
 pub trait JoseHeader: Clone + Display + Into<Map<String, Value>> {
     /// Return a new header instance from json style header.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `value` - The json style header claims
     fn from_slice(value: &[u8]) -> Result<Self, JoseError> {
         (|| -> anyhow::Result<Self> {
@@ -23,9 +23,9 @@ pub trait JoseHeader: Clone + Display + Into<Map<String, Value>> {
     }
 
     /// Return a new header instance from map.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `claims` - The header claims
     fn from_map(claims: Map<String, Value>) -> Result<Self, JoseError>;
 
@@ -40,7 +40,7 @@ pub trait JoseHeader: Clone + Display + Into<Map<String, Value>> {
     /// Return the value for header claim of a specified key.
     ///
     /// # Arguments
-    /// 
+    ///
     /// * `key` - a key name of header claim
     fn claim(&self, key: &str) -> Option<&Value> {
         self.claims_set().get(key)
@@ -52,7 +52,7 @@ pub trait JoseHeader: Clone + Display + Into<Map<String, Value>> {
     /// Set a value for header claim of a specified key.
     ///
     /// # Arguments
-    /// 
+    ///
     /// * `key` - a key name of header claim
     /// * `value` - a typed value of header claim
     fn set_claim(&mut self, key: &str, value: Option<Value>) -> Result<(), JoseError>;

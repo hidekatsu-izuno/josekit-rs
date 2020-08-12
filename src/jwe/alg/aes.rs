@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 
 use crate::jose::JoseError;
-use crate::jwe::{JweAlgorithm, JweDecrypter, JweEncrypter, JweEncryption};
+use crate::jwe::{JweAlgorithm, JweDecrypter, JweEncrypter};
 use crate::jwk::Jwk;
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
@@ -18,7 +18,6 @@ impl AesJweAlgorithm {
     pub fn encrypter_from_jwk(
         &self,
         jwk: &Jwk,
-        encryption: &dyn JweEncryption,
     ) -> Result<AesJweEncrypter, JoseError> {
         todo!();
     }
@@ -26,7 +25,6 @@ impl AesJweAlgorithm {
     pub fn decrypter_from_jwk(
         &self,
         jwk: &Jwk,
-        encryption: &dyn JweEncryption,
     ) -> Result<AesJweDecrypter, JoseError> {
         todo!();
     }

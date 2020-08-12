@@ -112,11 +112,11 @@ let common_secret_key = b"secret";
 
 // Signing JWT
 let signer = HS256.signer_from_bytes(private_key)?;
-let jwt = jwt::encode_with_signer(&header, &payload, &signer)?;
+let jwt = jwt::encode_with_signer(&payload, &header, &signer)?;
 
 // Verifing JWT
 let verifier = HS256.signer_from_bytes(private_key)?
-let (header, payload) = jwt::decode_with_verifier(&jwt, &verifier)?;
+let (payload, header) = jwt::decode_with_verifier(&jwt, &verifier)?;
 ```
 
 ### Signing a JWT by RSA
@@ -147,12 +147,12 @@ payload.set_subject("subject");
 // Signing JWT
 let private_key = load_from_file("rsa_private.pem")?;
 let signer = RS256.signer_from_pem(&private_key)?;
-let jwt = jwt::encode_with_signer(&header, &payload, &signer)?;
+let jwt = jwt::encode_with_signer(&payload, &header, &signer)?;
 
 // Verifing JWT
 let public_key = load_from_file("rsa_public.pem")?;
 let verifier = RS256.verifier_from_pem(&public_key)?;
-let (header, payload) = jwt::decode_with_verifier(&jwt, &verifier)?;
+let (payload, header) = jwt::decode_with_verifier(&jwt, &verifier)?;
 ```
 
 ### Signing a JWT by RSA-PSS
@@ -193,12 +193,12 @@ payload.set_subject("subject");
 // Signing JWT
 let private_key = load_from_file("rsapss_private.pem")?;
 let signer = PS256.signer_from_pem(&private_key)?;
-let jwt = jwt::encode_with_signer(&header, &payload, &signer)?;
+let jwt = jwt::encode_with_signer(&payload, &header, &signer)?;
 
 // Verifing JWT
 let public_key = load_from_file("rsapss_public.pem")?;
 let verifier = PS256.verifier_from_pem(&public_key)?;
-let (header, payload) = jwt::decode_with_verifier(&jwt, &verifier)?;
+let (payload, header) = jwt::decode_with_verifier(&jwt, &verifier)?;
 ```
 
 ### Signing a JWT by ECDSA
@@ -240,12 +240,12 @@ payload.set_subject("subject");
 // Signing JWT
 let private_key = load_from_file("ECDSA_private.pem")?;
 let signer = ES256.signer_from_pem(&private_key)?;
-let jwt = jwt::encode_with_signer(&header, &payload, &signer)?;
+let jwt = jwt::encode_with_signer(&payload, &header, &signer)?;
 
 // Verifing JWT
 let public_key = load_from_file("ECDSA_public.pem")?;
 let verifier = ES256.verifier_from_pem(&public_key)?;
-let (header, payload) = jwt::decode_with_verifier(&jwt, &verifier)?;
+let (payload, header) = jwt::decode_with_verifier(&jwt, &verifier)?;
 ```
 
 ### Signing a JWT by EdDSA
@@ -282,12 +282,12 @@ payload.set_subject("subject");
 // Signing JWT
 let private_key = load_from_file("EdDSA_private.pem")?;
 let signer = EdDSA.signer_from_pem(&private_key)?;
-let jwt = jwt::encode_with_signer(&header, &payload, &signer)?;
+let jwt = jwt::encode_with_signer(&payload, &header, &signer)?;
 
 // Verifing JWT
 let public_key = load_from_file("EdDSA_public.pem")?;
 let verifier = EdDSA.verifier_from_pem(&public_key)?;
-let (header, payload) = jwt::decode_with_verifier(&jwt, &verifier)?;
+let (payload, header) = jwt::decode_with_verifier(&jwt, &verifier)?;
 ```
 
 ### Encrypted JWT
@@ -306,8 +306,8 @@ header.set_token_type("JWT");
 let mut payload = JwtPayload::new();
 payload.set_subject("subject");
 
-let jwt = jwt::encode_unsecured(&header, &payload)?;
-let (header, payload) = jwt::decode_unsecured(&jwt)?;
+let jwt = jwt::encode_unsecured(&payload, &header)?;
+let (payload, header) = jwt::decode_unsecured(&jwt)?;
 ```
 
 ### Validate payload
@@ -315,17 +315,28 @@ let (header, payload) = jwt::decode_unsecured(&jwt)?;
 ```rust
 use josekit::jwt::{self, JwtPayloadValidator };
 
-let (header, payload) = jwt::decode_with_verifier(&jwt, &verifier)?;
+...
+let (payload, _) = jwt::decode_with_verifier(&jwt, &verifier)?;
 
 let mut validator = JwtPayloadValidator::new();
+// value based validation
 validator.set_issuer("http://example.com");
+validator.set_audience("user1");
+validator.set_jwt_id("550e8400-e29b-41d4-a716-446655440000");
+
+// time based validation: not_before <= base_time < expires_at
+validator.set_base_time(SystemTime::now() + Duration::from_secs(30));
+
+// issued time based validation: min_issued_time <= issued_time <= max_issued_time
+validator.set_min_issued_time(SystemTime::now() - Duration::from_secs(48 * 60));
+validator.set_max_issued_time(SystemTime::now() + Duration::from_secs(24 * 60));
+
 validator.validate(&payload)?;
 ```
 
 ## ToDo
 
 - Support JWE
-- Support ring
 
 ## License
 

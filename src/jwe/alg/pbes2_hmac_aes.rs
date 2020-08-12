@@ -1,5 +1,5 @@
 use crate::jose::JoseError;
-use crate::jwe::{JweAlgorithm, JweDecrypter, JweEncrypter, JweEncryption};
+use crate::jwe::{JweAlgorithm, JweDecrypter, JweEncrypter};
 use crate::jwk::Jwk;
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
@@ -16,7 +16,6 @@ impl Pbes2HmacAesJweAlgorithm {
     pub fn encrypter_from_jwk(
         &self,
         jwk: &Jwk,
-        encryption: &dyn JweEncryption,
     ) -> Result<Pbes2HmacAesJweEncrypter, JoseError> {
         unimplemented!();
     }
@@ -24,7 +23,6 @@ impl Pbes2HmacAesJweAlgorithm {
     pub fn decrypter_from_jwk(
         &self,
         jwk: &Jwk,
-        encryption: &dyn JweEncryption,
     ) -> Result<Pbes2HmacAesJweDecrypter, JoseError> {
         unimplemented!();
     }

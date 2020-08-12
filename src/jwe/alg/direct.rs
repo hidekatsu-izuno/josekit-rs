@@ -1,32 +1,30 @@
 use crate::jose::JoseError;
-use crate::jwe::{JweAlgorithm, JweDecrypter, JweEncrypter, JweEncryption};
+use crate::jwe::{JweAlgorithm, JweDecrypter, JweEncrypter};
 use crate::jwk::Jwk;
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
-pub enum DirJweAlgorithm {
+pub enum DirectJweAlgorithm {
     /// Direct use of a shared symmetric key as the CEK
     Dir,
 }
 
-impl DirJweAlgorithm {
+impl DirectJweAlgorithm {
     pub fn encrypter_from_jwk(
         &self,
         jwk: &Jwk,
-        encryption: &dyn JweEncryption,
-    ) -> Result<DirJweEncrypter, JoseError> {
+    ) -> Result<DirectJweEncrypter, JoseError> {
         unimplemented!();
     }
 
     pub fn decrypter_from_jwk(
         &self,
         jwk: &Jwk,
-        encryption: &dyn JweEncryption,
-    ) -> Result<DirJweDecrypter, JoseError> {
+    ) -> Result<DirectJweDecrypter, JoseError> {
         unimplemented!();
     }
 }
 
-impl JweAlgorithm for DirJweAlgorithm {
+impl JweAlgorithm for DirectJweAlgorithm {
     fn name(&self) -> &str {
         match self {
             Self::Dir => "dir",
@@ -35,7 +33,7 @@ impl JweAlgorithm for DirJweAlgorithm {
 }
 
 #[derive(Debug, Clone)]
-pub struct DirJweEncrypter;
+pub struct DirectJweEncrypter;
 
 #[derive(Debug, Clone)]
-pub struct DirJweDecrypter;
+pub struct DirectJweDecrypter;

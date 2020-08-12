@@ -19,9 +19,9 @@ pub use crate::jwe::alg::aes_gcm::AesGcmJweAlgorithm::A128GcmKw;
 pub use crate::jwe::alg::aes_gcm::AesGcmJweAlgorithm::A192GcmKw;
 pub use crate::jwe::alg::aes_gcm::AesGcmJweAlgorithm::A256GcmKw;
 
-pub use crate::jwe::alg::dir::DirJweAlgorithm::Dir;
+pub use crate::jwe::alg::direct::DirectJweAlgorithm::Dir;
 
-pub use crate::jwe::alg::ecdh_es::EcdhEsJweAlgorithm::EcdhEs;
+pub use crate::jwe::alg::direct_key::DirectKeyJweAlgorithm::EcdhEs;
 
 pub use crate::jwe::alg::ecdh_es_aes::EcdhEsAesJweAlgorithm::EcdhEsA128Kw;
 pub use crate::jwe::alg::ecdh_es_aes::EcdhEsAesJweAlgorithm::EcdhEsA192Kw;
@@ -46,32 +46,32 @@ pub use crate::jwe::enc::aes_gcm::AesGcmJweEncryption::A256Gcm;
 /// Return a representation of the data that is formatted by compact serialization.
 ///
 /// # Arguments
-/// 
-/// * `header` - The JWS heaser claims.
+///
 /// * `payload` - The payload data.
+/// * `header` - The JWS heaser claims.
 /// * `encrypter` - The JWS encrypter.
 pub fn serialize_compact(
-    header: &JweHeader,
     payload: &[u8],
+    header: &JweHeader,
     encrypter: &dyn JweEncrypter,
 ) -> Result<String, JoseError> {
-    serialize_compact_with_selector(header, payload, |_header| Some(Box::new(encrypter)))
+    serialize_compact_with_selector(payload, header, |_header| Some(encrypter))
 }
 
 /// Return a representation of the data that is formatted by compact serialization.
 ///
 /// # Arguments
-/// 
-/// * `header` - The JWS heaser claims.
+///
 /// * `payload` - The payload data.
+/// * `header` - The JWS heaser claims.
 /// * `selector` - a function for selecting the signing algorithm.
 pub fn serialize_compact_with_selector<'a, F>(
-    header: &JweHeader,
     payload: &[u8],
+    header: &JweHeader,
     selector: F,
 ) -> Result<String, JoseError>
 where
-    F: FnOnce(&JweHeader) -> Option<Box<&'a dyn JweEncrypter>>,
+    F: FnOnce(&JweHeader) -> Option<&'a dyn JweEncrypter>,
 {
     (|| -> anyhow::Result<String> {
         unimplemented!("JWE is not supported yet.");
@@ -85,41 +85,36 @@ where
 /// Return a representation of the data that is formatted by flattened json serialization.
 ///
 /// # Arguments
-/// 
+///
 /// * `protected` - The JWE protected header claims.
 /// * `header` - The JWE unprotected header claims.
 /// * `payload` - The payload data.
 /// * `encrypter` - The JWS encrypter.
 pub fn serialize_flattened_json(
+    payload: &[u8],
     protected: Option<&JweHeader>,
     header: Option<&JweHeader>,
-    payload: &[u8],
     encrypter: &dyn JweEncrypter,
 ) -> Result<String, JoseError> {
-    serialize_flattened_json_with_selector(
-        protected, 
-        header, 
-        payload, 
-        |_header| Some(Box::new(encrypter))
-    )
+    serialize_flattened_json_with_selector(payload, protected, header, |_header| Some(encrypter))
 }
 
 /// Return a representation of the data that is formatted by flatted json serialization.
 ///
 /// # Arguments
-/// 
+///
+/// * `payload` - The payload data.
 /// * `protected` - The JWS protected header claims.
 /// * `header` - The JWS unprotected header claims.
-/// * `payload` - The payload data.
 /// * `selector` - a function for selecting the encrypting algorithm.
 pub fn serialize_flattened_json_with_selector<'a, F>(
+    payload: &[u8],
     protected: Option<&JweHeader>,
     header: Option<&JweHeader>,
-    payload: &[u8],
     selector: F,
 ) -> Result<String, JoseError>
 where
-    F: FnOnce(&JweHeader) -> Option<Box<&'a dyn JweEncrypter>>,
+    F: FnOnce(&JweHeader) -> Option<&'a dyn JweEncrypter>,
 {
     (|| -> anyhow::Result<String> {
         unimplemented!("JWE is not supported yet.");
@@ -133,30 +128,30 @@ where
 /// Deserialize the input that is formatted by compact serialization.
 ///
 /// # Arguments
-/// 
+///
 /// * `input` - The input data.
 /// * `decrypter` - The JWS decrypter.
 pub fn deserialize_compact(
     input: &str,
     decrypter: &dyn JweDecrypter,
-) -> Result<(JweHeader, Vec<u8>), JoseError> {
-    deserialize_compact_with_selector(input, |_header| Ok(Box::new(decrypter)))
+) -> Result<(Vec<u8>, JweHeader), JoseError> {
+    deserialize_compact_with_selector(input, |_header| Ok(Some(decrypter)))
 }
 
 /// Deserialize the input that is formatted by compact serialization.
 ///
 /// # Arguments
-/// 
+///
 /// * `input` - The input data.
 /// * `selector` - a function for selecting the decrypting algorithm.
 pub fn deserialize_compact_with_selector<'a, F>(
     input: &str,
     selector: F,
-) -> Result<(JweHeader, Vec<u8>), JoseError>
+) -> Result<(Vec<u8>, JweHeader), JoseError>
 where
-    F: FnOnce(&JweHeader) -> Result<Box<&'a dyn JweDecrypter>, JoseError>,
+    F: FnOnce(&JweHeader) -> Result<Option<&'a dyn JweDecrypter>, JoseError>,
 {
-    (|| -> anyhow::Result<(JweHeader, Vec<u8>)> {
+    (|| -> anyhow::Result<(Vec<u8>, JweHeader)> {
         unimplemented!("JWE is not supported yet.");
     })()
     .map_err(|err| match err.downcast::<JoseError>() {
@@ -168,32 +163,51 @@ where
 /// Deserialize the input that is formatted by flattened json serialization.
 ///
 /// # Arguments
-/// 
+///
 /// * `input` - The input data.
 /// * `header` - The decoded JWS header claims.
 /// * `decrypter` - The JWE decrypter.
-pub fn deserialize_flattened_json<'a>(
+pub fn deserialize_json<'a>(
     input: &str,
     decrypter: &'a dyn JweDecrypter,
-) -> Result<(JweHeader, Vec<u8>), JoseError> {
-    deserialize_flattened_json_with_selector(input, |_header| Ok(Box::new(decrypter)))
+) -> Result<(Vec<u8>, JweHeader), JoseError> {
+    deserialize_json_with_selector(input, |header| {
+        match header.algorithm() {
+            Some(val) => {
+                let expected_alg = decrypter.algorithm().name();
+                if val != expected_alg {
+                    return Ok(None);
+                }
+            }
+            _ => return Ok(None),
+        }
+
+        match decrypter.key_id() {
+            Some(expected) => match header.key_id() {
+                Some(actual) if expected == actual => {}
+                _ => return Ok(None),
+            },
+            None => {}
+        }
+
+        Ok(Some(decrypter))
+    })
 }
 
 /// Deserialize the input that is formatted by flattened json serialization.
 ///
 /// # Arguments
-/// 
+///
 /// * `input` - The input data.
-/// * `header` - The decoded JWS header claims.
 /// * `selector` - a function for selecting the decrypting algorithm.
-pub fn deserialize_flattened_json_with_selector<'a, F>(
+pub fn deserialize_json_with_selector<'a, F>(
     input: &str,
     selector: F,
-) -> Result<(JweHeader, Vec<u8>), JoseError>
+) -> Result<(Vec<u8>, JweHeader), JoseError>
 where
-    F: FnOnce(&JweHeader) -> Result<Box<&'a dyn JweDecrypter>, JoseError>,
+    F: Fn(&JweHeader) -> Result<Option<&'a dyn JweDecrypter>, JoseError>,
 {
-    (|| -> anyhow::Result<(JweHeader, Vec<u8>)> {
+    (|| -> anyhow::Result<(Vec<u8>, JweHeader)> {
         unimplemented!("JWE is not supported yet.");
     })()
     .map_err(|err| match err.downcast::<JoseError>() {
@@ -220,7 +234,7 @@ impl JweHeader {
     /// Set a value for JWK set URL header claim (jku).
     ///
     /// # Arguments
-    /// 
+    ///
     /// * `value` - a JWK set URL
     pub fn set_jwk_set_url(&mut self, value: impl Into<String>) {
         let value: String = value.into();
@@ -239,7 +253,7 @@ impl JweHeader {
     /// Set a value for JWK header claim (jwk).
     ///
     /// # Arguments
-    /// 
+    ///
     /// * `value` - a JWK
     pub fn set_jwk(&mut self, value: Jwk) {
         let key = "jwk".to_string();
@@ -260,7 +274,7 @@ impl JweHeader {
     /// Set a value for X.509 URL header claim (x5u).
     ///
     /// # Arguments
-    /// 
+    ///
     /// * `value` - a X.509 URL
     pub fn set_x509_url(&mut self, value: impl Into<String>) {
         let value: String = value.into();
@@ -279,7 +293,7 @@ impl JweHeader {
     /// Set values for X.509 certificate chain header claim (x5c).
     ///
     /// # Arguments
-    /// 
+    ///
     /// * `values` - X.509 certificate chain
     pub fn set_x509_certificate_chain(&mut self, values: Vec<Vec<u8>>) {
         let key = "x5c".to_string();
@@ -306,7 +320,7 @@ impl JweHeader {
     /// Set a value for X.509 certificate SHA-1 thumbprint header claim (x5t).
     ///
     /// # Arguments
-    /// 
+    ///
     /// * `value` - A X.509 certificate SHA-1 thumbprint
     pub fn set_x509_certificate_sha1_thumbprint(&mut self, value: Vec<u8>) {
         let key = "x5t".to_string();
@@ -327,7 +341,7 @@ impl JweHeader {
     /// Set a value for a x509 certificate SHA-256 thumbprint header claim (x5t#S256).
     ///
     /// # Arguments
-    /// 
+    ///
     /// * `value` - A x509 certificate SHA-256 thumbprint
     pub fn set_x509_certificate_sha256_thumbprint(&mut self, value: Vec<u8>) {
         let key = "x5t#S256".to_string();
@@ -349,7 +363,7 @@ impl JweHeader {
     /// Set a value for key ID header claim (kid).
     ///
     /// # Arguments
-    /// 
+    ///
     /// * `value` - a key ID
     pub fn set_key_id(&mut self, value: impl Into<String>) {
         let value: String = value.into();
@@ -367,7 +381,7 @@ impl JweHeader {
     /// Set a value for token type header claim (typ).
     ///
     /// # Arguments
-    /// 
+    ///
     /// * `value` - a token type (e.g. "JWT")
     pub fn set_token_type(&mut self, value: impl Into<String>) {
         let value: String = value.into();
@@ -385,7 +399,7 @@ impl JweHeader {
     /// Set a value for content type header claim (cty).
     ///
     /// # Arguments
-    /// 
+    ///
     /// * `value` - a content type (e.g. "JWT")
     pub fn set_content_type(&mut self, value: impl Into<String>) {
         let value: String = value.into();
@@ -403,7 +417,7 @@ impl JweHeader {
     /// Set values for critical header claim (crit).
     ///
     /// # Arguments
-    /// 
+    ///
     /// * `values` - critical claim names
     pub fn set_critical(&mut self, values: Vec<impl Into<String>>) {
         let key = "crit".to_string();
@@ -481,18 +495,6 @@ pub trait JweAlgorithm {
     fn name(&self) -> &str;
 }
 
-pub trait JweEncryption {
-    /// Return the "enc" (encryption) header parameter value of JWE.
-    fn name(&self) -> &str;
-
-    fn encrypt(&self, message: &[u8]) -> Result<Vec<u8>, JoseError>;
-}
-
-pub trait JweCompression {
-    /// Return the "zip" (compression algorithm) header parameter value of JWE.
-    fn name(&self) -> &str;
-}
-
 pub trait JweEncrypter {
     /// Return the source algorithm instance.
     fn algorithm(&self) -> &dyn JweAlgorithm;
@@ -504,7 +506,7 @@ pub trait JweEncrypter {
     /// Set a compared value for a kid header claim (kid).
     ///
     /// # Arguments
-    /// 
+    ///
     /// * `key_id` - a key ID
     fn set_key_id(&mut self, key_id: &str);
 
@@ -514,7 +516,7 @@ pub trait JweEncrypter {
     /// Return a encypted key data.
     ///
     /// # Arguments
-    /// 
+    ///
     /// * `key` - The key data to encrypt.
     fn encrypt(&self, key: &[u8]) -> Result<Vec<u8>, JoseError>;
 }
@@ -530,7 +532,7 @@ pub trait JweDecrypter {
     /// Set a compared value for a kid header claim (kid).
     ///
     /// # Arguments
-    /// 
+    ///
     /// * `key_id` - a key ID
     fn set_key_id(&mut self, key_id: &str);
 
@@ -540,28 +542,46 @@ pub trait JweDecrypter {
     /// Test a critical header claim name is acceptable.
     ///
     /// # Arguments
-    /// 
+    ///
     /// * `name` - a critical header claim name
     fn is_acceptable_critical(&self, name: &str) -> bool;
 
     /// Add a acceptable critical header claim name
     ///
     /// # Arguments
-    /// 
+    ///
     /// * `name` - a acceptable critical header claim name
     fn add_acceptable_critical(&mut self, name: &str);
 
     /// Remove a acceptable critical header claim name
     ///
     /// # Arguments
-    /// 
+    ///
     /// * `name` - a acceptable critical header claim name
     fn remove_acceptable_critical(&mut self, name: &str);
 
     /// Return a decypted key data.
     ///
     /// # Arguments
-    /// 
+    ///
     /// * `key` - The encrypted key data.
     fn decrypt(&self, key: &[u8]) -> Result<Vec<u8>, JoseError>;
+}
+
+pub trait JweContentEncryption {
+    /// Return the "enc" (encryption) header parameter value of JWE.
+    fn name(&self) -> &str;
+
+    fn encrypt(&self, message: &[u8], secret: &[u8]) -> Result<Vec<u8>, JoseError>;
+
+    fn decrypt(&self, data: &[u8], secret: &[u8]) -> Result<Vec<u8>, JoseError>;
+}
+
+pub trait JweCompression {
+    /// Return the "zip" (compression algorithm) header parameter value of JWE.
+    fn name(&self) -> &str;
+
+    fn compress(&self, message: &[u8]) -> Result<Vec<u8>, JoseError>;
+
+    fn decompress(&self, message: &[u8]) -> Result<Vec<u8>, JoseError>;
 }

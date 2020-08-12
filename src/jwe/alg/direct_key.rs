@@ -1,32 +1,30 @@
 use crate::jose::JoseError;
-use crate::jwe::{JweAlgorithm, JweDecrypter, JweEncrypter, JweEncryption};
+use crate::jwe::{JweAlgorithm, JweDecrypter, JweEncrypter};
 use crate::jwk::Jwk;
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
-pub enum EcdhEsJweAlgorithm {
+pub enum DirectKeyJweAlgorithm {
     /// Elliptic Curve Diffie-Hellman Ephemeral Static key agreement using Concat KDF
     EcdhEs,
 }
 
-impl EcdhEsJweAlgorithm {
+impl DirectKeyJweAlgorithm {
     pub fn encrypter_from_jwk(
         &self,
         jwk: &Jwk,
-        encryption: &dyn JweEncryption,
-    ) -> Result<EcdhEsJweEncrypter, JoseError> {
+    ) -> Result<DirectKeyJweAlgorithm, JoseError> {
         unimplemented!();
     }
 
     pub fn decrypter_from_jwk(
         &self,
         jwk: &Jwk,
-        encryption: &dyn JweEncryption,
-    ) -> Result<EcdhEsJweDecrypter, JoseError> {
+    ) -> Result<DirectKeyJweAlgorithm, JoseError> {
         unimplemented!();
     }
 }
 
-impl JweAlgorithm for EcdhEsJweAlgorithm {
+impl JweAlgorithm for DirectKeyJweAlgorithm {
     fn name(&self) -> &str {
         match self {
             Self::EcdhEs => "ECDH-ES",
@@ -35,7 +33,7 @@ impl JweAlgorithm for EcdhEsJweAlgorithm {
 }
 
 #[derive(Debug, Clone)]
-pub struct EcdhEsJweEncrypter;
+pub struct DirectKeyJweEncrypter;
 
 #[derive(Debug, Clone)]
-pub struct EcdhEsJweDecrypter;
+pub struct DirectKeyJweDecrypter;
