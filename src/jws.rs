@@ -57,7 +57,7 @@ pub fn serialize_compact_with_selector<'a, F>(
     selector: F,
 ) -> Result<String, JoseError>
 where
-    F: FnOnce(&JwsHeader) -> Option<&'a dyn JwsSigner>,
+    F: Fn(&JwsHeader) -> Option<&'a dyn JwsSigner>,
 {
     (|| -> anyhow::Result<String> {
         let mut b64 = true;
@@ -221,7 +221,7 @@ pub fn serialize_flattened_json_with_selector<'a, F>(
     selector: F,
 ) -> Result<String, JoseError>
 where
-    F: FnOnce(&JwsHeader) -> Option<&'a dyn JwsSigner>,
+    F: Fn(&JwsHeader) -> Option<&'a dyn JwsSigner>,
 {
     (|| -> anyhow::Result<String> {
         let mut b64 = true;
@@ -334,7 +334,7 @@ pub fn deserialize_compact_with_selector<'a, F>(
     selector: F,
 ) -> Result<(Vec<u8>, JwsHeader), JoseError>
 where
-    F: FnOnce(&JwsHeader) -> Result<Option<&'a dyn JwsVerifier>, JoseError>,
+    F: Fn(&JwsHeader) -> Result<Option<&'a dyn JwsVerifier>, JoseError>,
 {
     (|| -> anyhow::Result<(Vec<u8>, JwsHeader)> {
         let indexies: Vec<usize> = input

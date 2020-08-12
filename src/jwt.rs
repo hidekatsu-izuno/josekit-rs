@@ -152,7 +152,7 @@ pub fn decode_with_verifier_selector<'a, F>(
     selector: F,
 ) -> Result<(JwtPayload, JwsHeader), JoseError>
 where
-    F: FnOnce(&JwsHeader) -> Result<Option<&'a dyn JwsVerifier>, JoseError>,
+    F: Fn(&JwsHeader) -> Result<Option<&'a dyn JwsVerifier>, JoseError>,
 {
     (|| -> anyhow::Result<(JwtPayload, JwsHeader)> {
         let (payload, header) = jws::deserialize_compact_with_selector(input, |header| {
@@ -239,7 +239,7 @@ pub fn decode_with_decrypter_selector<'a, F>(
     selector: F,
 ) -> Result<(JwtPayload, JweHeader), JoseError>
 where
-    F: FnOnce(&JweHeader) -> Result<Option<&'a dyn JweDecrypter>, JoseError>,
+    F: Fn(&JweHeader) -> Result<Option<&'a dyn JweDecrypter>, JoseError>,
 {
     (|| -> anyhow::Result<(JwtPayload, JweHeader)> {
         let (payload, header) = jwe::deserialize_compact_with_selector(input, |header| {

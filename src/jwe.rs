@@ -1,5 +1,6 @@
 pub mod alg;
 pub mod enc;
+pub mod zip;
 
 use std::collections::HashMap;
 use std::fmt::Display;
@@ -43,6 +44,8 @@ pub use crate::jwe::enc::aes_gcm::AesGcmJweEncryption::A128Gcm;
 pub use crate::jwe::enc::aes_gcm::AesGcmJweEncryption::A192Gcm;
 pub use crate::jwe::enc::aes_gcm::AesGcmJweEncryption::A256Gcm;
 
+pub use crate::jwe::zip::deflate::DeflateJweCompression::Def;
+
 /// Return a representation of the data that is formatted by compact serialization.
 ///
 /// # Arguments
@@ -55,7 +58,11 @@ pub fn serialize_compact(
     header: &JweHeader,
     encrypter: &dyn JweEncrypter,
 ) -> Result<String, JoseError> {
-    serialize_compact_with_selector(payload, header, |_header| Some(encrypter))
+    serialize_compact_with_selector(
+        payload,
+        header,
+        |_header| Some(encrypter)
+    )
 }
 
 /// Return a representation of the data that is formatted by compact serialization.
@@ -71,7 +78,7 @@ pub fn serialize_compact_with_selector<'a, F>(
     selector: F,
 ) -> Result<String, JoseError>
 where
-    F: FnOnce(&JweHeader) -> Option<&'a dyn JweEncrypter>,
+    F: Fn(&JweHeader) -> Option<&'a dyn JweEncrypter>,
 {
     (|| -> anyhow::Result<String> {
         unimplemented!("JWE is not supported yet.");
@@ -114,7 +121,7 @@ pub fn serialize_flattened_json_with_selector<'a, F>(
     selector: F,
 ) -> Result<String, JoseError>
 where
-    F: FnOnce(&JweHeader) -> Option<&'a dyn JweEncrypter>,
+    F: Fn(&JweHeader) -> Option<&'a dyn JweEncrypter>,
 {
     (|| -> anyhow::Result<String> {
         unimplemented!("JWE is not supported yet.");
@@ -135,7 +142,9 @@ pub fn deserialize_compact(
     input: &str,
     decrypter: &dyn JweDecrypter,
 ) -> Result<(Vec<u8>, JweHeader), JoseError> {
-    deserialize_compact_with_selector(input, |_header| Ok(Some(decrypter)))
+    deserialize_compact_with_selector(input, |_header| {
+        Ok(Some(decrypter))
+    })
 }
 
 /// Deserialize the input that is formatted by compact serialization.
@@ -149,7 +158,7 @@ pub fn deserialize_compact_with_selector<'a, F>(
     selector: F,
 ) -> Result<(Vec<u8>, JweHeader), JoseError>
 where
-    F: FnOnce(&JweHeader) -> Result<Option<&'a dyn JweDecrypter>, JoseError>,
+    F: Fn(&JweHeader) -> Result<Option<&'a dyn JweDecrypter>, JoseError>,
 {
     (|| -> anyhow::Result<(Vec<u8>, JweHeader)> {
         unimplemented!("JWE is not supported yet.");
