@@ -4,7 +4,7 @@ use std::time::{Duration, SystemTime};
 
 use anyhow::bail;
 use chrono::{DateTime, Utc};
-use serde_json::{json, Map, Number, Value};
+use serde_json::{Map, Number, Value};
 
 use crate::jose::{JoseError, JoseHeader};
 use crate::jwe::{JweContext, JweDecrypter, JweEncrypter, JweHeader};
@@ -738,7 +738,7 @@ impl JwtPayload {
     /// * `value` - a JWT ID
     pub fn set_jwt_id(&mut self, value: impl Into<String>) {
         let value: String = value.into();
-        self.claims.insert("jti".to_string(), json!(value));
+        self.claims.insert("jti".to_string(), Value::String(value));
     }
 
     /// Return the value for JWT ID payload claim (jti).
