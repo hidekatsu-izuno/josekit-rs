@@ -4,6 +4,7 @@ use std::time::{Duration, SystemTime};
 
 use anyhow::bail;
 use chrono::{DateTime, Utc};
+use once_cell::sync::Lazy;
 use serde_json::{Map, Number, Value};
 
 use crate::jose::{JoseError, JoseHeader};
@@ -11,6 +12,8 @@ use crate::jwe::{JweContext, JweDecrypter, JweEncrypter, JweHeader};
 use crate::jwk::{Jwk, JwkSet};
 use crate::jws::{JwsContext, JwsHeader, JwsSigner, JwsVerifier};
 use crate::util::SourceValue;
+
+static DEFAULT_CONTEXT: Lazy<JwtContext> = Lazy::new(|| JwtContext::new());
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct JwtContext {
@@ -191,7 +194,7 @@ impl JwtContext {
         input: &str,
         verifier: &dyn JwsVerifier,
     ) -> Result<(JwtPayload, JwsHeader), JoseError> {
-        decode_with_verifier_selector(input, |_header| Ok(Some(verifier)))
+        self.decode_with_verifier_selector(input, |_header| Ok(Some(verifier)))
     }
 
     /// Return the JWT object decoded with a selected verifying algorithm.
@@ -364,8 +367,7 @@ impl JwtContext {
 /// * `payload` - The payload data.
 /// * `header` - The JWT heaser claims.
 pub fn encode_unsecured(payload: &JwtPayload, header: &JwsHeader) -> Result<String, JoseError> {
-    let context = JwtContext::new();
-    context.encode_unsecured(payload, header)
+    DEFAULT_CONTEXT.encode_unsecured(payload, header)
 }
 
 /// Return the string repsentation of the JWT with the siginig algorithm.
@@ -380,8 +382,7 @@ pub fn encode_with_signer(
     header: &JwsHeader,
     signer: &dyn JwsSigner,
 ) -> Result<String, JoseError> {
-    let context = JwtContext::new();
-    context.encode_with_signer(payload, header, signer)
+    DEFAULT_CONTEXT.encode_with_signer(payload, header, signer)
 }
 
 /// Return the string repsentation of the JWT with the encrypting algorithm.
@@ -396,8 +397,7 @@ pub fn encode_with_encrypter(
     header: &JweHeader,
     encrypter: &dyn JweEncrypter,
 ) -> Result<String, JoseError> {
-    let context = JwtContext::new();
-    context.encode_with_encrypter(payload, header, encrypter)
+    DEFAULT_CONTEXT.encode_with_encrypter(payload, header, encrypter)
 }
 
 /// Return the JWT object decoded with the "none" algorithm.
@@ -406,8 +406,7 @@ pub fn encode_with_encrypter(
 ///
 /// * `input` - a JWT string representation.
 pub fn decode_unsecured(input: &str) -> Result<(JwtPayload, JwsHeader), JoseError> {
-    let context = JwtContext::new();
-    context.decode_unsecured(input)
+    DEFAULT_CONTEXT.decode_unsecured(input)
 }
 
 /// Return the JWT object decoded by the selected verifier.
@@ -420,8 +419,7 @@ pub fn decode_with_verifier(
     input: &str,
     verifier: &dyn JwsVerifier,
 ) -> Result<(JwtPayload, JwsHeader), JoseError> {
-    let context = JwtContext::new();
-    context.decode_with_verifier(input, verifier)
+    DEFAULT_CONTEXT.decode_with_verifier(input, verifier)
 }
 
 /// Return the JWT object decoded with a selected verifying algorithm.
@@ -437,8 +435,7 @@ pub fn decode_with_verifier_selector<'a, F>(
 where
     F: Fn(&JwsHeader) -> Result<Option<&'a dyn JwsVerifier>, JoseError>,
 {
-    let context = JwtContext::new();
-    context.decode_with_verifier_selector(input, selector)
+    DEFAULT_CONTEXT.decode_with_verifier_selector(input, selector)
 }
 
 /// Return the JWT object decoded by using a JWK set.
@@ -456,8 +453,7 @@ pub fn decode_with_verifier_in_jwk_set<F>(
 where
     F: Fn(&Jwk) -> Result<Option<&dyn JwsVerifier>, JoseError>,
 {
-    let context = JwtContext::new();
-    context.decode_with_verifier_in_jwk_set(input, jwk_set, selector)
+    DEFAULT_CONTEXT.decode_with_verifier_in_jwk_set(input, jwk_set, selector)
 }
 
 /// Return the JWT object decoded by the selected decrypter.
@@ -470,8 +466,7 @@ pub fn decode_with_decrypter(
     input: &str,
     decrypter: &dyn JweDecrypter,
 ) -> Result<(JwtPayload, JweHeader), JoseError> {
-    let context = JwtContext::new();
-    context.decode_with_decrypter(input, decrypter)
+    DEFAULT_CONTEXT.decode_with_decrypter(input, decrypter)
 }
 
 /// Return the JWT object decoded with a selected decrypting algorithm.
@@ -487,8 +482,7 @@ pub fn decode_with_decrypter_selector<'a, F>(
 where
     F: Fn(&JweHeader) -> Result<Option<&'a dyn JweDecrypter>, JoseError>,
 {
-    let context = JwtContext::new();
-    context.decode_with_decrypter_selector(input, selector)
+    DEFAULT_CONTEXT.decode_with_decrypter_selector(input, selector)
 }
 
 /// Return the JWT object decoded by using a JWK set.
@@ -506,8 +500,7 @@ pub fn decode_with_decrypter_in_jwk_set<F>(
 where
     F: Fn(&Jwk) -> Result<Option<&dyn JweDecrypter>, JoseError>,
 {
-    let context = JwtContext::new();
-    context.decode_with_decrypter_in_jwk_set(input, jwk_set, selector)
+    DEFAULT_CONTEXT.decode_with_decrypter_in_jwk_set(input, jwk_set, selector)
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Default)]

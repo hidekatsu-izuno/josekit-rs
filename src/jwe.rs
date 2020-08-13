@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use std::fmt::Display;
 
 use anyhow::bail;
+use once_cell::sync::Lazy;
 use serde_json::{Map, Value};
 
 use crate::jose::{JoseError, JoseHeader};
@@ -46,6 +47,8 @@ pub use crate::jwe::enc::aes_gcm::AesGcmJweEncryption::A192Gcm;
 pub use crate::jwe::enc::aes_gcm::AesGcmJweEncryption::A256Gcm;
 
 pub use crate::jwe::zip::deflate::DeflateJweCompression::Def;
+
+static DEFAULT_CONTEXT: Lazy<JweContext> = Lazy::new(|| JweContext::new());
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct JweContext {
@@ -282,7 +285,7 @@ pub fn serialize_compact(
     header: &JweHeader,
     encrypter: &dyn JweEncrypter,
 ) -> Result<String, JoseError> {
-    serialize_compact_with_selector(payload, header, |_header| Some(encrypter))
+    DEFAULT_CONTEXT.serialize_compact(payload, header, encrypter)
 }
 
 /// Return a representation of the data that is formatted by compact serialization.
@@ -300,13 +303,7 @@ pub fn serialize_compact_with_selector<'a, F>(
 where
     F: Fn(&JweHeader) -> Option<&'a dyn JweEncrypter>,
 {
-    (|| -> anyhow::Result<String> {
-        unimplemented!("JWE is not supported yet.");
-    })()
-    .map_err(|err| match err.downcast::<JoseError>() {
-        Ok(err) => err,
-        Err(err) => JoseError::InvalidJwtFormat(err),
-    })
+    DEFAULT_CONTEXT.serialize_compact_with_selector(payload, header, selector)
 }
 
 /// Return a representation of the data that is formatted by flattened json serialization.
@@ -323,7 +320,7 @@ pub fn serialize_flattened_json(
     header: Option<&JweHeader>,
     encrypter: &dyn JweEncrypter,
 ) -> Result<String, JoseError> {
-    serialize_flattened_json_with_selector(payload, protected, header, |_header| Some(encrypter))
+    DEFAULT_CONTEXT.serialize_flattened_json(payload, protected, header, encrypter)
 }
 
 /// Return a representation of the data that is formatted by flatted json serialization.
@@ -343,13 +340,7 @@ pub fn serialize_flattened_json_with_selector<'a, F>(
 where
     F: Fn(&JweHeader) -> Option<&'a dyn JweEncrypter>,
 {
-    (|| -> anyhow::Result<String> {
-        unimplemented!("JWE is not supported yet.");
-    })()
-    .map_err(|err| match err.downcast::<JoseError>() {
-        Ok(err) => err,
-        Err(err) => JoseError::InvalidJwtFormat(err),
-    })
+    DEFAULT_CONTEXT.serialize_flattened_json_with_selector(payload, protected, header, selector)
 }
 
 /// Deserialize the input that is formatted by compact serialization.
@@ -362,7 +353,7 @@ pub fn deserialize_compact(
     input: &str,
     decrypter: &dyn JweDecrypter,
 ) -> Result<(Vec<u8>, JweHeader), JoseError> {
-    deserialize_compact_with_selector(input, |_header| Ok(Some(decrypter)))
+    DEFAULT_CONTEXT.deserialize_compact(input, decrypter)
 }
 
 /// Deserialize the input that is formatted by compact serialization.
@@ -378,13 +369,7 @@ pub fn deserialize_compact_with_selector<'a, F>(
 where
     F: Fn(&JweHeader) -> Result<Option<&'a dyn JweDecrypter>, JoseError>,
 {
-    (|| -> anyhow::Result<(Vec<u8>, JweHeader)> {
-        unimplemented!("JWE is not supported yet.");
-    })()
-    .map_err(|err| match err.downcast::<JoseError>() {
-        Ok(err) => err,
-        Err(err) => JoseError::InvalidJwtFormat(err),
-    })
+    DEFAULT_CONTEXT.deserialize_compact_with_selector(input, selector)
 }
 
 /// Deserialize the input that is formatted by flattened json serialization.
@@ -398,27 +383,7 @@ pub fn deserialize_json<'a>(
     input: &str,
     decrypter: &'a dyn JweDecrypter,
 ) -> Result<(Vec<u8>, JweHeader), JoseError> {
-    deserialize_json_with_selector(input, |header| {
-        match header.algorithm() {
-            Some(val) => {
-                let expected_alg = decrypter.algorithm().name();
-                if val != expected_alg {
-                    return Ok(None);
-                }
-            }
-            _ => return Ok(None),
-        }
-
-        match decrypter.key_id() {
-            Some(expected) => match header.key_id() {
-                Some(actual) if expected == actual => {}
-                _ => return Ok(None),
-            },
-            None => {}
-        }
-
-        Ok(Some(decrypter))
-    })
+    DEFAULT_CONTEXT.deserialize_json(input, decrypter)
 }
 
 /// Deserialize the input that is formatted by flattened json serialization.
@@ -434,13 +399,7 @@ pub fn deserialize_json_with_selector<'a, F>(
 where
     F: Fn(&JweHeader) -> Result<Option<&'a dyn JweDecrypter>, JoseError>,
 {
-    (|| -> anyhow::Result<(Vec<u8>, JweHeader)> {
-        unimplemented!("JWE is not supported yet.");
-    })()
-    .map_err(|err| match err.downcast::<JoseError>() {
-        Ok(err) => err,
-        Err(err) => JoseError::InvalidJwtFormat(err),
-    })
+    DEFAULT_CONTEXT.deserialize_json_with_selector(input, selector)
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]

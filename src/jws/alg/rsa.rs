@@ -623,7 +623,6 @@ pub struct RsaJwsVerifier {
     algorithm: RsaJwsAlgorithm,
     public_key: PKey<Public>,
     key_id: Option<String>,
-    acceptable_criticals: BTreeSet<String>,
 }
 
 impl RsaJwsVerifier {
@@ -632,7 +631,6 @@ impl RsaJwsVerifier {
             algorithm: algorithm.clone(),
             public_key,
             key_id,
-            acceptable_criticals: BTreeSet::new(),
         }
     }
 }

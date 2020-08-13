@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use std::fmt::Display;
 
 use anyhow::bail;
+use once_cell::sync::Lazy;
 use serde_json::{Map, Value};
 
 use crate::jose::{JoseError, JoseHeader};
@@ -29,6 +30,8 @@ pub use crate::jws::alg::ecdsa::EcdsaJwsAlgorithm::ES384;
 pub use crate::jws::alg::ecdsa::EcdsaJwsAlgorithm::ES512;
 
 pub use crate::jws::alg::eddsa::EddsaJwsAlgorithm::EdDSA;
+
+static DEFAULT_CONTEXT: Lazy<JwsContext> = Lazy::new(|| JwsContext::new());
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct JwsContext {
@@ -669,8 +672,7 @@ pub fn serialize_compact(
     header: &JwsHeader,
     signer: &dyn JwsSigner,
 ) -> Result<String, JoseError> {
-    let context = JwsContext::new();
-    context.serialize_compact(payload, header, signer)
+    DEFAULT_CONTEXT.serialize_compact(payload, header, signer)
 }
 
 /// Return a representation of the data that is formatted by compact serialization.
@@ -688,8 +690,7 @@ pub fn serialize_compact_with_selector<'a, F>(
 where
     F: Fn(&JwsHeader) -> Option<&'a dyn JwsSigner>,
 {
-    let context = JwsContext::new();
-    context.serialize_compact_with_selector(payload, header, selector)
+    DEFAULT_CONTEXT.serialize_compact_with_selector(payload, header, selector)
 }
 
 /// Return a representation of the data that is formatted by flattened json serialization.
@@ -704,8 +705,7 @@ pub fn serialize_general_json(
     payload: &[u8],
     signer: &JwsMultiSigner,
 ) -> Result<String, JoseError> {
-    let context = JwsContext::new();
-    context.serialize_general_json(payload, signer)
+    DEFAULT_CONTEXT.serialize_general_json(payload, signer)
 }
 
 /// Return a representation of the data that is formatted by flattened json serialization.
@@ -722,8 +722,7 @@ pub fn serialize_flattened_json(
     header: Option<&JwsHeader>,
     signer: &dyn JwsSigner,
 ) -> Result<String, JoseError> {
-    let context = JwsContext::new();
-    context.serialize_flattened_json(payload, protected, header, signer)
+    DEFAULT_CONTEXT.serialize_flattened_json(payload, protected, header, signer)
 }
 
 /// Return a representation of the data that is formatted by flatted json serialization.
@@ -743,8 +742,7 @@ pub fn serialize_flattened_json_with_selector<'a, F>(
 where
     F: Fn(&JwsHeader) -> Option<&'a dyn JwsSigner>,
 {
-    let context = JwsContext::new();
-    context.serialize_flattened_json_with_selector(payload, protected, header, selector)
+    DEFAULT_CONTEXT.serialize_flattened_json_with_selector(payload, protected, header, selector)
 }
 
 /// Deserialize the input that is formatted by compact serialization.
@@ -758,8 +756,7 @@ pub fn deserialize_compact(
     input: &str,
     verifier: &dyn JwsVerifier,
 ) -> Result<(Vec<u8>, JwsHeader), JoseError> {
-    let context = JwsContext::new();
-    context.deserialize_compact(input, verifier)
+    DEFAULT_CONTEXT.deserialize_compact(input, verifier)
 }
 
 /// Deserialize the input that is formatted by compact serialization.
@@ -776,8 +773,7 @@ pub fn deserialize_compact_with_selector<'a, F>(
 where
     F: Fn(&JwsHeader) -> Result<Option<&'a dyn JwsVerifier>, JoseError>,
 {
-    let context = JwsContext::new();
-    context.deserialize_compact_with_selector(input, selector)
+    DEFAULT_CONTEXT.deserialize_compact_with_selector(input, selector)
 }
 
 /// Deserialize the input that is formatted by json serialization.
@@ -791,8 +787,7 @@ pub fn deserialize_json<'a>(
     input: &str,
     verifier: &'a dyn JwsVerifier,
 ) -> Result<(Vec<u8>, JwsHeader), JoseError> {
-    let context = JwsContext::new();
-    context.deserialize_json(input, verifier)
+    DEFAULT_CONTEXT.deserialize_json(input, verifier)
 }
 
 /// Deserialize the input that is formatted by json serialization.
@@ -809,8 +804,7 @@ pub fn deserialize_json_with_selector<'a, F>(
 where
     F: Fn(&JwsHeader) -> Result<Option<&'a dyn JwsVerifier>, JoseError>,
 {
-    let context = JwsContext::new();
-    context.deserialize_json_with_selector(input, selector)
+    DEFAULT_CONTEXT.deserialize_json_with_selector(input, selector)
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
