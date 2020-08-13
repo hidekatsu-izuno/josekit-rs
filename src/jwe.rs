@@ -3,6 +3,7 @@ pub mod enc;
 pub mod zip;
 
 use std::collections::HashMap;
+use std::collections::BTreeSet;
 use std::fmt::Display;
 
 use anyhow::bail;
@@ -45,6 +46,234 @@ pub use crate::jwe::enc::aes_gcm::AesGcmJweEncryption::A192Gcm;
 pub use crate::jwe::enc::aes_gcm::AesGcmJweEncryption::A256Gcm;
 
 pub use crate::jwe::zip::deflate::DeflateJweCompression::Def;
+
+
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub struct JweContext {
+    acceptable_criticals: BTreeSet<String>,
+}
+
+impl JweContext {
+    pub fn new() -> Self {
+        Self {
+            acceptable_criticals: BTreeSet::new(),
+        }
+    }
+
+    /// Test a critical header claim name is acceptable.
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - a critical header claim name
+    pub fn is_acceptable_critical(&self, name: &str) -> bool {
+        self.acceptable_criticals.contains(name)
+    }
+
+    /// Add a acceptable critical header claim name
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - a acceptable critical header claim name
+    pub fn add_acceptable_critical(&mut self, name: &str) {
+        self.acceptable_criticals.insert(name.to_string());
+    }
+
+    /// Remove a acceptable critical header claim name
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - a acceptable critical header claim name
+    pub fn remove_acceptable_critical(&mut self, name: &str) {
+        self.acceptable_criticals.remove(name);
+    }
+
+    /// Return a representation of the data that is formatted by compact serialization.
+    ///
+    /// # Arguments
+    ///
+    /// * `payload` - The payload data.
+    /// * `header` - The JWS heaser claims.
+    /// * `encrypter` - The JWS encrypter.
+    pub fn serialize_compact(
+        &self,
+        payload: &[u8],
+        header: &JweHeader,
+        encrypter: &dyn JweEncrypter,
+    ) -> Result<String, JoseError> {
+        self.serialize_compact_with_selector(
+            payload,
+            header,
+            |_header| Some(encrypter)
+        )
+    }
+
+    /// Return a representation of the data that is formatted by compact serialization.
+    ///
+    /// # Arguments
+    ///
+    /// * `payload` - The payload data.
+    /// * `header` - The JWS heaser claims.
+    /// * `selector` - a function for selecting the signing algorithm.
+    pub fn serialize_compact_with_selector<'a, F>(
+        &self,
+        payload: &[u8],
+        header: &JweHeader,
+        selector: F,
+    ) -> Result<String, JoseError>
+    where
+        F: Fn(&JweHeader) -> Option<&'a dyn JweEncrypter>,
+    {
+        (|| -> anyhow::Result<String> {
+            unimplemented!("JWE is not supported yet.");
+        })()
+        .map_err(|err| match err.downcast::<JoseError>() {
+            Ok(err) => err,
+            Err(err) => JoseError::InvalidJwtFormat(err),
+        })
+    }
+
+    /// Return a representation of the data that is formatted by flattened json serialization.
+    ///
+    /// # Arguments
+    ///
+    /// * `protected` - The JWE protected header claims.
+    /// * `header` - The JWE unprotected header claims.
+    /// * `payload` - The payload data.
+    /// * `encrypter` - The JWS encrypter.
+    pub fn serialize_flattened_json(
+        &self,
+        payload: &[u8],
+        protected: Option<&JweHeader>,
+        header: Option<&JweHeader>,
+        encrypter: &dyn JweEncrypter,
+    ) -> Result<String, JoseError> {
+        self.serialize_flattened_json_with_selector(payload, protected, header, |_header| Some(encrypter))
+    }
+
+    /// Return a representation of the data that is formatted by flatted json serialization.
+    ///
+    /// # Arguments
+    ///
+    /// * `payload` - The payload data.
+    /// * `protected` - The JWS protected header claims.
+    /// * `header` - The JWS unprotected header claims.
+    /// * `selector` - a function for selecting the encrypting algorithm.
+    pub fn serialize_flattened_json_with_selector<'a, F>(
+        &self,
+        payload: &[u8],
+        protected: Option<&JweHeader>,
+        header: Option<&JweHeader>,
+        selector: F,
+    ) -> Result<String, JoseError>
+    where
+        F: Fn(&JweHeader) -> Option<&'a dyn JweEncrypter>,
+    {
+        (|| -> anyhow::Result<String> {
+            unimplemented!("JWE is not supported yet.");
+        })()
+        .map_err(|err| match err.downcast::<JoseError>() {
+            Ok(err) => err,
+            Err(err) => JoseError::InvalidJwtFormat(err),
+        })
+    }
+
+    /// Deserialize the input that is formatted by compact serialization.
+    ///
+    /// # Arguments
+    ///
+    /// * `input` - The input data.
+    /// * `decrypter` - The JWS decrypter.
+    pub fn deserialize_compact(
+        &self,
+        input: &str,
+        decrypter: &dyn JweDecrypter,
+    ) -> Result<(Vec<u8>, JweHeader), JoseError> {
+        self.deserialize_compact_with_selector(input, |_header| {
+            Ok(Some(decrypter))
+        })
+    }
+
+    /// Deserialize the input that is formatted by compact serialization.
+    ///
+    /// # Arguments
+    ///
+    /// * `input` - The input data.
+    /// * `selector` - a function for selecting the decrypting algorithm.
+    pub fn deserialize_compact_with_selector<'a, F>(
+        &self,
+        input: &str,
+        selector: F,
+    ) -> Result<(Vec<u8>, JweHeader), JoseError>
+    where
+        F: Fn(&JweHeader) -> Result<Option<&'a dyn JweDecrypter>, JoseError>,
+    {
+        (|| -> anyhow::Result<(Vec<u8>, JweHeader)> {
+            unimplemented!("JWE is not supported yet.");
+        })()
+        .map_err(|err| match err.downcast::<JoseError>() {
+            Ok(err) => err,
+            Err(err) => JoseError::InvalidJwtFormat(err),
+        })
+    }
+
+    /// Deserialize the input that is formatted by flattened json serialization.
+    ///
+    /// # Arguments
+    ///
+    /// * `input` - The input data.
+    /// * `header` - The decoded JWS header claims.
+    /// * `decrypter` - The JWE decrypter.
+    pub fn deserialize_json<'a>(
+        &self,
+        input: &str,
+        decrypter: &'a dyn JweDecrypter,
+    ) -> Result<(Vec<u8>, JweHeader), JoseError> {
+        self.deserialize_json_with_selector(input, |header| {
+            match header.algorithm() {
+                Some(val) => {
+                    let expected_alg = decrypter.algorithm().name();
+                    if val != expected_alg {
+                        return Ok(None);
+                    }
+                }
+                _ => return Ok(None),
+            }
+
+            match decrypter.key_id() {
+                Some(expected) => match header.key_id() {
+                    Some(actual) if expected == actual => {}
+                    _ => return Ok(None),
+                },
+                None => {}
+            }
+
+            Ok(Some(decrypter))
+        })
+    }
+
+    /// Deserialize the input that is formatted by flattened json serialization.
+    ///
+    /// # Arguments
+    ///
+    /// * `input` - The input data.
+    /// * `selector` - a function for selecting the decrypting algorithm.
+    pub fn deserialize_json_with_selector<'a, F>(
+        &self,
+        input: &str,
+        selector: F,
+    ) -> Result<(Vec<u8>, JweHeader), JoseError>
+    where
+        F: Fn(&JweHeader) -> Result<Option<&'a dyn JweDecrypter>, JoseError>,
+    {
+        (|| -> anyhow::Result<(Vec<u8>, JweHeader)> {
+            unimplemented!("JWE is not supported yet.");
+        })()
+        .map_err(|err| match err.downcast::<JoseError>() {
+            Ok(err) => err,
+            Err(err) => JoseError::InvalidJwtFormat(err),
+        })
+    }
+}
 
 /// Return a representation of the data that is formatted by compact serialization.
 ///

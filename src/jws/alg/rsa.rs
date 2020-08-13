@@ -657,18 +657,6 @@ impl JwsVerifier for RsaJwsVerifier {
         self.key_id = None;
     }
 
-    fn is_acceptable_critical(&self, name: &str) -> bool {
-        self.acceptable_criticals.contains(name)
-    }
-
-    fn add_acceptable_critical(&mut self, name: &str) {
-        self.acceptable_criticals.insert(name.to_string());
-    }
-
-    fn remove_acceptable_critical(&mut self, name: &str) {
-        self.acceptable_criticals.remove(name);
-    }
-
     fn verify(&self, message: &[u8], signature: &[u8]) -> Result<(), JoseError> {
         (|| -> anyhow::Result<()> {
             let message_digest = match self.algorithm {

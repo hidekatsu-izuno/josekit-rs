@@ -1,4 +1,4 @@
-# josekit-rs
+# josekit
 
 JOSE (Javascript Object Signing and Encryption: JWT, JWS, JWE, JWA, JWK) library for Rust.
 
