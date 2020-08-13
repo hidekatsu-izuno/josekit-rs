@@ -8,7 +8,7 @@ Notice: This package doesn't support JWE yet.
 
 ```toml
 [dependencies]
-josekit = "0.2.0"
+josekit = "0.3.0"
 ```
 
 This library depends on OpenSSL DLL. Read more about [Crate openssl](https://docs.rs/openssl/). 
@@ -44,8 +44,9 @@ cargo build --release
 ## Supported key formats for RSA/RSA-PSS/ECDSA/EdDSA sigining
 
 <table>
+<thead>
 <tr>
-    <th rowspan="2">Algorithm<th>
+    <th rowspan="2">Algorithm</th>
     <th rowspan="2">JWK</th>
     <th colspan="2">PEM</th>
     <th colspan="2">DER</th>
@@ -56,6 +57,8 @@ cargo build --release
     <th>PKCS#8</th>
     <th>Raw</th>
 </tr>
+</thead>
+<tbody>
 <tr>
     <td>RSA</td>
     <td>OK</td>
@@ -88,6 +91,7 @@ cargo build --release
     <td>OK</td>
     <td>-</td>
 </tr>
+</tbody>
 </table>
 
 ## Usage
