@@ -13,17 +13,11 @@ pub enum AesGcmJweAlgorithm {
 }
 
 impl AesGcmJweAlgorithm {
-    pub fn encrypter_from_jwk(
-        &self,
-        jwk: &Jwk,
-    ) -> Result<AesGcmJweEncrypter, JoseError> {
+    pub fn encrypter_from_jwk(&self, jwk: &Jwk) -> Result<AesGcmJweEncrypter, JoseError> {
         unimplemented!();
     }
 
-    pub fn decrypter_from_jwk(
-        &self,
-        jwk: &Jwk,
-    ) -> Result<AesGcmJweDecrypter, JoseError> {
+    pub fn decrypter_from_jwk(&self, jwk: &Jwk) -> Result<AesGcmJweDecrypter, JoseError> {
         unimplemented!();
     }
 }

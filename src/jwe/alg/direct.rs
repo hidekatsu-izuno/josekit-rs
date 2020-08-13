@@ -9,17 +9,11 @@ pub enum DirectJweAlgorithm {
 }
 
 impl DirectJweAlgorithm {
-    pub fn encrypter_from_jwk(
-        &self,
-        jwk: &Jwk,
-    ) -> Result<DirectJweEncrypter, JoseError> {
+    pub fn encrypter_from_jwk(&self, jwk: &Jwk) -> Result<DirectJweEncrypter, JoseError> {
         unimplemented!();
     }
 
-    pub fn decrypter_from_jwk(
-        &self,
-        jwk: &Jwk,
-    ) -> Result<DirectJweDecrypter, JoseError> {
+    pub fn decrypter_from_jwk(&self, jwk: &Jwk) -> Result<DirectJweDecrypter, JoseError> {
         unimplemented!();
     }
 }

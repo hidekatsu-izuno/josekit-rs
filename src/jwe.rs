@@ -2,8 +2,8 @@ pub mod alg;
 pub mod enc;
 pub mod zip;
 
-use std::collections::HashMap;
 use std::collections::BTreeSet;
+use std::collections::HashMap;
 use std::fmt::Display;
 
 use anyhow::bail;
@@ -46,7 +46,6 @@ pub use crate::jwe::enc::aes_gcm::AesGcmJweEncryption::A192Gcm;
 pub use crate::jwe::enc::aes_gcm::AesGcmJweEncryption::A256Gcm;
 
 pub use crate::jwe::zip::deflate::DeflateJweCompression::Def;
-
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct JweContext {
@@ -100,11 +99,7 @@ impl JweContext {
         header: &JweHeader,
         encrypter: &dyn JweEncrypter,
     ) -> Result<String, JoseError> {
-        self.serialize_compact_with_selector(
-            payload,
-            header,
-            |_header| Some(encrypter)
-        )
+        self.serialize_compact_with_selector(payload, header, |_header| Some(encrypter))
     }
 
     /// Return a representation of the data that is formatted by compact serialization.
@@ -147,7 +142,9 @@ impl JweContext {
         header: Option<&JweHeader>,
         encrypter: &dyn JweEncrypter,
     ) -> Result<String, JoseError> {
-        self.serialize_flattened_json_with_selector(payload, protected, header, |_header| Some(encrypter))
+        self.serialize_flattened_json_with_selector(payload, protected, header, |_header| {
+            Some(encrypter)
+        })
     }
 
     /// Return a representation of the data that is formatted by flatted json serialization.
@@ -188,9 +185,7 @@ impl JweContext {
         input: &str,
         decrypter: &dyn JweDecrypter,
     ) -> Result<(Vec<u8>, JweHeader), JoseError> {
-        self.deserialize_compact_with_selector(input, |_header| {
-            Ok(Some(decrypter))
-        })
+        self.deserialize_compact_with_selector(input, |_header| Ok(Some(decrypter)))
     }
 
     /// Deserialize the input that is formatted by compact serialization.
@@ -287,11 +282,7 @@ pub fn serialize_compact(
     header: &JweHeader,
     encrypter: &dyn JweEncrypter,
 ) -> Result<String, JoseError> {
-    serialize_compact_with_selector(
-        payload,
-        header,
-        |_header| Some(encrypter)
-    )
+    serialize_compact_with_selector(payload, header, |_header| Some(encrypter))
 }
 
 /// Return a representation of the data that is formatted by compact serialization.
@@ -371,9 +362,7 @@ pub fn deserialize_compact(
     input: &str,
     decrypter: &dyn JweDecrypter,
 ) -> Result<(Vec<u8>, JweHeader), JoseError> {
-    deserialize_compact_with_selector(input, |_header| {
-        Ok(Some(decrypter))
-    })
+    deserialize_compact_with_selector(input, |_header| Ok(Some(decrypter)))
 }
 
 /// Deserialize the input that is formatted by compact serialization.

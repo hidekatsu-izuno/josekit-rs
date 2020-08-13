@@ -7,9 +7,9 @@ use chrono::{DateTime, Utc};
 use serde_json::{json, Map, Number, Value};
 
 use crate::jose::{JoseError, JoseHeader};
-use crate::jws::{JwsContext, JwsHeader, JwsSigner, JwsVerifier};
 use crate::jwe::{JweContext, JweDecrypter, JweEncrypter, JweHeader};
 use crate::jwk::{Jwk, JwkSet};
+use crate::jws::{JwsContext, JwsHeader, JwsSigner, JwsVerifier};
 use crate::util::SourceValue;
 
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -61,7 +61,11 @@ impl JwtContext {
     ///
     /// * `payload` - The payload data.
     /// * `header` - The JWT heaser claims.
-    pub fn encode_unsecured(&self, payload: &JwtPayload, header: &JwsHeader) -> Result<String, JoseError> {
+    pub fn encode_unsecured(
+        &self,
+        payload: &JwtPayload,
+        header: &JwsHeader,
+    ) -> Result<String, JoseError> {
         (|| -> anyhow::Result<String> {
             let mut header = header.claims_set().clone();
             header.insert("alg".to_string(), Value::String("none".to_string()));
@@ -88,7 +92,7 @@ impl JwtContext {
     /// * `header` - The JWS heaser claims.
     /// * `signer` - a signer object.
     pub fn encode_with_signer(
-        &self, 
+        &self,
         payload: &JwtPayload,
         header: &JwsHeader,
         signer: &dyn JwsSigner,
@@ -101,7 +105,9 @@ impl JwtContext {
             }
 
             let payload = payload.to_string();
-            let jwt = self.jws_context.serialize_compact(payload.as_bytes(), header, signer)?;
+            let jwt = self
+                .jws_context
+                .serialize_compact(payload.as_bytes(), header, signer)?;
             Ok(jwt)
         })()
         .map_err(|err| match err.downcast::<JoseError>() {
@@ -118,16 +124,17 @@ impl JwtContext {
     /// * `header` - The JWE heaser claims.
     /// * `encrypter` - a encrypter object.
     pub fn encode_with_encrypter(
-        &self, 
+        &self,
         payload: &JwtPayload,
         header: &JweHeader,
         encrypter: &dyn JweEncrypter,
     ) -> Result<String, JoseError> {
         let payload = payload.to_string();
-        let jwt = self.jwe_context.serialize_compact(payload.as_bytes(), header, encrypter)?;
+        let jwt = self
+            .jwe_context
+            .serialize_compact(payload.as_bytes(), header, encrypter)?;
         Ok(jwt)
     }
-
 
     /// Return the JWT object decoded with the "none" algorithm.
     ///
@@ -180,7 +187,7 @@ impl JwtContext {
     /// * `verifier` - a verifier of the signing algorithm.
     /// * `input` - a JWT string representation.
     pub fn decode_with_verifier(
-        &self, 
+        &self,
         input: &str,
         verifier: &dyn JwsVerifier,
     ) -> Result<(JwtPayload, JwsHeader), JoseError> {
@@ -194,7 +201,7 @@ impl JwtContext {
     /// * `input` - a JWT string representation.
     /// * `selector` - a function for selecting the verifying algorithm.
     pub fn decode_with_verifier_selector<'a, F>(
-        &self, 
+        &self,
         input: &str,
         selector: F,
     ) -> Result<(JwtPayload, JwsHeader), JoseError>
@@ -202,24 +209,28 @@ impl JwtContext {
         F: Fn(&JwsHeader) -> Result<Option<&'a dyn JwsVerifier>, JoseError>,
     {
         (|| -> anyhow::Result<(JwtPayload, JwsHeader)> {
-            let (payload, header) = self.jws_context.deserialize_compact_with_selector(input, |header| {
-                (|| -> anyhow::Result<Option<&'a dyn JwsVerifier>> {
-                    let verifier = match selector(&header)? {
-                        Some(val) => val,
-                        None => return Ok(None),
-                    };
+            let (payload, header) =
+                self.jws_context
+                    .deserialize_compact_with_selector(input, |header| {
+                        (|| -> anyhow::Result<Option<&'a dyn JwsVerifier>> {
+                            let verifier = match selector(&header)? {
+                                Some(val) => val,
+                                None => return Ok(None),
+                            };
 
-                    if self.is_acceptable_critical("b64") {
-                        bail!("JWT is not supported b64 header claim.");
-                    }
+                            if self.is_acceptable_critical("b64") {
+                                bail!("JWT is not supported b64 header claim.");
+                            }
 
-                    Ok(Some(verifier))
-                })()
-                .map_err(|err| match err.downcast::<JoseError>() {
-                    Ok(err) => err,
-                    Err(err) => JoseError::InvalidJwtFormat(err),
-                })
-            })?;
+                            Ok(Some(verifier))
+                        })()
+                        .map_err(|err| {
+                            match err.downcast::<JoseError>() {
+                                Ok(err) => err,
+                                Err(err) => JoseError::InvalidJwtFormat(err),
+                            }
+                        })
+                    })?;
 
             let payload: Map<String, Value> = serde_json::from_slice(&payload)?;
             let payload = JwtPayload::from_map(payload)?;
@@ -240,7 +251,7 @@ impl JwtContext {
     /// * `jwk_set` - a JWK set.
     /// * `selector` - a function for selecting the verifying algorithm.
     pub fn decode_with_verifier_in_jwk_set<F>(
-        &self, 
+        &self,
         input: &str,
         jwk_set: &JwkSet,
         selector: F,
@@ -270,7 +281,7 @@ impl JwtContext {
     /// * `input` - a JWT string representation.
     /// * `decrypter` - a decrypter of the decrypting algorithm.
     pub fn decode_with_decrypter(
-        &self, 
+        &self,
         input: &str,
         decrypter: &dyn JweDecrypter,
     ) -> Result<(JwtPayload, JweHeader), JoseError> {
@@ -284,7 +295,7 @@ impl JwtContext {
     /// * `input` - a JWT string representation.
     /// * `decrypter_selector` - a function for selecting the decrypting algorithm.
     pub fn decode_with_decrypter_selector<'a, F>(
-        &self, 
+        &self,
         input: &str,
         selector: F,
     ) -> Result<(JwtPayload, JweHeader), JoseError>
@@ -292,14 +303,16 @@ impl JwtContext {
         F: Fn(&JweHeader) -> Result<Option<&'a dyn JweDecrypter>, JoseError>,
     {
         (|| -> anyhow::Result<(JwtPayload, JweHeader)> {
-            let (payload, header) = self.jwe_context.deserialize_compact_with_selector(input, |header| {
-                let decrypter = match selector(&header)? {
-                    Some(val) => val,
-                    None => return Ok(None),
-                };
+            let (payload, header) =
+                self.jwe_context
+                    .deserialize_compact_with_selector(input, |header| {
+                        let decrypter = match selector(&header)? {
+                            Some(val) => val,
+                            None => return Ok(None),
+                        };
 
-                Ok(Some(decrypter))
-            })?;
+                        Ok(Some(decrypter))
+                    })?;
 
             let payload: Map<String, Value> = serde_json::from_slice(&payload)?;
             let payload = JwtPayload::from_map(payload)?;
@@ -320,7 +333,7 @@ impl JwtContext {
     /// * `jwk_set` - a JWK set.
     /// * `selector` - a function for selecting the decrypting algorithm.
     pub fn decode_with_decrypter_in_jwk_set<F>(
-        &self, 
+        &self,
         input: &str,
         jwk_set: &JwkSet,
         selector: F,
@@ -342,7 +355,6 @@ impl JwtContext {
             Ok(None)
         })
     }
-
 }
 
 /// Return the string repsentation of the JWT with a "none" algorithm.

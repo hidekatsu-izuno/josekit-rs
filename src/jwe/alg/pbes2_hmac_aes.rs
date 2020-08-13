@@ -13,17 +13,11 @@ pub enum Pbes2HmacAesJweAlgorithm {
 }
 
 impl Pbes2HmacAesJweAlgorithm {
-    pub fn encrypter_from_jwk(
-        &self,
-        jwk: &Jwk,
-    ) -> Result<Pbes2HmacAesJweEncrypter, JoseError> {
+    pub fn encrypter_from_jwk(&self, jwk: &Jwk) -> Result<Pbes2HmacAesJweEncrypter, JoseError> {
         unimplemented!();
     }
 
-    pub fn decrypter_from_jwk(
-        &self,
-        jwk: &Jwk,
-    ) -> Result<Pbes2HmacAesJweDecrypter, JoseError> {
+    pub fn decrypter_from_jwk(&self, jwk: &Jwk) -> Result<Pbes2HmacAesJweDecrypter, JoseError> {
         unimplemented!();
     }
 }

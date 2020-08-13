@@ -9,17 +9,11 @@ pub enum DirectKeyJweAlgorithm {
 }
 
 impl DirectKeyJweAlgorithm {
-    pub fn encrypter_from_jwk(
-        &self,
-        jwk: &Jwk,
-    ) -> Result<DirectKeyJweAlgorithm, JoseError> {
+    pub fn encrypter_from_jwk(&self, jwk: &Jwk) -> Result<DirectKeyJweAlgorithm, JoseError> {
         unimplemented!();
     }
 
-    pub fn decrypter_from_jwk(
-        &self,
-        jwk: &Jwk,
-    ) -> Result<DirectKeyJweAlgorithm, JoseError> {
+    pub fn decrypter_from_jwk(&self, jwk: &Jwk) -> Result<DirectKeyJweAlgorithm, JoseError> {
         unimplemented!();
     }
 }

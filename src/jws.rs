@@ -1,7 +1,7 @@
 pub mod alg;
 
-use std::collections::HashMap;
 use std::collections::BTreeSet;
+use std::collections::HashMap;
 use std::fmt::Display;
 
 use anyhow::bail;
@@ -68,7 +68,7 @@ impl JwsContext {
     pub fn remove_acceptable_critical(&mut self, name: &str) {
         self.acceptable_criticals.remove(name);
     }
-    
+
     /// Return a representation of the data that is formatted by compact serialization.
     ///
     /// # Arguments
@@ -247,7 +247,9 @@ impl JwsContext {
         header: Option<&JwsHeader>,
         signer: &dyn JwsSigner,
     ) -> Result<String, JoseError> {
-        self.serialize_flattened_json_with_selector(payload, protected, header, |_header| Some(signer))
+        self.serialize_flattened_json_with_selector(payload, protected, header, |_header| {
+            Some(signer)
+        })
     }
 
     /// Return a representation of the data that is formatted by flatted json serialization.
@@ -1440,13 +1442,13 @@ pub trait JwsVerifier {
 
 #[cfg(test)]
 mod tests {
+    use crate::jws::{self, EdDSA, JwsHeader, JwsMultiSigner, ES256, RS256};
+    use crate::prelude::*;
     use anyhow::Result;
+    use serde_json::Value;
     use std::fs::File;
     use std::io::Read;
     use std::path::PathBuf;
-    use serde_json::Value;
-    use crate::jws::{ self, JwsHeader, JwsMultiSigner, RS256, ES256, EdDSA };
-    use crate::prelude::*;
 
     #[test]
     fn test_jws_compact_serialization() -> Result<()> {
@@ -1484,7 +1486,12 @@ mod tests {
         let mut src_header = JwsHeader::new();
         src_header.set_token_type("JWT");
         let signer = alg.signer_from_pem(&private_key)?;
-        let jwt = jws::serialize_flattened_json(src_payload, Some(&src_protected), Some(&src_header), &signer)?;
+        let jwt = jws::serialize_flattened_json(
+            src_payload,
+            Some(&src_protected),
+            Some(&src_header),
+            &signer,
+        )?;
 
         let verifier = alg.verifier_from_pem(&public_key)?;
         let (dst_payload, dst_header) = jws::deserialize_json(&jwt, &verifier)?;
@@ -1531,7 +1538,7 @@ mod tests {
         multi_signer.add_signer(Some(&src_protected_3), Some(&src_header_3), &signer_3)?;
 
         let json = jws::serialize_general_json(src_payload, &multi_signer)?;
-        
+
         let verifier = ES256.verifier_from_pem(&public_key)?;
         let (dst_payload, dst_header) = jws::deserialize_json(&json, &verifier)?;
 
