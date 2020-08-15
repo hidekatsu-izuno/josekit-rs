@@ -1,4 +1,3 @@
-use std::collections::BTreeSet;
 use std::fmt::Display;
 use std::iter::Iterator;
 
@@ -23,22 +22,22 @@ static OID_ED448: Lazy<ObjectIdentifier> =
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum EddsaCurve {
-    ED25519,
-    ED448,
+    Ed25519,
+    Ed448,
 }
 
 impl EddsaCurve {
     pub fn name(&self) -> &str {
         match self {
-            Self::ED25519 => "Ed25519",
-            Self::ED448 => "Ed448",
+            Self::Ed25519 => "Ed25519",
+            Self::Ed448 => "Ed448",
         }
     }
 
     fn oid(&self) -> &ObjectIdentifier {
         match self {
-            Self::ED25519 => &*OID_ED25519,
-            Self::ED448 => &*OID_ED448,
+            Self::Ed25519 => &*OID_ED25519,
+            Self::Ed448 => &*OID_ED448,
         }
     }
 }
@@ -63,8 +62,8 @@ impl EddsaJwsAlgorithm {
     pub fn generate_keypair(&self, curve: &EddsaCurve) -> Result<EddsaKeyPair, JoseError> {
         (|| -> anyhow::Result<EddsaKeyPair> {
             let pkey = match curve {
-                EddsaCurve::ED25519 => PKey::generate_ed25519()?,
-                EddsaCurve::ED448 => PKey::generate_ed448()?,
+                EddsaCurve::Ed25519 => PKey::generate_ed25519()?,
+                EddsaCurve::Ed448 => PKey::generate_ed448()?,
             };
 
             Ok(EddsaKeyPair {
@@ -123,7 +122,7 @@ impl EddsaJwsAlgorithm {
                 }
                 "ED25519 PRIVATE KEY" => {
                     if let Some(curve) = self.detect_pkcs8(&data, false)? {
-                        if curve == EddsaCurve::ED25519 {
+                        if curve == EddsaCurve::Ed25519 {
                             let pkey = PKey::private_key_from_der(&data)?;
                             (curve, pkey)
                         } else {
@@ -135,7 +134,7 @@ impl EddsaJwsAlgorithm {
                 }
                 "ED448 PRIVATE KEY" => {
                     if let Some(curve) = self.detect_pkcs8(&data, false)? {
-                        if curve == EddsaCurve::ED448 {
+                        if curve == EddsaCurve::Ed448 {
                             let pkey = PKey::private_key_from_der(&data)?;
                             (curve, pkey)
                         } else {
@@ -165,6 +164,7 @@ impl EddsaJwsAlgorithm {
         let keypair = self.keypair_from_der(input.as_ref())?;
         Ok(EddsaJwsSigner {
             algorithm: keypair.algorithm,
+            curve: keypair.curve,
             private_key: keypair.pkey,
             key_id: None,
         })
@@ -184,6 +184,7 @@ impl EddsaJwsAlgorithm {
         let keypair = self.keypair_from_pem(input.as_ref())?;
         Ok(EddsaJwsSigner {
             algorithm: keypair.algorithm,
+            curve: keypair.curve,
             private_key: keypair.pkey,
             key_id: None,
         })
@@ -217,8 +218,8 @@ impl EddsaJwsAlgorithm {
             let key_id = jwk.key_id();
 
             let curve = match jwk.parameter("crv") {
-                Some(Value::String(val)) if val == "Ed25519" => &OID_ED25519,
-                Some(Value::String(val)) if val == "Ed448" => &OID_ED448,
+                Some(Value::String(val)) if val == "Ed25519" => EddsaCurve::Ed25519,
+                Some(Value::String(val)) if val == "Ed448" => EddsaCurve::Ed448,
                 Some(Value::String(val)) => bail!("A parameter crv is invalid: {}", val),
                 Some(_) => bail!("A parameter crv must be a string."),
                 None => bail!("A parameter crv is required."),
@@ -237,6 +238,7 @@ impl EddsaJwsAlgorithm {
 
             Ok(EddsaJwsSigner {
                 algorithm: self.clone(),
+                curve,
                 private_key: pkey,
                 key_id: key_id.map(|val| val.to_string()),
             })
@@ -259,7 +261,11 @@ impl EddsaJwsAlgorithm {
                 bail!("The EdDSA public key must be wrapped by PKCS#8 format.");
             };
 
-            Ok(EddsaJwsVerifier::new(self, pkey, None))
+            Ok(EddsaJwsVerifier {
+                algorithm: self.clone(),
+                public_key: pkey, 
+                key_id: None,
+            })
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
@@ -290,7 +296,7 @@ impl EddsaJwsAlgorithm {
                 }
                 "ED25519 PUBLIC KEY" => {
                     if let Some(curve) = self.detect_pkcs8(&data, true)? {
-                        if curve == EddsaCurve::ED25519 {
+                        if curve == EddsaCurve::Ed25519 {
                             PKey::public_key_from_der(&data)?
                         } else {
                             bail!("The EdDSA curve is mismatched: {}", curve.name());
@@ -301,7 +307,7 @@ impl EddsaJwsAlgorithm {
                 }
                 "ED448 PUBLIC KEY" => {
                     if let Some(curve) = self.detect_pkcs8(&data, true)? {
-                        if curve == EddsaCurve::ED448 {
+                        if curve == EddsaCurve::Ed448 {
                             PKey::public_key_from_der(&data)?
                         } else {
                             bail!("The EdDSA curve is mismatched: {}", curve.name());
@@ -313,7 +319,11 @@ impl EddsaJwsAlgorithm {
                 alg => bail!("Unacceptable algorithm: {}", alg),
             };
 
-            Ok(EddsaJwsVerifier::new(self, pkey, None))
+            Ok(EddsaJwsVerifier {
+                algorithm: self.clone(),
+                public_key: pkey, 
+                key_id: None,
+            })
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
@@ -345,8 +355,8 @@ impl EddsaJwsAlgorithm {
             }
 
             let curve = match jwk.parameter("crv") {
-                Some(Value::String(val)) if val == "Ed25519" => &OID_ED25519,
-                Some(Value::String(val)) if val == "Ed448" => &OID_ED448,
+                Some(Value::String(val)) if val == "Ed25519" => EddsaCurve::Ed25519,
+                Some(Value::String(val)) if val == "Ed448" => EddsaCurve::Ed448,
                 Some(Value::String(val)) => bail!("A parameter crv must is invalid: {}", val),
                 Some(_) => bail!("A parameter crv must be a string."),
                 None => bail!("A parameter crv is required."),
@@ -361,7 +371,11 @@ impl EddsaJwsAlgorithm {
             let pkey = PKey::public_key_from_der(&pkcs8)?;
             let key_id = jwk.key_id().map(|val| val.to_string());
 
-            Ok(EddsaJwsVerifier::new(self, pkey, key_id))
+            Ok(EddsaJwsVerifier {
+                algorithm: self.clone(),
+                public_key: pkey, 
+                key_id,
+            })
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
@@ -399,8 +413,8 @@ impl EddsaJwsAlgorithm {
             {
                 curve = match reader.next() {
                     Ok(Some(DerType::ObjectIdentifier)) => match reader.to_object_identifier() {
-                        Ok(val) if val == *OID_ED25519 => EddsaCurve::ED25519,
-                        Ok(val) if val == *OID_ED448 => EddsaCurve::ED448,
+                        Ok(val) if val == *OID_ED25519 => EddsaCurve::Ed25519,
+                        Ok(val) if val == *OID_ED448 => EddsaCurve::Ed448,
                         _ => return Ok(None),
                     },
                     _ => return Ok(None),
@@ -411,7 +425,7 @@ impl EddsaJwsAlgorithm {
         Ok(Some(curve))
     }
 
-    fn to_pkcs8(&self, input: &[u8], is_public: bool, crv: &ObjectIdentifier) -> Vec<u8> {
+    fn to_pkcs8(&self, input: &[u8], is_public: bool, curve: EddsaCurve) -> Vec<u8> {
         let mut builder = DerBuilder::new();
         builder.begin(DerType::Sequence);
         {
@@ -421,7 +435,7 @@ impl EddsaJwsAlgorithm {
 
             builder.begin(DerType::Sequence);
             {
-                builder.append_object_identifier(crv);
+                builder.append_object_identifier(curve.oid());
             }
             builder.end();
 
@@ -445,12 +459,6 @@ impl JwsAlgorithm for EddsaJwsAlgorithm {
     fn key_type(&self) -> &str {
         "OKP"
     }
-
-    fn signature_len(&self) -> usize {
-        match self {
-            Self::EdDSA => 86,
-        }
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -465,8 +473,8 @@ impl EddsaKeyPair {
         let der = self.pkey.private_key_to_der().unwrap();
         let der = base64::encode_config(&der, base64::STANDARD);
         let alg = match self.curve {
-            EddsaCurve::ED25519 => "ED25519 PRIVATE KEY",
-            EddsaCurve::ED448 => "ED448 PRIVATE KEY",
+            EddsaCurve::Ed25519 => "ED25519 PRIVATE KEY",
+            EddsaCurve::Ed448 => "ED448 PRIVATE KEY",
         };
 
         let mut result = String::new();
@@ -635,6 +643,7 @@ impl KeyPair for EddsaKeyPair {
 #[derive(Debug, Clone)]
 pub struct EddsaJwsSigner {
     algorithm: EddsaJwsAlgorithm,
+    curve: EddsaCurve,
     private_key: PKey<Private>,
     key_id: Option<String>,
 }
@@ -642,6 +651,13 @@ pub struct EddsaJwsSigner {
 impl JwsSigner for EddsaJwsSigner {
     fn algorithm(&self) -> &dyn JwsAlgorithm {
         &self.algorithm
+    }
+    
+    fn signature_len(&self) -> usize {
+        match self.curve {
+            EddsaCurve::Ed25519 => 64,
+            EddsaCurve::Ed448 => 114,
+        }
     }
 
     fn key_id(&self) -> Option<&str> {
@@ -675,22 +691,6 @@ pub struct EddsaJwsVerifier {
     algorithm: EddsaJwsAlgorithm,
     public_key: PKey<Public>,
     key_id: Option<String>,
-    acceptable_criticals: BTreeSet<String>,
-}
-
-impl EddsaJwsVerifier {
-    fn new(
-        algorithm: &EddsaJwsAlgorithm,
-        public_key: PKey<Public>,
-        key_id: Option<String>,
-    ) -> Self {
-        Self {
-            algorithm: algorithm.clone(),
-            public_key,
-            key_id,
-            acceptable_criticals: BTreeSet::new(),
-        }
-    }
 }
 
 impl JwsVerifier for EddsaJwsVerifier {
@@ -736,7 +736,7 @@ mod tests {
     fn sign_and_verify_eddsa_generated_der() -> Result<()> {
         let input = b"abcde12345";
 
-        for curve in &[EddsaCurve::ED25519, EddsaCurve::ED448] {
+        for curve in &[EddsaCurve::Ed25519, EddsaCurve::Ed448] {
             let alg = EddsaJwsAlgorithm::EdDSA;
             let keypair = alg.generate_keypair(curve)?;
 
@@ -754,7 +754,7 @@ mod tests {
     fn sign_and_verify_eddsa_generated_pem() -> Result<()> {
         let input = b"abcde12345";
 
-        for curve in &[EddsaCurve::ED25519, EddsaCurve::ED448] {
+        for curve in &[EddsaCurve::Ed25519, EddsaCurve::Ed448] {
             let alg = EddsaJwsAlgorithm::EdDSA;
             let keypair = alg.generate_keypair(curve)?;
 
@@ -772,7 +772,7 @@ mod tests {
     fn sign_and_verify_eddsa_generated_traditional_pem() -> Result<()> {
         let input = b"abcde12345";
 
-        for curve in &[EddsaCurve::ED25519, EddsaCurve::ED448] {
+        for curve in &[EddsaCurve::Ed25519, EddsaCurve::Ed448] {
             let alg = EddsaJwsAlgorithm::EdDSA;
             let keypair = alg.generate_keypair(curve)?;
 
@@ -790,7 +790,7 @@ mod tests {
     fn sign_and_verify_eddsa_generated_jwk() -> Result<()> {
         let input = b"abcde12345";
 
-        for curve in &[EddsaCurve::ED25519, EddsaCurve::ED448] {
+        for curve in &[EddsaCurve::Ed25519, EddsaCurve::Ed448] {
             let alg = EddsaJwsAlgorithm::EdDSA;
             let keypair = alg.generate_keypair(curve)?;
 

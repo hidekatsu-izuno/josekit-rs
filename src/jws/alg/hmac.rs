@@ -170,14 +170,6 @@ impl JwsAlgorithm for HmacJwsAlgorithm {
     fn key_type(&self) -> &str {
         "oct"
     }
-
-    fn signature_len(&self) -> usize {
-        match self {
-            Self::HS256 => 43,
-            Self::HS384 => 64,
-            Self::HS512 => 86,
-        }
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -190,6 +182,14 @@ pub struct HmacJwsSigner {
 impl JwsSigner for HmacJwsSigner {
     fn algorithm(&self) -> &dyn JwsAlgorithm {
         &self.algorithm
+    }
+    
+    fn signature_len(&self) -> usize {
+        match self.algorithm {
+            HmacJwsAlgorithm::HS256 => 32,
+            HmacJwsAlgorithm::HS384 => 48,
+            HmacJwsAlgorithm::HS512 => 64,
+        }
     }
 
     fn key_id(&self) -> Option<&str> {

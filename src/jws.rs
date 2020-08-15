@@ -147,7 +147,7 @@ impl JwsContext {
             };
 
             let mut capacity = header.len() + payload.len() + 2;
-            capacity += (signer.algorithm().signature_len() * 4 + (3 - 1)) / 3;
+            capacity += (signer.signature_len() * 4 + (3 - 1)) / 3;
 
             let mut message = String::with_capacity(capacity);
             message.push_str(&header);
@@ -1345,14 +1345,14 @@ pub trait JwsAlgorithm {
 
     /// Return the "kty" (key type) header parameter value of JWK.
     fn key_type(&self) -> &str;
-
-    /// Return the signature length of JWS.
-    fn signature_len(&self) -> usize;
 }
 
 pub trait JwsSigner {
     /// Return the source algrithm instance.
     fn algorithm(&self) -> &dyn JwsAlgorithm;
+
+    /// Return the signature length of JWS.
+    fn signature_len(&self) -> usize;
 
     /// Return the source key ID.
     /// The default value is a value of kid parameter in JWK.

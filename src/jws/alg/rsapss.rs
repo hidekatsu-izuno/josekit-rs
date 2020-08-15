@@ -621,14 +621,6 @@ impl JwsAlgorithm for RsaPssJwsAlgorithm {
     fn key_type(&self) -> &str {
         "RSA"
     }
-
-    fn signature_len(&self) -> usize {
-        match self {
-            Self::PS256 => 342,
-            Self::PS384 => 342,
-            Self::PS512 => 342,
-        }
-    }
 }
 
 pub struct RsaPssKeyPair {
@@ -776,6 +768,10 @@ pub struct RsaPssJwsSigner {
 impl JwsSigner for RsaPssJwsSigner {
     fn algorithm(&self) -> &dyn JwsAlgorithm {
         &self.algorithm
+    }
+    
+    fn signature_len(&self) -> usize {
+        256
     }
 
     fn key_id(&self) -> Option<&str> {

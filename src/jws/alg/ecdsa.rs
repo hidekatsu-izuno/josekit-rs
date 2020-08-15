@@ -465,15 +465,6 @@ impl JwsAlgorithm for EcdsaJwsAlgorithm {
         }
     }
 
-    fn signature_len(&self) -> usize {
-        match self {
-            Self::ES256 => 86,
-            Self::ES384 => 128,
-            Self::ES512 => 289,
-            Self::ES256K => 86,
-        }
-    }
-
     fn key_type(&self) -> &str {
         "EC"
     }
@@ -586,6 +577,15 @@ pub struct EcdsaJwsSigner {
 impl JwsSigner for EcdsaJwsSigner {
     fn algorithm(&self) -> &dyn JwsAlgorithm {
         &self.algorithm
+    }
+    
+    fn signature_len(&self) -> usize {
+        match self.algorithm {
+            EcdsaJwsAlgorithm::ES256 => 64,
+            EcdsaJwsAlgorithm::ES384 => 96,
+            EcdsaJwsAlgorithm::ES512 => 131,
+            EcdsaJwsAlgorithm::ES256K => 64,
+        }
     }
 
     fn key_id(&self) -> Option<&str> {
