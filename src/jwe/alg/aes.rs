@@ -92,18 +92,6 @@ impl JweDecrypter for AesJweDecrypter {
         self.key_id = None;
     }
 
-    fn is_acceptable_critical(&self, name: &str) -> bool {
-        self.acceptable_criticals.contains(name)
-    }
-
-    fn add_acceptable_critical(&mut self, name: &str) {
-        self.acceptable_criticals.insert(name.to_string());
-    }
-
-    fn remove_acceptable_critical(&mut self, name: &str) {
-        self.acceptable_criticals.remove(name);
-    }
-
     fn decrypt(&self, key: &[u8]) -> Result<Vec<u8>, JoseError> {
         todo!()
     }
