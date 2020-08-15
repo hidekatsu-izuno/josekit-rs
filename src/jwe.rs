@@ -3,11 +3,14 @@ pub mod enc;
 pub mod zip;
 
 use std::collections::BTreeSet;
-use std::collections::HashMap;
-use std::fmt::Display;
+use std::collections::{HashMap, BTreeMap};
+use std::fmt::{Display, Debug};
+use std::cmp::Eq;
+use std::io;
 
 use anyhow::bail;
 use once_cell::sync::Lazy;
+use openssl::rand;
 use serde_json::{Map, Value};
 
 use crate::jose::{JoseError, JoseHeader};
@@ -53,12 +56,47 @@ static DEFAULT_CONTEXT: Lazy<JweContext> = Lazy::new(|| JweContext::new());
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct JweContext {
     acceptable_criticals: BTreeSet<String>,
+    compressions: BTreeMap<String, Box<dyn JweCompression>>,
+    content_encryptions: BTreeMap<String, Box<dyn JweContentEncryption>>,
 }
 
 impl JweContext {
     pub fn new() -> Self {
         Self {
             acceptable_criticals: BTreeSet::new(),
+            compressions: {
+                let compressions: Vec<Box<dyn JweCompression>> = vec![
+                    Box::new(Def)
+                ];
+
+                let mut map = BTreeMap::new();
+                for compression in compressions {
+                    map.insert(
+                        compression.name().to_string(), 
+                        compression,
+                    );
+                }
+                map
+            },
+            content_encryptions: {
+                let content_encryptions: Vec<Box<dyn JweContentEncryption>> = vec![
+                    Box::new(A128CbcHS256),
+                    Box::new(A192CbcHS384),
+                    Box::new(A256CbcHS512),
+                    Box::new(A128Gcm),
+                    Box::new(A192Gcm),
+                    Box::new(A256Gcm),
+                ];
+
+                let mut map = BTreeMap::new();
+                for content_encryption in content_encryptions {
+                    map.insert(
+                        content_encryption.name().to_string(), 
+                        content_encryption,
+                    );
+                }
+                map
+            },
         }
     }
 
@@ -87,6 +125,66 @@ impl JweContext {
     /// * `name` - a acceptable critical header claim name
     pub fn remove_acceptable_critical(&mut self, name: &str) {
         self.acceptable_criticals.remove(name);
+    }
+    
+    /// Get a compression algorithm for zip header claim value.
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - a zip header claim name
+    pub fn get_compression(&self, name: &str) -> Option<&dyn JweCompression> {
+        match self.compressions.get(name) {
+            Some(val) => Some(val.as_ref()),
+            None => None,
+        }
+    }
+
+    /// Add a compression algorithm for zip header claim name.
+    ///
+    /// # Arguments
+    ///
+    /// * `compression` - a compression algorithm
+    pub fn add_compression(&mut self, compression: Box<dyn JweCompression>) {
+        self.compressions.insert(compression.name().to_string(), compression);
+    }
+
+    /// Remove a compression algorithm for zip header claim name.
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - a zip header claim name
+    pub fn remove_compression(&mut self, name: &str) {
+        self.compressions.remove(name);
+    }
+
+    /// Get a content encryption algorithm for enc header claim value.
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - a content encryption header claim name
+    pub fn get_content_encryption(&self, name: &str) -> Option<&dyn JweContentEncryption> {
+        match self.content_encryptions.get(name) {
+            Some(val) => Some(val.as_ref()),
+            None => None,
+        }
+    }
+
+    /// Add a content encryption algorithm for enc header claim name.
+    ///
+    /// # Arguments
+    ///
+    /// * `content_encryption` - a content encryption algorithm
+    pub fn add_content_encryption(&mut self, content_encryption: Box<dyn JweContentEncryption>) {
+        self.content_encryptions.insert(content_encryption.name().to_string(), content_encryption);
+    }
+
+    /// Remove a content encryption algorithm for enc header claim name.
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - a enc header claim name
+    pub fn remove_content_encryption(&mut self, name: &str) {
+        self.content_encryptions.remove(name);
     }
 
     /// Return a representation of the data that is formatted by compact serialization.
@@ -122,6 +220,63 @@ impl JweContext {
         F: Fn(&JweHeader) -> Option<&'a dyn JweEncrypter>,
     {
         (|| -> anyhow::Result<String> {
+            let encrypter = match selector(header) {
+                Some(val) => val,
+                None => bail!("A encrypter is not found."),
+            };
+
+            let content_encryption = match header.content_encryption() {
+                Some(enc) => match self.get_content_encryption(enc) {
+                    Some(val) => val,
+                    None => bail!("A content encryption is not registered: {}", enc),
+                },
+                None => bail!("A enc header claim is required."),
+            };
+
+            let compression = match header.compression() {
+                Some(zip) => match self.get_compression(zip) {
+                    Some(val) => Some(val),
+                    None => bail!("A compression algorithm is not registered: {}", zip),
+                },
+                None => None,
+            };
+
+            let mut header = header.claims_set().clone();
+            header.insert(
+                "alg".to_string(),
+                Value::String(encrypter.algorithm().name().to_string()),
+            );
+            if let Some(key_id) = encrypter.key_id() {
+                header.insert("kid".to_string(), Value::String(key_id.to_string()));
+            }
+            let header = serde_json::to_string(&header)?;
+            let header = base64::encode_config(header, base64::URL_SAFE_NO_PAD);
+
+            let payload = if let Some(compression) = compression {
+                let payload = compression.compress(payload)?;
+                base64::encode_config(payload, base64::URL_SAFE_NO_PAD)
+            } else {
+                base64::encode_config(payload, base64::URL_SAFE_NO_PAD)
+            };
+
+            let mut secret = vec![0; content_encryption.iv_len()];
+            rand::rand_bytes(&mut secret)?;
+
+            let mut iv = vec![0; content_encryption.iv_len()];
+            rand::rand_bytes(&mut iv)?;
+            
+            let mut capacity = header.len() + iv.len() + secret.len() + 4;
+
+            let mut message = String::with_capacity(capacity);
+            message.push_str(&header);
+            message.push_str(".");
+            message.push_str(&payload);
+
+            let encrypted = content_encryption.encrypt(message.as_bytes(), &iv, &secret)?;
+
+
+            let iv = base64::encode_config(iv, base64::URL_SAFE_NO_PAD);
+
             unimplemented!("JWE is not supported yet.");
         })()
         .map_err(|err| match err.downcast::<JoseError>() {
@@ -414,6 +569,44 @@ impl JweHeader {
         Self {
             claims: Map::new(),
             sources: HashMap::new(),
+        }
+    }
+
+    /// Set a value for content encryption header claim (enc).
+    ///
+    /// # Arguments
+    ///
+    /// * `value` - a content encryption
+    pub fn set_content_encryption(&mut self, value: impl Into<String>) {
+        let value: String = value.into();
+        self.claims.insert("enc".to_string(), Value::String(value));
+    }
+
+    /// Return the value for content encryption header claim (enc).
+    pub fn content_encryption(&self) -> Option<&str> {
+        match self.claims.get("enc") {
+            Some(Value::String(val)) => Some(val),
+            None => None,
+            _ => unreachable!(),
+        }
+    }
+
+    /// Set a value for compression header claim (zip).
+    ///
+    /// # Arguments
+    ///
+    /// * `value` - a encryption
+    pub fn set_compression(&mut self, value: impl Into<String>) {
+        let value: String = value.into();
+        self.claims.insert("zip".to_string(), Value::String(value));
+    }
+
+    /// Return the value for compression header claim (zip).
+    pub fn compression(&self) -> Option<&str> {
+        match self.claims.get("zip") {
+            Some(Value::String(val)) => Some(val),
+            None => None,
+            _ => unreachable!(),
         }
     }
 
@@ -725,27 +918,6 @@ pub trait JweDecrypter {
     /// Remove a compared value for a kid header claim (kid).
     fn remove_key_id(&mut self);
 
-    /// Test a critical header claim name is acceptable.
-    ///
-    /// # Arguments
-    ///
-    /// * `name` - a critical header claim name
-    fn is_acceptable_critical(&self, name: &str) -> bool;
-
-    /// Add a acceptable critical header claim name
-    ///
-    /// # Arguments
-    ///
-    /// * `name` - a acceptable critical header claim name
-    fn add_acceptable_critical(&mut self, name: &str);
-
-    /// Remove a acceptable critical header claim name
-    ///
-    /// # Arguments
-    ///
-    /// * `name` - a acceptable critical header claim name
-    fn remove_acceptable_critical(&mut self, name: &str);
-
     /// Return a decypted key data.
     ///
     /// # Arguments
@@ -754,20 +926,58 @@ pub trait JweDecrypter {
     fn decrypt(&self, key: &[u8]) -> Result<Vec<u8>, JoseError>;
 }
 
-pub trait JweContentEncryption {
+pub trait JweContentEncryption: Debug + Send + Sync {
     /// Return the "enc" (encryption) header parameter value of JWE.
     fn name(&self) -> &str;
 
-    fn encrypt(&self, message: &[u8], secret: &[u8]) -> Result<Vec<u8>, JoseError>;
+    fn iv_len(&self) -> usize;
 
-    fn decrypt(&self, data: &[u8], secret: &[u8]) -> Result<Vec<u8>, JoseError>;
+    fn encrypt(&self, message: &[u8], iv: &[u8], secret: &[u8]) -> Result<Vec<u8>, JoseError>;
+
+    fn decrypt(&self, data: &[u8], iv: &[u8], secret: &[u8]) -> Result<Vec<u8>, JoseError>;
+
+    fn digest(&self, message: &[u8]) -> Result<Vec<u8>, JoseError>;
+
+    fn box_clone(&self) -> Box<dyn JweContentEncryption>;
 }
 
-pub trait JweCompression {
+impl PartialEq for Box<dyn JweContentEncryption> {
+    fn eq(&self, other: &Self) -> bool {
+        self == other
+    }
+}
+
+impl Eq for Box<dyn JweContentEncryption> {
+}
+
+impl Clone for Box<dyn JweContentEncryption> {
+    fn clone(&self) -> Self {
+        self.box_clone()
+    }
+}
+
+pub trait JweCompression: Debug + Send + Sync {
     /// Return the "zip" (compression algorithm) header parameter value of JWE.
     fn name(&self) -> &str;
 
-    fn compress(&self, message: &[u8]) -> Result<Vec<u8>, JoseError>;
+    fn compress(&self, message: &[u8]) -> Result<Vec<u8>, io::Error>;
 
-    fn decompress(&self, message: &[u8]) -> Result<Vec<u8>, JoseError>;
+    fn decompress(&self, message: &[u8]) -> Result<Vec<u8>, io::Error>;
+
+    fn box_clone(&self) -> Box<dyn JweCompression>;
+}
+
+impl PartialEq for Box<dyn JweCompression> {
+    fn eq(&self, other: &Self) -> bool {
+        self == other
+    }
+}
+
+impl Eq for Box<dyn JweCompression> {
+}
+
+impl Clone for Box<dyn JweCompression> {
+    fn clone(&self) -> Self {
+        self.box_clone()
+    }
 }

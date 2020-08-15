@@ -146,9 +146,10 @@ impl JwsContext {
                 }
             };
 
-            let capacity = header.len() + payload.len() + signer.algorithm().signature_len() + 2;
-            let mut message = String::with_capacity(capacity);
+            let mut capacity = header.len() + payload.len() + 2;
+            capacity += (signer.algorithm().signature_len() * 4 + (3 - 1)) / 3;
 
+            let mut message = String::with_capacity(capacity);
             message.push_str(&header);
             message.push_str(".");
             message.push_str(&payload);
@@ -820,6 +821,16 @@ impl JwsHeader {
             claims: Map::new(),
             sources: HashMap::new(),
         }
+    }
+
+    /// Set a value for algorithm header claim (alg).
+    ///
+    /// # Arguments
+    ///
+    /// * `value` - a algorithm
+    pub fn set_algorithm(&mut self, value: impl Into<String>) {
+        let value: String = value.into();
+        self.claims.insert("alg".to_string(), Value::String(value));
     }
 
     /// Set a value for JWK set URL header claim (jku).
