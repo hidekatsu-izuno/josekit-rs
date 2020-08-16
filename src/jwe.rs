@@ -259,21 +259,23 @@ impl JweContext {
                 base64::encode_config(payload, base64::URL_SAFE_NO_PAD)
             };
 
-            let mut secret = vec![0; content_encryption.iv_len()];
-            rand::rand_bytes(&mut secret)?;
+            let mut enc_key = vec![0; content_encryption.enc_key_len()];
+            rand::rand_bytes(&mut enc_key)?;
+
+            let mut mac_key = vec![0; content_encryption.mac_key_len()];
+            rand::rand_bytes(&mut mac_key)?;
 
             let mut iv = vec![0; content_encryption.iv_len()];
             rand::rand_bytes(&mut iv)?;
             
-            let mut capacity = header.len() + iv.len() + secret.len() + 4;
+            let mut capacity = header.len() + iv.len() + enc_key.len() + 4;
 
             let mut message = String::with_capacity(capacity);
             message.push_str(&header);
             message.push_str(".");
             message.push_str(&payload);
 
-            let encrypted = content_encryption.encrypt(message.as_bytes(), &iv, &secret)?;
-
+            let encrypted = content_encryption.encrypt(message.as_bytes(), &iv, &enc_key)?;
 
             let iv = base64::encode_config(iv, base64::URL_SAFE_NO_PAD);
 
@@ -930,13 +932,17 @@ pub trait JweContentEncryption: Debug + Send + Sync {
     /// Return the "enc" (encryption) header parameter value of JWE.
     fn name(&self) -> &str;
 
+    fn enc_key_len(&self) -> usize;
+
+    fn mac_key_len(&self) -> usize;
+
     fn iv_len(&self) -> usize;
 
-    fn encrypt(&self, message: &[u8], iv: &[u8], secret: &[u8]) -> Result<Vec<u8>, JoseError>;
+    fn encrypt(&self, message: &[u8], iv: &[u8], enc_key: &[u8]) -> Result<Vec<u8>, JoseError>;
 
-    fn decrypt(&self, data: &[u8], iv: &[u8], secret: &[u8]) -> Result<Vec<u8>, JoseError>;
+    fn decrypt(&self, data: &[u8], iv: &[u8], enc_key: &[u8]) -> Result<Vec<u8>, JoseError>;
 
-    fn digest(&self, message: &[u8]) -> Result<Vec<u8>, JoseError>;
+    fn sign(&self, message: &[u8], mac_key: &[u8]) -> Result<Vec<u8>, JoseError>;
 
     fn box_clone(&self) -> Box<dyn JweContentEncryption>;
 }

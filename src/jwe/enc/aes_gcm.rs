@@ -20,6 +20,14 @@ impl JweContentEncryption for AesGcmJweEncryption {
         }
     }
 
+    fn enc_key_len(&self) -> usize {
+        16
+    }
+
+    fn mac_key_len(&self) -> usize {
+        0
+    }
+
     fn iv_len(&self) -> usize {
         12
     }
@@ -32,8 +40,8 @@ impl JweContentEncryption for AesGcmJweEncryption {
         todo!()
     }
     
-    fn digest(&self, message: &[u8]) -> Result<Vec<u8>, JoseError> {
-        todo!()
+    fn sign(&self, _message: &[u8], _mac_key: &[u8]) -> Result<Vec<u8>, JoseError> {
+        unimplemented!("AES GCM doesn't need to sign.");
     }
 
     fn box_clone(&self) -> Box<dyn JweContentEncryption> {
