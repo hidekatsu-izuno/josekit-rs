@@ -10,7 +10,7 @@ use serde_json::{Map, Value};
 
 use crate::jose::{JoseError, JoseHeader};
 use crate::jwk::Jwk;
-use crate::util::{SourceValue, ceiling};
+use crate::util::{self, SourceValue};
 
 pub use crate::jws::alg::hmac::HmacJwsAlgorithm::HS256;
 pub use crate::jws::alg::hmac::HmacJwsAlgorithm::HS384;
@@ -130,13 +130,13 @@ impl JwsContext {
             let header = serde_json::to_string(&header)?;
 
             let mut capacity = 2;
-            capacity += ceiling(header.len() * 4, 3);
+            capacity += util::ceiling(header.len() * 4, 3);
             capacity += if b64 {
-                ceiling(payload.len() * 4, 3)
+                util::ceiling(payload.len() * 4, 3)
             } else {
                 payload.len()
             };
-            capacity += ceiling(signer.signature_len() * 4, 3);
+            capacity += util::ceiling(signer.signature_len() * 4, 3);
 
             let mut message = String::with_capacity(capacity);
             base64::encode_config_buf(header, base64::URL_SAFE_NO_PAD, &mut message);
@@ -317,16 +317,11 @@ impl JwsContext {
                 payload_base64 = base64::encode_config(payload, base64::URL_SAFE_NO_PAD);
                 &payload_base64
             } else {
-                match std::str::from_utf8(payload) {
-                    Ok(val) => val,
-                    Err(err) => bail!("{}", err),
-                }
+                std::str::from_utf8(payload)?
             };
-
+            
             let message = format!("{}.{}", &protected_base64, payload);
-
             let signature = signer.sign(message.as_bytes())?;
-            let signature = base64::encode_config(&signature, base64::URL_SAFE_NO_PAD);
 
             let mut json = String::new();
             json.push_str("{\"protected\":\"");
@@ -334,8 +329,8 @@ impl JwsContext {
             json.push_str("\"");
 
             if let Some(val) = &header {
-                let header = serde_json::to_string(val.claims_set())?;
                 json.push_str(",\"header\":");
+                let header = serde_json::to_string(val.claims_set())?;
                 json.push_str(&header);
             }
 
@@ -344,7 +339,7 @@ impl JwsContext {
             json.push_str("\"");
 
             json.push_str(",\"signature\":\"");
-            json.push_str(&signature);
+            base64::encode_config_buf(&signature, base64::URL_SAFE_NO_PAD, &mut json);
             json.push_str("\"}");
 
             Ok(json)

@@ -11,7 +11,7 @@ use crate::jose::{JoseError, JoseHeader};
 use crate::jwe::{JweContext, JweDecrypter, JweEncrypter, JweHeader};
 use crate::jwk::{Jwk, JwkSet};
 use crate::jws::{JwsContext, JwsHeader, JwsSigner, JwsVerifier};
-use crate::util::SourceValue;
+use crate::util::{self, SourceValue};
 
 static DEFAULT_CONTEXT: Lazy<JwtContext> = Lazy::new(|| JwtContext::new());
 
@@ -72,14 +72,21 @@ impl JwtContext {
         (|| -> anyhow::Result<String> {
             let mut header = header.claims_set().clone();
             header.insert("alg".to_string(), Value::String("none".to_string()));
-
             let header = serde_json::to_string(&header)?;
-            let header = base64::encode_config(header, base64::URL_SAFE_NO_PAD);
 
             let payload = payload.to_string();
-            let payload = base64::encode_config(payload, base64::URL_SAFE_NO_PAD);
 
-            Ok(format!("{}.{}.", header, payload))
+            let mut capacity = 2;
+            capacity += util::ceiling(header.len() * 4, 3);
+            capacity += util::ceiling(payload.len() * 4, 3);
+
+            let mut message = String::with_capacity(capacity);
+            base64::encode_config_buf(header, base64::URL_SAFE_NO_PAD, &mut message);
+            message.push_str(".");
+            base64::encode_config_buf(payload, base64::URL_SAFE_NO_PAD, &mut message);
+            message.push_str(".");
+
+            Ok(message)
         })()
         .map_err(|err| match err.downcast::<JoseError>() {
             Ok(err) => err,
