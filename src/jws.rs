@@ -10,7 +10,7 @@ use serde_json::{Map, Value};
 
 use crate::jose::{JoseError, JoseHeader};
 use crate::jwk::Jwk;
-use crate::util::SourceValue;
+use crate::util::{SourceValue, ceiling};
 
 pub use crate::jws::alg::hmac::HmacJwsAlgorithm::HS256;
 pub use crate::jws::alg::hmac::HmacJwsAlgorithm::HS384;
@@ -128,37 +128,33 @@ impl JwsContext {
                 header.insert("kid".to_string(), Value::String(key_id.to_string()));
             }
             let header = serde_json::to_string(&header)?;
-            let header = base64::encode_config(header, base64::URL_SAFE_NO_PAD);
 
-            let payload_base64;
-            let payload = if b64 {
-                payload_base64 = base64::encode_config(payload, base64::URL_SAFE_NO_PAD);
-                &payload_base64
+            let mut capacity = 2;
+            capacity += ceiling(header.len() * 4, 3);
+            capacity += if b64 {
+                ceiling(payload.len() * 4, 3)
             } else {
-                match std::str::from_utf8(payload) {
-                    Ok(val) => {
-                        if val.contains(".") {
-                            bail!("A JWS payload cannot contain dot.");
-                        }
-                        val
-                    }
-                    Err(err) => bail!("{}", err),
-                }
+                payload.len()
             };
-
-            let mut capacity = header.len() + payload.len() + 2;
-            capacity += (signer.signature_len() * 4 + (3 - 1)) / 3;
+            capacity += ceiling(signer.signature_len() * 4, 3);
 
             let mut message = String::with_capacity(capacity);
-            message.push_str(&header);
+            base64::encode_config_buf(header, base64::URL_SAFE_NO_PAD, &mut message);
             message.push_str(".");
-            message.push_str(&payload);
+            if b64 {
+                base64::encode_config_buf(payload, base64::URL_SAFE_NO_PAD, &mut message);
+            } else {
+                let payload = std::str::from_utf8(payload)?;
+                if payload.contains(".") {
+                    bail!("A JWS payload cannot contain dot.");
+                }
+                message.push_str(payload);
+            }
 
             let signature = signer.sign(message.as_bytes())?;
-            let signature = base64::encode_config(signature, base64::URL_SAFE_NO_PAD);
 
             message.push_str(".");
-            message.push_str(&signature);
+            base64::encode_config_buf(signature, base64::URL_SAFE_NO_PAD, &mut message);
 
             Ok(message)
         })()

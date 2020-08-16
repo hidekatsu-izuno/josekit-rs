@@ -15,6 +15,10 @@ pub enum SourceValue {
     SystemTime(SystemTime),
 }
 
+pub fn ceiling(len: usize, div: usize) -> usize {
+    (len + (div - 1)) / div
+}
+
 pub fn parse_pem(input: &[u8]) -> anyhow::Result<(String, Vec<u8>)> {
     static RE_PEM: Lazy<Regex> = Lazy::new(|| {
         Regex::new(concat!(
