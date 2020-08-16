@@ -73,7 +73,6 @@ impl JweEncrypter for AesJweEncrypter {
 pub struct AesJweDecrypter {
     algorithm: AesJweAlgorithm,
     key_id: Option<String>,
-    acceptable_criticals: BTreeSet<String>,
 }
 
 impl JweDecrypter for AesJweDecrypter {

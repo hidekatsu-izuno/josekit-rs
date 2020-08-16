@@ -250,44 +250,51 @@ impl JweContext {
                 header.insert("kid".to_string(), Value::String(key_id.to_string()));
             }
             let header = serde_json::to_string(&header)?;
-            let header = base64::encode_config(header, base64::URL_SAFE_NO_PAD);
 
-            let payload = if let Some(compression) = compression {
-                let payload = compression.compress(payload)?;
-                base64::encode_config(payload, base64::URL_SAFE_NO_PAD)
+            let compressed;
+            let content = if let Some(compression) = compression {
+                compressed = compression.compress(payload)?;
+                &compressed
             } else {
-                base64::encode_config(payload, base64::URL_SAFE_NO_PAD)
+                payload
             };
+
+            let mut iv = vec![0; content_encryption.iv_len()];
+            rand::rand_bytes(&mut iv)?;
 
             let mut key = vec![0; content_encryption.mac_key_len() + content_encryption.enc_key_len()];
             rand::rand_bytes(&mut key)?;
 
-            let mut iv = vec![0; content_encryption.iv_len()];
-            rand::rand_bytes(&mut iv)?;
-            
-            let mut capacity = header.len() + iv.len() + key.len() + 4;
-
-            let mut message = String::with_capacity(capacity);
-            message.push_str(&header);
-            message.push_str(".");
-            message.push_str(&payload);
-
-            let ciphertext = content_encryption.encrypt(message.as_bytes(), &iv, &key[content_encryption.mac_key_len()..])?;
-            let iv = base64::encode_config(iv, base64::URL_SAFE_NO_PAD);
-            let ciphertext = base64::encode_config(ciphertext, base64::URL_SAFE_NO_PAD);
+            let enc_key = &key[content_encryption.mac_key_len()..];
+            let ciphertext = content_encryption.encrypt(content, &iv, enc_key)?;
 
             let tag = if content_encryption.mac_key_len() > 0 {
-                let tag = content_encryption.sign(message.as_bytes(), &key[0..content_encryption.mac_key_len()])?;
-                base64::encode_config(tag, base64::URL_SAFE_NO_PAD)
+                let mac_key = &key[0..content_encryption.mac_key_len()];
+                let tag = content_encryption.sign(vec![
+                    ciphertext.as_slice()
+                ], mac_key)?;
+                Some(tag)
             } else {
-                "".to_string()
+                None
             };
 
             let encrypted_key = encrypter.encrypt(&key)?;
-            let encrypted_key = base64::encode_config(encrypted_key, base64::URL_SAFE_NO_PAD);
+            
+            let capacity = header.len() + iv.len() + key.len() + 4;
+            let mut message = String::with_capacity(capacity);
+            base64::encode_config_buf(header, base64::URL_SAFE_NO_PAD, &mut message);
+            message.push_str(".");
+            base64::encode_config_buf(encrypted_key, base64::URL_SAFE_NO_PAD, &mut message);
+            message.push_str(".");
+            base64::encode_config_buf(iv, base64::URL_SAFE_NO_PAD, &mut message);
+            message.push_str(".");
+            base64::encode_config_buf(ciphertext, base64::URL_SAFE_NO_PAD, &mut message);
+            message.push_str(".");
+            if let Some(val) = tag {
+                base64::encode_config_buf(val, base64::URL_SAFE_NO_PAD, &mut message);
+            }
 
-
-            unimplemented!("JWE is not supported yet.");
+            Ok(message)
         })()
         .map_err(|err| match err.downcast::<JoseError>() {
             Ok(err) => err,
@@ -964,7 +971,7 @@ pub trait JweContentEncryption: Debug + Send + Sync {
 
     fn decrypt(&self, data: &[u8], iv: &[u8], enc_key: &[u8]) -> Result<Vec<u8>, JoseError>;
 
-    fn sign(&self, message: &[u8], mac_key: &[u8]) -> Result<Vec<u8>, JoseError>;
+    fn sign(&self, message: Vec<&[u8]>, mac_key: &[u8]) -> Result<Vec<u8>, JoseError>;
 
     fn box_clone(&self) -> Box<dyn JweContentEncryption>;
 }

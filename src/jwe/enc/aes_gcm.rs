@@ -68,7 +68,7 @@ impl JweContentEncryption for AesGcmJweEncryption {
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
     
-    fn sign(&self, _message: &[u8], _mac_key: &[u8]) -> Result<Vec<u8>, JoseError> {
+    fn sign(&self, _message: Vec<&[u8]>, _mac_key: &[u8]) -> Result<Vec<u8>, JoseError> {
         unimplemented!("AES GCM doesn't need to sign.");
     }
 

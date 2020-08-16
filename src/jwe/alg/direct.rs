@@ -27,7 +27,68 @@ impl JweAlgorithm for DirectJweAlgorithm {
 }
 
 #[derive(Debug, Clone)]
-pub struct DirectJweEncrypter;
+pub struct DirectJweEncrypter {
+    algorithm: DirectJweAlgorithm,
+    key_id: Option<String>,
+}
+
+impl JweEncrypter for DirectJweEncrypter {
+    fn algorithm(&self) -> &dyn JweAlgorithm {
+        &self.algorithm
+    }
+
+    fn encrypted_len(&self, len: usize) -> usize {
+        len
+    }
+
+    fn key_id(&self) -> Option<&str> {
+        match &self.key_id {
+            Some(val) => Some(val.as_ref()),
+            None => None,
+        }
+    }
+
+    fn set_key_id(&mut self, key_id: &str) {
+        self.key_id = Some(key_id.to_string());
+    }
+
+    fn remove_key_id(&mut self) {
+        self.key_id = None;
+    }
+
+    fn encrypt(&self, message: &[u8]) -> Result<Vec<u8>, JoseError> {
+        Ok(message.to_vec())
+    }
+}
 
 #[derive(Debug, Clone)]
-pub struct DirectJweDecrypter;
+pub struct DirectJweDecrypter {
+    algorithm: DirectJweAlgorithm,
+    key_id: Option<String>,
+}
+
+impl JweDecrypter for DirectJweDecrypter {
+    fn algorithm(&self) -> &dyn JweAlgorithm {
+        &self.algorithm
+    }
+
+    fn key_id(&self) -> Option<&str> {
+        match &self.key_id {
+            Some(val) => Some(val.as_ref()),
+            None => None,
+        }
+    }
+
+    fn set_key_id(&mut self, key_id: &str) {
+        self.key_id = Some(key_id.to_string());
+    }
+
+    fn remove_key_id(&mut self) {
+        self.key_id = None;
+    }
+
+    fn decrypt(&self, data: &[u8]) -> Result<Vec<u8>, JoseError> {
+        Ok(data.to_vec())
+    }
+}
+
