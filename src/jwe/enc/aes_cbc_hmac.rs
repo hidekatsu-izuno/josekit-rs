@@ -55,7 +55,6 @@ impl JweContentEncryption for AesCbcHmacJweEncryption {
         }
     }
 
-
     fn encrypt(&self, message: &[u8], iv: &[u8], enc_key: &[u8]) -> Result<Vec<u8>, JoseError> {
         let cipher = self.cipher();
 

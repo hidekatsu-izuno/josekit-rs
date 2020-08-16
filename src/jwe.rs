@@ -262,9 +262,16 @@ impl JweContext {
             let mut iv = vec![0; content_encryption.iv_len()];
             rand::rand_bytes(&mut iv)?;
 
-            let mut key = vec![0; content_encryption.mac_key_len() + content_encryption.enc_key_len()];
-            rand::rand_bytes(&mut key)?;
-
+            let mut new_key;
+            let key = match encrypter.content_encryption_key() {
+                Some(val) => val,
+                None => {
+                    new_key = vec![0; content_encryption.mac_key_len() + content_encryption.enc_key_len()];
+                    rand::rand_bytes(&mut new_key)?;
+                    &new_key
+                }
+            };
+            
             let enc_key = &key[content_encryption.mac_key_len()..];
             let ciphertext = content_encryption.encrypt(content, &iv, enc_key)?;
 
@@ -916,6 +923,9 @@ pub trait JweEncrypter {
     /// Remove a compared value for a kid header claim (kid).
     fn remove_key_id(&mut self);
 
+    /// Return a content encryption key.
+    fn content_encryption_key(&self) -> Option<&[u8]>;
+
     /// Return a encypted key data.
     ///
     /// # Arguments
@@ -942,7 +952,10 @@ pub trait JweDecrypter {
     /// Remove a compared value for a kid header claim (kid).
     fn remove_key_id(&mut self);
 
-    /// Return a decypted key data.
+    /// Return a content encryption key.
+    fn content_encryption_key(&self) -> Option<&[u8]>;
+
+    /// Return a decrypted key data.
     ///
     /// # Arguments
     ///

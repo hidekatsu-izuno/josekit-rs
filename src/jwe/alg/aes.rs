@@ -64,6 +64,10 @@ impl JweEncrypter for AesJweEncrypter {
         self.key_id = None;
     }
 
+    fn content_encryption_key(&self) -> Option<&[u8]> {
+        None
+    }
+
     fn encrypt(&self, message: &[u8]) -> Result<Vec<u8>, JoseError> {
         todo!()
     }
@@ -93,6 +97,10 @@ impl JweDecrypter for AesJweDecrypter {
 
     fn remove_key_id(&mut self) {
         self.key_id = None;
+    }
+
+    fn content_encryption_key(&self) -> Option<&[u8]> {
+        None
     }
 
     fn decrypt(&self, data: &[u8]) -> Result<Vec<u8>, JoseError> {

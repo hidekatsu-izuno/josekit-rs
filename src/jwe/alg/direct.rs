@@ -30,6 +30,7 @@ impl JweAlgorithm for DirectJweAlgorithm {
 pub struct DirectJweEncrypter {
     algorithm: DirectJweAlgorithm,
     key_id: Option<String>,
+    content_encryption_key: Vec<u8>,
 }
 
 impl JweEncrypter for DirectJweEncrypter {
@@ -56,8 +57,12 @@ impl JweEncrypter for DirectJweEncrypter {
         self.key_id = None;
     }
 
-    fn encrypt(&self, message: &[u8]) -> Result<Vec<u8>, JoseError> {
-        Ok(message.to_vec())
+    fn content_encryption_key(&self) -> Option<&[u8]> {
+        Some(&self.content_encryption_key)
+    }
+
+    fn encrypt(&self, _message: &[u8]) -> Result<Vec<u8>, JoseError> {
+        unimplemented!();
     }
 }
 
@@ -65,6 +70,7 @@ impl JweEncrypter for DirectJweEncrypter {
 pub struct DirectJweDecrypter {
     algorithm: DirectJweAlgorithm,
     key_id: Option<String>,
+    content_encryption_key: Vec<u8>,
 }
 
 impl JweDecrypter for DirectJweDecrypter {
@@ -86,9 +92,13 @@ impl JweDecrypter for DirectJweDecrypter {
     fn remove_key_id(&mut self) {
         self.key_id = None;
     }
+    
+    fn content_encryption_key(&self) -> Option<&[u8]> {
+        Some(&self.content_encryption_key)
+    }
 
-    fn decrypt(&self, data: &[u8]) -> Result<Vec<u8>, JoseError> {
-        Ok(data.to_vec())
+    fn decrypt(&self, _data: &[u8]) -> Result<Vec<u8>, JoseError> {
+        unimplemented!();
     }
 }
 
