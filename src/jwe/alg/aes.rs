@@ -45,8 +45,8 @@ impl JweEncrypter for AesJweEncrypter {
         &self.algorithm
     }
 
-    fn output_len(&self, input_len: usize) -> usize {
-        (input_len + (16 - 1) / 16) * 16
+    fn encrypted_len(&self, len: usize) -> usize {
+        (len + (16 - 1) / 16) * 16
     }
 
     fn key_id(&self) -> Option<&str> {

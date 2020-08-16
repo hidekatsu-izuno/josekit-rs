@@ -888,12 +888,12 @@ pub trait JweEncrypter {
     /// Return the source algorithm instance.
     fn algorithm(&self) -> &dyn JweAlgorithm;
 
-    /// Return the output length.
+    /// Return the encrypted output length.
     /// 
     /// # Arguments
     ///
-    /// * `input_len` - a input length
-    fn output_len(&self, input_len: usize) -> usize;
+    /// * `len` - a input length
+    fn encrypted_len(&self, len: usize) -> usize;
 
     /// Return the source key ID.
     /// The default value is a value of kid parameter in JWK.
@@ -946,6 +946,13 @@ pub trait JweDecrypter {
 pub trait JweContentEncryption: Debug + Send + Sync {
     /// Return the "enc" (encryption) header parameter value of JWE.
     fn name(&self) -> &str;
+    
+    /// Return the encrypted output length.
+    /// 
+    /// # Arguments
+    ///
+    /// * `len` - a input length
+    fn encrypted_len(&self, len: usize) -> usize;
 
     fn enc_key_len(&self) -> usize;
 
