@@ -1,5 +1,6 @@
 use openssl::hash::MessageDigest;
 use openssl::pkey::{PKey, Private};
+use openssl::symm::{self, Cipher};
 use openssl::sign::Signer;
 
 use crate::jwe::JweContentEncryption;
@@ -15,6 +16,16 @@ pub enum AesCbcHmacJweEncryption {
     A256CbcHS512,
 }
 
+impl AesCbcHmacJweEncryption {
+    fn cipher(&self) -> Cipher {
+        match self {
+            Self::A128CbcHS256 => Cipher::aes_128_cbc(),
+            Self::A192CbcHS384 => Cipher::aes_192_cbc(),
+            Self::A256CbcHS512 => Cipher::aes_256_cbc(),
+        }
+    }
+}
+
 impl JweContentEncryption for AesCbcHmacJweEncryption {
     fn name(&self) -> &str {
         match self {
@@ -24,24 +35,41 @@ impl JweContentEncryption for AesCbcHmacJweEncryption {
         }
     }
 
+    fn iv_len(&self) -> usize {
+        16
+    }
+    
     fn enc_key_len(&self) -> usize {
         16
     }
 
     fn mac_key_len(&self) -> usize {
-        16
+        match self {
+            Self::A128CbcHS256 => 16,
+            Self::A192CbcHS384 => 24,
+            Self::A256CbcHS512 => 32,
+        }
     }
 
-    fn iv_len(&self) -> usize {
-        16
+
+    fn encrypt(&self, message: &[u8], enc_key: &[u8], iv: &[u8]) -> Result<Vec<u8>, JoseError> {
+        let cipher = self.cipher();
+
+        (|| -> anyhow::Result<Vec<u8>> {
+            let encrypted = symm::encrypt(cipher, enc_key, Some(iv), message)?;
+            Ok(encrypted)
+        })()
+        .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
-    fn encrypt(&self, message: &[u8], iv: &[u8], secret: &[u8]) -> Result<Vec<u8>, JoseError> {
-        todo!()
-    }
+    fn decrypt(&self, data: &[u8], enc_key: &[u8], iv: &[u8]) -> Result<Vec<u8>, JoseError> {
+        let cipher = self.cipher();
 
-    fn decrypt(&self, data: &[u8], iv: &[u8], secret: &[u8]) -> Result<Vec<u8>, JoseError> {
-        todo!()
+        (|| -> anyhow::Result<Vec<u8>> {
+            let decrypted = symm::decrypt(cipher, enc_key, Some(iv), data)?;
+            Ok(decrypted)
+        })()
+        .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
     fn sign(&self, message: &[u8], mac_key: &[u8]) -> Result<Vec<u8>, JoseError> {

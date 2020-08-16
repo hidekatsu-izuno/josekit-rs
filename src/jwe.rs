@@ -938,9 +938,9 @@ pub trait JweContentEncryption: Debug + Send + Sync {
 
     fn iv_len(&self) -> usize;
 
-    fn encrypt(&self, message: &[u8], iv: &[u8], enc_key: &[u8]) -> Result<Vec<u8>, JoseError>;
+    fn encrypt(&self, message: &[u8], enc_key: &[u8], iv: &[u8]) -> Result<Vec<u8>, JoseError>;
 
-    fn decrypt(&self, data: &[u8], iv: &[u8], enc_key: &[u8]) -> Result<Vec<u8>, JoseError>;
+    fn decrypt(&self, data: &[u8], enc_key: &[u8], iv: &[u8]) -> Result<Vec<u8>, JoseError>;
 
     fn sign(&self, message: &[u8], mac_key: &[u8]) -> Result<Vec<u8>, JoseError>;
 

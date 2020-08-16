@@ -1,3 +1,5 @@
+use openssl::symm::{self, Cipher};
+
 use crate::jwe::JweContentEncryption;
 use crate::jose::JoseError;
 
@@ -11,6 +13,16 @@ pub enum AesGcmJweEncryption {
     A256Gcm,
 }
 
+impl AesGcmJweEncryption {
+    fn cipher(&self) -> Cipher {
+        match self {
+            Self::A128Gcm => Cipher::aes_128_gcm(),
+            Self::A192Gcm => Cipher::aes_192_gcm(),
+            Self::A256Gcm => Cipher::aes_256_gcm(),
+        }
+    }
+}
+
 impl JweContentEncryption for AesGcmJweEncryption {
     fn name(&self) -> &str {
         match self {
@@ -18,6 +30,10 @@ impl JweContentEncryption for AesGcmJweEncryption {
             Self::A192Gcm => "A192GCM",
             Self::A256Gcm => "A256GCM",
         }
+    }
+
+    fn iv_len(&self) -> usize {
+        12
     }
 
     fn enc_key_len(&self) -> usize {
@@ -28,16 +44,24 @@ impl JweContentEncryption for AesGcmJweEncryption {
         0
     }
 
-    fn iv_len(&self) -> usize {
-        12
+    fn encrypt(&self, message: &[u8], iv: &[u8], enc_key: &[u8]) -> Result<Vec<u8>, JoseError> {
+        let cipher = self.cipher();
+
+        (|| -> anyhow::Result<Vec<u8>> {
+            let encrypted = symm::encrypt(cipher, enc_key, Some(iv), message)?;
+            Ok(encrypted)
+        })()
+        .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
-    fn encrypt(&self, message: &[u8], iv: &[u8], secret: &[u8]) -> Result<Vec<u8>, JoseError> {
-        todo!()
-    }
+    fn decrypt(&self, data: &[u8], iv: &[u8], enc_key: &[u8]) -> Result<Vec<u8>, JoseError> {
+        let cipher = self.cipher();
 
-    fn decrypt(&self, data: &[u8], iv: &[u8], secret: &[u8]) -> Result<Vec<u8>, JoseError> {
-        todo!()
+        (|| -> anyhow::Result<Vec<u8>> {
+            let decrypted = symm::decrypt(cipher, enc_key, Some(iv), data)?;
+            Ok(decrypted)
+        })()
+        .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
     
     fn sign(&self, _message: &[u8], _mac_key: &[u8]) -> Result<Vec<u8>, JoseError> {
