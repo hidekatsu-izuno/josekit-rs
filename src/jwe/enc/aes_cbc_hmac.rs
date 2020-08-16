@@ -52,7 +52,7 @@ impl JweContentEncryption for AesCbcHmacJweEncryption {
     }
 
 
-    fn encrypt(&self, message: &[u8], enc_key: &[u8], iv: &[u8]) -> Result<Vec<u8>, JoseError> {
+    fn encrypt(&self, message: &[u8], iv: &[u8], enc_key: &[u8]) -> Result<Vec<u8>, JoseError> {
         let cipher = self.cipher();
 
         (|| -> anyhow::Result<Vec<u8>> {
@@ -62,7 +62,7 @@ impl JweContentEncryption for AesCbcHmacJweEncryption {
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
-    fn decrypt(&self, data: &[u8], enc_key: &[u8], iv: &[u8]) -> Result<Vec<u8>, JoseError> {
+    fn decrypt(&self, data: &[u8], iv: &[u8], enc_key: &[u8]) -> Result<Vec<u8>, JoseError> {
         let cipher = self.cipher();
 
         (|| -> anyhow::Result<Vec<u8>> {

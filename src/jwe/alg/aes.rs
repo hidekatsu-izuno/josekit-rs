@@ -45,6 +45,10 @@ impl JweEncrypter for AesJweEncrypter {
         &self.algorithm
     }
 
+    fn output_len(&self, input_len: usize) -> usize {
+        (input_len + (16 - 1) / 16) * 16
+    }
+
     fn key_id(&self) -> Option<&str> {
         match &self.key_id {
             Some(val) => Some(val.as_ref()),
@@ -60,7 +64,7 @@ impl JweEncrypter for AesJweEncrypter {
         self.key_id = None;
     }
 
-    fn encrypt(&self, key: &[u8]) -> Result<Vec<u8>, JoseError> {
+    fn encrypt(&self, message: &[u8]) -> Result<Vec<u8>, JoseError> {
         todo!()
     }
 }
@@ -92,7 +96,7 @@ impl JweDecrypter for AesJweDecrypter {
         self.key_id = None;
     }
 
-    fn decrypt(&self, key: &[u8]) -> Result<Vec<u8>, JoseError> {
+    fn decrypt(&self, data: &[u8]) -> Result<Vec<u8>, JoseError> {
         todo!()
     }
 }

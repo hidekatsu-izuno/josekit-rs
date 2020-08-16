@@ -259,25 +259,33 @@ impl JweContext {
                 base64::encode_config(payload, base64::URL_SAFE_NO_PAD)
             };
 
-            let mut enc_key = vec![0; content_encryption.enc_key_len()];
-            rand::rand_bytes(&mut enc_key)?;
-
-            let mut mac_key = vec![0; content_encryption.mac_key_len()];
-            rand::rand_bytes(&mut mac_key)?;
+            let mut key = vec![0; content_encryption.mac_key_len() + content_encryption.enc_key_len()];
+            rand::rand_bytes(&mut key)?;
 
             let mut iv = vec![0; content_encryption.iv_len()];
             rand::rand_bytes(&mut iv)?;
             
-            let mut capacity = header.len() + iv.len() + enc_key.len() + 4;
+            let mut capacity = header.len() + iv.len() + key.len() + 4;
 
             let mut message = String::with_capacity(capacity);
             message.push_str(&header);
             message.push_str(".");
             message.push_str(&payload);
 
-            let encrypted = content_encryption.encrypt(message.as_bytes(), &iv, &enc_key)?;
-
+            let ciphertext = content_encryption.encrypt(message.as_bytes(), &iv, &key[content_encryption.mac_key_len()..])?;
             let iv = base64::encode_config(iv, base64::URL_SAFE_NO_PAD);
+            let ciphertext = base64::encode_config(ciphertext, base64::URL_SAFE_NO_PAD);
+
+            let tag = if content_encryption.mac_key_len() > 0 {
+                let tag = content_encryption.sign(message.as_bytes(), &key[0..content_encryption.mac_key_len()])?;
+                base64::encode_config(tag, base64::URL_SAFE_NO_PAD)
+            } else {
+                "".to_string()
+            };
+
+            let encrypted_key = encrypter.encrypt(&key)?;
+            let encrypted_key = base64::encode_config(encrypted_key, base64::URL_SAFE_NO_PAD);
+
 
             unimplemented!("JWE is not supported yet.");
         })()
@@ -880,6 +888,13 @@ pub trait JweEncrypter {
     /// Return the source algorithm instance.
     fn algorithm(&self) -> &dyn JweAlgorithm;
 
+    /// Return the output length.
+    /// 
+    /// # Arguments
+    ///
+    /// * `input_len` - a input length
+    fn output_len(&self, input_len: usize) -> usize;
+
     /// Return the source key ID.
     /// The default value is a value of kid parameter in JWK.
     fn key_id(&self) -> Option<&str>;
@@ -898,8 +913,8 @@ pub trait JweEncrypter {
     ///
     /// # Arguments
     ///
-    /// * `key` - The key data to encrypt.
-    fn encrypt(&self, key: &[u8]) -> Result<Vec<u8>, JoseError>;
+    /// * `message` - The message to encrypt.
+    fn encrypt(&self, message: &[u8]) -> Result<Vec<u8>, JoseError>;
 }
 
 pub trait JweDecrypter {
@@ -924,8 +939,8 @@ pub trait JweDecrypter {
     ///
     /// # Arguments
     ///
-    /// * `key` - The encrypted key data.
-    fn decrypt(&self, key: &[u8]) -> Result<Vec<u8>, JoseError>;
+    /// * `data` - The data to decrypt.
+    fn decrypt(&self, data: &[u8]) -> Result<Vec<u8>, JoseError>;
 }
 
 pub trait JweContentEncryption: Debug + Send + Sync {
@@ -938,9 +953,9 @@ pub trait JweContentEncryption: Debug + Send + Sync {
 
     fn iv_len(&self) -> usize;
 
-    fn encrypt(&self, message: &[u8], enc_key: &[u8], iv: &[u8]) -> Result<Vec<u8>, JoseError>;
+    fn encrypt(&self, message: &[u8], iv: &[u8], enc_key: &[u8]) -> Result<Vec<u8>, JoseError>;
 
-    fn decrypt(&self, data: &[u8], enc_key: &[u8], iv: &[u8]) -> Result<Vec<u8>, JoseError>;
+    fn decrypt(&self, data: &[u8], iv: &[u8], enc_key: &[u8]) -> Result<Vec<u8>, JoseError>;
 
     fn sign(&self, message: &[u8], mac_key: &[u8]) -> Result<Vec<u8>, JoseError>;
 
