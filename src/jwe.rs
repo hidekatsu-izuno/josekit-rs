@@ -262,26 +262,23 @@ impl JweContext {
             let mut iv = vec![0; content_encryption.iv_len()];
             rand::rand_bytes(&mut iv)?;
 
-            let key;
-            let mut new_key;
-            match encrypter.content_encryption_key() {
-                Some(val) => {
-                    key = val;
-                },
+            let mut generated_key;
+            let content_encryption_key = match encrypter.content_encryption_key() {
+                Some(val) => val,
                 None => {
-                    new_key = vec![0; content_encryption.mac_key_len() + content_encryption.enc_key_len()];
-                    rand::rand_bytes(&mut new_key)?;
-                    key = &new_key;
+                    generated_key = vec![0; content_encryption.mac_key_len() + content_encryption.enc_key_len()];
+                    rand::rand_bytes(&mut generated_key)?;
+                    &generated_key
                 }
-            }
+            };
 
-            let encrypted_key = encrypter.encrypt_key(key)?;
+            let encrypted_key = encrypter.encrypt(content_encryption_key)?;
 
-            let enc_key = &key[content_encryption.mac_key_len()..];
+            let enc_key = &content_encryption_key[content_encryption.mac_key_len()..];
             let ciphertext = content_encryption.encrypt(content, &iv, enc_key)?;
 
             let tag = if content_encryption.mac_key_len() > 0 {
-                let mac_key = &key[0..content_encryption.mac_key_len()];
+                let mac_key = &content_encryption_key[0..content_encryption.mac_key_len()];
                 let tag = content_encryption.sign(vec![
                     header.as_bytes(),
                     iv.as_slice(),
@@ -938,11 +935,10 @@ pub trait JweEncrypter {
     fn content_encryption_key(&self) -> Option<&[u8]>;
 
     /// Return a encypted key data.
-    ///
     /// # Arguments
     ///
-    /// * `key` - The key to encrypt.
-    fn encrypt_key(&self, key: &[u8]) -> Result<Option<Vec<u8>>, JoseError>;
+    /// * `content_encryption_key` - a content encryption key
+    fn encrypt(&self, content_encryption_key: &[u8]) -> Result<Option<Vec<u8>>, JoseError>;
 }
 
 pub trait JweDecrypter {
