@@ -1,5 +1,3 @@
-use std::collections::BTreeSet;
-
 use crate::jose::JoseError;
 use crate::jwe::{JweAlgorithm, JweDecrypter, JweEncrypter};
 use crate::jwk::Jwk;
@@ -45,10 +43,6 @@ impl JweEncrypter for AesJweEncrypter {
         &self.algorithm
     }
 
-    fn encrypted_len(&self, len: usize) -> usize {
-        (len + (16 - 1) / 16) * 16
-    }
-
     fn key_id(&self) -> Option<&str> {
         match &self.key_id {
             Some(val) => Some(val.as_ref()),
@@ -68,8 +62,8 @@ impl JweEncrypter for AesJweEncrypter {
         None
     }
 
-    fn encrypt(&self, message: &[u8]) -> Result<Vec<u8>, JoseError> {
-        todo!()
+    fn encrypt_key(&self, key: &[u8]) -> Result<Option<Vec<u8>>, JoseError> {
+        todo!();
     }
 }
 
@@ -103,7 +97,7 @@ impl JweDecrypter for AesJweDecrypter {
         None
     }
 
-    fn decrypt(&self, data: &[u8]) -> Result<Vec<u8>, JoseError> {
-        todo!()
+    fn decrypt_key(&self, encrypted_key: &[u8]) -> Result<Option<Vec<u8>>, JoseError> {
+        todo!();
     }
 }

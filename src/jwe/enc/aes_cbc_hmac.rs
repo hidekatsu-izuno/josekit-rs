@@ -34,10 +34,6 @@ impl JweContentEncryption for AesCbcHmacJweEncryption {
             Self::A256CbcHS512 => "A256CBC-HS512",
         }
     }
-    
-    fn encrypted_len(&self, len: usize) -> usize {
-        (len + (16 - 1) / 16) * 16
-    }
 
     fn iv_len(&self) -> usize {
         16

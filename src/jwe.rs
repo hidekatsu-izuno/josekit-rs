@@ -15,7 +15,7 @@ use serde_json::{Map, Value};
 
 use crate::jose::{JoseError, JoseHeader};
 use crate::jwk::Jwk;
-use crate::util::SourceValue;
+use crate::util::{self, SourceValue};
 
 pub use crate::jwe::alg::aes::AesJweAlgorithm::A128Kw;
 pub use crate::jwe::alg::aes::AesJweAlgorithm::A192Kw;
@@ -262,36 +262,54 @@ impl JweContext {
             let mut iv = vec![0; content_encryption.iv_len()];
             rand::rand_bytes(&mut iv)?;
 
+            let key;
             let mut new_key;
-            let key = match encrypter.content_encryption_key() {
-                Some(val) => val,
+            match encrypter.content_encryption_key() {
+                Some(val) => {
+                    key = val;
+                },
                 None => {
                     new_key = vec![0; content_encryption.mac_key_len() + content_encryption.enc_key_len()];
                     rand::rand_bytes(&mut new_key)?;
-                    &new_key
+                    key = &new_key;
                 }
-            };
-            
+            }
+
+            let encrypted_key = encrypter.encrypt_key(key)?;
+
             let enc_key = &key[content_encryption.mac_key_len()..];
             let ciphertext = content_encryption.encrypt(content, &iv, enc_key)?;
 
             let tag = if content_encryption.mac_key_len() > 0 {
                 let mac_key = &key[0..content_encryption.mac_key_len()];
                 let tag = content_encryption.sign(vec![
-                    ciphertext.as_slice()
+                    header.as_bytes(),
+                    iv.as_slice(),
+                    ciphertext.as_slice(),
+                    &header.len().to_be_bytes(),
                 ], mac_key)?;
                 Some(tag)
             } else {
                 None
             };
-
-            let encrypted_key = encrypter.encrypt(&key)?;
             
-            let capacity = header.len() + iv.len() + key.len() + 4;
+            let mut capacity = 4;
+            capacity += util::ceiling(header.len() * 4, 3);
+            if let Some(val) = &encrypted_key {
+                capacity += util::ceiling(val.len() * 4, 3);
+            }
+            capacity += util::ceiling(iv.len() * 4, 3);
+            capacity += util::ceiling(ciphertext.len() * 4, 3);
+            if let Some(val) = &tag {
+                capacity += util::ceiling(val.len() * 4, 3);
+            }
+
             let mut message = String::with_capacity(capacity);
             base64::encode_config_buf(header, base64::URL_SAFE_NO_PAD, &mut message);
             message.push_str(".");
-            base64::encode_config_buf(encrypted_key, base64::URL_SAFE_NO_PAD, &mut message);
+            if let Some(val) = encrypted_key {
+                base64::encode_config_buf(val, base64::URL_SAFE_NO_PAD, &mut message);
+            }
             message.push_str(".");
             base64::encode_config_buf(iv, base64::URL_SAFE_NO_PAD, &mut message);
             message.push_str(".");
@@ -902,13 +920,6 @@ pub trait JweEncrypter {
     /// Return the source algorithm instance.
     fn algorithm(&self) -> &dyn JweAlgorithm;
 
-    /// Return the encrypted output length.
-    /// 
-    /// # Arguments
-    ///
-    /// * `len` - a input length
-    fn encrypted_len(&self, len: usize) -> usize;
-
     /// Return the source key ID.
     /// The default value is a value of kid parameter in JWK.
     fn key_id(&self) -> Option<&str>;
@@ -930,8 +941,8 @@ pub trait JweEncrypter {
     ///
     /// # Arguments
     ///
-    /// * `message` - The message to encrypt.
-    fn encrypt(&self, message: &[u8]) -> Result<Vec<u8>, JoseError>;
+    /// * `key` - The key to encrypt.
+    fn encrypt_key(&self, key: &[u8]) -> Result<Option<Vec<u8>>, JoseError>;
 }
 
 pub trait JweDecrypter {
@@ -959,20 +970,13 @@ pub trait JweDecrypter {
     ///
     /// # Arguments
     ///
-    /// * `data` - The data to decrypt.
-    fn decrypt(&self, data: &[u8]) -> Result<Vec<u8>, JoseError>;
+    /// * `encrypted_key` - The encrypted key.
+    fn decrypt_key(&self, encrypted_key: &[u8]) -> Result<Option<Vec<u8>>, JoseError>;
 }
 
 pub trait JweContentEncryption: Debug + Send + Sync {
     /// Return the "enc" (encryption) header parameter value of JWE.
     fn name(&self) -> &str;
-    
-    /// Return the encrypted output length.
-    /// 
-    /// # Arguments
-    ///
-    /// * `len` - a input length
-    fn encrypted_len(&self, len: usize) -> usize;
 
     fn enc_key_len(&self) -> usize;
 

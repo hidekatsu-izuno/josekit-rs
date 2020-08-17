@@ -31,10 +31,6 @@ impl JweContentEncryption for AesGcmJweEncryption {
             Self::A256Gcm => "A256GCM",
         }
     }
-    
-    fn encrypted_len(&self, len: usize) -> usize {
-        (len + (16 - 1) / 16) * 16
-    }
 
     fn iv_len(&self) -> usize {
         12

@@ -38,10 +38,6 @@ impl JweEncrypter for DirectJweEncrypter {
         &self.algorithm
     }
 
-    fn encrypted_len(&self, len: usize) -> usize {
-        len
-    }
-
     fn key_id(&self) -> Option<&str> {
         match &self.key_id {
             Some(val) => Some(val.as_ref()),
@@ -61,8 +57,8 @@ impl JweEncrypter for DirectJweEncrypter {
         Some(&self.content_encryption_key)
     }
 
-    fn encrypt(&self, _message: &[u8]) -> Result<Vec<u8>, JoseError> {
-        unimplemented!();
+    fn encrypt_key(&self, _key: &[u8]) -> Result<Option<Vec<u8>>, JoseError> {
+        Ok(None)
     }
 }
 
@@ -97,8 +93,8 @@ impl JweDecrypter for DirectJweDecrypter {
         Some(&self.content_encryption_key)
     }
 
-    fn decrypt(&self, _data: &[u8]) -> Result<Vec<u8>, JoseError> {
-        unimplemented!();
+    fn decrypt_key(&self, _encrypted_key: &[u8]) -> Result<Option<Vec<u8>>, JoseError> {
+        Ok(None)
     }
 }
 
