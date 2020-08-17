@@ -24,6 +24,10 @@ impl JweAlgorithm for DirectKeyJweAlgorithm {
             Self::EcdhEs => "ECDH-ES",
         }
     }
+
+    fn key_type(&self) -> &str {
+        "oct"
+    }
 }
 
 #[derive(Debug, Clone)]

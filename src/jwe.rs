@@ -2,10 +2,10 @@ pub mod alg;
 pub mod enc;
 pub mod zip;
 
-use std::collections::BTreeSet;
-use std::collections::{HashMap, BTreeMap};
-use std::fmt::{Display, Debug};
 use std::cmp::Eq;
+use std::collections::BTreeSet;
+use std::collections::{BTreeMap, HashMap};
+use std::fmt::{Debug, Display};
 use std::io;
 
 use anyhow::bail;
@@ -17,6 +17,10 @@ use crate::jose::{JoseError, JoseHeader};
 use crate::jwk::Jwk;
 use crate::util::{self, SourceValue};
 
+pub use crate::jwe::alg::direct::DirectJweAlgorithm::Dir;
+
+pub use crate::jwe::alg::direct_key::DirectKeyJweAlgorithm::EcdhEs;
+
 pub use crate::jwe::alg::aes::AesJweAlgorithm::A128Kw;
 pub use crate::jwe::alg::aes::AesJweAlgorithm::A192Kw;
 pub use crate::jwe::alg::aes::AesJweAlgorithm::A256Kw;
@@ -24,10 +28,6 @@ pub use crate::jwe::alg::aes::AesJweAlgorithm::A256Kw;
 pub use crate::jwe::alg::aes_gcm::AesGcmJweAlgorithm::A128GcmKw;
 pub use crate::jwe::alg::aes_gcm::AesGcmJweAlgorithm::A192GcmKw;
 pub use crate::jwe::alg::aes_gcm::AesGcmJweAlgorithm::A256GcmKw;
-
-pub use crate::jwe::alg::direct::DirectJweAlgorithm::Dir;
-
-pub use crate::jwe::alg::direct_key::DirectKeyJweAlgorithm::EcdhEs;
 
 pub use crate::jwe::alg::ecdh_es_aes::EcdhEsAesJweAlgorithm::EcdhEsA128Kw;
 pub use crate::jwe::alg::ecdh_es_aes::EcdhEsAesJweAlgorithm::EcdhEsA192Kw;
@@ -65,16 +65,11 @@ impl JweContext {
         Self {
             acceptable_criticals: BTreeSet::new(),
             compressions: {
-                let compressions: Vec<Box<dyn JweCompression>> = vec![
-                    Box::new(Def)
-                ];
+                let compressions: Vec<Box<dyn JweCompression>> = vec![Box::new(Def)];
 
                 let mut map = BTreeMap::new();
                 for compression in compressions {
-                    map.insert(
-                        compression.name().to_string(), 
-                        compression,
-                    );
+                    map.insert(compression.name().to_string(), compression);
                 }
                 map
             },
@@ -90,10 +85,7 @@ impl JweContext {
 
                 let mut map = BTreeMap::new();
                 for content_encryption in content_encryptions {
-                    map.insert(
-                        content_encryption.name().to_string(), 
-                        content_encryption,
-                    );
+                    map.insert(content_encryption.name().to_string(), content_encryption);
                 }
                 map
             },
@@ -126,7 +118,7 @@ impl JweContext {
     pub fn remove_acceptable_critical(&mut self, name: &str) {
         self.acceptable_criticals.remove(name);
     }
-    
+
     /// Get a compression algorithm for zip header claim value.
     ///
     /// # Arguments
@@ -145,7 +137,8 @@ impl JweContext {
     ///
     /// * `compression` - a compression algorithm
     pub fn add_compression(&mut self, compression: Box<dyn JweCompression>) {
-        self.compressions.insert(compression.name().to_string(), compression);
+        self.compressions
+            .insert(compression.name().to_string(), compression);
     }
 
     /// Remove a compression algorithm for zip header claim name.
@@ -175,7 +168,8 @@ impl JweContext {
     ///
     /// * `content_encryption` - a content encryption algorithm
     pub fn add_content_encryption(&mut self, content_encryption: Box<dyn JweContentEncryption>) {
-        self.content_encryptions.insert(content_encryption.name().to_string(), content_encryption);
+        self.content_encryptions
+            .insert(content_encryption.name().to_string(), content_encryption);
     }
 
     /// Remove a content encryption algorithm for enc header claim name.
@@ -264,9 +258,24 @@ impl JweContext {
 
             let mut generated_key;
             let content_encryption_key = match encrypter.content_encryption_key() {
-                Some(val) => val,
+                Some(val) => {
+                    let expected_len =
+                        content_encryption.mac_key_len() + content_encryption.enc_key_len();
+                    if val.len() != expected_len {
+                        bail!(
+                            "The length of content encryption key must be {}: {}",
+                            expected_len,
+                            val.len()
+                        );
+                    }
+                    val
+                }
                 None => {
-                    generated_key = vec![0; content_encryption.mac_key_len() + content_encryption.enc_key_len()];
+                    generated_key = vec![
+                        0;
+                        content_encryption.mac_key_len()
+                            + content_encryption.enc_key_len()
+                    ];
                     rand::rand_bytes(&mut generated_key)?;
                     &generated_key
                 }
@@ -279,17 +288,20 @@ impl JweContext {
 
             let tag = if content_encryption.mac_key_len() > 0 {
                 let mac_key = &content_encryption_key[0..content_encryption.mac_key_len()];
-                let tag = content_encryption.sign(vec![
-                    header.as_bytes(),
-                    iv.as_slice(),
-                    ciphertext.as_slice(),
-                    &header.len().to_be_bytes(),
-                ], mac_key)?;
+                let tag = content_encryption.sign(
+                    vec![
+                        header.as_bytes(),
+                        iv.as_slice(),
+                        ciphertext.as_slice(),
+                        &header.len().to_be_bytes(),
+                    ],
+                    mac_key,
+                )?;
                 Some(tag)
             } else {
                 None
             };
-            
+
             let mut capacity = 4;
             capacity += util::ceiling(header.len() * 4, 3);
             if let Some(val) = &encrypted_key {
@@ -911,6 +923,9 @@ impl Display for JweHeader {
 pub trait JweAlgorithm {
     /// Return the "alg" (algorithm) header parameter value of JWE.
     fn name(&self) -> &str;
+
+    /// Return the "kty" (key type) header parameter value of JWK.
+    fn key_type(&self) -> &str;
 }
 
 pub trait JweEncrypter {
@@ -995,8 +1010,7 @@ impl PartialEq for Box<dyn JweContentEncryption> {
     }
 }
 
-impl Eq for Box<dyn JweContentEncryption> {
-}
+impl Eq for Box<dyn JweContentEncryption> {}
 
 impl Clone for Box<dyn JweContentEncryption> {
     fn clone(&self) -> Self {
@@ -1021,11 +1035,33 @@ impl PartialEq for Box<dyn JweCompression> {
     }
 }
 
-impl Eq for Box<dyn JweCompression> {
-}
+impl Eq for Box<dyn JweCompression> {}
 
 impl Clone for Box<dyn JweCompression> {
     fn clone(&self) -> Self {
         self.box_clone()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use anyhow::Result;
+
+    use crate::jwe::{self, Dir, JweHeader};
+
+    #[test]
+    fn test_jwe_compact_serialization() -> Result<()> {
+        let mut src_header = JweHeader::new();
+        src_header.set_content_encryption("A128CBC-HS256");
+        src_header.set_token_type("JWT");
+        let src_payload = b"test payload!";
+
+        let alg = Dir;
+        let key = b"01234567890123456789012345678901";
+        let encrypter = alg.encrypter_from_slice(key)?;
+
+        let jwe = jwe::serialize_compact(src_payload, &src_header, &encrypter)?;
+
+        Ok(())
     }
 }

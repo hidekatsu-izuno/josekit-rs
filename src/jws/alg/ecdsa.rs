@@ -184,8 +184,6 @@ impl EcdsaJwsAlgorithm {
                 None => {}
                 Some(val) => bail!("A parameter alg must be {} but {}", self.name(), val),
             }
-            let key_id = jwk.key_id();
-
             match jwk.parameter("crv") {
                 Some(Value::String(val)) if val == self.curve_name() => {}
                 Some(Value::String(val)) => {
@@ -209,12 +207,13 @@ impl EcdsaJwsAlgorithm {
             builder.end();
 
             let pkcs8 = self.to_pkcs8(&builder.build(), false);
-            let pkey = PKey::private_key_from_der(&pkcs8)?;
+            let private_key = PKey::private_key_from_der(&pkcs8)?;
+            let key_id = jwk.key_id().map(|val| val.to_string());
 
             Ok(EcdsaJwsSigner {
                 algorithm: self.clone(),
-                private_key: pkey,
-                key_id: key_id.map(|val| val.to_string()),
+                private_key,
+                key_id,
             })
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
@@ -237,9 +236,13 @@ impl EcdsaJwsAlgorithm {
                 &pkcs8
             };
 
-            let pkey = PKey::public_key_from_der(pkcs8_ref)?;
+            let public_key = PKey::public_key_from_der(pkcs8_ref)?;
 
-            Ok(EcdsaJwsVerifier::new(self, pkey, None))
+            Ok(EcdsaJwsVerifier {
+                algorithm: self.clone(),
+                public_key,
+                key_id: None,
+            })
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
@@ -276,9 +279,13 @@ impl EcdsaJwsAlgorithm {
                 alg => bail!("Inappropriate algorithm: {}", alg),
             };
 
-            let pkey = PKey::public_key_from_der(pkcs8_ref)?;
+            let public_key = PKey::public_key_from_der(pkcs8_ref)?;
 
-            Ok(EcdsaJwsVerifier::new(self, pkey, None))
+            Ok(EcdsaJwsVerifier {
+                algorithm: self.clone(),
+                public_key,
+                key_id: None,
+            })
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
@@ -308,7 +315,6 @@ impl EcdsaJwsAlgorithm {
                 None => {}
                 Some(val) => bail!("A parameter alg must be {} but {}", self.name(), val),
             }
-
             match jwk.parameter("crv") {
                 Some(Value::String(val)) if val == self.curve_name() => {}
                 Some(Value::String(val)) => {
@@ -334,10 +340,14 @@ impl EcdsaJwsAlgorithm {
             vec.extend_from_slice(&y);
 
             let pkcs8 = self.to_pkcs8(&vec, true);
-            let pkey = PKey::public_key_from_der(&pkcs8)?;
+            let public_key = PKey::public_key_from_der(&pkcs8)?;
             let key_id = jwk.key_id().map(|val| val.to_string());
 
-            Ok(EcdsaJwsVerifier::new(self, pkey, key_id))
+            Ok(EcdsaJwsVerifier {
+                algorithm: self.clone(),
+                public_key,
+                key_id,
+            })
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
@@ -578,7 +588,7 @@ impl JwsSigner for EcdsaJwsSigner {
     fn algorithm(&self) -> &dyn JwsAlgorithm {
         &self.algorithm
     }
-    
+
     fn signature_len(&self) -> usize {
         match self.algorithm {
             EcdsaJwsAlgorithm::ES256 => 64,
@@ -645,20 +655,6 @@ pub struct EcdsaJwsVerifier {
     algorithm: EcdsaJwsAlgorithm,
     public_key: PKey<Public>,
     key_id: Option<String>,
-}
-
-impl EcdsaJwsVerifier {
-    fn new(
-        algorithm: &EcdsaJwsAlgorithm,
-        public_key: PKey<Public>,
-        key_id: Option<String>,
-    ) -> Self {
-        Self {
-            algorithm: algorithm.clone(),
-            public_key,
-            key_id,
-        }
-    }
 }
 
 impl JwsVerifier for EcdsaJwsVerifier {

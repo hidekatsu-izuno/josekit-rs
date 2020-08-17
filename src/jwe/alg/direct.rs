@@ -2,6 +2,9 @@ use crate::jose::JoseError;
 use crate::jwe::{JweAlgorithm, JweDecrypter, JweEncrypter};
 use crate::jwk::Jwk;
 
+use anyhow::bail;
+use serde_json::Value;
+
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum DirectJweAlgorithm {
     /// Direct use of a shared symmetric key as the CEK
@@ -9,12 +12,103 @@ pub enum DirectJweAlgorithm {
 }
 
 impl DirectJweAlgorithm {
+    pub fn encrypter_from_slice(
+        &self,
+        input: impl AsRef<[u8]>,
+    ) -> Result<DirectJweEncrypter, JoseError> {
+        let content_encryption_key = input.as_ref();
+
+        Ok(DirectJweEncrypter {
+            algorithm: self.clone(),
+            content_encryption_key: content_encryption_key.to_vec(),
+            key_id: None,
+        })
+    }
+
     pub fn encrypter_from_jwk(&self, jwk: &Jwk) -> Result<DirectJweEncrypter, JoseError> {
-        unimplemented!();
+        (|| -> anyhow::Result<DirectJweEncrypter> {
+            match jwk.key_type() {
+                val if val == self.key_type() => {}
+                val => bail!("A parameter kty must be {}: {}", self.key_type(), val),
+            }
+            match jwk.key_use() {
+                Some(val) if val == "enc" => {}
+                None => {}
+                Some(val) => bail!("A parameter use must be enc: {}", val),
+            }
+            match jwk.key_operations() {
+                Some(vals) if vals.iter().any(|e| e == "encrypt") => {}
+                None => {}
+                _ => bail!("A parameter key_ops must contains encrypt."),
+            }
+            match jwk.algorithm() {
+                Some(val) if val == self.name() => {}
+                None => {}
+                Some(val) => bail!("A parameter alg must be {} but {}", self.name(), val),
+            }
+            let k = match jwk.parameter("k") {
+                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
+                Some(val) => bail!("A parameter k must be string type but {:?}", val),
+                None => bail!("A parameter k is required."),
+            };
+
+            Ok(DirectJweEncrypter {
+                algorithm: self.clone(),
+                content_encryption_key: k,
+                key_id: jwk.key_id().map(|val| val.to_string()),
+            })
+        })()
+        .map_err(|err| JoseError::InvalidKeyFormat(err))
+    }
+
+    pub fn decrypter_from_slice(
+        &self,
+        input: impl AsRef<[u8]>,
+    ) -> Result<DirectJweDecrypter, JoseError> {
+        let content_encryption_key = input.as_ref();
+
+        Ok(DirectJweDecrypter {
+            algorithm: self.clone(),
+            content_encryption_key: content_encryption_key.to_vec(),
+            key_id: None,
+        })
     }
 
     pub fn decrypter_from_jwk(&self, jwk: &Jwk) -> Result<DirectJweDecrypter, JoseError> {
-        unimplemented!();
+        (|| -> anyhow::Result<DirectJweDecrypter> {
+            match jwk.key_type() {
+                val if val == self.key_type() => {}
+                val => bail!("A parameter kty must be {}: {}", self.key_type(), val),
+            }
+            match jwk.key_use() {
+                Some(val) if val == "sig" => {}
+                None => {}
+                Some(val) => bail!("A parameter use must be sig: {}", val),
+            }
+            match jwk.key_operations() {
+                Some(vals) if vals.iter().any(|e| e == "verify") => {}
+                None => {}
+                _ => bail!("A parameter key_ops must contains verify."),
+            }
+            match jwk.algorithm() {
+                Some(val) if val == self.name() => {}
+                None => {}
+                Some(val) => bail!("A parameter alg must be {} but {}", self.name(), val),
+            }
+
+            let k = match jwk.parameter("k") {
+                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
+                Some(val) => bail!("A parameter k must be string type but {:?}", val),
+                None => bail!("A parameter k is required."),
+            };
+
+            Ok(DirectJweDecrypter {
+                algorithm: self.clone(),
+                content_encryption_key: k,
+                key_id: jwk.key_id().map(|val| val.to_string()),
+            })
+        })()
+        .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 }
 
@@ -24,13 +118,17 @@ impl JweAlgorithm for DirectJweAlgorithm {
             Self::Dir => "dir",
         }
     }
+
+    fn key_type(&self) -> &str {
+        "oct"
+    }
 }
 
 #[derive(Debug, Clone)]
 pub struct DirectJweEncrypter {
     algorithm: DirectJweAlgorithm,
-    key_id: Option<String>,
     content_encryption_key: Vec<u8>,
+    key_id: Option<String>,
 }
 
 impl JweEncrypter for DirectJweEncrypter {
@@ -88,7 +186,7 @@ impl JweDecrypter for DirectJweDecrypter {
     fn remove_key_id(&mut self) {
         self.key_id = None;
     }
-    
+
     fn content_encryption_key(&self) -> Option<&[u8]> {
         Some(&self.content_encryption_key)
     }
@@ -97,4 +195,3 @@ impl JweDecrypter for DirectJweDecrypter {
         Ok(None)
     }
 }
-

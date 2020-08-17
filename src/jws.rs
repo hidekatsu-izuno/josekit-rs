@@ -319,7 +319,7 @@ impl JwsContext {
             } else {
                 std::str::from_utf8(payload)?
             };
-            
+
             let message = format!("{}.{}", &protected_base64, payload);
             let signature = signer.sign(message.as_bytes())?;
 

@@ -1,7 +1,7 @@
 use openssl::symm::{self, Cipher};
 
-use crate::jwe::JweContentEncryption;
 use crate::jose::JoseError;
+use crate::jwe::JweContentEncryption;
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum AesGcmJweEncryption {
@@ -63,7 +63,7 @@ impl JweContentEncryption for AesGcmJweEncryption {
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
-    
+
     fn sign(&self, _message: Vec<&[u8]>, _mac_key: &[u8]) -> Result<Vec<u8>, JoseError> {
         unimplemented!("AES GCM doesn't need to sign.");
     }

@@ -215,8 +215,6 @@ impl EddsaJwsAlgorithm {
                 None => {}
                 Some(val) => bail!("A parameter alg must be {} but {}", self.name(), val),
             }
-            let key_id = jwk.key_id();
-
             let curve = match jwk.parameter("crv") {
                 Some(Value::String(val)) if val == "Ed25519" => EddsaCurve::Ed25519,
                 Some(Value::String(val)) if val == "Ed448" => EddsaCurve::Ed448,
@@ -234,13 +232,14 @@ impl EddsaJwsAlgorithm {
             builder.append_octed_string_from_slice(&d);
 
             let pkcs8 = self.to_pkcs8(&builder.build(), false, curve);
-            let pkey = PKey::private_key_from_der(&pkcs8)?;
+            let private_key = PKey::private_key_from_der(&pkcs8)?;
+            let key_id = jwk.key_id().map(|val| val.to_string());
 
             Ok(EddsaJwsSigner {
                 algorithm: self.clone(),
                 curve,
-                private_key: pkey,
-                key_id: key_id.map(|val| val.to_string()),
+                private_key,
+                key_id,
             })
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
@@ -255,7 +254,7 @@ impl EddsaJwsAlgorithm {
         input: impl AsRef<[u8]>,
     ) -> Result<EddsaJwsVerifier, JoseError> {
         (|| -> anyhow::Result<EddsaJwsVerifier> {
-            let pkey = if let Some(_) = self.detect_pkcs8(input.as_ref(), true)? {
+            let public_key = if let Some(_) = self.detect_pkcs8(input.as_ref(), true)? {
                 PKey::public_key_from_der(input.as_ref())?
             } else {
                 bail!("The EdDSA public key must be wrapped by PKCS#8 format.");
@@ -263,7 +262,7 @@ impl EddsaJwsAlgorithm {
 
             Ok(EddsaJwsVerifier {
                 algorithm: self.clone(),
-                public_key: pkey, 
+                public_key,
                 key_id: None,
             })
         })()
@@ -286,7 +285,7 @@ impl EddsaJwsAlgorithm {
     ) -> Result<EddsaJwsVerifier, JoseError> {
         (|| -> anyhow::Result<EddsaJwsVerifier> {
             let (alg, data) = parse_pem(input.as_ref())?;
-            let pkey = match alg.as_str() {
+            let public_key = match alg.as_str() {
                 "PUBLIC KEY" => {
                     if let Some(_) = self.detect_pkcs8(&data, true)? {
                         PKey::public_key_from_der(&data)?
@@ -321,7 +320,7 @@ impl EddsaJwsAlgorithm {
 
             Ok(EddsaJwsVerifier {
                 algorithm: self.clone(),
-                public_key: pkey, 
+                public_key,
                 key_id: None,
             })
         })()
@@ -353,7 +352,6 @@ impl EddsaJwsAlgorithm {
                 None => {}
                 Some(val) => bail!("A parameter alg must be {} but {}", self.name(), val),
             }
-
             let curve = match jwk.parameter("crv") {
                 Some(Value::String(val)) if val == "Ed25519" => EddsaCurve::Ed25519,
                 Some(Value::String(val)) if val == "Ed448" => EddsaCurve::Ed448,
@@ -368,12 +366,12 @@ impl EddsaJwsAlgorithm {
             };
 
             let pkcs8 = self.to_pkcs8(&x, true, curve);
-            let pkey = PKey::public_key_from_der(&pkcs8)?;
+            let public_key = PKey::public_key_from_der(&pkcs8)?;
             let key_id = jwk.key_id().map(|val| val.to_string());
 
             Ok(EddsaJwsVerifier {
                 algorithm: self.clone(),
-                public_key: pkey, 
+                public_key,
                 key_id,
             })
         })()
@@ -652,7 +650,7 @@ impl JwsSigner for EddsaJwsSigner {
     fn algorithm(&self) -> &dyn JwsAlgorithm {
         &self.algorithm
     }
-    
+
     fn signature_len(&self) -> usize {
         match self.curve {
             EddsaCurve::Ed25519 => 64,

@@ -30,6 +30,10 @@ impl JweAlgorithm for RsaesJweAlgorithm {
             Self::RsaOaep256 => "RSA-OAEP-256",
         }
     }
+
+    fn key_type(&self) -> &str {
+        "RSA"
+    }
 }
 
 #[derive(Debug, Clone)]

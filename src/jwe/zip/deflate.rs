@@ -1,7 +1,7 @@
-use std::io::{self, Read, Write};
-use flate2::Compression;
 use flate2::read::DeflateDecoder;
 use flate2::write::DeflateEncoder;
+use flate2::Compression;
+use std::io::{self, Read, Write};
 
 use crate::jwe::JweCompression;
 

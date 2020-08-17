@@ -30,6 +30,10 @@ impl JweAlgorithm for Pbes2HmacAesJweAlgorithm {
             Self::Pbes2HS512A256Kw => "PBES2-HS512+A256KW",
         }
     }
+
+    fn key_type(&self) -> &str {
+        "oct"
+    }
 }
 
 #[derive(Debug, Clone)]

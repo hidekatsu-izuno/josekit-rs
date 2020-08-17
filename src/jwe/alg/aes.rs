@@ -30,6 +30,10 @@ impl JweAlgorithm for AesJweAlgorithm {
             Self::A256Kw => "A256KW",
         }
     }
+
+    fn key_type(&self) -> &str {
+        "oct"
+    }
 }
 
 #[derive(Debug, Clone)]

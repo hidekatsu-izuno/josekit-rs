@@ -171,8 +171,6 @@ impl RsaJwsAlgorithm {
                 None => {}
                 Some(val) => bail!("A parameter alg must be {} but {}", self.name(), val),
             }
-            let key_id = jwk.key_id();
-
             let n = match jwk.parameter("n") {
                 Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
                 Some(_) => bail!("A parameter n must be a string."),
@@ -230,13 +228,15 @@ impl RsaJwsAlgorithm {
             builder.end();
 
             let pkcs8 = self.to_pkcs8(&builder.build(), false);
-            let pkey = PKey::private_key_from_der(&pkcs8)?;
-            self.check_key(&pkey)?;
+            let private_key = PKey::private_key_from_der(&pkcs8)?;
+            let key_id = jwk.key_id().map(|val| val.to_string());
+
+            self.check_key(&private_key)?;
 
             Ok(RsaJwsSigner {
                 algorithm: self.clone(),
-                private_key: pkey,
-                key_id: key_id.map(|val| val.to_string()),
+                private_key,
+                key_id,
             })
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
@@ -256,10 +256,15 @@ impl RsaJwsAlgorithm {
                 &pkcs8
             };
 
-            let pkey = PKey::public_key_from_der(pkcs8_ref)?;
-            self.check_key(&pkey)?;
+            let public_key = PKey::public_key_from_der(pkcs8_ref)?;
 
-            Ok(RsaJwsVerifier::new(self, pkey, None))
+            self.check_key(&public_key)?;
+
+            Ok(RsaJwsVerifier {
+                algorithm: self.clone(),
+                public_key,
+                key_id: None,
+            })
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
@@ -278,7 +283,7 @@ impl RsaJwsAlgorithm {
         (|| -> anyhow::Result<RsaJwsVerifier> {
             let (alg, data) = parse_pem(input.as_ref())?;
 
-            let pkey = match alg.as_str() {
+            let public_key = match alg.as_str() {
                 "PUBLIC KEY" => {
                     if !self.detect_pkcs8(&data, true)? {
                         bail!("Invalid PEM contents.");
@@ -291,9 +296,14 @@ impl RsaJwsAlgorithm {
                 }
                 alg => bail!("Inappropriate algorithm: {}", alg),
             };
-            self.check_key(&pkey)?;
 
-            Ok(RsaJwsVerifier::new(self, pkey, None))
+            self.check_key(&public_key)?;
+
+            Ok(RsaJwsVerifier {
+                algorithm: self.clone(),
+                public_key,
+                key_id: None,
+            })
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
@@ -344,11 +354,16 @@ impl RsaJwsAlgorithm {
             builder.end();
 
             let pkcs8 = self.to_pkcs8(&builder.build(), true);
-            let pkey = PKey::public_key_from_der(&pkcs8)?;
-            self.check_key(&pkey)?;
+            let public_key = PKey::public_key_from_der(&pkcs8)?;
             let key_id = jwk.key_id().map(|val| val.to_string());
 
-            Ok(RsaJwsVerifier::new(self, pkey, key_id))
+            self.check_key(&public_key)?;
+
+            Ok(RsaJwsVerifier {
+                algorithm: self.clone(),
+                public_key,
+                key_id,
+            })
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
@@ -581,7 +596,7 @@ impl JwsSigner for RsaJwsSigner {
     fn signature_len(&self) -> usize {
         256
     }
-    
+
     fn key_id(&self) -> Option<&str> {
         match &self.key_id {
             Some(val) => Some(val.as_ref()),
@@ -618,16 +633,6 @@ pub struct RsaJwsVerifier {
     algorithm: RsaJwsAlgorithm,
     public_key: PKey<Public>,
     key_id: Option<String>,
-}
-
-impl RsaJwsVerifier {
-    fn new(algorithm: &RsaJwsAlgorithm, public_key: PKey<Public>, key_id: Option<String>) -> Self {
-        Self {
-            algorithm: algorithm.clone(),
-            public_key,
-            key_id,
-        }
-    }
 }
 
 impl JwsVerifier for RsaJwsVerifier {

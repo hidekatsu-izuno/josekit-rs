@@ -1,4 +1,3 @@
-use std::collections::BTreeSet;
 use std::iter::Iterator;
 
 use anyhow::bail;
@@ -83,7 +82,6 @@ impl HmacJwsAlgorithm {
                 None => {}
                 Some(val) => bail!("A parameter alg must be {} but {}", self.name(), val),
             }
-            let key_id = jwk.key_id();
             let k = match jwk.parameter("k") {
                 Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
                 Some(val) => bail!("A parameter k must be string type but {:?}", val),
@@ -91,11 +89,12 @@ impl HmacJwsAlgorithm {
             };
 
             let private_key = PKey::hmac(&k)?;
+            let key_id = jwk.key_id().map(|val| val.to_string());
 
             Ok(HmacJwsSigner {
                 algorithm: self.clone(),
                 private_key,
-                key_id: key_id.map(|val| val.to_string()),
+                key_id,
             })
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
@@ -110,9 +109,13 @@ impl HmacJwsAlgorithm {
         input: impl AsRef<[u8]>,
     ) -> Result<HmacJwsVerifier, JoseError> {
         (|| -> anyhow::Result<HmacJwsVerifier> {
-            let pkey = PKey::hmac(input.as_ref())?;
+            let private_key = PKey::hmac(input.as_ref())?;
 
-            Ok(HmacJwsVerifier::new(self, pkey, None))
+            Ok(HmacJwsVerifier {
+                algorithm: self.clone(),
+                private_key,
+                key_id: None,
+            })
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
@@ -152,7 +155,11 @@ impl HmacJwsAlgorithm {
             let private_key = PKey::hmac(&k)?;
             let key_id = jwk.key_id().map(|val| val.to_string());
 
-            Ok(HmacJwsVerifier::new(self, private_key, key_id))
+            Ok(HmacJwsVerifier {
+                algorithm: self.clone(),
+                private_key,
+                key_id,
+            })
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
@@ -183,7 +190,7 @@ impl JwsSigner for HmacJwsSigner {
     fn algorithm(&self) -> &dyn JwsAlgorithm {
         &self.algorithm
     }
-    
+
     fn signature_len(&self) -> usize {
         match self.algorithm {
             HmacJwsAlgorithm::HS256 => 32,
@@ -229,22 +236,6 @@ pub struct HmacJwsVerifier {
     algorithm: HmacJwsAlgorithm,
     private_key: PKey<Private>,
     key_id: Option<String>,
-    acceptable_criticals: BTreeSet<String>,
-}
-
-impl HmacJwsVerifier {
-    fn new(
-        algorithm: &HmacJwsAlgorithm,
-        private_key: PKey<Private>,
-        key_id: Option<String>,
-    ) -> Self {
-        Self {
-            algorithm: algorithm.clone(),
-            private_key,
-            key_id,
-            acceptable_criticals: BTreeSet::new(),
-        }
-    }
 }
 
 impl JwsVerifier for HmacJwsVerifier {

@@ -1,10 +1,10 @@
 use openssl::hash::MessageDigest;
 use openssl::pkey::{PKey, Private};
-use openssl::symm::{self, Cipher};
 use openssl::sign::Signer;
+use openssl::symm::{self, Cipher};
 
-use crate::jwe::JweContentEncryption;
 use crate::jose::JoseError;
+use crate::jwe::JweContentEncryption;
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum AesCbcHmacJweEncryption {
@@ -38,7 +38,7 @@ impl JweContentEncryption for AesCbcHmacJweEncryption {
     fn iv_len(&self) -> usize {
         16
     }
-    
+
     fn enc_key_len(&self) -> usize {
         16
     }

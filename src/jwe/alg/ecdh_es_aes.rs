@@ -30,6 +30,10 @@ impl JweAlgorithm for EcdhEsAesJweAlgorithm {
             Self::EcdhEsA256Kw => "ECDH-ES+A256KW",
         }
     }
+
+    fn key_type(&self) -> &str {
+        "oct"
+    }
 }
 
 #[derive(Debug, Clone)]
