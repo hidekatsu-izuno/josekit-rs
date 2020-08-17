@@ -967,7 +967,7 @@ pub trait JweDecrypter {
     /// # Arguments
     ///
     /// * `encrypted_key` - The encrypted key.
-    fn decrypt_key(&self, encrypted_key: &[u8]) -> Result<Option<Vec<u8>>, JoseError>;
+    fn decrypt(&self, encrypted_key: &[u8]) -> Result<Option<Vec<u8>>, JoseError>;
 }
 
 pub trait JweContentEncryption: Debug + Send + Sync {

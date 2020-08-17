@@ -57,7 +57,7 @@ impl JweEncrypter for DirectJweEncrypter {
         Some(&self.content_encryption_key)
     }
 
-    fn encrypt_key(&self, _key: &[u8]) -> Result<Option<Vec<u8>>, JoseError> {
+    fn encrypt(&self, _content_encryption_key: &[u8]) -> Result<Option<Vec<u8>>, JoseError> {
         Ok(None)
     }
 }
@@ -93,7 +93,7 @@ impl JweDecrypter for DirectJweDecrypter {
         Some(&self.content_encryption_key)
     }
 
-    fn decrypt_key(&self, _encrypted_key: &[u8]) -> Result<Option<Vec<u8>>, JoseError> {
+    fn decrypt(&self, _encrypted_key: &[u8]) -> Result<Option<Vec<u8>>, JoseError> {
         Ok(None)
     }
 }

@@ -62,7 +62,7 @@ impl JweEncrypter for AesJweEncrypter {
         None
     }
 
-    fn encrypt_key(&self, key: &[u8]) -> Result<Option<Vec<u8>>, JoseError> {
+    fn encrypt(&self, content_encryption_key: &[u8]) -> Result<Option<Vec<u8>>, JoseError> {
         todo!();
     }
 }
@@ -97,7 +97,7 @@ impl JweDecrypter for AesJweDecrypter {
         None
     }
 
-    fn decrypt_key(&self, encrypted_key: &[u8]) -> Result<Option<Vec<u8>>, JoseError> {
+    fn decrypt(&self, encrypted_key: &[u8]) -> Result<Option<Vec<u8>>, JoseError> {
         todo!();
     }
 }
