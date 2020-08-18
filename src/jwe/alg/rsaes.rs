@@ -3,11 +3,11 @@ use once_cell::sync::Lazy;
 use openssl::pkey::{PKey, Private, Public};
 use serde_json::Value;
 
+use crate::der::oid::ObjectIdentifier;
+use crate::der::{DerBuilder, DerReader, DerType};
 use crate::jose::JoseError;
 use crate::jwe::{JweAlgorithm, JweDecrypter, JweEncrypter};
 use crate::jwk::Jwk;
-use crate::der::oid::ObjectIdentifier;
-use crate::der::{DerBuilder, DerReader, DerType};
 
 static OID_RSA_ENCRYPTION: Lazy<ObjectIdentifier> =
     Lazy::new(|| ObjectIdentifier::from_slice(&[1, 2, 840, 113549, 1, 1, 1]));
@@ -197,6 +197,7 @@ impl RsaesJweAlgorithm {
 }
 
 impl JweAlgorithm for RsaesJweAlgorithm {
+    #[allow(deprecated)]
     fn name(&self) -> &str {
         match self {
             Self::Rsa1_5 => "RSA1_5",

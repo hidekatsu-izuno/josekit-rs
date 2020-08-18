@@ -37,7 +37,9 @@ pub use crate::jwe::alg::pbes2_hmac_aes::Pbes2HmacAesJweAlgorithm::Pbes2HS256A12
 pub use crate::jwe::alg::pbes2_hmac_aes::Pbes2HmacAesJweAlgorithm::Pbes2HS384A192Kw;
 pub use crate::jwe::alg::pbes2_hmac_aes::Pbes2HmacAesJweAlgorithm::Pbes2HS512A256Kw;
 
+#[allow(deprecated)]
 pub use crate::jwe::alg::rsaes::RsaesJweAlgorithm::Rsa1_5;
+#[allow(deprecated)]
 pub use crate::jwe::alg::rsaes::RsaesJweAlgorithm::RsaOaep;
 pub use crate::jwe::alg::rsaes::RsaesJweAlgorithm::RsaOaep256;
 
@@ -219,7 +221,7 @@ impl JweContext {
                 None => bail!("A encrypter is not found."),
             };
 
-            let content_encryption = match header.content_encryption() {
+            let cencryption = match header.content_encryption() {
                 Some(enc) => match self.get_content_encryption(enc) {
                     Some(val) => val,
                     None => bail!("A content encryption is not registered: {}", enc),
@@ -243,7 +245,7 @@ impl JweContext {
             if let Some(key_id) = encrypter.key_id() {
                 header.insert("kid".to_string(), Value::String(key_id.to_string()));
             }
-            let header = serde_json::to_string(&header)?;
+            let header_bytes = serde_json::to_vec(&header)?;
 
             let compressed;
             let content = if let Some(compression) = compression {
@@ -253,14 +255,13 @@ impl JweContext {
                 payload
             };
 
-            let mut iv = vec![0; content_encryption.iv_len()];
+            let mut iv = vec![0; cencryption.iv_len()];
             rand::rand_bytes(&mut iv)?;
 
             let mut generated_key;
-            let content_encryption_key = match encrypter.content_encryption_key() {
+            let (cencryption_key, encrypted_key) = match encrypter.direct_content_encryption_key() {
                 Some(val) => {
-                    let expected_len =
-                        content_encryption.mac_key_len() + content_encryption.enc_key_len();
+                    let expected_len = cencryption.mac_key_len() + cencryption.enc_key_len();
                     if val.len() != expected_len {
                         bail!(
                             "The length of content encryption key must be {}: {}",
@@ -268,39 +269,29 @@ impl JweContext {
                             val.len()
                         );
                     }
-                    val
+                    (val, None)
                 }
                 None => {
-                    generated_key = vec![
-                        0;
-                        content_encryption.mac_key_len()
-                            + content_encryption.enc_key_len()
-                    ];
+                    generated_key = vec![0; cencryption.mac_key_len() + cencryption.enc_key_len()];
                     rand::rand_bytes(&mut generated_key)?;
-                    &generated_key
+                    let encrypted_key = encrypter.encrypt(&generated_key)?;
+                    (generated_key.as_slice(), Some(encrypted_key))
                 }
             };
 
-            let encrypted_key = encrypter.encrypt(content_encryption_key)?;
+            let mac_key = &cencryption_key[0..cencryption.mac_key_len()];
+            let enc_key = &cencryption_key[cencryption.mac_key_len()..];
 
-            let enc_key = &content_encryption_key[content_encryption.mac_key_len()..];
-            let ciphertext = content_encryption.encrypt(content, &iv, enc_key)?;
-
-            let tag = if content_encryption.mac_key_len() > 0 {
-                let mac_key = &content_encryption_key[0..content_encryption.mac_key_len()];
-                let tag = content_encryption.sign(
-                    vec![
-                        header.as_bytes(),
-                        iv.as_slice(),
-                        ciphertext.as_slice(),
-                        &header.len().to_be_bytes(),
-                    ],
-                    mac_key,
-                )?;
-                Some(tag)
-            } else {
-                None
-            };
+            let ciphertext = cencryption.encrypt(content, &iv, enc_key)?;
+            let tag = cencryption.sign(
+                vec![
+                    &header_bytes,
+                    &iv,
+                    &ciphertext,
+                    &header_bytes.len().to_be_bytes(),
+                ],
+                mac_key,
+            )?;
 
             let mut capacity = 4;
             capacity += util::ceiling(header.len() * 4, 3);
@@ -309,12 +300,10 @@ impl JweContext {
             }
             capacity += util::ceiling(iv.len() * 4, 3);
             capacity += util::ceiling(ciphertext.len() * 4, 3);
-            if let Some(val) = &tag {
-                capacity += util::ceiling(val.len() * 4, 3);
-            }
+            capacity += util::ceiling(tag.len() * 4, 3);
 
             let mut message = String::with_capacity(capacity);
-            base64::encode_config_buf(header, base64::URL_SAFE_NO_PAD, &mut message);
+            base64::encode_config_buf(header_bytes, base64::URL_SAFE_NO_PAD, &mut message);
             message.push_str(".");
             if let Some(val) = encrypted_key {
                 base64::encode_config_buf(val, base64::URL_SAFE_NO_PAD, &mut message);
@@ -324,15 +313,13 @@ impl JweContext {
             message.push_str(".");
             base64::encode_config_buf(ciphertext, base64::URL_SAFE_NO_PAD, &mut message);
             message.push_str(".");
-            if let Some(val) = tag {
-                base64::encode_config_buf(val, base64::URL_SAFE_NO_PAD, &mut message);
-            }
+            base64::encode_config_buf(tag, base64::URL_SAFE_NO_PAD, &mut message);
 
             Ok(message)
         })()
         .map_err(|err| match err.downcast::<JoseError>() {
             Ok(err) => err,
-            Err(err) => JoseError::InvalidJwtFormat(err),
+            Err(err) => JoseError::InvalidJweFormat(err),
         })
     }
 
@@ -379,7 +366,7 @@ impl JweContext {
         })()
         .map_err(|err| match err.downcast::<JoseError>() {
             Ok(err) => err,
-            Err(err) => JoseError::InvalidJwtFormat(err),
+            Err(err) => JoseError::InvalidJweFormat(err),
         })
     }
 
@@ -412,11 +399,124 @@ impl JweContext {
         F: Fn(&JweHeader) -> Result<Option<&'a dyn JweDecrypter>, JoseError>,
     {
         (|| -> anyhow::Result<(Vec<u8>, JweHeader)> {
-            unimplemented!("JWE is not supported yet.");
+            let indexies: Vec<usize> = input
+                .char_indices()
+                .filter(|(_, c)| c == &'.')
+                .map(|(i, _)| i)
+                .collect();
+            if indexies.len() != 4 {
+                bail!(
+                    "The compact serialization form of JWE must be five parts separated by colon."
+                );
+            }
+
+            let header_b64 = &input[0..indexies[0]];
+            let encrypted_key_b64 = &input[(indexies[0] + 1)..(indexies[1])];
+            let iv_b64 = &input[(indexies[1] + 1)..(indexies[2])];
+            let ciphertext_b64 = &input[(indexies[2] + 1)..(indexies[3])];
+            let tag_b64 = &input[(indexies[3] + 1)..];
+
+            let header_bytes = base64::decode_config(header_b64, base64::URL_SAFE_NO_PAD)?;
+            let header: Map<String, Value> = serde_json::from_slice(&header_bytes)?;
+            let header = JweHeader::from_map(header)?;
+
+            let decrypter = match selector(&header)? {
+                Some(val) => val,
+                None => bail!("A decrypter is not found."),
+            };
+
+            let cencryption = match header.content_encryption() {
+                Some(enc) => match self.get_content_encryption(enc) {
+                    Some(val) => val,
+                    None => bail!("A content encryption is not registered: {}", enc),
+                },
+                None => bail!("A enc header claim is required."),
+            };
+
+            let compression = match header.compression() {
+                Some(zip) => match self.get_compression(zip) {
+                    Some(val) => Some(val),
+                    None => bail!("A compression algorithm is not registered: {}", zip),
+                },
+                None => None,
+            };
+
+            match header.algorithm() {
+                Some(val) => {
+                    let expected_alg = decrypter.algorithm().name();
+                    if val != expected_alg {
+                        bail!("The JWE alg header claim is not {}: {}", expected_alg, val);
+                    }
+                }
+                None => bail!("The JWE alg header claim is required."),
+            }
+
+            match decrypter.key_id() {
+                Some(expected) => match header.key_id() {
+                    Some(actual) if expected == actual => {}
+                    Some(actual) => bail!("The JWE kid header claim is mismatched: {}", actual),
+                    None => bail!("The JWE kid header claim is required."),
+                },
+                None => {}
+            }
+
+            let decrypted_key;
+            let cencryption_key = match decrypter.direct_content_encryption_key() {
+                Some(val) => {
+                    if encrypted_key_b64.len() > 0 {
+                        bail!("The encrypted_key must be empty.");
+                    }
+                    val
+                }
+                None => {
+                    let encrypted_key =
+                        base64::decode_config(encrypted_key_b64, base64::URL_SAFE_NO_PAD)?;
+                    decrypted_key = decrypter.decrypt(&encrypted_key)?;
+                    &decrypted_key
+                }
+            };
+
+            let expected_len = cencryption.mac_key_len() + cencryption.enc_key_len();
+            if cencryption_key.len() != expected_len {
+                bail!(
+                    "The length of content encryption key must be {}: {}",
+                    expected_len,
+                    cencryption_key.len()
+                );
+            }
+
+            let mac_key = &cencryption_key[0..cencryption.mac_key_len()];
+            let enc_key = &cencryption_key[cencryption.mac_key_len()..];
+
+            let iv = base64::decode_config(iv_b64, base64::URL_SAFE_NO_PAD)?;
+            let ciphertext = base64::decode_config(ciphertext_b64, base64::URL_SAFE_NO_PAD)?;
+            let tag = base64::decode_config(tag_b64, base64::URL_SAFE_NO_PAD)?;
+
+            let content = cencryption.decrypt(&ciphertext, &iv, enc_key)?;
+            let content = match compression {
+                Some(val) => val.decompress(&content)?,
+                None => content,
+            };
+
+            let signature = cencryption.sign(
+                vec![
+                    &header_bytes,
+                    &iv,
+                    &ciphertext,
+                    &header_bytes.len().to_be_bytes(),
+                ],
+                mac_key,
+            )?;
+
+            if signature != tag {
+                bail!("The signature doesn't match.");
+            }
+
+            Ok((content, header))
         })()
         .map_err(|err| match err.downcast::<JoseError>() {
             Ok(err) => err,
-            Err(err) => JoseError::InvalidJwtFormat(err),
+            Err(err) => JoseError::InvalidJweFormat(err),
         })
     }
 
@@ -474,7 +574,7 @@ impl JweContext {
         })()
         .map_err(|err| match err.downcast::<JoseError>() {
             Ok(err) => err,
-            Err(err) => JoseError::InvalidJwtFormat(err),
+            Err(err) => JoseError::InvalidJweFormat(err),
         })
     }
 }
@@ -946,14 +1046,14 @@ pub trait JweEncrypter {
     /// Remove a compared value for a kid header claim (kid).
     fn remove_key_id(&mut self);
 
-    /// Return a content encryption key.
-    fn content_encryption_key(&self) -> Option<&[u8]>;
+    /// Return a direct content encryption key.
+    fn direct_content_encryption_key(&self) -> Option<&[u8]>;
 
-    /// Return a encypted key data.
+    /// Return a encypted data for the message.
     /// # Arguments
     ///
-    /// * `content_encryption_key` - a content encryption key
-    fn encrypt(&self, content_encryption_key: &[u8]) -> Result<Option<Vec<u8>>, JoseError>;
+    /// * `message` - the message
+    fn encrypt(&self, message: &[u8]) -> Result<Vec<u8>, JoseError>;
 }
 
 pub trait JweDecrypter {
@@ -974,15 +1074,15 @@ pub trait JweDecrypter {
     /// Remove a compared value for a kid header claim (kid).
     fn remove_key_id(&mut self);
 
-    /// Return a content encryption key.
-    fn content_encryption_key(&self) -> Option<&[u8]>;
+    /// Return a direct content encryption key.
+    fn direct_content_encryption_key(&self) -> Option<&[u8]>;
 
-    /// Return a decrypted key data.
+    /// Return a decrypted message.
     ///
     /// # Arguments
     ///
-    /// * `encrypted_key` - The encrypted key.
-    fn decrypt(&self, encrypted_key: &[u8]) -> Result<Option<Vec<u8>>, JoseError>;
+    /// * `data` - The encrypted data.
+    fn decrypt(&self, data: &[u8]) -> Result<Vec<u8>, JoseError>;
 }
 
 pub trait JweContentEncryption: Debug + Send + Sync {

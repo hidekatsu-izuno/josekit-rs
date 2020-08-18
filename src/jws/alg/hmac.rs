@@ -270,7 +270,7 @@ impl JwsVerifier for HmacJwsVerifier {
             signer.update(message)?;
             let new_signature = signer.sign_to_vec()?;
             if !memcmp::eq(&new_signature, &signature) {
-                bail!("Failed to verify.")
+                bail!("Failed to verify.");
             }
             Ok(())
         })()

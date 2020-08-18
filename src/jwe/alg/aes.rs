@@ -62,11 +62,11 @@ impl JweEncrypter for AesJweEncrypter {
         self.key_id = None;
     }
 
-    fn content_encryption_key(&self) -> Option<&[u8]> {
+    fn direct_content_encryption_key(&self) -> Option<&[u8]> {
         None
     }
 
-    fn encrypt(&self, content_encryption_key: &[u8]) -> Result<Option<Vec<u8>>, JoseError> {
+    fn encrypt(&self, message: &[u8]) -> Result<Vec<u8>, JoseError> {
         todo!();
     }
 }
@@ -97,11 +97,11 @@ impl JweDecrypter for AesJweDecrypter {
         self.key_id = None;
     }
 
-    fn content_encryption_key(&self) -> Option<&[u8]> {
+    fn direct_content_encryption_key(&self) -> Option<&[u8]> {
         None
     }
 
-    fn decrypt(&self, encrypted_key: &[u8]) -> Result<Option<Vec<u8>>, JoseError> {
+    fn decrypt(&self, data: &[u8]) -> Result<Vec<u8>, JoseError> {
         todo!();
     }
 }

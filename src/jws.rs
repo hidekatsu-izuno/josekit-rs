@@ -387,7 +387,9 @@ impl JwsContext {
                 .map(|(i, _)| i)
                 .collect();
             if indexies.len() != 2 {
-                bail!("The compact serialization form must be three parts separated by colon.");
+                bail!(
+                    "The compact serialization form of JWS must be three parts separated by colon."
+                );
             }
 
             let header = &input[0..indexies[0]];

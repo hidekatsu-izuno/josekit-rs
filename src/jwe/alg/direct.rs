@@ -153,12 +153,12 @@ impl JweEncrypter for DirectJweEncrypter {
         self.key_id = None;
     }
 
-    fn content_encryption_key(&self) -> Option<&[u8]> {
+    fn direct_content_encryption_key(&self) -> Option<&[u8]> {
         Some(&self.content_encryption_key)
     }
 
-    fn encrypt(&self, _content_encryption_key: &[u8]) -> Result<Option<Vec<u8>>, JoseError> {
-        Ok(None)
+    fn encrypt(&self, _message: &[u8]) -> Result<Vec<u8>, JoseError> {
+        unreachable!("This algorithm must not encrypt.");
     }
 }
 
@@ -189,11 +189,11 @@ impl JweDecrypter for DirectJweDecrypter {
         self.key_id = None;
     }
 
-    fn content_encryption_key(&self) -> Option<&[u8]> {
+    fn direct_content_encryption_key(&self) -> Option<&[u8]> {
         Some(&self.content_encryption_key)
     }
 
-    fn decrypt(&self, _encrypted_key: &[u8]) -> Result<Option<Vec<u8>>, JoseError> {
-        Ok(None)
+    fn decrypt(&self, _data: &[u8]) -> Result<Vec<u8>, JoseError> {
+        unreachable!("This algorithm must not encrypt.");
     }
 }
