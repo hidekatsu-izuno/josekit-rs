@@ -1222,23 +1222,25 @@ mod tests {
 
     #[test]
     fn test_jwe_compact_serialization() -> Result<()> {
-        let mut src_header = JweHeader::new();
-        src_header.set_content_encryption("A128CBC-HS256");
-        src_header.set_token_type("JWT");
-        let src_payload = b"test payload!";
-
-        let alg = Dir;
-        let key = b"01234567890123456789012345678901";
-        let encrypter = alg.encrypter_from_slice(key)?;
-
-        let jwe = jwe::serialize_compact(src_payload, &src_header, &encrypter)?;
-
-        let decrypter = alg.decrypter_from_slice(key)?;
-        let (dst_payload, dst_header) = jwe::deserialize_compact(&jwe, &decrypter)?;
-
-        src_header.set_claim("alg", Some(Value::String(alg.name().to_string())))?;
-        assert_eq!(src_header, dst_header);
-        assert_eq!(src_payload.to_vec(), dst_payload);
+        for enc in &["A128CBC-HS256"/*, "A128GCM"*/] {
+            let mut src_header = JweHeader::new();
+            src_header.set_content_encryption(*enc);
+            src_header.set_token_type("JWT");
+            let src_payload = b"test payload!";
+    
+            let alg = Dir;
+            let key = b"01234567890123456789012345678901";
+            let encrypter = alg.encrypter_from_slice(key)?;
+    
+            let jwe = jwe::serialize_compact(src_payload, &src_header, &encrypter)?;
+    
+            let decrypter = alg.decrypter_from_slice(key)?;
+            let (dst_payload, dst_header) = jwe::deserialize_compact(&jwe, &decrypter)?;
+    
+            src_header.set_claim("alg", Some(Value::String(alg.name().to_string())))?;
+            assert_eq!(src_header, dst_header);
+            assert_eq!(src_payload.to_vec(), dst_payload);
+        }
 
         Ok(())
     }

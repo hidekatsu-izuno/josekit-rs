@@ -34,7 +34,7 @@ impl JweContentEncryption for AesGcmJweEncryption {
     }
 
     fn content_encryption_key_len(&self) -> usize {
-        16
+        32
     }
 
     fn iv_len(&self) -> usize {
