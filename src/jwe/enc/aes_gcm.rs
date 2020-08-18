@@ -1,3 +1,4 @@
+use anyhow::{bail, anyhow, Context};
 use openssl::symm::{self, Cipher};
 
 use crate::jose::JoseError;
@@ -32,40 +33,31 @@ impl JweContentEncryption for AesGcmJweEncryption {
         }
     }
 
+    fn content_encryption_key_len(&self) -> usize {
+        16
+    }
+
     fn iv_len(&self) -> usize {
         12
     }
 
-    fn enc_key_len(&self) -> usize {
-        16
-    }
-
-    fn mac_key_len(&self) -> usize {
-        0
-    }
-
-    fn encrypt(&self, message: &[u8], iv: &[u8], enc_key: &[u8]) -> Result<Vec<u8>, JoseError> {
-        let cipher = self.cipher();
-
-        (|| -> anyhow::Result<Vec<u8>> {
-            let encrypted = symm::encrypt(cipher, enc_key, Some(iv), message)?;
-            Ok(encrypted)
+    fn encrypt(&self, key: &[u8], iv: &[u8], message: &[u8], aad: &[u8]) -> Result<(Vec<u8>, Vec<u8>), JoseError> {
+        (|| -> anyhow::Result<(Vec<u8>, Vec<u8>)> {
+            let cipher = self.cipher();
+            let mut tag = Vec::new();
+            let encrypted_message = symm::encrypt_aead(cipher, key, Some(iv), aad, message, &mut tag)?;
+            Ok((encrypted_message, tag))
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
-    fn decrypt(&self, data: &[u8], iv: &[u8], enc_key: &[u8]) -> Result<Vec<u8>, JoseError> {
-        let cipher = self.cipher();
-
+    fn decrypt(&self,  key: &[u8], iv: &[u8], encrypted_message: &[u8], aad: &[u8], tag: &[u8]) -> Result<Vec<u8>, JoseError> {
         (|| -> anyhow::Result<Vec<u8>> {
-            let decrypted = symm::decrypt(cipher, enc_key, Some(iv), data)?;
-            Ok(decrypted)
+            let cipher = self.cipher();
+            let message = symm::decrypt_aead(cipher, key, Some(iv), aad, encrypted_message, tag)?;
+            Ok(message)
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
-    }
-
-    fn sign(&self, _message: Vec<&[u8]>, _mac_key: &[u8]) -> Result<Vec<u8>, JoseError> {
-        unimplemented!("AES GCM doesn't need to sign.");
     }
 
     fn box_clone(&self) -> Box<dyn JweContentEncryption> {

@@ -1,3 +1,4 @@
+use anyhow::bail;
 use openssl::hash::MessageDigest;
 use openssl::pkey::{PKey, Private};
 use openssl::sign::Signer;
@@ -24,54 +25,8 @@ impl AesCbcHmacJweEncryption {
             Self::A256CbcHS512 => Cipher::aes_256_cbc(),
         }
     }
-}
 
-impl JweContentEncryption for AesCbcHmacJweEncryption {
-    fn name(&self) -> &str {
-        match self {
-            Self::A128CbcHS256 => "A128CBC-HS256",
-            Self::A192CbcHS384 => "A192CBC-HS384",
-            Self::A256CbcHS512 => "A256CBC-HS512",
-        }
-    }
-
-    fn iv_len(&self) -> usize {
-        16
-    }
-
-    fn enc_key_len(&self) -> usize {
-        16
-    }
-
-    fn mac_key_len(&self) -> usize {
-        match self {
-            Self::A128CbcHS256 => 16,
-            Self::A192CbcHS384 => 24,
-            Self::A256CbcHS512 => 32,
-        }
-    }
-
-    fn encrypt(&self, message: &[u8], iv: &[u8], enc_key: &[u8]) -> Result<Vec<u8>, JoseError> {
-        let cipher = self.cipher();
-
-        (|| -> anyhow::Result<Vec<u8>> {
-            let encrypted = symm::encrypt(cipher, enc_key, Some(iv), message)?;
-            Ok(encrypted)
-        })()
-        .map_err(|err| JoseError::InvalidKeyFormat(err))
-    }
-
-    fn decrypt(&self, data: &[u8], iv: &[u8], enc_key: &[u8]) -> Result<Vec<u8>, JoseError> {
-        let cipher = self.cipher();
-
-        (|| -> anyhow::Result<Vec<u8>> {
-            let decrypted = symm::decrypt(cipher, enc_key, Some(iv), data)?;
-            Ok(decrypted)
-        })()
-        .map_err(|err| JoseError::InvalidKeyFormat(err))
-    }
-
-    fn sign(&self, message: Vec<&[u8]>, mac_key: &[u8]) -> Result<Vec<u8>, JoseError> {
+    fn calcurate_tag(&self, aad: &[u8], iv: &[u8], ciphertext: &[u8], mac_key: &[u8]) -> Result<Vec<u8>, JoseError> {
         let (message_digest, tlen) = match self {
             Self::A128CbcHS256 => (MessageDigest::sha256(), 16),
             Self::A192CbcHS384 => (MessageDigest::sha384(), 24),
@@ -86,9 +41,10 @@ impl JweContentEncryption for AesCbcHmacJweEncryption {
 
         let signature = (|| -> anyhow::Result<Vec<u8>> {
             let mut signer = Signer::new(message_digest, &pkey)?;
-            for seg in message {
-                signer.update(seg)?;
-            }
+            signer.update(aad)?;
+            signer.update(iv)?;
+            signer.update(ciphertext)?;
+            signer.update(&aad.len().to_be_bytes())?;
             let mut signature = signer.sign_to_vec()?;
             signature.truncate(tlen);
             Ok(signature)
@@ -96,6 +52,69 @@ impl JweContentEncryption for AesCbcHmacJweEncryption {
         .map_err(|err| JoseError::InvalidSignature(err))?;
 
         Ok(signature)
+    }
+}
+
+impl JweContentEncryption for AesCbcHmacJweEncryption {
+    fn name(&self) -> &str {
+        match self {
+            Self::A128CbcHS256 => "A128CBC-HS256",
+            Self::A192CbcHS384 => "A192CBC-HS384",
+            Self::A256CbcHS512 => "A256CBC-HS512",
+        }
+    }
+
+    fn content_encryption_key_len(&self) -> usize {
+        match self {
+            Self::A128CbcHS256 => 16 + 16,
+            Self::A192CbcHS384 => 24 + 16,
+            Self::A256CbcHS512 => 32 + 16,
+        }
+    }
+
+    fn iv_len(&self) -> usize {
+        16
+    }
+
+    fn encrypt(&self, key: &[u8], iv: &[u8], message: &[u8], aad: &[u8]) -> Result<(Vec<u8>, Vec<u8>), JoseError> {
+        let split_pos = self.content_encryption_key_len() - 16;
+        let mac_key = &key[0..split_pos];
+        let enc_key = &key[split_pos..];
+
+        let encrypted_message = (|| -> anyhow::Result<Vec<u8>> {
+            let cipher = self.cipher();
+            let encrypted_message = symm::encrypt(cipher, enc_key, Some(iv), message)?;
+            Ok(encrypted_message)
+        })()
+        .map_err(|err| JoseError::InvalidKeyFormat(err))?;
+
+        let tag = self.calcurate_tag(aad, iv, message, mac_key)?;
+
+        Ok((encrypted_message, tag))
+    }
+
+    fn decrypt(&self,  key: &[u8], iv: &[u8], encrypted_message: &[u8], aad: &[u8], tag: &[u8]) -> Result<Vec<u8>, JoseError> {
+        let split_pos = self.content_encryption_key_len() - 16;
+        let mac_key = &key[0..split_pos];
+        let enc_key = &key[split_pos..];
+
+        let message = (|| -> anyhow::Result<Vec<u8>> {
+            let cipher = self.cipher();
+            let message = symm::decrypt(cipher, enc_key, Some(iv), encrypted_message)?;
+            Ok(message)
+        })()
+        .map_err(|err| JoseError::InvalidKeyFormat(err))?;
+
+        (|| -> anyhow::Result<()> {
+            let calc_tag = self.calcurate_tag(aad, iv, &message, mac_key)?;
+            if calc_tag.as_slice() != tag {
+                bail!("The tag doesn't match.");
+            }
+            Ok(())
+        })()
+        .map_err(|err| JoseError::InvalidSignature(err))?;
+
+        Ok(message)
     }
 
     fn box_clone(&self) -> Box<dyn JweContentEncryption> {

@@ -261,7 +261,7 @@ impl JweContext {
             let mut generated_key;
             let (cencryption_key, encrypted_key) = match encrypter.direct_content_encryption_key() {
                 Some(val) => {
-                    let expected_len = cencryption.mac_key_len() + cencryption.enc_key_len();
+                    let expected_len = cencryption.content_encryption_key_len();
                     if val.len() != expected_len {
                         bail!(
                             "The length of content encryption key must be {}: {}",
@@ -272,26 +272,14 @@ impl JweContext {
                     (val, None)
                 }
                 None => {
-                    generated_key = vec![0; cencryption.mac_key_len() + cencryption.enc_key_len()];
+                    generated_key = vec![0; cencryption.content_encryption_key_len()];
                     rand::rand_bytes(&mut generated_key)?;
                     let encrypted_key = encrypter.encrypt(&generated_key)?;
                     (generated_key.as_slice(), Some(encrypted_key))
                 }
             };
 
-            let mac_key = &cencryption_key[0..cencryption.mac_key_len()];
-            let enc_key = &cencryption_key[cencryption.mac_key_len()..];
-
-            let ciphertext = cencryption.encrypt(content, &iv, enc_key)?;
-            let tag = cencryption.sign(
-                vec![
-                    &header_bytes,
-                    &iv,
-                    &ciphertext,
-                    &header_bytes.len().to_be_bytes(),
-                ],
-                mac_key,
-            )?;
+            let (ciphertext, tag) = cencryption.encrypt(cencryption_key, &iv, content, &header_bytes)?;
 
             let mut capacity = 4;
             capacity += util::ceiling(header.len() * 4, 3);
@@ -476,7 +464,7 @@ impl JweContext {
                 }
             };
 
-            let expected_len = cencryption.mac_key_len() + cencryption.enc_key_len();
+            let expected_len = cencryption.content_encryption_key_len();
             if cencryption_key.len() != expected_len {
                 bail!(
                     "The length of content encryption key must be {}: {}",
@@ -485,32 +473,15 @@ impl JweContext {
                 );
             }
 
-            let mac_key = &cencryption_key[0..cencryption.mac_key_len()];
-            let enc_key = &cencryption_key[cencryption.mac_key_len()..];
-
             let iv = base64::decode_config(iv_b64, base64::URL_SAFE_NO_PAD)?;
             let ciphertext = base64::decode_config(ciphertext_b64, base64::URL_SAFE_NO_PAD)?;
             let tag = base64::decode_config(tag_b64, base64::URL_SAFE_NO_PAD)?;
 
-            let content = cencryption.decrypt(&ciphertext, &iv, enc_key)?;
+            let content = cencryption.decrypt(&cencryption_key, &iv, &ciphertext, &header_bytes, &tag)?;
             let content = match compression {
                 Some(val) => val.decompress(&content)?,
                 None => content,
             };
-
-            let signature = cencryption.sign(
-                vec![
-                    &header_bytes,
-                    &iv,
-                    &ciphertext,
-                    &header_bytes.len().to_be_bytes(),
-                ],
-                mac_key,
-            )?;
-
-            if signature != tag {
-                bail!("The signature doesn't match.");
-            }
 
             Ok((content, header))
         })()
@@ -1191,17 +1162,13 @@ pub trait JweContentEncryption: Debug + Send + Sync {
     /// Return the "enc" (encryption) header parameter value of JWE.
     fn name(&self) -> &str;
 
-    fn enc_key_len(&self) -> usize;
-
-    fn mac_key_len(&self) -> usize;
+    fn content_encryption_key_len(&self) -> usize;
 
     fn iv_len(&self) -> usize;
 
-    fn encrypt(&self, message: &[u8], iv: &[u8], enc_key: &[u8]) -> Result<Vec<u8>, JoseError>;
+    fn encrypt(&self, key: &[u8], iv: &[u8], message: &[u8], aad: &[u8]) -> Result<(Vec<u8>, Vec<u8>), JoseError>;
 
-    fn decrypt(&self, data: &[u8], iv: &[u8], enc_key: &[u8]) -> Result<Vec<u8>, JoseError>;
-
-    fn sign(&self, message: Vec<&[u8]>, mac_key: &[u8]) -> Result<Vec<u8>, JoseError>;
+    fn decrypt(&self, key: &[u8], iv: &[u8], encrypted_message: &[u8], aad: &[u8], tag: &[u8]) -> Result<Vec<u8>, JoseError>;
 
     fn box_clone(&self) -> Box<dyn JweContentEncryption>;
 }
