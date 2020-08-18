@@ -723,6 +723,16 @@ impl JweHeader {
         }
     }
 
+    /// Set a value for algorithm header claim (alg).
+    ///
+    /// # Arguments
+    ///
+    /// * `value` - a algorithm
+    pub fn set_algorithm(&mut self, value: impl Into<String>) {
+        let value: String = value.into();
+        self.claims.insert("alg".to_string(), Value::String(value));
+    }
+
     /// Set a value for content encryption header claim (enc).
     ///
     /// # Arguments
@@ -987,10 +997,102 @@ impl JoseHeader for JweHeader {
     fn set_claim(&mut self, key: &str, value: Option<Value>) -> Result<(), JoseError> {
         (|| -> anyhow::Result<()> {
             match key {
-                "alg" => bail!(
-                    "The Unsecured {} header claim should not be setted expressly.",
-                    key
-                ),
+                "alg" | "enc" | "zip" | "jku" | "x5u" | "kid" | "typ" | "cty" => match &value {
+                    Some(Value::String(_)) => {
+                        self.claims.insert(key.to_string(), value.unwrap());
+                    }
+                    None => {
+                        self.claims.remove(key);
+                    }
+                    _ => bail!("The JWE {} header claim must be string.", key),
+                },
+                "jwk" => match &value {
+                    Some(Value::Object(vals)) => {
+                        let key = key.to_string();
+                        let val = Jwk::from_map(vals.clone())?;
+                        self.claims.insert(key.clone(), value.unwrap());
+                        self.sources.insert(key, SourceValue::Jwk(val));
+                    }
+                    None => {
+                        self.claims.remove(key);
+                        self.sources.remove(key);
+                    }
+                    _ => bail!("The JWE {} header claim must be a string.", key),
+                },
+                "x5t" => match &value {
+                    Some(Value::String(val)) => {
+                        let key = key.to_string();
+                        let val = base64::decode_config(val, base64::URL_SAFE_NO_PAD)?;
+                        self.claims.insert(key.clone(), value.unwrap());
+                        self.sources.insert(key, SourceValue::Bytes(val));
+                    }
+                    None => {
+                        self.claims.remove(key);
+                        self.sources.remove(key);
+                    }
+                    _ => bail!("The JWE {} header claim must be a string.", key),
+                },
+                "x5t#S256" => match &value {
+                    Some(Value::String(val)) => {
+                        let key = key.to_string();
+                        let val = base64::decode_config(val, base64::URL_SAFE_NO_PAD)?;
+                        self.claims.insert(key.to_string(), value.unwrap());
+                        self.sources.insert(key, SourceValue::Bytes(val));
+                    }
+                    None => {
+                        self.claims.remove(key);
+                        self.sources.remove(key);
+                    }
+                    _ => bail!("The JWE {} header claim must be a string.", key),
+                },
+                "x5c" => match &value {
+                    Some(Value::Array(vals)) => {
+                        let key = key.to_string();
+                        let mut vec = Vec::with_capacity(vals.len());
+                        for val in vals {
+                            match val {
+                                Value::String(val) => {
+                                    let decoded =
+                                        base64::decode_config(val, base64::URL_SAFE_NO_PAD)?;
+                                    vec.push(decoded);
+                                }
+                                _ => bail!(
+                                    "An element of the JWE {} header claim must be a string.",
+                                    key
+                                ),
+                            }
+                        }
+                        self.claims.insert(key.clone(), value.unwrap());
+                        self.sources.insert(key, SourceValue::BytesArray(vec));
+                    }
+                    None => {
+                        self.claims.remove(key);
+                        self.sources.remove(key);
+                    }
+                    _ => bail!("The JWE {} header claim must be a array.", key),
+                },
+                "crit" => match &value {
+                    Some(Value::Array(vals)) => {
+                        let key = key.to_string();
+                        let mut vec = Vec::with_capacity(vals.len());
+                        for val in vals {
+                            match val {
+                                Value::String(val) => vec.push(val.to_string()),
+                                _ => bail!(
+                                    "An element of the JWE {} header claim must be a string.",
+                                    key
+                                ),
+                            }
+                        }
+                        self.claims.insert(key.to_string(), value.unwrap());
+                        self.sources.insert(key, SourceValue::StringArray(vec));
+                    }
+                    None => {
+                        self.claims.remove(key);
+                        self.sources.remove(key);
+                    }
+                    _ => bail!("The JWE {} header claim must be a array.", key),
+                },
                 _ => match &value {
                     Some(_) => {
                         self.claims.insert(key.to_string(), value.unwrap());
@@ -1003,7 +1105,7 @@ impl JoseHeader for JweHeader {
 
             Ok(())
         })()
-        .map_err(|err| JoseError::InvalidJwtFormat(err))
+        .map_err(|err| JoseError::InvalidJweFormat(err))
     }
 }
 
@@ -1146,8 +1248,10 @@ impl Clone for Box<dyn JweCompression> {
 #[cfg(test)]
 mod tests {
     use anyhow::Result;
+    use serde_json::Value;
 
-    use crate::jwe::{self, Dir, JweHeader};
+    use crate::jose::JoseHeader;
+    use crate::jwe::{self, Dir, JweHeader, JweAlgorithm};
 
     #[test]
     fn test_jwe_compact_serialization() -> Result<()> {
@@ -1162,7 +1266,12 @@ mod tests {
 
         let jwe = jwe::serialize_compact(src_payload, &src_header, &encrypter)?;
 
-        println!("JWE: {}", jwe);
+        let decrypter = alg.decrypter_from_slice(key)?;
+        let (dst_payload, dst_header) = jwe::deserialize_compact(&jwe, &decrypter)?;
+
+        src_header.set_claim("alg", Some(Value::String(alg.name().to_string())))?;
+        assert_eq!(src_header, dst_header);
+        assert_eq!(src_payload.to_vec(), dst_payload);
 
         Ok(())
     }

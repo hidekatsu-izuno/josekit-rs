@@ -1274,7 +1274,7 @@ impl JoseHeader for JwsHeader {
                             match val {
                                 Value::String(val) => vec.push(val.to_string()),
                                 _ => bail!(
-                                    "An element of the JWT {} header claim must be a string.",
+                                    "An element of the JWS {} header claim must be a string.",
                                     key
                                 ),
                             }
@@ -1313,7 +1313,7 @@ impl JoseHeader for JwsHeader {
 
             Ok(())
         })()
-        .map_err(|err| JoseError::InvalidJwtFormat(err))
+        .map_err(|err| JoseError::InvalidJwsFormat(err))
     }
 }
 
