@@ -1222,7 +1222,9 @@ mod tests {
 
     #[test]
     fn test_jwe_compact_serialization() -> Result<()> {
-        for enc in &["A128CBC-HS256", "A128GCM"] {
+        for enc in &["A128CBC-HS256", "A256GCM"] {
+            println!("enc: {}", enc);
+
             let mut src_header = JweHeader::new();
             src_header.set_content_encryption(*enc);
             src_header.set_token_type("JWT");
@@ -1231,12 +1233,16 @@ mod tests {
             let alg = Dir;
             let key = match *enc {
                 "A128CBC-HS256" => b"01234567890123456789012345678901".as_ref(),
-                "A128GCM" => b"012345678901".as_ref(),
+                "A128GCM" => b"0123456789012345".as_ref(),
+                "A192GCM" => b"012345678901234567890123".as_ref(),
+                "A256GCM" => b"01234567890123456789012345678901".as_ref(),
                 _ => unreachable!(),
             };
             let encrypter = alg.encrypter_from_slice(key)?;
     
             let jwe = jwe::serialize_compact(src_payload, &src_header, &encrypter)?;
+
+            println!("JWE: {}", jwe);
     
             let decrypter = alg.decrypter_from_slice(key)?;
             let (dst_payload, dst_header) = jwe::deserialize_compact(&jwe, &decrypter)?;

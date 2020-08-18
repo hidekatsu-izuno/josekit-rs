@@ -1,4 +1,3 @@
-use anyhow::{bail, anyhow, Context};
 use openssl::symm::{self, Cipher};
 
 use crate::jose::JoseError;
@@ -34,7 +33,11 @@ impl JweContentEncryption for AesGcmJweEncryption {
     }
 
     fn content_encryption_key_len(&self) -> usize {
-        12
+        match self {
+            Self::A128Gcm => 16,
+            Self::A192Gcm => 24,
+            Self::A256Gcm => 32,
+        }
     }
 
     fn iv_len(&self) -> usize {
@@ -44,9 +47,9 @@ impl JweContentEncryption for AesGcmJweEncryption {
     fn encrypt(&self, key: &[u8], iv: &[u8], message: &[u8], aad: &[u8]) -> Result<(Vec<u8>, Vec<u8>), JoseError> {
         (|| -> anyhow::Result<(Vec<u8>, Vec<u8>)> {
             let cipher = self.cipher();
-            let mut tag = Vec::new();
+            let mut tag = [0; 16];
             let encrypted_message = symm::encrypt_aead(cipher, key, Some(iv), aad, message, &mut tag)?;
-            Ok((encrypted_message, tag))
+            Ok((encrypted_message, tag.to_vec()))
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
