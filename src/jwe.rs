@@ -1222,14 +1222,18 @@ mod tests {
 
     #[test]
     fn test_jwe_compact_serialization() -> Result<()> {
-        for enc in &["A128CBC-HS256"/*, "A128GCM"*/] {
+        for enc in &["A128CBC-HS256", "A128GCM"] {
             let mut src_header = JweHeader::new();
             src_header.set_content_encryption(*enc);
             src_header.set_token_type("JWT");
             let src_payload = b"test payload!";
     
             let alg = Dir;
-            let key = b"01234567890123456789012345678901";
+            let key = match *enc {
+                "A128CBC-HS256" => b"01234567890123456789012345678901".as_ref(),
+                "A128GCM" => b"012345678901".as_ref(),
+                _ => unreachable!(),
+            };
             let encrypter = alg.encrypter_from_slice(key)?;
     
             let jwe = jwe::serialize_compact(src_payload, &src_header, &encrypter)?;
