@@ -127,10 +127,10 @@ impl JwsContext {
             if let Some(key_id) = signer.key_id() {
                 header.insert("kid".to_string(), Value::String(key_id.to_string()));
             }
-            let header = serde_json::to_string(&header)?;
+            let header_bytes = serde_json::to_vec(&header)?;
 
             let mut capacity = 2;
-            capacity += util::ceiling(header.len() * 4, 3);
+            capacity += util::ceiling(header_bytes.len() * 4, 3);
             capacity += if b64 {
                 util::ceiling(payload.len() * 4, 3)
             } else {
@@ -139,7 +139,7 @@ impl JwsContext {
             capacity += util::ceiling(signer.signature_len() * 4, 3);
 
             let mut message = String::with_capacity(capacity);
-            base64::encode_config_buf(header, base64::URL_SAFE_NO_PAD, &mut message);
+            base64::encode_config_buf(header_bytes, base64::URL_SAFE_NO_PAD, &mut message);
             message.push_str(".");
             if b64 {
                 base64::encode_config_buf(payload, base64::URL_SAFE_NO_PAD, &mut message);
@@ -178,7 +178,7 @@ impl JwsContext {
         signer: &JwsMultiSigner,
     ) -> Result<String, JoseError> {
         (|| -> anyhow::Result<String> {
-            let payload = base64::encode_config(payload, base64::URL_SAFE_NO_PAD);
+            let payload_b64 = base64::encode_config(payload, base64::URL_SAFE_NO_PAD);
 
             let mut json = String::new();
             json.push_str("{\"signatures\":[");
@@ -197,16 +197,14 @@ impl JwsContext {
                     Value::String(signer.algorithm().name().to_string()),
                 );
 
-                let protected = serde_json::to_string(&protected)?;
-                let protected = base64::encode_config(&protected, base64::URL_SAFE_NO_PAD);
+                let protected_bytes = serde_json::to_vec(&protected)?;
+                let protected_b64 = base64::encode_config(&protected_bytes, base64::URL_SAFE_NO_PAD);
 
-                let message = format!("{}.{}", &protected, &payload);
-
+                let message = format!("{}.{}", &protected_b64, &payload_b64);
                 let signature = signer.sign(message.as_bytes())?;
-                let signature = base64::encode_config(&signature, base64::URL_SAFE_NO_PAD);
 
                 json.push_str("{\"protected\":\"");
-                json.push_str(&protected);
+                json.push_str(&protected_b64);
                 json.push_str("\"");
 
                 if let Some(val) = header {
@@ -216,12 +214,12 @@ impl JwsContext {
                 }
 
                 json.push_str(",\"signature\":\"");
-                json.push_str(&signature);
+                base64::encode_config_buf(&signature, base64::URL_SAFE_NO_PAD, &mut json);
                 json.push_str("\"}");
             }
 
             json.push_str("],\"payload\":\"");
-            json.push_str(&payload);
+            json.push_str(&payload_b64);
             json.push_str("\"}");
 
             Ok(json)
@@ -310,27 +308,27 @@ impl JwsContext {
             }
 
             let protected_json = serde_json::to_string(&protected_map)?;
-            let protected_base64 = base64::encode_config(protected_json, base64::URL_SAFE_NO_PAD);
+            let protected_b64 = base64::encode_config(protected_json, base64::URL_SAFE_NO_PAD);
 
-            let payload_base64;
+            let payload_b64;
             let payload = if b64 {
-                payload_base64 = base64::encode_config(payload, base64::URL_SAFE_NO_PAD);
-                &payload_base64
+                payload_b64 = base64::encode_config(payload, base64::URL_SAFE_NO_PAD);
+                &payload_b64
             } else {
                 std::str::from_utf8(payload)?
             };
 
-            let message = format!("{}.{}", &protected_base64, payload);
+            let message = format!("{}.{}", &protected_b64, payload);
             let signature = signer.sign(message.as_bytes())?;
 
             let mut json = String::new();
             json.push_str("{\"protected\":\"");
-            json.push_str(&protected_base64);
+            json.push_str(&protected_b64);
             json.push_str("\"");
 
             if let Some(val) = &header {
-                json.push_str(",\"header\":");
                 let header = serde_json::to_string(val.claims_set())?;
+                json.push_str(",\"header\":");
                 json.push_str(&header);
             }
 

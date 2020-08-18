@@ -72,18 +72,18 @@ impl JwtContext {
         (|| -> anyhow::Result<String> {
             let mut header = header.claims_set().clone();
             header.insert("alg".to_string(), Value::String("none".to_string()));
-            let header = serde_json::to_string(&header)?;
+            let header_bytes = serde_json::to_vec(&header)?;
 
-            let payload = payload.to_string();
+            let payload_bytes = serde_json::to_vec(payload.claims_set())?;
 
             let mut capacity = 2;
-            capacity += util::ceiling(header.len() * 4, 3);
-            capacity += util::ceiling(payload.len() * 4, 3);
+            capacity += util::ceiling(header_bytes.len() * 4, 3);
+            capacity += util::ceiling(payload_bytes.len() * 4, 3);
 
             let mut message = String::with_capacity(capacity);
-            base64::encode_config_buf(header, base64::URL_SAFE_NO_PAD, &mut message);
+            base64::encode_config_buf(header_bytes, base64::URL_SAFE_NO_PAD, &mut message);
             message.push_str(".");
-            base64::encode_config_buf(payload, base64::URL_SAFE_NO_PAD, &mut message);
+            base64::encode_config_buf(payload_bytes, base64::URL_SAFE_NO_PAD, &mut message);
             message.push_str(".");
 
             Ok(message)
@@ -114,10 +114,10 @@ impl JwtContext {
                 }
             }
 
-            let payload = payload.to_string();
+            let payload_bytes = serde_json::to_vec(payload.claims_set()).unwrap();
             let jwt = self
                 .jws_context
-                .serialize_compact(payload.as_bytes(), header, signer)?;
+                .serialize_compact(&payload_bytes, header, signer)?;
             Ok(jwt)
         })()
         .map_err(|err| match err.downcast::<JoseError>() {
@@ -139,10 +139,10 @@ impl JwtContext {
         header: &JweHeader,
         encrypter: &dyn JweEncrypter,
     ) -> Result<String, JoseError> {
-        let payload = payload.to_string();
+        let payload_bytes = serde_json::to_vec(payload.claims_set()).unwrap();
         let jwt = self
             .jwe_context
-            .serialize_compact(payload.as_bytes(), header, encrypter)?;
+            .serialize_compact(&payload_bytes, header, encrypter)?;
         Ok(jwt)
     }
 

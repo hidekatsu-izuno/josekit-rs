@@ -2,7 +2,6 @@ use std::iter::Iterator;
 
 use anyhow::bail;
 use openssl::hash::MessageDigest;
-use openssl::memcmp;
 use openssl::pkey::{PKey, Private};
 use openssl::sign::Signer;
 use serde_json::Value;
@@ -269,7 +268,7 @@ impl JwsVerifier for HmacJwsVerifier {
             let mut signer = Signer::new(message_digest, &self.private_key)?;
             signer.update(message)?;
             let new_signature = signer.sign_to_vec()?;
-            if !memcmp::eq(&new_signature, &signature) {
+            if new_signature.as_slice() != signature {
                 bail!("Failed to verify.");
             }
             Ok(())
