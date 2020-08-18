@@ -81,14 +81,14 @@ impl DirectJweAlgorithm {
                 val => bail!("A parameter kty must be {}: {}", self.key_type(), val),
             }
             match jwk.key_use() {
-                Some(val) if val == "sig" => {}
+                Some(val) if val == "enc" => {}
                 None => {}
-                Some(val) => bail!("A parameter use must be sig: {}", val),
+                Some(val) => bail!("A parameter use must be enc: {}", val),
             }
             match jwk.key_operations() {
-                Some(vals) if vals.iter().any(|e| e == "verify") => {}
+                Some(vals) if vals.iter().any(|e| e == "decrypt") => {}
                 None => {}
-                _ => bail!("A parameter key_ops must contains verify."),
+                _ => bail!("A parameter key_ops must contains decrypt."),
             }
             match jwk.algorithm() {
                 Some(val) if val == self.name() => {}
