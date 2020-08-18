@@ -102,10 +102,12 @@ impl DirectJweAlgorithm {
                 None => bail!("A parameter k is required."),
             };
 
+            let key_id = jwk.key_id().map(|val| val.to_string());
+
             Ok(DirectJweDecrypter {
                 algorithm: self.clone(),
                 content_encryption_key: k,
-                key_id: jwk.key_id().map(|val| val.to_string()),
+                key_id,
             })
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))

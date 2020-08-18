@@ -19,7 +19,7 @@ use crate::util::{self, SourceValue};
 
 pub use crate::jwe::alg::direct::DirectJweAlgorithm::Dir;
 
-pub use crate::jwe::alg::direct_key::DirectKeyJweAlgorithm::EcdhEs;
+pub use crate::jwe::alg::ecdh_es::DirectKeyJweAlgorithm::EcdhEs;
 
 pub use crate::jwe::alg::aes::AesJweAlgorithm::A128Kw;
 pub use crate::jwe::alg::aes::AesJweAlgorithm::A192Kw;
@@ -1061,6 +1061,8 @@ mod tests {
         let encrypter = alg.encrypter_from_slice(key)?;
 
         let jwe = jwe::serialize_compact(src_payload, &src_header, &encrypter)?;
+
+        println!("JWE: {}", jwe);
 
         Ok(())
     }

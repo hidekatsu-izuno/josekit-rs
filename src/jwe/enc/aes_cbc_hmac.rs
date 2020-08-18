@@ -72,10 +72,10 @@ impl JweContentEncryption for AesCbcHmacJweEncryption {
     }
 
     fn sign(&self, message: Vec<&[u8]>, mac_key: &[u8]) -> Result<Vec<u8>, JoseError> {
-        let message_digest = match self {
-            Self::A128CbcHS256 => MessageDigest::sha256(),
-            Self::A192CbcHS384 => MessageDigest::sha384(),
-            Self::A256CbcHS512 => MessageDigest::sha512(),
+        let (message_digest, tlen) = match self {
+            Self::A128CbcHS256 => (MessageDigest::sha256(), 16),
+            Self::A192CbcHS384 => (MessageDigest::sha384(), 24),
+            Self::A256CbcHS512 => (MessageDigest::sha512(), 32),
         };
 
         let pkey = (|| -> anyhow::Result<PKey<Private>> {
@@ -89,7 +89,8 @@ impl JweContentEncryption for AesCbcHmacJweEncryption {
             for seg in message {
                 signer.update(seg)?;
             }
-            let signature = signer.sign_to_vec()?;
+            let mut signature = signer.sign_to_vec()?;
+            signature.truncate(tlen);
             Ok(signature)
         })()
         .map_err(|err| JoseError::InvalidSignature(err))?;
