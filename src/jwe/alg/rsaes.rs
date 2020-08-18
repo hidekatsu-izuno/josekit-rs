@@ -18,7 +18,6 @@ pub enum RsaesJweAlgorithm {
     #[deprecated(note = "This algorithm is no longer recommended.")]
     Rsa1_5,
     /// RSAES OAEP using default parameters
-    #[deprecated(note = "This algorithm is no longer recommended.")]
     RsaOaep,
     /// RSAES OAEP using SHA-256 and MGF1 with SHA-256
     RsaOaep256,

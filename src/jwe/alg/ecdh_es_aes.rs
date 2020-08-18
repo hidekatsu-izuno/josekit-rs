@@ -32,7 +32,7 @@ impl JweAlgorithm for EcdhEsAesJweAlgorithm {
     }
 
     fn key_type(&self) -> &str {
-        "oct"
+        "OKP"
     }
 }
 

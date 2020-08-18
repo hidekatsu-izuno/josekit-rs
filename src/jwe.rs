@@ -19,7 +19,7 @@ use crate::util::{self, SourceValue};
 
 pub use crate::jwe::alg::direct::DirectJweAlgorithm::Dir;
 
-pub use crate::jwe::alg::ecdh_es::DirectKeyJweAlgorithm::EcdhEs;
+pub use crate::jwe::alg::ecdh_es::EcdhEsJweAlgorithm::EcdhEs;
 
 pub use crate::jwe::alg::aes::AesJweAlgorithm::A128Kw;
 pub use crate::jwe::alg::aes::AesJweAlgorithm::A192Kw;
@@ -39,7 +39,6 @@ pub use crate::jwe::alg::pbes2_hmac_aes::Pbes2HmacAesJweAlgorithm::Pbes2HS512A25
 
 #[allow(deprecated)]
 pub use crate::jwe::alg::rsaes::RsaesJweAlgorithm::Rsa1_5;
-#[allow(deprecated)]
 pub use crate::jwe::alg::rsaes::RsaesJweAlgorithm::RsaOaep;
 pub use crate::jwe::alg::rsaes::RsaesJweAlgorithm::RsaOaep256;
 
