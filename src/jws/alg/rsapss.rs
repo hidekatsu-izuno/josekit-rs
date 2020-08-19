@@ -382,7 +382,7 @@ impl RsaPssJwsAlgorithm {
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
-    fn digest(&self) -> &ObjectIdentifier {
+    fn hash_oid(&self) -> &ObjectIdentifier {
         match self {
             RsaPssJwsAlgorithm::PS256 => &OID_SHA256,
             RsaPssJwsAlgorithm::PS384 => &OID_SHA384,
@@ -471,7 +471,7 @@ impl RsaPssJwsAlgorithm {
                             Ok(Some(DerType::ObjectIdentifier)) => {
                                 match reader.to_object_identifier() {
                                     Ok(val) => {
-                                        if val != *self.digest() {
+                                        if val != *self.hash_oid() {
                                             return Ok(false);
                                         }
                                     }
@@ -522,7 +522,7 @@ impl RsaPssJwsAlgorithm {
                                 Ok(Some(DerType::ObjectIdentifier)) => {
                                     match reader.to_object_identifier() {
                                         Ok(val) => {
-                                            if val != *self.digest() {
+                                            if val != *self.hash_oid() {
                                                 return Ok(false);
                                             }
                                         }
@@ -579,7 +579,7 @@ impl RsaPssJwsAlgorithm {
                     {
                         builder.begin(DerType::Sequence);
                         {
-                            builder.append_object_identifier(self.digest());
+                            builder.append_object_identifier(self.hash_oid());
                         }
                         builder.end();
                     }
@@ -592,7 +592,7 @@ impl RsaPssJwsAlgorithm {
                             builder.append_object_identifier(&OID_MGF1);
                             builder.begin(DerType::Sequence);
                             {
-                                builder.append_object_identifier(self.digest());
+                                builder.append_object_identifier(self.hash_oid());
                             }
                             builder.end();
                         }
