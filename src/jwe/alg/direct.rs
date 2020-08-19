@@ -1,9 +1,9 @@
+use anyhow::bail;
+use serde_json::Value;
+
 use crate::jose::JoseError;
 use crate::jwe::{JweAlgorithm, JweDecrypter, JweEncrypter};
 use crate::jwk::Jwk;
-
-use anyhow::bail;
-use serde_json::Value;
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum DirectJweAlgorithm {
@@ -51,11 +51,13 @@ impl DirectJweAlgorithm {
                 Some(val) => bail!("A parameter k must be string type but {:?}", val),
                 None => bail!("A parameter k is required."),
             };
+            
+            let key_id = jwk.key_id().map(|val| val.to_string());
 
             Ok(DirectJweEncrypter {
                 algorithm: self.clone(),
                 content_encryption_key: k,
-                key_id: jwk.key_id().map(|val| val.to_string()),
+                key_id,
             })
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))

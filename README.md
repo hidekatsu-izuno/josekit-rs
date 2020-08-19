@@ -39,7 +39,7 @@ cargo build --release
 |ES512 |ECDSA using P-521 and SHA-512                 |              |
 |ES256K|ECDSA using secp256k1 curve and SHA-256       |              |
 |EdDSA |EdDSA signature algorithms                    |Ed25519, Ed448|
-|None  |No digital signature or MAC performed         |              |
+|none  |No digital signature or MAC performed         |              |
 
 ## Supported key formats for RSA/RSA-PSS/ECDSA/EdDSA sigining
 
@@ -256,21 +256,21 @@ let (payload, header) = jwt::decode_with_verifier(&jwt, &verifier)?;
 
 EdDSA is used to verify the integrity of a message by two keys: public and private.
 Types of EdDSA algorithms is only "EdDSA".
-But it has two curve types: ED25519, ED448.
+But it has two curve types: Ed25519, Ed448.
 
 You can generate the keys by executing openssl command.
 
 ```sh
 # Generate a new private key
 
-# for ED25519
-openssl genpkey -algorithm ED25519 -out ED25519_private.pem
+# for Ed25519
+openssl genpkey -algorithm ED25519 -out Ed25519_private.pem
 
-# for ED448
-openssl genpkey -algorithm ED448 -out ED448_private.pem
+# for Ed448
+openssl genpkey -algorithm ED448 -out Ed448_private.pem
 
 # Generate a public key from the private key.
-openssl pkey -in ECDSA_private.pem -pubout -outform PEM -out ECDSA_public.pem
+openssl pkey -in Ed25519_private.pem -pubout -outform PEM -out Ed25519_public.pem
 ```
 
 ```rust
@@ -284,12 +284,12 @@ let mut payload = JwtPayload::new();
 payload.set_subject("subject");
 
 // Signing JWT
-let private_key = load_from_file("EdDSA_private.pem")?;
+let private_key = load_from_file("Ed25519_private.pem")?;
 let signer = EdDSA.signer_from_pem(&private_key)?;
 let jwt = jwt::encode_with_signer(&payload, &header, &signer)?;
 
 // Verifing JWT
-let public_key = load_from_file("EdDSA_public.pem")?;
+let public_key = load_from_file("Ed25519_public.pem")?;
 let verifier = EdDSA.verifier_from_pem(&public_key)?;
 let (payload, header) = jwt::decode_with_verifier(&jwt, &verifier)?;
 ```

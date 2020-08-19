@@ -21,6 +21,10 @@ pub enum RsaesJweAlgorithm {
     RsaOaep,
     /// RSAES OAEP using SHA-256 and MGF1 with SHA-256
     RsaOaep256,
+    /// RSAES OAEP using SHA-384 and MGF1 with SHA-384
+    RsaOaep384,
+    /// RSAES OAEP using SHA-512 and MGF1 with SHA-512
+    RsaOaep512,
 }
 
 impl RsaesJweAlgorithm {
@@ -36,9 +40,13 @@ impl RsaesJweAlgorithm {
                 Some(val) => bail!("A parameter use must be enc: {}", val),
             }
             match jwk.key_operations() {
-                Some(vals) if vals.iter().any(|e| e == "encrypt") => {}
-                None => {}
-                _ => bail!("A parameter key_ops must contains encrypt."),
+                Some(vals) => {
+                    if !vals.iter().any(|e| e == "encrypt")
+                        || !vals.iter().any(|e| e == "wrapKey") {
+                        bail!("A parameter key_ops must contains encrypt and wrapKey.");
+                    }
+                },
+                None => {},
             }
             match jwk.algorithm() {
                 Some(val) if val == self.name() => {}
@@ -126,9 +134,13 @@ impl RsaesJweAlgorithm {
                 Some(val) => bail!("A parameter use must be sig: {}", val),
             }
             match jwk.key_operations() {
-                Some(vals) if vals.iter().any(|e| e == "verify") => {}
-                None => {}
-                _ => bail!("A parameter key_ops must contains verify."),
+                Some(vals) => {
+                    if !vals.iter().any(|e| e == "decrypt")
+                        || !vals.iter().any(|e| e == "unwrapKey") {
+                        bail!("A parameter key_ops must contains decrypt and unwrapKey.");
+                    }
+                },
+                None => {},
             }
             match jwk.algorithm() {
                 Some(val) if val == self.name() => {}
@@ -202,6 +214,8 @@ impl JweAlgorithm for RsaesJweAlgorithm {
             Self::Rsa1_5 => "RSA1_5",
             Self::RsaOaep => "RSA-OAEP",
             Self::RsaOaep256 => "RSA-OAEP-256",
+            Self::RsaOaep384 => "RSA-OAEP-384",
+            Self::RsaOaep512 => "RSA-OAEP-512",
         }
     }
 

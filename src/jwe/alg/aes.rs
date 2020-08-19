@@ -1,3 +1,6 @@
+use anyhow::bail;
+use serde_json::Value;
+
 use crate::jose::JoseError;
 use crate::jwe::{JweAlgorithm, JweDecrypter, JweEncrypter};
 use crate::jwk::Jwk;
@@ -14,11 +17,88 @@ pub enum AesJweAlgorithm {
 
 impl AesJweAlgorithm {
     pub fn encrypter_from_jwk(&self, jwk: &Jwk) -> Result<AesJweEncrypter, JoseError> {
-        todo!();
+        (|| -> anyhow::Result<AesJweEncrypter> {
+            match jwk.key_type() {
+                val if val == self.key_type() => {}
+                val => bail!("A parameter kty must be {}: {}", self.key_type(), val),
+            }
+            match jwk.key_use() {
+                Some(val) if val == "enc" => {}
+                None => {}
+                Some(val) => bail!("A parameter use must be enc: {}", val),
+            }
+            match jwk.key_operations() {
+                Some(vals) => {
+                    if !vals.iter().any(|e| e == "encrypt")
+                        || !vals.iter().any(|e| e == "wrapKey") {
+                        bail!("A parameter key_ops must contains encrypt and wrapKey.");
+                    }
+                },
+                None => {},
+            }
+            match jwk.algorithm() {
+                Some(val) if val == self.name() => {}
+                None => {}
+                Some(val) => bail!("A parameter alg must be {} but {}", self.name(), val),
+            }
+            let k = match jwk.parameter("k") {
+                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
+                Some(val) => bail!("A parameter k must be string type but {:?}", val),
+                None => bail!("A parameter k is required."),
+            };
+
+            let key_id = jwk.key_id().map(|val| val.to_string());
+
+            Ok(AesJweEncrypter {
+                algorithm: self.clone(),
+                private_key: k,
+                key_id,
+            })
+        })()
+        .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
     pub fn decrypter_from_jwk(&self, jwk: &Jwk) -> Result<AesJweDecrypter, JoseError> {
-        todo!();
+        (|| -> anyhow::Result<AesJweDecrypter> {
+            match jwk.key_type() {
+                val if val == self.key_type() => {}
+                val => bail!("A parameter kty must be {}: {}", self.key_type(), val),
+            }
+            match jwk.key_use() {
+                Some(val) if val == "enc" => {}
+                None => {}
+                Some(val) => bail!("A parameter use must be enc: {}", val),
+            }
+            match jwk.key_operations() {
+                Some(vals) => {
+                    if !vals.iter().any(|e| e == "decrypt")
+                        || !vals.iter().any(|e| e == "unwrapKey") {
+                        bail!("A parameter key_ops must contains decrypt and unwrapKey.");
+                    }
+                },
+                None => {},
+            }
+            match jwk.algorithm() {
+                Some(val) if val == self.name() => {}
+                None => {}
+                Some(val) => bail!("A parameter alg must be {} but {}", self.name(), val),
+            }
+
+            let k = match jwk.parameter("k") {
+                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
+                Some(val) => bail!("A parameter k must be string type but {:?}", val),
+                None => bail!("A parameter k is required."),
+            };
+
+            let key_id = jwk.key_id().map(|val| val.to_string());
+
+            Ok(AesJweDecrypter {
+                algorithm: self.clone(),
+                private_key: k,
+                key_id,
+            })
+        })()
+        .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 }
 
@@ -39,6 +119,7 @@ impl JweAlgorithm for AesJweAlgorithm {
 #[derive(Debug, Clone)]
 pub struct AesJweEncrypter {
     algorithm: AesJweAlgorithm,
+    private_key: Vec<u8>,
     key_id: Option<String>,
 }
 
@@ -74,6 +155,7 @@ impl JweEncrypter for AesJweEncrypter {
 #[derive(Debug, Clone)]
 pub struct AesJweDecrypter {
     algorithm: AesJweAlgorithm,
+    private_key: Vec<u8>,
     key_id: Option<String>,
 }
 
