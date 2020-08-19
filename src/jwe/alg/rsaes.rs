@@ -1,6 +1,7 @@
 use anyhow::bail;
 use once_cell::sync::Lazy;
-use openssl::pkey::{PKey, Private, Public};
+use openssl::pkey::{HasPublic, PKey, Private, Public};
+use openssl::rsa::Padding;
 use serde_json::Value;
 
 use crate::der::oid::ObjectIdentifier;
@@ -44,6 +45,66 @@ impl RsaesJweAlgorithm {
                     if !vals.iter().any(|e| e == "encrypt")
                         || !vals.iter().any(|e| e == "wrapKey") {
                         bail!("A parameter key_ops must contains encrypt and wrapKey.");
+                    }
+                },
+                None => {},
+            }
+            match jwk.algorithm() {
+                Some(val) if val == self.name() => {}
+                None => {}
+                Some(val) => bail!("A parameter alg must be {} but {}", self.name(), val),
+            }
+
+            let n = match jwk.parameter("n") {
+                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
+                Some(_) => bail!("A parameter n must be a string."),
+                None => bail!("A parameter n is required."),
+            };
+            let e = match jwk.parameter("e") {
+                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
+                Some(_) => bail!("A parameter e must be a string."),
+                None => bail!("A parameter e is required."),
+            };
+
+            let mut builder = DerBuilder::new();
+            builder.begin(DerType::Sequence);
+            {
+                builder.append_integer_from_be_slice(&n, false); // n
+                builder.append_integer_from_be_slice(&e, false); // e
+            }
+            builder.end();
+
+            let pkcs8 = self.to_pkcs8(&builder.build(), true);
+            let public_key = PKey::public_key_from_der(&pkcs8)?;
+            let key_id = jwk.key_id().map(|val| val.to_string());
+
+            self.check_key(&public_key)?;
+
+            Ok(RsaesJweEncrypter {
+                algorithm: self.clone(),
+                public_key,
+                key_id,
+            })
+        })()
+        .map_err(|err| JoseError::InvalidKeyFormat(err))
+    }
+
+    pub fn decrypter_from_jwk(&self, jwk: &Jwk) -> Result<RsaesJweDecrypter, JoseError> {
+        (|| -> anyhow::Result<RsaesJweDecrypter> {
+            match jwk.key_type() {
+                val if val == self.key_type() => {}
+                val => bail!("A parameter kty must be {}: {}", self.key_type(), val),
+            }
+            match jwk.key_use() {
+                Some(val) if val == "sig" => {}
+                None => {}
+                Some(val) => bail!("A parameter use must be sig: {}", val),
+            }
+            match jwk.key_operations() {
+                Some(vals) => {
+                    if !vals.iter().any(|e| e == "decrypt")
+                        || !vals.iter().any(|e| e == "unwrapKey") {
+                        bail!("A parameter key_ops must contains decrypt and unwrapKey.");
                     }
                 },
                 None => {},
@@ -113,7 +174,9 @@ impl RsaesJweAlgorithm {
             let private_key = PKey::private_key_from_der(&pkcs8)?;
             let key_id = jwk.key_id().map(|val| val.to_string());
 
-            Ok(RsaesJweEncrypter {
+            self.check_key(&private_key)?;
+
+            Ok(RsaesJweDecrypter {
                 algorithm: self.clone(),
                 private_key,
                 key_id,
@@ -122,62 +185,14 @@ impl RsaesJweAlgorithm {
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
-    pub fn decrypter_from_jwk(&self, jwk: &Jwk) -> Result<RsaesJweDecrypter, JoseError> {
-        (|| -> anyhow::Result<RsaesJweDecrypter> {
-            match jwk.key_type() {
-                val if val == self.key_type() => {}
-                val => bail!("A parameter kty must be {}: {}", self.key_type(), val),
-            }
-            match jwk.key_use() {
-                Some(val) if val == "sig" => {}
-                None => {}
-                Some(val) => bail!("A parameter use must be sig: {}", val),
-            }
-            match jwk.key_operations() {
-                Some(vals) => {
-                    if !vals.iter().any(|e| e == "decrypt")
-                        || !vals.iter().any(|e| e == "unwrapKey") {
-                        bail!("A parameter key_ops must contains decrypt and unwrapKey.");
-                    }
-                },
-                None => {},
-            }
-            match jwk.algorithm() {
-                Some(val) if val == self.name() => {}
-                None => {}
-                Some(val) => bail!("A parameter alg must be {} but {}", self.name(), val),
-            }
+    fn check_key<T: HasPublic>(&self, pkey: &PKey<T>) -> anyhow::Result<()> {
+        let rsa = pkey.rsa()?;
 
-            let n = match jwk.parameter("n") {
-                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
-                Some(_) => bail!("A parameter n must be a string."),
-                None => bail!("A parameter n is required."),
-            };
-            let e = match jwk.parameter("e") {
-                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
-                Some(_) => bail!("A parameter e must be a string."),
-                None => bail!("A parameter e is required."),
-            };
+        if rsa.size() * 8 < 2048 {
+            bail!("key length must be 2048 or more.");
+        }
 
-            let mut builder = DerBuilder::new();
-            builder.begin(DerType::Sequence);
-            {
-                builder.append_integer_from_be_slice(&n, false); // n
-                builder.append_integer_from_be_slice(&e, false); // e
-            }
-            builder.end();
-
-            let pkcs8 = self.to_pkcs8(&builder.build(), true);
-            let public_key = PKey::public_key_from_der(&pkcs8)?;
-            let key_id = jwk.key_id().map(|val| val.to_string());
-
-            Ok(RsaesJweDecrypter {
-                algorithm: self.clone(),
-                public_key,
-                key_id,
-            })
-        })()
-        .map_err(|err| JoseError::InvalidKeyFormat(err))
+        Ok(())
     }
 
     fn to_pkcs8(&self, input: &[u8], is_public: bool) -> Vec<u8> {
@@ -205,6 +220,17 @@ impl RsaesJweAlgorithm {
 
         builder.build()
     }
+
+    #[allow(deprecated)]
+    fn padding(&self) -> Padding {
+        match self {
+            Self::Rsa1_5 => Padding::PKCS1,
+            Self::RsaOaep => Padding::PKCS1_OAEP,
+            Self::RsaOaep256 => Padding::PKCS1_OAEP,
+            Self::RsaOaep384 => Padding::PKCS1_OAEP,
+            Self::RsaOaep512 => Padding::PKCS1_OAEP,
+        }
+    }
 }
 
 impl JweAlgorithm for RsaesJweAlgorithm {
@@ -227,13 +253,87 @@ impl JweAlgorithm for RsaesJweAlgorithm {
 #[derive(Debug, Clone)]
 pub struct RsaesJweEncrypter {
     algorithm: RsaesJweAlgorithm,
-    private_key: PKey<Private>,
+    public_key: PKey<Public>,
     key_id: Option<String>,
+}
+
+impl JweEncrypter for RsaesJweEncrypter {
+    fn algorithm(&self) -> &dyn JweAlgorithm {
+        &self.algorithm
+    }
+
+    fn key_id(&self) -> Option<&str> {
+        match &self.key_id {
+            Some(val) => Some(val.as_ref()),
+            None => None,
+        }
+    }
+
+    fn set_key_id(&mut self, key_id: &str) {
+        self.key_id = Some(key_id.to_string());
+    }
+
+    fn remove_key_id(&mut self) {
+        self.key_id = None;
+    }
+
+    fn direct_content_encryption_key(&self) -> Option<&[u8]> {
+        None
+    }
+
+    fn encrypt(&self, message: &[u8]) -> Result<Vec<u8>, JoseError> {
+        let rsa = self.public_key.rsa().unwrap();
+        let padding = self.algorithm.padding();
+
+        (|| -> anyhow::Result<Vec<u8>> {
+            let mut encrypted_message = Vec::new();
+            let _len = rsa.public_encrypt(message, &mut encrypted_message, padding)?;
+            Ok(encrypted_message)
+        })()
+        .map_err(|err| JoseError::InvalidKeyFormat(err))
+    }
 }
 
 #[derive(Debug, Clone)]
 pub struct RsaesJweDecrypter {
     algorithm: RsaesJweAlgorithm,
-    public_key: PKey<Public>,
+    private_key: PKey<Private>,
     key_id: Option<String>,
+}
+
+impl JweDecrypter for RsaesJweDecrypter {
+    fn algorithm(&self) -> &dyn JweAlgorithm {
+        &self.algorithm
+    }
+
+    fn key_id(&self) -> Option<&str> {
+        match &self.key_id {
+            Some(val) => Some(val.as_ref()),
+            None => None,
+        }
+    }
+
+    fn set_key_id(&mut self, key_id: &str) {
+        self.key_id = Some(key_id.to_string());
+    }
+
+    fn remove_key_id(&mut self) {
+        self.key_id = None;
+    }
+
+    fn direct_content_encryption_key(&self) -> Option<&[u8]> {
+        None
+    }
+
+    fn decrypt(&self, data: &[u8]) -> Result<Vec<u8>, JoseError> {
+        let rsa = self.private_key.rsa().unwrap();
+        let padding = self.algorithm.padding();
+
+        (|| -> anyhow::Result<Vec<u8>> {
+            let mut message = Vec::new();
+            let _len = rsa.private_decrypt(data, &mut message, padding)?;
+            Ok(message)
+        })()
+        .map_err(|err| JoseError::InvalidKeyFormat(err))
+    }
 }
