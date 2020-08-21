@@ -126,6 +126,10 @@ impl JweAlgorithm for DirectJweAlgorithm {
     fn key_type(&self) -> &str {
         "oct"
     }
+        
+    fn box_clone(&self) -> Box<dyn JweAlgorithm> {
+        Box::new(self.clone())
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -162,6 +166,10 @@ impl JweEncrypter for DirectJweEncrypter {
     fn encrypt(&self, _message: &[u8]) -> Result<Vec<u8>, JoseError> {
         unreachable!("This algorithm must not encrypt.");
     }
+    
+    fn box_clone(&self) -> Box<dyn JweEncrypter> {
+        Box::new(self.clone())
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -197,5 +205,9 @@ impl JweDecrypter for DirectJweDecrypter {
 
     fn decrypt(&self, _data: &[u8]) -> Result<Vec<u8>, JoseError> {
         unreachable!("This algorithm must not encrypt.");
+    }
+        
+    fn box_clone(&self) -> Box<dyn JweDecrypter> {
+        Box::new(self.clone())
     }
 }

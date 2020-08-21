@@ -3,10 +3,10 @@ pub mod enc;
 pub mod zip;
 
 use std::cmp::Eq;
-use std::collections::BTreeSet;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeSet, BTreeMap, HashMap};
 use std::fmt::{Debug, Display};
 use std::io;
+use std::convert::Into;
 
 use anyhow::bail;
 use once_cell::sync::Lazy;
@@ -315,17 +315,19 @@ impl JweContext {
     /// # Arguments
     ///
     /// * `protected` - The JWE protected header claims.
-    /// * `header` - The JWE unprotected header claims.
+    /// * `unprotected` - The JWE unprotected header claims.
+    /// * `header` - The JWE unprotected header claims per recipient.
     /// * `payload` - The payload data.
     /// * `encrypter` - The JWS encrypter.
     pub fn serialize_flattened_json(
         &self,
         payload: &[u8],
         protected: Option<&JweHeader>,
+        unprotected: Option<&JweHeader>,
         header: Option<&JweHeader>,
         encrypter: &dyn JweEncrypter,
     ) -> Result<String, JoseError> {
-        self.serialize_flattened_json_with_selector(payload, protected, header, |_header| {
+        self.serialize_flattened_json_with_selector(payload, protected, unprotected, header, |_header| {
             Some(encrypter)
         })
     }
@@ -336,12 +338,14 @@ impl JweContext {
     ///
     /// * `payload` - The payload data.
     /// * `protected` - The JWS protected header claims.
-    /// * `header` - The JWS unprotected header claims.
+    /// * `unprotected` - The JWE unprotected header claims.
+    /// * `header` - The JWE unprotected header claims per recipient.
     /// * `selector` - a function for selecting the encrypting algorithm.
     pub fn serialize_flattened_json_with_selector<'a, F>(
         &self,
         payload: &[u8],
         protected: Option<&JweHeader>,
+        unprotected: Option<&JweHeader>,
         header: Option<&JweHeader>,
         selector: F,
     ) -> Result<String, JoseError>
@@ -349,7 +353,137 @@ impl JweContext {
         F: Fn(&JweHeader) -> Option<&'a dyn JweEncrypter>,
     {
         (|| -> anyhow::Result<String> {
-            unimplemented!("JWE is not supported yet.");
+            let mut protected_map = if let Some(val) = protected {
+                val.claims_set().clone()
+            } else {
+                Map::new()
+            };
+
+            let mut map = protected_map.clone();
+
+            if let Some(val) = unprotected {
+                for (key, value) in val.claims_set() {
+                    if map.contains_key(key) {
+                        bail!("Duplicate key exists: {}", key);
+                    }
+                    map.insert(key.clone(), value.clone());
+                }
+            }
+
+            if let Some(val) = header {
+                for  (key, value) in val.claims_set() {
+                    if map.contains_key(key) {
+                        bail!("Duplicate key exists: {}", key);
+                    }
+                    map.insert(key.clone(), value.clone());
+                }
+            }
+
+            let combined = JweHeader::from_map(map)?;
+            let encrypter = match selector(&combined) {
+                Some(val) => val,
+                None => bail!("A encrypter is not found."),
+            };
+
+            let cencryption = match combined.content_encryption() {
+                Some(enc) => match self.get_content_encryption(enc) {
+                    Some(val) => val,
+                    None => bail!("A content encryption is not registered: {}", enc),
+                },
+                None => bail!("A enc header claim is required."),
+            };
+
+            let compression = match combined.compression() {
+                Some(zip) => match self.get_compression(zip) {
+                    Some(val) => Some(val),
+                    None => bail!("A compression algorithm is not registered: {}", zip),
+                },
+                None => None,
+            };
+
+            protected_map.insert(
+                "alg".to_string(),
+                Value::String(encrypter.algorithm().name().to_string()),
+            );
+            if let Some(key_id) = encrypter.key_id() {
+                protected_map.insert("kid".to_string(), Value::String(key_id.to_string()));
+            }
+            let protected_bytes = serde_json::to_vec(&protected_map)?;
+
+            let compressed;
+            let content = if let Some(compression) = compression {
+                compressed = compression.compress(payload)?;
+                &compressed
+            } else {
+                payload
+            };
+
+            let mut iv = vec![0; cencryption.iv_len()];
+            rand::rand_bytes(&mut iv)?;
+
+            let mut generated_key;
+            let (cencryption_key, encrypted_key) = match encrypter.direct_content_encryption_key() {
+                Some(val) => {
+                    let expected_len = cencryption.content_encryption_key_len();
+                    if val.len() != expected_len {
+                        bail!(
+                            "The length of content encryption key must be {}: {}",
+                            expected_len,
+                            val.len()
+                        );
+                    }
+                    (val, None)
+                }
+                None => {
+                    generated_key = vec![0; cencryption.content_encryption_key_len()];
+                    rand::rand_bytes(&mut generated_key)?;
+                    let encrypted_key = encrypter.encrypt(&generated_key)?;
+                    (generated_key.as_slice(), Some(encrypted_key))
+                }
+            };
+
+            let (ciphertext, tag) = cencryption.encrypt(cencryption_key, &iv, content, &protected_bytes)?;
+
+            let mut json = String::new();
+            json.push_str("{\"protected\":\"");
+            base64::encode_config_buf(&protected_bytes, base64::URL_SAFE_NO_PAD, &mut json);
+            json.push_str("\"");
+
+            if let Some(val) = unprotected {
+                let unprotected = serde_json::to_string(val.claims_set())?;
+                json.push_str(",\"unprotected\":");
+                json.push_str(&unprotected);
+            }
+
+            if let Some(val) = header {
+                let header = serde_json::to_string(val.claims_set())?;
+                json.push_str(",\"header\":");
+                json.push_str(&header);
+            }
+
+            json.push_str(",\"encrypted_key\":\"");
+            if let Some(val) = encrypted_key {
+                base64::encode_config_buf(&val, base64::URL_SAFE_NO_PAD, &mut json);
+            }
+            json.push_str("\"");
+
+            json.push_str(",\"aad\":\"");
+            base64::encode_config_buf(&protected_bytes, base64::URL_SAFE_NO_PAD, &mut json);
+            json.push_str("\"");
+
+            json.push_str(",\"iv\":\"");
+            base64::encode_config_buf(&iv, base64::URL_SAFE_NO_PAD, &mut json);
+            json.push_str("\"");
+
+            json.push_str(",\"ciphertext\":\"");
+            base64::encode_config_buf(&ciphertext, base64::URL_SAFE_NO_PAD, &mut json);
+            json.push_str("\"");
+
+            json.push_str(",\"tag\":\"");
+            base64::encode_config_buf(&tag, base64::URL_SAFE_NO_PAD, &mut json);
+            json.push_str("\"}");
+
+            Ok(json)
         })()
         .map_err(|err| match err.downcast::<JoseError>() {
             Ok(err) => err,
@@ -593,10 +727,11 @@ where
 pub fn serialize_flattened_json(
     payload: &[u8],
     protected: Option<&JweHeader>,
+    unprotected: Option<&JweHeader>,
     header: Option<&JweHeader>,
     encrypter: &dyn JweEncrypter,
 ) -> Result<String, JoseError> {
-    DEFAULT_CONTEXT.serialize_flattened_json(payload, protected, header, encrypter)
+    DEFAULT_CONTEXT.serialize_flattened_json(payload, protected, unprotected, header, encrypter)
 }
 
 /// Return a representation of the data that is formatted by flatted json serialization.
@@ -610,13 +745,14 @@ pub fn serialize_flattened_json(
 pub fn serialize_flattened_json_with_selector<'a, F>(
     payload: &[u8],
     protected: Option<&JweHeader>,
+    unprotected: Option<&JweHeader>,
     header: Option<&JweHeader>,
     selector: F,
 ) -> Result<String, JoseError>
 where
     F: Fn(&JweHeader) -> Option<&'a dyn JweEncrypter>,
 {
-    DEFAULT_CONTEXT.serialize_flattened_json_with_selector(payload, protected, header, selector)
+    DEFAULT_CONTEXT.serialize_flattened_json_with_selector(payload, protected, unprotected, header, selector)
 }
 
 /// Deserialize the input that is formatted by compact serialization.
@@ -1079,6 +1215,12 @@ impl JoseHeader for JweHeader {
     }
 }
 
+impl AsRef<Map<String, Value>> for JweHeader {
+    fn as_ref(&self) -> &Map<String, Value> {
+        &self.claims
+    }  
+}
+
 impl Into<Map<String, Value>> for JweHeader {
     fn into(self) -> Map<String, Value> {
         self.claims
@@ -1092,15 +1234,31 @@ impl Display for JweHeader {
     }
 }
 
-pub trait JweAlgorithm {
+pub trait JweAlgorithm: Debug + Send + Sync {
     /// Return the "alg" (algorithm) header parameter value of JWE.
     fn name(&self) -> &str;
 
     /// Return the "kty" (key type) header parameter value of JWK.
     fn key_type(&self) -> &str;
+
+    fn box_clone(&self) -> Box<dyn JweAlgorithm>;
 }
 
-pub trait JweEncrypter {
+impl PartialEq for Box<dyn JweAlgorithm> {
+    fn eq(&self, other: &Self) -> bool {
+        self == other
+    }
+}
+
+impl Eq for Box<dyn JweAlgorithm> {}
+
+impl Clone for Box<dyn JweAlgorithm> {
+    fn clone(&self) -> Self {
+        self.box_clone()
+    }
+}
+
+pub trait JweEncrypter: Debug + Send + Sync {
     /// Return the source algorithm instance.
     fn algorithm(&self) -> &dyn JweAlgorithm;
 
@@ -1126,9 +1284,17 @@ pub trait JweEncrypter {
     ///
     /// * `message` - the message
     fn encrypt(&self, message: &[u8]) -> Result<Vec<u8>, JoseError>;
+
+    fn box_clone(&self) -> Box<dyn JweEncrypter>;
 }
 
-pub trait JweDecrypter {
+impl Clone for Box<dyn JweEncrypter> {
+    fn clone(&self) -> Self {
+        self.box_clone()
+    }
+}
+
+pub trait JweDecrypter: Debug + Send + Sync {
     /// Return the source algorithm instance.
     fn algorithm(&self) -> &dyn JweAlgorithm;
 
@@ -1155,6 +1321,14 @@ pub trait JweDecrypter {
     ///
     /// * `data` - The encrypted data.
     fn decrypt(&self, data: &[u8]) -> Result<Vec<u8>, JoseError>;
+    
+    fn box_clone(&self) -> Box<dyn JweDecrypter>;
+}
+
+impl Clone for Box<dyn JweDecrypter> {
+    fn clone(&self) -> Self {
+        self.box_clone()
+    }
 }
 
 pub trait JweContentEncryption: Debug + Send + Sync {

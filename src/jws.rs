@@ -2,7 +2,7 @@ pub mod alg;
 
 use std::collections::BTreeSet;
 use std::collections::HashMap;
-use std::fmt::Display;
+use std::fmt::{ Display, Debug };
 
 use anyhow::bail;
 use once_cell::sync::Lazy;
@@ -270,7 +270,7 @@ impl JwsContext {
     {
         (|| -> anyhow::Result<String> {
             let mut b64 = true;
-
+            
             let mut protected_map = if let Some(val) = protected {
                 if let Some(vals) = val.critical() {
                     if vals.iter().any(|e| e == "b64") {
@@ -285,15 +285,18 @@ impl JwsContext {
                 Map::new()
             };
 
+            let mut map = protected_map.clone();
+
             if let Some(val) = header {
-                for key in val.claims_set().keys() {
-                    if protected_map.contains_key(key) {
+                for (key, value) in val.claims_set() {
+                    if map.contains_key(key) {
                         bail!("Duplicate key exists: {}", key);
                     }
+                    map.insert(key.clone(), value.clone());
                 }
             }
 
-            let combined = JwsHeader::from_map(protected_map.clone())?;
+            let combined = JwsHeader::from_map(map)?;
             let signer = match selector(&combined) {
                 Some(val) => val,
                 None => bail!("A signer is not found."),
@@ -1317,6 +1320,12 @@ impl JoseHeader for JwsHeader {
     }
 }
 
+impl AsRef<Map<String, Value>> for JwsHeader {
+    fn as_ref(&self) -> &Map<String, Value> {
+        &self.claims
+    }  
+}
+
 impl Into<Map<String, Value>> for JwsHeader {
     fn into(self) -> Map<String, Value> {
         self.claims
@@ -1330,15 +1339,31 @@ impl Display for JwsHeader {
     }
 }
 
-pub trait JwsAlgorithm {
+pub trait JwsAlgorithm: Debug + Send + Sync {
     /// Return the "alg" (algorithm) header parameter value of JWS.
     fn name(&self) -> &str;
 
     /// Return the "kty" (key type) header parameter value of JWK.
     fn key_type(&self) -> &str;
+    
+    fn box_clone(&self) -> Box<dyn JwsAlgorithm>;
 }
 
-pub trait JwsSigner {
+impl PartialEq for Box<dyn JwsAlgorithm> {
+    fn eq(&self, other: &Self) -> bool {
+        self == other
+    }
+}
+
+impl Eq for Box<dyn JwsAlgorithm> {}
+
+impl Clone for Box<dyn JwsAlgorithm> {
+    fn clone(&self) -> Self {
+        self.box_clone()
+    }
+}
+
+pub trait JwsSigner: Debug + Send + Sync {
     /// Return the source algrithm instance.
     fn algorithm(&self) -> &dyn JwsAlgorithm;
 
@@ -1365,6 +1390,14 @@ pub trait JwsSigner {
     ///
     /// * `message` - The message data to sign.
     fn sign(&self, message: &[u8]) -> Result<Vec<u8>, JoseError>;
+        
+    fn box_clone(&self) -> Box<dyn JwsSigner>;
+}
+
+impl Clone for Box<dyn JwsSigner> {
+    fn clone(&self) -> Self {
+        self.box_clone()
+    }
 }
 
 pub struct JwsMultiSigner<'a> {
@@ -1409,7 +1442,7 @@ impl<'a> JwsMultiSigner<'a> {
     }
 }
 
-pub trait JwsVerifier {
+pub trait JwsVerifier: Debug + Send + Sync {
     /// Return the source algrithm instance.
     fn algorithm(&self) -> &dyn JwsAlgorithm;
 
@@ -1434,7 +1467,16 @@ pub trait JwsVerifier {
     /// * `message` - a message data to verify.
     /// * `signature` - a signature data.
     fn verify(&self, message: &[u8], signature: &[u8]) -> Result<(), JoseError>;
+
+    fn box_clone(&self) -> Box<dyn JwsVerifier>;
 }
+
+impl Clone for Box<dyn JwsVerifier> {
+    fn clone(&self) -> Self {
+        self.box_clone()
+    }
+}
+
 
 #[cfg(test)]
 mod tests {

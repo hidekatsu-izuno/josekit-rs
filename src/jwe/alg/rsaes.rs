@@ -316,6 +316,10 @@ impl JweAlgorithm for RsaesJweAlgorithm {
     fn key_type(&self) -> &str {
         "RSA"
     }
+        
+    fn box_clone(&self) -> Box<dyn JweAlgorithm> {
+        Box::new(self.clone())
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -360,6 +364,10 @@ impl JweEncrypter for RsaesJweEncrypter {
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
+
+    fn box_clone(&self) -> Box<dyn JweEncrypter> {
+        Box::new(self.clone())
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -403,5 +411,9 @@ impl JweDecrypter for RsaesJweDecrypter {
             Ok(message)
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
+    }
+    
+    fn box_clone(&self) -> Box<dyn JweDecrypter> {
+        Box::new(self.clone())
     }
 }

@@ -478,6 +478,10 @@ impl JwsAlgorithm for EcdsaJwsAlgorithm {
     fn key_type(&self) -> &str {
         "EC"
     }
+
+    fn box_clone(&self) -> Box<dyn JwsAlgorithm> {
+        Box::new(self.clone())
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -648,6 +652,10 @@ impl JwsSigner for EcdsaJwsSigner {
         })()
         .map_err(|err| JoseError::InvalidSignature(err))
     }
+    
+    fn box_clone(&self) -> Box<dyn JwsSigner> {
+        Box::new(self.clone())
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -701,6 +709,10 @@ impl JwsVerifier for EcdsaJwsVerifier {
             Ok(())
         })()
         .map_err(|err| JoseError::InvalidSignature(err))
+    }
+    
+    fn box_clone(&self) -> Box<dyn JwsVerifier> {
+        Box::new(self.clone())
     }
 }
 

@@ -114,6 +114,10 @@ impl JweAlgorithm for AesGcmJweAlgorithm {
     fn key_type(&self) -> &str {
         "oct"
     }
+        
+    fn box_clone(&self) -> Box<dyn JweAlgorithm> {
+        Box::new(self.clone())
+    }
 }
 
 #[derive(Debug, Clone)]

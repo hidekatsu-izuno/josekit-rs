@@ -114,6 +114,10 @@ impl JweAlgorithm for AesJweAlgorithm {
     fn key_type(&self) -> &str {
         "oct"
     }
+    
+    fn box_clone(&self) -> Box<dyn JweAlgorithm> {
+        Box::new(self.clone())
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -150,6 +154,10 @@ impl JweEncrypter for AesJweEncrypter {
     fn encrypt(&self, message: &[u8]) -> Result<Vec<u8>, JoseError> {
         todo!();
     }
+    
+    fn box_clone(&self) -> Box<dyn JweEncrypter> {
+        Box::new(self.clone())
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -185,5 +193,9 @@ impl JweDecrypter for AesJweDecrypter {
 
     fn decrypt(&self, data: &[u8]) -> Result<Vec<u8>, JoseError> {
         todo!();
+    }
+        
+    fn box_clone(&self) -> Box<dyn JweDecrypter> {
+        Box::new(self.clone())
     }
 }

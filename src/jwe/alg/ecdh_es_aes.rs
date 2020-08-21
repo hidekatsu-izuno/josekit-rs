@@ -34,6 +34,10 @@ impl JweAlgorithm for EcdhEsAesJweAlgorithm {
     fn key_type(&self) -> &str {
         "OKP"
     }
+        
+    fn box_clone(&self) -> Box<dyn JweAlgorithm> {
+        Box::new(self.clone())
+    }
 }
 
 #[derive(Debug, Clone)]

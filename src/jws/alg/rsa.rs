@@ -469,6 +469,10 @@ impl JwsAlgorithm for RsaJwsAlgorithm {
     fn key_type(&self) -> &str {
         "RSA"
     }
+    
+    fn box_clone(&self) -> Box<dyn JwsAlgorithm> {
+        Box::new(self.clone())
+    }
 }
 
 pub struct RsaKeyPair {
@@ -582,6 +586,7 @@ impl KeyPair for RsaKeyPair {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct RsaJwsSigner {
     algorithm: RsaJwsAlgorithm,
     private_key: PKey<Private>,
@@ -627,8 +632,13 @@ impl JwsSigner for RsaJwsSigner {
         })()
         .map_err(|err| JoseError::InvalidSignature(err))
     }
+        
+    fn box_clone(&self) -> Box<dyn JwsSigner> {
+        Box::new(self.clone())
+    }
 }
 
+#[derive(Debug, Clone)]
 pub struct RsaJwsVerifier {
     algorithm: RsaJwsAlgorithm,
     public_key: PKey<Public>,
@@ -669,6 +679,10 @@ impl JwsVerifier for RsaJwsVerifier {
             Ok(())
         })()
         .map_err(|err| JoseError::InvalidSignature(err))
+    }
+    
+    fn box_clone(&self) -> Box<dyn JwsVerifier> {
+        Box::new(self.clone())
     }
 }
 

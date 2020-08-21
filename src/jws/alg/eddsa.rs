@@ -457,6 +457,10 @@ impl JwsAlgorithm for EddsaJwsAlgorithm {
     fn key_type(&self) -> &str {
         "OKP"
     }
+    
+    fn box_clone(&self) -> Box<dyn JwsAlgorithm> {
+        Box::new(self.clone())
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -682,6 +686,10 @@ impl JwsSigner for EddsaJwsSigner {
         })()
         .map_err(|err| JoseError::InvalidSignature(err))
     }
+        
+    fn box_clone(&self) -> Box<dyn JwsSigner> {
+        Box::new(self.clone())
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -718,6 +726,10 @@ impl JwsVerifier for EddsaJwsVerifier {
             Ok(())
         })()
         .map_err(|err| JoseError::InvalidSignature(err))
+    }
+    
+    fn box_clone(&self) -> Box<dyn JwsVerifier> {
+        Box::new(self.clone())
     }
 }
 
