@@ -1,8 +1,9 @@
+use std::borrow::Cow;
 use anyhow::bail;
 use serde_json::Value;
 
 use crate::jose::JoseError;
-use crate::jwe::{JweAlgorithm, JweDecrypter, JweEncrypter};
+use crate::jwe::{JweHeader, JweAlgorithm, JweDecrypter, JweEncrypter};
 use crate::jwk::Jwk;
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
@@ -19,8 +20,8 @@ impl AesJweAlgorithm {
     pub fn encrypter_from_jwk(&self, jwk: &Jwk) -> Result<AesJweEncrypter, JoseError> {
         (|| -> anyhow::Result<AesJweEncrypter> {
             match jwk.key_type() {
-                val if val == self.key_type() => {}
-                val => bail!("A parameter kty must be {}: {}", self.key_type(), val),
+                val if val == "oct" => {}
+                val => bail!("A parameter kty must be oct: {}", val),
             }
             match jwk.key_use() {
                 Some(val) if val == "enc" => {}
@@ -61,8 +62,8 @@ impl AesJweAlgorithm {
     pub fn decrypter_from_jwk(&self, jwk: &Jwk) -> Result<AesJweDecrypter, JoseError> {
         (|| -> anyhow::Result<AesJweDecrypter> {
             match jwk.key_type() {
-                val if val == self.key_type() => {}
-                val => bail!("A parameter kty must be {}: {}", self.key_type(), val),
+                val if val == "oct" => {}
+                val => bail!("A parameter kty must be oct: {}", val),
             }
             match jwk.key_use() {
                 Some(val) if val == "enc" => {}
@@ -110,10 +111,6 @@ impl JweAlgorithm for AesJweAlgorithm {
             Self::A256Kw => "A256KW",
         }
     }
-
-    fn key_type(&self) -> &str {
-        "oct"
-    }
     
     fn box_clone(&self) -> Box<dyn JweAlgorithm> {
         Box::new(self.clone())
@@ -147,11 +144,7 @@ impl JweEncrypter for AesJweEncrypter {
         self.key_id = None;
     }
 
-    fn direct_content_encryption_key(&self) -> Option<&[u8]> {
-        None
-    }
-
-    fn encrypt(&self, message: &[u8]) -> Result<Vec<u8>, JoseError> {
+    fn encrypt(&self, header: &mut JweHeader) -> Result<(Cow<[u8]>, Option<Vec<u8>>), JoseError> {
         todo!();
     }
     
@@ -187,11 +180,7 @@ impl JweDecrypter for AesJweDecrypter {
         self.key_id = None;
     }
 
-    fn direct_content_encryption_key(&self) -> Option<&[u8]> {
-        None
-    }
-
-    fn decrypt(&self, data: &[u8]) -> Result<Vec<u8>, JoseError> {
+    fn decrypt(&self, header: &JweHeader, encrypted_key: &[u8]) -> Result<Cow<[u8]>, JoseError> {
         todo!();
     }
         

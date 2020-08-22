@@ -1,8 +1,10 @@
+use std::borrow::Cow;
+
 use anyhow::bail;
 use serde_json::Value;
 
 use crate::jose::JoseError;
-use crate::jwe::{JweAlgorithm, JweDecrypter, JweEncrypter};
+use crate::jwe::{JweHeader, JweAlgorithm, JweDecrypter, JweEncrypter};
 use crate::jwk::Jwk;
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
@@ -28,8 +30,8 @@ impl DirectJweAlgorithm {
     pub fn encrypter_from_jwk(&self, jwk: &Jwk) -> Result<DirectJweEncrypter, JoseError> {
         (|| -> anyhow::Result<DirectJweEncrypter> {
             match jwk.key_type() {
-                val if val == self.key_type() => {}
-                val => bail!("A parameter kty must be {}: {}", self.key_type(), val),
+                val if val == "oct" => {}
+                val => bail!("A parameter kty must be oct: {}", val),
             }
             match jwk.key_use() {
                 Some(val) if val == "enc" => {}
@@ -79,8 +81,8 @@ impl DirectJweAlgorithm {
     pub fn decrypter_from_jwk(&self, jwk: &Jwk) -> Result<DirectJweDecrypter, JoseError> {
         (|| -> anyhow::Result<DirectJweDecrypter> {
             match jwk.key_type() {
-                val if val == self.key_type() => {}
-                val => bail!("A parameter kty must be {}: {}", self.key_type(), val),
+                val if val == "oct" => {}
+                val => bail!("A parameter kty must be oct: {}", val),
             }
             match jwk.key_use() {
                 Some(val) if val == "enc" => {}
@@ -122,10 +124,6 @@ impl JweAlgorithm for DirectJweAlgorithm {
             Self::Dir => "dir",
         }
     }
-
-    fn key_type(&self) -> &str {
-        "oct"
-    }
         
     fn box_clone(&self) -> Box<dyn JweAlgorithm> {
         Box::new(self.clone())
@@ -159,12 +157,9 @@ impl JweEncrypter for DirectJweEncrypter {
         self.key_id = None;
     }
 
-    fn direct_content_encryption_key(&self) -> Option<&[u8]> {
-        Some(&self.content_encryption_key)
-    }
-
-    fn encrypt(&self, _message: &[u8]) -> Result<Vec<u8>, JoseError> {
-        unreachable!("This algorithm must not encrypt.");
+    fn encrypt(&self, header: &mut JweHeader) -> Result<(Cow<[u8]>, Option<Vec<u8>>), JoseError> {
+        header.set_algorithm(self.algorithm.name());
+        Ok((Cow::Borrowed(&self.content_encryption_key), None))
     }
     
     fn box_clone(&self) -> Box<dyn JweEncrypter> {
@@ -199,14 +194,19 @@ impl JweDecrypter for DirectJweDecrypter {
         self.key_id = None;
     }
 
-    fn direct_content_encryption_key(&self) -> Option<&[u8]> {
-        Some(&self.content_encryption_key)
-    }
+    fn decrypt(&self, _header: &JweHeader, encrypted_key: &[u8]) -> Result<Cow<[u8]>, JoseError> {
+        (|| -> anyhow::Result<()> {
+            if encrypted_key.len() != 0 {
+                bail!("The encrypted_key must be empty.");
+            }
 
-    fn decrypt(&self, _data: &[u8]) -> Result<Vec<u8>, JoseError> {
-        unreachable!("This algorithm must not encrypt.");
+            Ok(())
+        })()
+        .map_err(|err| JoseError::InvalidJweFormat(err))?;
+
+        Ok(Cow::Borrowed(&self.content_encryption_key))
     }
-        
+    
     fn box_clone(&self) -> Box<dyn JweDecrypter> {
         Box::new(self.clone())
     }

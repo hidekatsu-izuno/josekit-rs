@@ -7,6 +7,7 @@ use std::collections::{BTreeSet, BTreeMap, HashMap};
 use std::fmt::{Debug, Display};
 use std::io;
 use std::convert::Into;
+use std::borrow::Cow;
 
 use anyhow::bail;
 use once_cell::sync::Lazy;
@@ -236,15 +237,14 @@ impl JweContext {
                 None => None,
             };
 
-            let mut header = header.claims_set().clone();
-            header.insert(
-                "alg".to_string(),
-                Value::String(encrypter.algorithm().name().to_string()),
-            );
-            if let Some(key_id) = encrypter.key_id() {
-                header.insert("kid".to_string(), Value::String(key_id.to_string()));
+            let mut header = header.clone();
+            let (key, encrypted_key) = encrypter.encrypt(&mut header)?;
+            if let None = header.claim("kid") {
+                if let Some(key_id) = encrypter.key_id() {
+                    header.set_key_id(key_id);
+                }
             }
-            let header_bytes = serde_json::to_vec(&header)?;
+            let header_bytes = serde_json::to_vec(header.claims_set())?;
 
             let compressed;
             let content = if let Some(compression) = compression {
@@ -253,35 +253,14 @@ impl JweContext {
             } else {
                 payload
             };
-
+            
             let mut iv = vec![0; cencryption.iv_len()];
             rand::rand_bytes(&mut iv)?;
 
-            let mut generated_key;
-            let (cencryption_key, encrypted_key) = match encrypter.direct_content_encryption_key() {
-                Some(val) => {
-                    let expected_len = cencryption.content_encryption_key_len();
-                    if val.len() != expected_len {
-                        bail!(
-                            "The length of content encryption key must be {}: {}",
-                            expected_len,
-                            val.len()
-                        );
-                    }
-                    (val, None)
-                }
-                None => {
-                    generated_key = vec![0; cencryption.content_encryption_key_len()];
-                    rand::rand_bytes(&mut generated_key)?;
-                    let encrypted_key = encrypter.encrypt(&generated_key)?;
-                    (generated_key.as_slice(), Some(encrypted_key))
-                }
-            };
-
-            let (ciphertext, tag) = cencryption.encrypt(cencryption_key, &iv, content, &header_bytes)?;
+            let (ciphertext, tag) = cencryption.encrypt(&key, &iv, content, &header_bytes)?;
 
             let mut capacity = 4;
-            capacity += util::ceiling(header.len() * 4, 3);
+            capacity += util::ceiling(header_bytes.len() * 4, 3);
             if let Some(val) = &encrypted_key {
                 capacity += util::ceiling(val.len() * 4, 3);
             }
@@ -353,39 +332,38 @@ impl JweContext {
         F: Fn(&JweHeader) -> Option<&'a dyn JweEncrypter>,
     {
         (|| -> anyhow::Result<String> {
-            let mut protected_map = if let Some(val) = protected {
-                val.claims_set().clone()
-            } else {
-                Map::new()
+            let mut protected = match protected {
+                Some(val) => val.clone(),
+                None => JweHeader::new(),
             };
 
-            let mut map = protected_map.clone();
+            let mut merged_map = protected.claims_set().clone();
 
             if let Some(val) = unprotected {
                 for (key, value) in val.claims_set() {
-                    if map.contains_key(key) {
+                    if merged_map.contains_key(key) {
                         bail!("Duplicate key exists: {}", key);
                     }
-                    map.insert(key.clone(), value.clone());
+                    merged_map.insert(key.clone(), value.clone());
                 }
             }
 
             if let Some(val) = header {
                 for  (key, value) in val.claims_set() {
-                    if map.contains_key(key) {
+                    if merged_map.contains_key(key) {
                         bail!("Duplicate key exists: {}", key);
                     }
-                    map.insert(key.clone(), value.clone());
+                    merged_map.insert(key.clone(), value.clone());
                 }
             }
 
-            let combined = JweHeader::from_map(map)?;
-            let encrypter = match selector(&combined) {
+            let merged = JweHeader::from_map(merged_map)?;
+            let encrypter = match selector(&merged) {
                 Some(val) => val,
                 None => bail!("A encrypter is not found."),
             };
 
-            let cencryption = match combined.content_encryption() {
+            let cencryption = match merged.content_encryption() {
                 Some(enc) => match self.get_content_encryption(enc) {
                     Some(val) => val,
                     None => bail!("A content encryption is not registered: {}", enc),
@@ -393,22 +371,13 @@ impl JweContext {
                 None => bail!("A enc header claim is required."),
             };
 
-            let compression = match combined.compression() {
+            let compression = match merged.compression() {
                 Some(zip) => match self.get_compression(zip) {
                     Some(val) => Some(val),
                     None => bail!("A compression algorithm is not registered: {}", zip),
                 },
                 None => None,
             };
-
-            protected_map.insert(
-                "alg".to_string(),
-                Value::String(encrypter.algorithm().name().to_string()),
-            );
-            if let Some(key_id) = encrypter.key_id() {
-                protected_map.insert("kid".to_string(), Value::String(key_id.to_string()));
-            }
-            let protected_bytes = serde_json::to_vec(&protected_map)?;
 
             let compressed;
             let content = if let Some(compression) = compression {
@@ -417,36 +386,23 @@ impl JweContext {
             } else {
                 payload
             };
+            
+            let (key, encrypted_key) = encrypter.encrypt(&mut protected)?;
+            if let None = merged.claim("kid") {
+                if let Some(key_id) = encrypter.key_id() {
+                    protected.set_key_id(key_id);
+                }
+            }
+            let protected = serde_json::to_vec(protected.claims_set())?;
 
             let mut iv = vec![0; cencryption.iv_len()];
             rand::rand_bytes(&mut iv)?;
 
-            let mut generated_key;
-            let (cencryption_key, encrypted_key) = match encrypter.direct_content_encryption_key() {
-                Some(val) => {
-                    let expected_len = cencryption.content_encryption_key_len();
-                    if val.len() != expected_len {
-                        bail!(
-                            "The length of content encryption key must be {}: {}",
-                            expected_len,
-                            val.len()
-                        );
-                    }
-                    (val, None)
-                }
-                None => {
-                    generated_key = vec![0; cencryption.content_encryption_key_len()];
-                    rand::rand_bytes(&mut generated_key)?;
-                    let encrypted_key = encrypter.encrypt(&generated_key)?;
-                    (generated_key.as_slice(), Some(encrypted_key))
-                }
-            };
-
-            let (ciphertext, tag) = cencryption.encrypt(cencryption_key, &iv, content, &protected_bytes)?;
+            let (ciphertext, tag) = cencryption.encrypt(&key, &iv, content, &protected)?;
 
             let mut json = String::new();
             json.push_str("{\"protected\":\"");
-            base64::encode_config_buf(&protected_bytes, base64::URL_SAFE_NO_PAD, &mut json);
+            base64::encode_config_buf(&protected, base64::URL_SAFE_NO_PAD, &mut json);
             json.push_str("\"");
 
             if let Some(val) = unprotected {
@@ -467,8 +423,8 @@ impl JweContext {
             }
             json.push_str("\"");
 
-            json.push_str(",\"aad\":\"");
-            base64::encode_config_buf(&protected_bytes, base64::URL_SAFE_NO_PAD, &mut json);
+            json.push_str(",\"aad\":\""); //TODO
+            base64::encode_config_buf(&protected, base64::URL_SAFE_NO_PAD, &mut json);
             json.push_str("\"");
 
             json.push_str(",\"iv\":\"");
@@ -581,28 +537,15 @@ impl JweContext {
                 None => {}
             }
 
-            let decrypted_key;
-            let cencryption_key = match decrypter.direct_content_encryption_key() {
-                Some(val) => {
-                    if encrypted_key_b64.len() > 0 {
-                        bail!("The encrypted_key must be empty.");
-                    }
-                    val
-                }
-                None => {
-                    let encrypted_key =
-                        base64::decode_config(encrypted_key_b64, base64::URL_SAFE_NO_PAD)?;
-                    decrypted_key = decrypter.decrypt(&encrypted_key)?;
-                    &decrypted_key
-                }
-            };
+            let encrypted_key = base64::decode_config(encrypted_key_b64, base64::URL_SAFE_NO_PAD)?;
+            let key = decrypter.decrypt(&header, &encrypted_key)?;
 
             let expected_len = cencryption.content_encryption_key_len();
-            if cencryption_key.len() != expected_len {
+            if key.len() != expected_len {
                 bail!(
                     "The length of content encryption key must be {}: {}",
                     expected_len,
-                    cencryption_key.len()
+                    key.len()
                 );
             }
 
@@ -610,7 +553,7 @@ impl JweContext {
             let ciphertext = base64::decode_config(ciphertext_b64, base64::URL_SAFE_NO_PAD)?;
             let tag = base64::decode_config(tag_b64, base64::URL_SAFE_NO_PAD)?;
 
-            let content = cencryption.decrypt(&cencryption_key, &iv, &ciphertext, &header_bytes, &tag)?;
+            let content = cencryption.decrypt(&key, &iv, &ciphertext, &header_bytes, &tag)?;
             let content = match compression {
                 Some(val) => val.decompress(&content)?,
                 None => content,
@@ -1238,9 +1181,6 @@ pub trait JweAlgorithm: Debug + Send + Sync {
     /// Return the "alg" (algorithm) header parameter value of JWE.
     fn name(&self) -> &str;
 
-    /// Return the "kty" (key type) header parameter value of JWK.
-    fn key_type(&self) -> &str;
-
     fn box_clone(&self) -> Box<dyn JweAlgorithm>;
 }
 
@@ -1276,14 +1216,11 @@ pub trait JweEncrypter: Debug + Send + Sync {
     /// Remove a compared value for a kid header claim (kid).
     fn remove_key_id(&mut self);
 
-    /// Return a direct content encryption key.
-    fn direct_content_encryption_key(&self) -> Option<&[u8]>;
-
-    /// Return a encypted data for the message.
+    /// Return a content encryption key and encypted data.
     /// # Arguments
     ///
-    /// * `message` - the message
-    fn encrypt(&self, message: &[u8]) -> Result<Vec<u8>, JoseError>;
+    /// * `header` - the header
+    fn encrypt(&self, header: &mut JweHeader) -> Result<(Cow<[u8]>, Option<Vec<u8>>), JoseError>;
 
     fn box_clone(&self) -> Box<dyn JweEncrypter>;
 }
@@ -1306,21 +1243,19 @@ pub trait JweDecrypter: Debug + Send + Sync {
     ///
     /// # Arguments
     ///
-    /// * `key_id` - a key ID
+    /// * `key_id` - A key ID
     fn set_key_id(&mut self, key_id: &str);
 
     /// Remove a compared value for a kid header claim (kid).
     fn remove_key_id(&mut self);
 
-    /// Return a direct content encryption key.
-    fn direct_content_encryption_key(&self) -> Option<&[u8]>;
-
-    /// Return a decrypted message.
+    /// Return a decrypted key.
     ///
     /// # Arguments
     ///
-    /// * `data` - The encrypted data.
-    fn decrypt(&self, data: &[u8]) -> Result<Vec<u8>, JoseError>;
+    /// * `header` - The header
+    /// * `encrypted_key` - The encrypted key.
+    fn decrypt(&self, header: &JweHeader, encrypted_key: &[u8]) -> Result<Cow<[u8]>, JoseError>;
     
     fn box_clone(&self) -> Box<dyn JweDecrypter>;
 }

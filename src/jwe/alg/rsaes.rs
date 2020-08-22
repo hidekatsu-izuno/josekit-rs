@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use anyhow::bail;
 use once_cell::sync::Lazy;
 use openssl::pkey::{HasPublic, PKey, Private, Public};
@@ -7,7 +9,7 @@ use serde_json::Value;
 use crate::der::oid::ObjectIdentifier;
 use crate::der::{DerBuilder, DerReader, DerType, DerClass};
 use crate::jose::JoseError;
-use crate::jwe::{JweAlgorithm, JweDecrypter, JweEncrypter};
+use crate::jwe::{JweHeader, JweAlgorithm, JweDecrypter, JweEncrypter};
 use crate::jwk::Jwk;
 
 static OID_RSA_ENCRYPTION: Lazy<ObjectIdentifier> =
@@ -53,8 +55,8 @@ impl RsaesJweAlgorithm {
     pub fn encrypter_from_jwk(&self, jwk: &Jwk) -> Result<RsaesJweEncrypter, JoseError> {
         (|| -> anyhow::Result<RsaesJweEncrypter> {
             match jwk.key_type() {
-                val if val == self.key_type() => {}
-                val => bail!("A parameter kty must be {}: {}", self.key_type(), val),
+                val if val == "RSA" => {}
+                val => bail!("A parameter kty must be RSA: {}", val),
             }
             match jwk.key_use() {
                 Some(val) if val == "enc" => {}
@@ -113,8 +115,8 @@ impl RsaesJweAlgorithm {
     pub fn decrypter_from_jwk(&self, jwk: &Jwk) -> Result<RsaesJweDecrypter, JoseError> {
         (|| -> anyhow::Result<RsaesJweDecrypter> {
             match jwk.key_type() {
-                val if val == self.key_type() => {}
-                val => bail!("A parameter kty must be {}: {}", self.key_type(), val),
+                val if val == "RSA" => {}
+                val => bail!("A parameter kty must be RSA: {}", val),
             }
             match jwk.key_use() {
                 Some(val) if val == "sig" => {}
@@ -312,10 +314,6 @@ impl JweAlgorithm for RsaesJweAlgorithm {
             Self::RsaOaep512 => "RSA-OAEP-512",
         }
     }
-
-    fn key_type(&self) -> &str {
-        "RSA"
-    }
         
     fn box_clone(&self) -> Box<dyn JweAlgorithm> {
         Box::new(self.clone())
@@ -348,21 +346,9 @@ impl JweEncrypter for RsaesJweEncrypter {
     fn remove_key_id(&mut self) {
         self.key_id = None;
     }
-
-    fn direct_content_encryption_key(&self) -> Option<&[u8]> {
-        None
-    }
-
-    fn encrypt(&self, message: &[u8]) -> Result<Vec<u8>, JoseError> {
-        let rsa = self.public_key.rsa().unwrap();
-        let padding = self.algorithm.padding();
-
-        (|| -> anyhow::Result<Vec<u8>> {
-            let mut encrypted_message = Vec::new();
-            let _len = rsa.public_encrypt(message, &mut encrypted_message, padding)?;
-            Ok(encrypted_message)
-        })()
-        .map_err(|err| JoseError::InvalidKeyFormat(err))
+    
+    fn encrypt(&self, header: &mut JweHeader) -> Result<(Cow<[u8]>, Option<Vec<u8>>), JoseError> {
+        todo!();
     }
 
     fn box_clone(&self) -> Box<dyn JweEncrypter> {
@@ -397,20 +383,8 @@ impl JweDecrypter for RsaesJweDecrypter {
         self.key_id = None;
     }
 
-    fn direct_content_encryption_key(&self) -> Option<&[u8]> {
-        None
-    }
-
-    fn decrypt(&self, data: &[u8]) -> Result<Vec<u8>, JoseError> {
-        let rsa = self.private_key.rsa().unwrap();
-        let padding = self.algorithm.padding();
-
-        (|| -> anyhow::Result<Vec<u8>> {
-            let mut message = Vec::new();
-            let _len = rsa.private_decrypt(data, &mut message, padding)?;
-            Ok(message)
-        })()
-        .map_err(|err| JoseError::InvalidKeyFormat(err))
+    fn decrypt(&self, header: &JweHeader, encrypted_key: &[u8]) -> Result<Cow<[u8]>, JoseError> {
+        todo!();
     }
     
     fn box_clone(&self) -> Box<dyn JweDecrypter> {

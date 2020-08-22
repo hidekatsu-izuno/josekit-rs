@@ -19,8 +19,8 @@ impl Pbes2HmacAesJweAlgorithm {
     pub fn encrypter_from_jwk(&self, jwk: &Jwk) -> Result<Pbes2HmacAesJweEncrypter, JoseError> {
         (|| -> anyhow::Result<Pbes2HmacAesJweEncrypter> {
             match jwk.key_type() {
-                val if val == self.key_type() => {}
-                val => bail!("A parameter kty must be {}: {}", self.key_type(), val),
+                val if val == "oct" => {}
+                val => bail!("A parameter kty must be oct: {}", val),
             }
             match jwk.key_use() {
                 Some(val) if val == "enc" => {}
@@ -55,8 +55,8 @@ impl Pbes2HmacAesJweAlgorithm {
     pub fn decrypter_from_jwk(&self, jwk: &Jwk) -> Result<Pbes2HmacAesJweDecrypter, JoseError> {
         (|| -> anyhow::Result<Pbes2HmacAesJweDecrypter> {
             match jwk.key_type() {
-                val if val == self.key_type() => {}
-                val => bail!("A parameter kty must be {}: {}", self.key_type(), val),
+                val if val == "oct" => {}
+                val => bail!("A parameter kty must be oct: {}", val),
             }
             match jwk.key_use() {
                 Some(val) if val == "enc" => {}
@@ -99,10 +99,6 @@ impl JweAlgorithm for Pbes2HmacAesJweAlgorithm {
             Self::Pbes2HS384A192Kw => "PBES2-HS384+A192KW",
             Self::Pbes2HS512A256Kw => "PBES2-HS512+A256KW",
         }
-    }
-
-    fn key_type(&self) -> &str {
-        "oct"
     }
         
     fn box_clone(&self) -> Box<dyn JweAlgorithm> {

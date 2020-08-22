@@ -30,10 +30,6 @@ impl JweAlgorithm for EcdhEsAesJweAlgorithm {
             Self::EcdhEsA256Kw => "ECDH-ES+A256KW",
         }
     }
-
-    fn key_type(&self) -> &str {
-        "OKP"
-    }
         
     fn box_clone(&self) -> Box<dyn JweAlgorithm> {
         Box::new(self.clone())

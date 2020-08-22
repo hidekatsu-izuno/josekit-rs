@@ -33,6 +33,51 @@ static OID_SECP256K1: Lazy<ObjectIdentifier> =
     Lazy::new(|| ObjectIdentifier::from_slice(&[1, 3, 132, 0, 10]));
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
+pub enum EcdsaCurve {
+    P256,
+    P384,
+    P521,
+    Secp256K1,
+}
+
+impl EcdsaCurve {
+    pub fn name(&self) -> &str {
+        match self {
+            Self::P256 => "P-256",
+            Self::P384 => "P-384",
+            Self::P521 => "P-521",
+            Self::Secp256K1 => "secp256k1",
+        }
+    }
+
+    fn oid(&self) -> &ObjectIdentifier {
+        match self {
+            Self::P256 => &OID_PRIME256V1,
+            Self::P384 => &OID_SECP384R1,
+            Self::P521 => &OID_SECP521R1,
+            Self::Secp256K1 => &OID_SECP256K1,
+        }
+    }
+
+    fn nid(&self) -> Nid {
+        match self {
+            Self::P256 => Nid::X9_62_PRIME256V1,
+            Self::P384 => Nid::SECP384R1,
+            Self::P521 => Nid::SECP521R1,
+            Self::Secp256K1 => Nid::SECP256K1,
+        }
+    }
+
+    fn coordinate_size(&self) -> usize {
+        match self {
+            Self::P256 | Self::Secp256K1 => 32,
+            Self::P384 => 48,
+            Self::P521 => 66,
+        }
+    }
+}
+
+#[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum EcdsaJwsAlgorithm {
     /// ECDSA using P-256 and SHA-256
     ES256,
@@ -48,12 +93,7 @@ impl EcdsaJwsAlgorithm {
     /// Generate ECDSA key pair.
     pub fn generate_keypair(&self) -> Result<EcdsaKeyPair, JoseError> {
         (|| -> anyhow::Result<EcdsaKeyPair> {
-            let ec_group = EcGroup::from_curve_name(match self {
-                Self::ES256 => Nid::X9_62_PRIME256V1,
-                Self::ES384 => Nid::SECP384R1,
-                Self::ES512 => Nid::SECP521R1,
-                Self::ES256K => Nid::SECP256K1,
-            })?;
+            let ec_group = EcGroup::from_curve_name(self.curve().nid())?;
             let ec_key = EcKey::generate(&ec_group)?;
             let pkey = PKey::from_ec_key(ec_key)?;
 
@@ -184,10 +224,11 @@ impl EcdsaJwsAlgorithm {
                 None => {}
                 Some(val) => bail!("A parameter alg must be {} but {}", self.name(), val),
             }
+            let curve = self.curve();
             match jwk.parameter("crv") {
-                Some(Value::String(val)) if val == self.curve_name() => {}
+                Some(Value::String(val)) if val == curve.name() => {}
                 Some(Value::String(val)) => {
-                    bail!("A parameter crv must be {} but {}", self.curve_name(), val)
+                    bail!("A parameter crv must be {} but {}", curve.name(), val)
                 }
                 Some(_) => bail!("A parameter crv must be a string."),
                 None => bail!("A parameter crv is required."),
@@ -296,6 +337,8 @@ impl EcdsaJwsAlgorithm {
     /// * `jwk` - A public key that is formatted by a JWK of EC type.
     pub fn verifier_from_jwk(&self, jwk: &Jwk) -> Result<EcdsaJwsVerifier, JoseError> {
         (|| -> anyhow::Result<EcdsaJwsVerifier> {
+            let curve = self.curve();
+
             match jwk.key_type() {
                 val if val == self.key_type() => {}
                 val => bail!("A parameter kty must be {}: {}", self.key_type(), val),
@@ -316,9 +359,9 @@ impl EcdsaJwsAlgorithm {
                 Some(val) => bail!("A parameter alg must be {} but {}", self.name(), val),
             }
             match jwk.parameter("crv") {
-                Some(Value::String(val)) if val == self.curve_name() => {}
+                Some(Value::String(val)) if val == curve.name() => {}
                 Some(Value::String(val)) => {
-                    bail!("A parameter crv must be {} but {}", self.curve_name(), val)
+                    bail!("A parameter crv must be {} but {}", curve.name(), val)
                 }
                 Some(_) => bail!("A parameter crv must be a string."),
                 None => bail!("A parameter crv is required."),
@@ -352,30 +395,12 @@ impl EcdsaJwsAlgorithm {
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
-    fn curve_name(&self) -> &str {
+    fn curve(&self) -> EcdsaCurve {
         match self {
-            Self::ES256 => "P-256",
-            Self::ES384 => "P-384",
-            Self::ES512 => "P-521",
-            Self::ES256K => "secp256k1",
-        }
-    }
-
-    fn curve_oid(&self) -> &ObjectIdentifier {
-        match self {
-            Self::ES256 => &*OID_PRIME256V1,
-            Self::ES384 => &*OID_SECP384R1,
-            Self::ES512 => &*OID_SECP521R1,
-            Self::ES256K => &*OID_SECP256K1,
-        }
-    }
-
-    fn curve_coordinate_size(&self) -> usize {
-        match self {
-            Self::ES256 => 32,
-            Self::ES384 => 48,
-            Self::ES512 => 66,
-            Self::ES256K => 32,
+            Self::ES256 => EcdsaCurve::P256,
+            Self::ES384 => EcdsaCurve::P384,
+            Self::ES512 => EcdsaCurve::P521,
+            Self::ES256K => EcdsaCurve::Secp256K1,
         }
     }
 
@@ -424,7 +449,7 @@ impl EcdsaJwsAlgorithm {
                 match reader.next() {
                     Ok(Some(DerType::ObjectIdentifier)) => match reader.to_object_identifier() {
                         Ok(val) => {
-                            if &val != self.curve_oid() {
+                            if &val != self.curve().oid() {
                                 return Ok(false);
                             }
                         }
@@ -449,7 +474,7 @@ impl EcdsaJwsAlgorithm {
             builder.begin(DerType::Sequence);
             {
                 builder.append_object_identifier(&OID_ID_EC_PUBLIC_KEY);
-                builder.append_object_identifier(self.curve_oid());
+                builder.append_object_identifier(self.curve().oid());
             }
             builder.end();
 
@@ -502,6 +527,7 @@ impl EcdsaKeyPair {
     }
 
     fn to_jwk(&self, private: bool, public: bool) -> Jwk {
+        let curve = self.algorithm.curve();
         let ec_key = self.pkey.ec_key().unwrap();
 
         let mut jwk = Jwk::new("EC");
@@ -519,12 +545,12 @@ impl EcdsaKeyPair {
         jwk.set_algorithm(self.algorithm.name());
         jwk.set_parameter(
             "crv",
-            Some(Value::String({ self.algorithm.curve_name().to_string() })),
+            Some(Value::String(curve.name().to_string())),
         )
         .unwrap();
         if private {
             let d = ec_key.private_key();
-            let d = num_to_vec(&d, self.algorithm.curve_coordinate_size());
+            let d = num_to_vec(&d, curve.coordinate_size());
             let d = base64::encode_config(&d, base64::URL_SAFE_NO_PAD);
 
             jwk.set_parameter("d", Some(Value::String(d))).unwrap();
@@ -538,10 +564,10 @@ impl EcdsaKeyPair {
                 .affine_coordinates_gfp(ec_key.group(), &mut x, &mut y, &mut ctx)
                 .unwrap();
 
-            let x = num_to_vec(&x, self.algorithm.curve_coordinate_size());
+            let x = num_to_vec(&x, curve.coordinate_size());
             let x = base64::encode_config(&x, base64::URL_SAFE_NO_PAD);
 
-            let y = num_to_vec(&y, self.algorithm.curve_coordinate_size());
+            let y = num_to_vec(&y, curve.coordinate_size());
             let y = base64::encode_config(&y, base64::URL_SAFE_NO_PAD);
 
             jwk.set_parameter("x", Some(Value::String(x))).unwrap();

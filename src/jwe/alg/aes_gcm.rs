@@ -19,8 +19,8 @@ impl AesGcmJweAlgorithm {
     pub fn encrypter_from_jwk(&self, jwk: &Jwk) -> Result<AesGcmJweEncrypter, JoseError> {
         (|| -> anyhow::Result<AesGcmJweEncrypter> {
             match jwk.key_type() {
-                val if val == self.key_type() => {}
-                val => bail!("A parameter kty must be {}: {}", self.key_type(), val),
+                val if val == "oct" => {}
+                val => bail!("A parameter kty must be oct: {}", val),
             }
             match jwk.key_use() {
                 Some(val) if val == "enc" => {}
@@ -61,8 +61,8 @@ impl AesGcmJweAlgorithm {
     pub fn decrypter_from_jwk(&self, jwk: &Jwk) -> Result<AesGcmJweDecrypter, JoseError> {
         (|| -> anyhow::Result<AesGcmJweDecrypter> {
             match jwk.key_type() {
-                val if val == self.key_type() => {}
-                val => bail!("A parameter kty must be {}: {}", self.key_type(), val),
+                val if val == "oct" => {}
+                val => bail!("A parameter kty must be oct: {}", val),
             }
             match jwk.key_use() {
                 Some(val) if val == "enc" => {}
@@ -109,10 +109,6 @@ impl JweAlgorithm for AesGcmJweAlgorithm {
             Self::A192GcmKw => "A192GCMKW",
             Self::A256GcmKw => "A256GCMKW",
         }
-    }
-
-    fn key_type(&self) -> &str {
-        "oct"
     }
         
     fn box_clone(&self) -> Box<dyn JweAlgorithm> {
