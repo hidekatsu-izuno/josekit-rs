@@ -206,8 +206,8 @@ impl EcdsaJwsAlgorithm {
     pub fn signer_from_jwk(&self, jwk: &Jwk) -> Result<EcdsaJwsSigner, JoseError> {
         (|| -> anyhow::Result<EcdsaJwsSigner> {
             match jwk.key_type() {
-                val if val == self.key_type() => {}
-                val => bail!("A parameter kty must be {}: {}", self.key_type(), val),
+                val if val == "EC" => {}
+                val => bail!("A parameter kty must be EC: {}", val),
             }
             match jwk.key_use() {
                 Some(val) if val == "sig" => {}
@@ -340,8 +340,8 @@ impl EcdsaJwsAlgorithm {
             let curve = self.curve();
 
             match jwk.key_type() {
-                val if val == self.key_type() => {}
-                val => bail!("A parameter kty must be {}: {}", self.key_type(), val),
+                val if val == "EC" => {}
+                val => bail!("A parameter kty must be EC: {}", val),
             }
             match jwk.key_use() {
                 Some(val) if val == "sig" => {}
@@ -498,10 +498,6 @@ impl JwsAlgorithm for EcdsaJwsAlgorithm {
             Self::ES512 => "ES512",
             Self::ES256K => "ES256K",
         }
-    }
-
-    fn key_type(&self) -> &str {
-        "EC"
     }
 
     fn box_clone(&self) -> Box<dyn JwsAlgorithm> {

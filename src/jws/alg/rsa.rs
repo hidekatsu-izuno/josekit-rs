@@ -153,8 +153,8 @@ impl RsaJwsAlgorithm {
     pub fn signer_from_jwk(&self, jwk: &Jwk) -> Result<RsaJwsSigner, JoseError> {
         (|| -> anyhow::Result<RsaJwsSigner> {
             match jwk.key_type() {
-                val if val == self.key_type() => {}
-                val => bail!("A parameter kty must be {}: {}", self.key_type(), val),
+                val if val == "RSA" => {}
+                val => bail!("A parameter kty must be RSA: {}", val),
             }
             match jwk.key_use() {
                 Some(val) if val == "sig" => {}
@@ -315,8 +315,8 @@ impl RsaJwsAlgorithm {
     pub fn verifier_from_jwk(&self, jwk: &Jwk) -> Result<RsaJwsVerifier, JoseError> {
         (|| -> anyhow::Result<RsaJwsVerifier> {
             match jwk.key_type() {
-                val if val == self.key_type() => {}
-                val => bail!("A parameter kty must be {}: {}", self.key_type(), val),
+                val if val == "RSA" => {}
+                val => bail!("A parameter kty must be RSA: {}", val),
             }
             match jwk.key_use() {
                 Some(val) if val == "sig" => {}
@@ -464,10 +464,6 @@ impl JwsAlgorithm for RsaJwsAlgorithm {
             Self::RS384 => "RS384",
             Self::RS512 => "RS512",
         }
-    }
-
-    fn key_type(&self) -> &str {
-        "RSA"
     }
     
     fn box_clone(&self) -> Box<dyn JwsAlgorithm> {

@@ -63,8 +63,8 @@ impl HmacJwsAlgorithm {
     pub fn signer_from_jwk(&self, jwk: &Jwk) -> Result<HmacJwsSigner, JoseError> {
         (|| -> anyhow::Result<HmacJwsSigner> {
             match jwk.key_type() {
-                val if val == self.key_type() => {}
-                val => bail!("A parameter kty must be {}: {}", self.key_type(), val),
+                val if val == "oct" => {}
+                val => bail!("A parameter kty must be oct: {}", val),
             }
             match jwk.key_use() {
                 Some(val) if val == "sig" => {}
@@ -126,8 +126,8 @@ impl HmacJwsAlgorithm {
     pub fn verifier_from_jwk(&self, jwk: &Jwk) -> Result<HmacJwsVerifier, JoseError> {
         (|| -> anyhow::Result<HmacJwsVerifier> {
             match jwk.key_type() {
-                val if val == self.key_type() => {}
-                val => bail!("A parameter kty must be {}: {}", self.key_type(), val),
+                val if val == "oct" => {}
+                val => bail!("A parameter kty must be oct: {}", val),
             }
             match jwk.key_use() {
                 Some(val) if val == "sig" => {}
@@ -171,10 +171,6 @@ impl JwsAlgorithm for HmacJwsAlgorithm {
             Self::HS384 => "HS384",
             Self::HS512 => "HS512",
         }
-    }
-
-    fn key_type(&self) -> &str {
-        "oct"
     }
     
     fn box_clone(&self) -> Box<dyn JwsAlgorithm> {

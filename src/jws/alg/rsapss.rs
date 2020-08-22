@@ -163,8 +163,8 @@ impl RsaPssJwsAlgorithm {
     pub fn signer_from_jwk(&self, jwk: &Jwk) -> Result<RsaPssJwsSigner, JoseError> {
         (|| -> anyhow::Result<RsaPssJwsSigner> {
             match jwk.key_type() {
-                val if val == self.key_type() => {}
-                val => bail!("A parameter kty must be {}: {}", self.key_type(), val),
+                val if val == "RSA" => {}
+                val => bail!("A parameter kty must be RSA: {}", val),
             }
             match jwk.key_use() {
                 Some(val) if val == "sig" => {}
@@ -631,10 +631,6 @@ impl JwsAlgorithm for RsaPssJwsAlgorithm {
         }
     }
 
-    fn key_type(&self) -> &str {
-        "RSA"
-    }
-    
     fn box_clone(&self) -> Box<dyn JwsAlgorithm> {
         Box::new(self.clone())
     }

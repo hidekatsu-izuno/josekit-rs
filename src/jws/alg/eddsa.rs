@@ -197,8 +197,8 @@ impl EddsaJwsAlgorithm {
     pub fn signer_from_jwk(&self, jwk: &Jwk) -> Result<EddsaJwsSigner, JoseError> {
         (|| -> anyhow::Result<EddsaJwsSigner> {
             match jwk.key_type() {
-                val if val == self.key_type() => {}
-                val => bail!("A parameter kty must be {}: {}", self.key_type(), val),
+                val if val == "OKP" => {}
+                val => bail!("A parameter kty must be OKP: {}", val),
             }
             match jwk.key_use() {
                 Some(val) if val == "sig" => {}
@@ -334,8 +334,8 @@ impl EddsaJwsAlgorithm {
     pub fn verifier_from_jwk(&self, jwk: &Jwk) -> Result<EddsaJwsVerifier, JoseError> {
         (|| -> anyhow::Result<EddsaJwsVerifier> {
             match jwk.key_type() {
-                val if val == self.key_type() => {}
-                val => bail!("A parameter kty must be {}: {}", self.key_type(), val),
+                val if val == "OKP" => {}
+                val => bail!("A parameter kty must be OKP: {}", val),
             }
             match jwk.key_use() {
                 Some(val) if val == "sig" => {}
@@ -452,10 +452,6 @@ impl EddsaJwsAlgorithm {
 impl JwsAlgorithm for EddsaJwsAlgorithm {
     fn name(&self) -> &str {
         "EdDSA"
-    }
-
-    fn key_type(&self) -> &str {
-        "OKP"
     }
     
     fn box_clone(&self) -> Box<dyn JwsAlgorithm> {

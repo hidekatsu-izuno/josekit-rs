@@ -1342,9 +1342,6 @@ impl Display for JwsHeader {
 pub trait JwsAlgorithm: Debug + Send + Sync {
     /// Return the "alg" (algorithm) header parameter value of JWS.
     fn name(&self) -> &str;
-
-    /// Return the "kty" (key type) header parameter value of JWK.
-    fn key_type(&self) -> &str;
     
     fn box_clone(&self) -> Box<dyn JwsAlgorithm>;
 }
