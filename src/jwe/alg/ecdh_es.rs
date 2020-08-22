@@ -347,6 +347,23 @@ impl JweEncrypter for EcdhEsJweEncrypter {
 
     fn encrypt(&self, header: &mut JweHeader, key_len: usize) -> Result<(Cow<[u8]>, Option<Vec<u8>>), JoseError> {
         (|| -> anyhow::Result<(Cow<[u8]>, Option<Vec<u8>>)> {
+            let apu = match header.claim("apu") {
+                Some(Value::String(val)) => {
+                    let apu = base64::decode_config(val, base64::URL_SAFE_NO_PAD)?;
+                    Some(apu)
+                },
+                Some(_) => bail!("The apu header claim must be string."),
+                None => None,
+            };
+            let apv = match header.claim("apv") {
+                Some(Value::String(val)) => {
+                    let apv = base64::decode_config(val, base64::URL_SAFE_NO_PAD)?;
+                    Some(apv)
+                },
+                Some(_) => bail!("The apv header claim must be string."),
+                None => None,
+            };
+
             header.set_algorithm(self.algorithm.name());
 
             let mut map = Map::new();
@@ -385,9 +402,30 @@ impl JweEncrypter for EcdhEsJweEncrypter {
 
             let mut deriver = Deriver::new(&private_key)?;
             deriver.set_peer(&self.public_key)?;
-            let key = deriver.derive_to_vec()?;
-            let key = util::contact_kdf(&key, key_len, MessageDigest::sha256());
+            let derived_key = deriver.derive_to_vec()?;
 
+            let enc = match header.content_encryption() {
+                Some(val) => val,
+                _ => unreachable!(),
+            };
+
+            let mut messages: Vec<&[u8]> = Vec::new();
+            messages.push(&derived_key);
+            messages.push(enc.as_bytes());
+            let apu_bytes;
+            if let Some(val) = apu {
+                apu_bytes = val;
+                messages.push(&apu_bytes);
+            }
+            let apv_bytes;
+            if let Some(val) = apv {
+                apv_bytes = val;
+                messages.push(&apv_bytes);
+            }
+            let key_len_bytes = (key_len as u32).to_be_bytes();
+            messages.push(&key_len_bytes);
+
+            let key = util::concat_kdf(MessageDigest::sha256(), &messages, key_len)?;
             Ok((Cow::Owned(key), None))
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
@@ -431,6 +469,23 @@ impl JweDecrypter for EcdhEsJweDecrypter {
             if encrypted_key.len() != 0 {
                 bail!("The encrypted_key must be empty.");
             }
+
+            let apu = match header.claim("apu") {
+                Some(Value::String(val)) => {
+                    let apu = base64::decode_config(val, base64::URL_SAFE_NO_PAD)?;
+                    Some(apu)
+                },
+                Some(_) => bail!("The apu header claim must be string."),
+                None => None,
+            };
+            let apv = match header.claim("apv") {
+                Some(Value::String(val)) => {
+                    let apv = base64::decode_config(val, base64::URL_SAFE_NO_PAD)?;
+                    Some(apv)
+                },
+                Some(_) => bail!("The apv header claim must be string."),
+                None => None,
+            };
 
             let public_key = match header.claim("epk") {
                 Some(Value::Object(map)) => {
@@ -493,8 +548,30 @@ impl JweDecrypter for EcdhEsJweDecrypter {
 
             let mut deriver = Deriver::new(&self.private_key)?;
             deriver.set_peer(&public_key)?;
-            let key = deriver.derive_to_vec()?;
-            let key = util::contact_kdf(&key, key_len, MessageDigest::sha256());
+            let derived_key = deriver.derive_to_vec()?;
+
+            let enc = match header.content_encryption() {
+                Some(val) => val,
+                _ => unreachable!(),
+            };
+
+            let mut messages: Vec<&[u8]> = Vec::new();
+            messages.push(&derived_key);
+            messages.push(enc.as_bytes());
+            let apu_bytes;
+            if let Some(val) = apu {
+                apu_bytes = val;
+                messages.push(&apu_bytes);
+            }
+            let apv_bytes;
+            if let Some(val) = apv {
+                apv_bytes = val;
+                messages.push(&apv_bytes);
+            }
+            let key_len_bytes = (key_len as u32).to_be_bytes();
+            messages.push(&key_len_bytes);
+
+            let key = util::concat_kdf(MessageDigest::sha256(), &messages, key_len)?;
 
             Ok(Cow::Owned(key))
         })()

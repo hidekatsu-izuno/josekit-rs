@@ -1,7 +1,8 @@
 use anyhow::bail;
 use once_cell::sync::Lazy;
 use openssl::bn::BigNumRef;
-use openssl::hash::MessageDigest;
+use openssl::hash::{MessageDigest, Hasher};
+use openssl::error::ErrorStack;
 use regex::bytes::{NoExpand, Regex};
 use std::time::SystemTime;
 
@@ -20,8 +21,23 @@ pub fn ceiling(len: usize, div: usize) -> usize {
     (len + (div - 1)) / div
 }
 
-pub fn contact_kdf(message: &[u8], len: usize, md: MessageDigest) -> Vec<u8> {
-    message.to_vec()
+pub fn concat_kdf(md: MessageDigest, messages: &[&[u8]], len: usize) -> Result<Vec<u8>, ErrorStack> {
+    let mut vec = Vec::new();
+    for i in 1..ceiling(len, md.size()) {
+        let mut hasher = Hasher::new(md)?;
+        hasher.update(&(i as u32).to_be_bytes())?;
+        for msg in messages {
+            hasher.update(msg)?;
+        }
+        let digest = hasher.finish()?;
+        vec.extend(digest.to_vec());
+    }
+
+    if vec.len() != len {
+        vec.truncate(len);
+    }
+
+    Ok(vec)
 }
 
 pub fn parse_pem(input: &[u8]) -> anyhow::Result<(String, Vec<u8>)> {
