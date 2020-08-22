@@ -238,9 +238,8 @@ impl JweContext {
             };
 
             let mut header = header.clone();
-            let mut key = vec![0; cencryption.key_len()];
 
-            let encrypted_key = encrypter.encrypt(&mut header, &mut key)?;
+            let (key, encrypted_key) = encrypter.encrypt(&mut header, cencryption.key_len())?;
             if let None = header.claim("kid") {
                 if let Some(key_id) = encrypter.key_id() {
                     header.set_key_id(key_id);
@@ -389,9 +388,7 @@ impl JweContext {
                 payload
             };
             
-            let mut key = vec![0; cencryption.key_len()];
-
-            let encrypted_key = encrypter.encrypt(&mut protected, &mut key)?;
+            let (key, encrypted_key) = encrypter.encrypt(&mut protected, cencryption.key_len())?;
             if let None = merged.claim("kid") {
                 if let Some(key_id) = encrypter.key_id() {
                     protected.set_key_id(key_id);
@@ -1216,7 +1213,7 @@ pub trait JweEncrypter: Debug + Send + Sync {
     ///
     /// * `header` - the header
     /// * `key` - the content encryption key
-    fn encrypt(&self, header: &mut JweHeader, key: &mut [u8]) -> Result<Option<Vec<u8>>, JoseError>;
+    fn encrypt(&self, header: &mut JweHeader, key_len: usize) -> Result<(Cow<[u8]>, Option<Vec<u8>>), JoseError>;
 
     fn box_clone(&self) -> Box<dyn JweEncrypter>;
 }

@@ -18,11 +18,11 @@ impl DirectJweAlgorithm {
         &self,
         input: impl AsRef<[u8]>,
     ) -> Result<DirectJweEncrypter, JoseError> {
-        let content_encryption_key = input.as_ref();
+        let cencryption_key = input.as_ref();
 
         Ok(DirectJweEncrypter {
             algorithm: self.clone(),
-            content_encryption_key: content_encryption_key.to_vec(),
+            cencryption_key: cencryption_key.to_vec(),
             key_id: None,
         })
     }
@@ -58,7 +58,7 @@ impl DirectJweAlgorithm {
 
             Ok(DirectJweEncrypter {
                 algorithm: self.clone(),
-                content_encryption_key: k,
+                cencryption_key: k,
                 key_id,
             })
         })()
@@ -69,11 +69,11 @@ impl DirectJweAlgorithm {
         &self,
         input: impl AsRef<[u8]>,
     ) -> Result<DirectJweDecrypter, JoseError> {
-        let content_encryption_key = input.as_ref();
+        let cencryption_key = input.as_ref();
 
         Ok(DirectJweDecrypter {
             algorithm: self.clone(),
-            content_encryption_key: content_encryption_key.to_vec(),
+            cencryption_key: cencryption_key.to_vec(),
             key_id: None,
         })
     }
@@ -110,7 +110,7 @@ impl DirectJweAlgorithm {
 
             Ok(DirectJweDecrypter {
                 algorithm: self.clone(),
-                content_encryption_key: k,
+                cencryption_key: k,
                 key_id,
             })
         })()
@@ -133,7 +133,7 @@ impl JweAlgorithm for DirectJweAlgorithm {
 #[derive(Debug, Clone)]
 pub struct DirectJweEncrypter {
     algorithm: DirectJweAlgorithm,
-    content_encryption_key: Vec<u8>,
+    cencryption_key: Vec<u8>,
     key_id: Option<String>,
 }
 
@@ -157,15 +157,15 @@ impl JweEncrypter for DirectJweEncrypter {
         self.key_id = None;
     }
 
-    fn encrypt(&self, header: &mut JweHeader, key: &mut [u8]) -> Result<Option<Vec<u8>>, JoseError> {
-        (|| -> anyhow::Result<Option<Vec<u8>>> {
-            if key.len() != self.content_encryption_key.len() {
-                
+    fn encrypt(&self, header: &mut JweHeader, key_len: usize) -> Result<(Cow<[u8]>, Option<Vec<u8>>), JoseError> {
+        (|| -> anyhow::Result<(Cow<[u8]>, Option<Vec<u8>>)> {
+            let expected_len = self.cencryption_key.len();
+            if key_len != expected_len {
+                bail!("The key size is expected to be {}: {}", key_len, expected_len);
             }
 
             header.set_algorithm(self.algorithm.name());
-            key.copy_from_slice(&self.content_encryption_key);
-            Ok(None)
+            Ok((Cow::Borrowed(&self.cencryption_key), None))
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
@@ -178,8 +178,8 @@ impl JweEncrypter for DirectJweEncrypter {
 #[derive(Debug, Clone)]
 pub struct DirectJweDecrypter {
     algorithm: DirectJweAlgorithm,
+    cencryption_key: Vec<u8>,
     key_id: Option<String>,
-    content_encryption_key: Vec<u8>,
 }
 
 impl JweDecrypter for DirectJweDecrypter {
@@ -203,16 +203,14 @@ impl JweDecrypter for DirectJweDecrypter {
     }
 
     fn decrypt(&self, _header: &JweHeader, encrypted_key: &[u8]) -> Result<Cow<[u8]>, JoseError> {
-        (|| -> anyhow::Result<()> {
+        (|| -> anyhow::Result<Cow<[u8]>> {
             if encrypted_key.len() != 0 {
                 bail!("The encrypted_key must be empty.");
             }
 
-            Ok(())
+            Ok(Cow::Borrowed(&self.cencryption_key))
         })()
-        .map_err(|err| JoseError::InvalidJweFormat(err))?;
-
-        Ok(Cow::Borrowed(&self.content_encryption_key))
+        .map_err(|err| JoseError::InvalidJweFormat(err))
     }
     
     fn box_clone(&self) -> Box<dyn JweDecrypter> {

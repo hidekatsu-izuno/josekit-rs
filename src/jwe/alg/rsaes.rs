@@ -348,17 +348,19 @@ impl JweEncrypter for RsaesJweEncrypter {
         self.key_id = None;
     }
     
-    fn encrypt(&self, header: &mut JweHeader, key: &mut [u8]) -> Result<Option<Vec<u8>>, JoseError> {
-        (|| -> anyhow::Result<Option<Vec<u8>>> {
+    fn encrypt(&self, header: &mut JweHeader, key_len: usize) -> Result<(Cow<[u8]>, Option<Vec<u8>>), JoseError> {
+        (|| -> anyhow::Result<(Cow<[u8]>, Option<Vec<u8>>)> {
             header.set_algorithm(self.algorithm.name());
 
-            rand::rand_bytes(key)?;
+            let mut key = vec![0; key_len];
+            rand::rand_bytes(&mut key)?;
 
             let rsa = self.public_key.rsa()?;
             let mut encrypted_key = vec![0; rsa.size() as usize];
-            rsa.public_encrypt(&key, &mut encrypted_key, self.algorithm.padding())?;
+            let len = rsa.public_encrypt(&key, &mut encrypted_key, self.algorithm.padding())?;
+            encrypted_key.truncate(len);
 
-            Ok(Some(encrypted_key))
+            Ok((Cow::Owned(key), Some(encrypted_key)))
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
@@ -395,8 +397,16 @@ impl JweDecrypter for RsaesJweDecrypter {
         self.key_id = None;
     }
 
-    fn decrypt(&self, header: &JweHeader, encrypted_key: &[u8]) -> Result<Cow<[u8]>, JoseError> {
-        todo!();
+    fn decrypt(&self, _header: &JweHeader, encrypted_key: &[u8]) -> Result<Cow<[u8]>, JoseError> {
+        (|| -> anyhow::Result<Cow<[u8]>> {
+            let rsa = self.private_key.rsa()?;
+            let mut key = vec![0; rsa.size() as usize];
+            let len = rsa.public_decrypt(&encrypted_key, &mut key, self.algorithm.padding())?;
+            key.truncate(len);
+
+            Ok(Cow::Owned(key))
+        })()
+        .map_err(|err| JoseError::InvalidJweFormat(err))
     }
     
     fn box_clone(&self) -> Box<dyn JweDecrypter> {
