@@ -1,6 +1,7 @@
 use anyhow::bail;
 use once_cell::sync::Lazy;
 use openssl::bn::BigNumRef;
+use openssl::hash::MessageDigest;
 use regex::bytes::{NoExpand, Regex};
 use std::time::SystemTime;
 
@@ -17,6 +18,10 @@ pub enum SourceValue {
 
 pub fn ceiling(len: usize, div: usize) -> usize {
     (len + (div - 1)) / div
+}
+
+pub fn contact_kdf(message: &[u8], len: usize, md: MessageDigest) -> Vec<u8> {
+    message.to_vec()
 }
 
 pub fn parse_pem(input: &[u8]) -> anyhow::Result<(String, Vec<u8>)> {

@@ -397,12 +397,16 @@ impl JweDecrypter for RsaesJweDecrypter {
         self.key_id = None;
     }
 
-    fn decrypt(&self, _header: &JweHeader, encrypted_key: &[u8]) -> Result<Cow<[u8]>, JoseError> {
+    fn decrypt(&self, _header: &JweHeader, encrypted_key: &[u8], key_len: usize) -> Result<Cow<[u8]>, JoseError> {
         (|| -> anyhow::Result<Cow<[u8]>> {
             let rsa = self.private_key.rsa()?;
             let mut key = vec![0; rsa.size() as usize];
             let len = rsa.public_decrypt(&encrypted_key, &mut key, self.algorithm.padding())?;
             key.truncate(len);
+
+            if key.len() != key_len {
+                bail!("The key size is expected to be {}: {}", key_len, key.len());
+            }
 
             Ok(Cow::Owned(key))
         })()

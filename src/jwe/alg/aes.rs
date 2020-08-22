@@ -180,7 +180,7 @@ impl JweDecrypter for AesJweDecrypter {
         self.key_id = None;
     }
 
-    fn decrypt(&self, header: &JweHeader, encrypted_key: &[u8]) -> Result<Cow<[u8]>, JoseError> {
+    fn decrypt(&self, header: &JweHeader, encrypted_key: &[u8], key_len: usize) -> Result<Cow<[u8]>, JoseError> {
         todo!();
     }
         

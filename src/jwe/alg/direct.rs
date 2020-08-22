@@ -159,9 +159,9 @@ impl JweEncrypter for DirectJweEncrypter {
 
     fn encrypt(&self, header: &mut JweHeader, key_len: usize) -> Result<(Cow<[u8]>, Option<Vec<u8>>), JoseError> {
         (|| -> anyhow::Result<(Cow<[u8]>, Option<Vec<u8>>)> {
-            let expected_len = self.cencryption_key.len();
-            if key_len != expected_len {
-                bail!("The key size is expected to be {}: {}", key_len, expected_len);
+            let actual_len = self.cencryption_key.len();
+            if key_len != actual_len {
+                bail!("The key size is expected to be {}: {}", key_len, actual_len);
             }
 
             header.set_algorithm(self.algorithm.name());
@@ -202,12 +202,16 @@ impl JweDecrypter for DirectJweDecrypter {
         self.key_id = None;
     }
 
-    fn decrypt(&self, _header: &JweHeader, encrypted_key: &[u8]) -> Result<Cow<[u8]>, JoseError> {
+    fn decrypt(&self, _header: &JweHeader, encrypted_key: &[u8], key_len: usize) -> Result<Cow<[u8]>, JoseError> {
         (|| -> anyhow::Result<Cow<[u8]>> {
             if encrypted_key.len() != 0 {
                 bail!("The encrypted_key must be empty.");
             }
-
+            let actual_len = self.cencryption_key.len();
+            if actual_len != key_len {
+                bail!("The key size is expected to be {}: {}", key_len, actual_len);
+            }
+            
             Ok(Cow::Borrowed(&self.cencryption_key))
         })()
         .map_err(|err| JoseError::InvalidJweFormat(err))

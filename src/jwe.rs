@@ -539,7 +539,7 @@ impl JweContext {
             }
 
             let encrypted_key = base64::decode_config(encrypted_key_b64, base64::URL_SAFE_NO_PAD)?;
-            let key = decrypter.decrypt(&header, &encrypted_key)?;
+            let key = decrypter.decrypt(&header, &encrypted_key, cencryption.key_len())?;
 
             let iv = base64::decode_config(iv_b64, base64::URL_SAFE_NO_PAD)?;
             let ciphertext = base64::decode_config(ciphertext_b64, base64::URL_SAFE_NO_PAD)?;
@@ -1212,7 +1212,7 @@ pub trait JweEncrypter: Debug + Send + Sync {
     /// # Arguments
     ///
     /// * `header` - the header
-    /// * `key` - the content encryption key
+    /// * `key_len` - the length of the content encryption key
     fn encrypt(&self, header: &mut JweHeader, key_len: usize) -> Result<(Cow<[u8]>, Option<Vec<u8>>), JoseError>;
 
     fn box_clone(&self) -> Box<dyn JweEncrypter>;
@@ -1248,7 +1248,8 @@ pub trait JweDecrypter: Debug + Send + Sync {
     ///
     /// * `header` - The header
     /// * `encrypted_key` - The encrypted key.
-    fn decrypt(&self, header: &JweHeader, encrypted_key: &[u8]) -> Result<Cow<[u8]>, JoseError>;
+    /// * `key_len` - the length of the content encryption key
+    fn decrypt(&self, header: &JweHeader, encrypted_key: &[u8], key_len: usize) -> Result<Cow<[u8]>, JoseError>;
     
     fn box_clone(&self) -> Box<dyn JweDecrypter>;
 }

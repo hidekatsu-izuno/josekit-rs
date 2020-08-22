@@ -7,6 +7,7 @@ use openssl::bn::{BigNum, BigNumContext};
 use openssl::ec::{EcGroup, EcKey};
 use openssl::nid::Nid;
 use openssl::derive::Deriver;
+use openssl::hash::MessageDigest;
 use serde_json::{Map, Value};
 
 use crate::der::oid::ObjectIdentifier;
@@ -385,6 +386,7 @@ impl JweEncrypter for EcdhEsJweEncrypter {
             let mut deriver = Deriver::new(&private_key)?;
             deriver.set_peer(&self.public_key)?;
             let key = deriver.derive_to_vec()?;
+            let key = util::contact_kdf(&key, key_len, MessageDigest::sha256());
 
             Ok((Cow::Owned(key), None))
         })()
@@ -424,7 +426,7 @@ impl JweDecrypter for EcdhEsJweDecrypter {
         self.key_id = None;
     }
 
-    fn decrypt(&self, header: &JweHeader, encrypted_key: &[u8]) -> Result<Cow<[u8]>, JoseError> {
+    fn decrypt(&self, header: &JweHeader, encrypted_key: &[u8], key_len: usize) -> Result<Cow<[u8]>, JoseError> {
         (|| -> anyhow::Result<Cow<[u8]>> {
             if encrypted_key.len() != 0 {
                 bail!("The encrypted_key must be empty.");
@@ -492,6 +494,7 @@ impl JweDecrypter for EcdhEsJweDecrypter {
             let mut deriver = Deriver::new(&self.private_key)?;
             deriver.set_peer(&public_key)?;
             let key = deriver.derive_to_vec()?;
+            let key = util::contact_kdf(&key, key_len, MessageDigest::sha256());
 
             Ok(Cow::Owned(key))
         })()
