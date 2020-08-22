@@ -344,7 +344,7 @@ impl JweEncrypter for EcdhEsJweEncrypter {
         self.key_id = None;
     }
 
-    fn encrypt(&self, header: &mut JweHeader) -> Result<(Cow<[u8]>, Option<Vec<u8>>), JoseError> {
+    fn encrypt(&self, key_len: usize, header: &mut JweHeader) -> Result<(Cow<[u8]>, Option<Vec<u8>>), JoseError> {
         (|| -> anyhow::Result<(Cow<[u8]>, Option<Vec<u8>>)> {
             header.set_algorithm(self.algorithm.name());
 
@@ -358,12 +358,11 @@ impl JweEncrypter for EcdhEsJweEncrypter {
                     let ec_key = EcKey::generate(&ec_group)?;
 
                     let public_key = ec_key.public_key();
-                    let mut x = BigNum::new().unwrap();
-                    let mut y = BigNum::new().unwrap();
-                    let mut ctx = BigNumContext::new().unwrap();
+                    let mut x = BigNum::new()?;
+                    let mut y = BigNum::new()?;
+                    let mut ctx = BigNumContext::new()?;
                     public_key
-                        .affine_coordinates_gfp(ec_key.group(), &mut x, &mut y, &mut ctx)
-                        .unwrap();
+                        .affine_coordinates_gfp(ec_key.group(), &mut x, &mut y, &mut ctx)?;
 
                     let x = util::num_to_vec(&x, self.curve.coordinate_size());
                     let x = base64::encode_config(&x, base64::URL_SAFE_NO_PAD);
@@ -489,7 +488,6 @@ impl JweDecrypter for EcdhEsJweDecrypter {
                 Some(_) => bail!("The epk header claim must be object."),
                 None => bail!("This algorithm must have epk header claim."),
             };
-
 
             let mut deriver = Deriver::new(&self.private_key)?;
             deriver.set_peer(&public_key)?;

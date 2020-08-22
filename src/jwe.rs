@@ -238,7 +238,7 @@ impl JweContext {
             };
 
             let mut header = header.clone();
-            let (key, encrypted_key) = encrypter.encrypt(&mut header)?;
+            let (key, encrypted_key) = encrypter.encrypt(cencryption.key_len(), &mut header)?;
             if let None = header.claim("kid") {
                 if let Some(key_id) = encrypter.key_id() {
                     header.set_key_id(key_id);
@@ -387,7 +387,7 @@ impl JweContext {
                 payload
             };
             
-            let (key, encrypted_key) = encrypter.encrypt(&mut protected)?;
+            let (key, encrypted_key) = encrypter.encrypt(cencryption.key_len(), &mut protected)?;
             if let None = merged.claim("kid") {
                 if let Some(key_id) = encrypter.key_id() {
                     protected.set_key_id(key_id);
@@ -539,15 +539,6 @@ impl JweContext {
 
             let encrypted_key = base64::decode_config(encrypted_key_b64, base64::URL_SAFE_NO_PAD)?;
             let key = decrypter.decrypt(&header, &encrypted_key)?;
-
-            let expected_len = cencryption.content_encryption_key_len();
-            if key.len() != expected_len {
-                bail!(
-                    "The length of content encryption key must be {}: {}",
-                    expected_len,
-                    key.len()
-                );
-            }
 
             let iv = base64::decode_config(iv_b64, base64::URL_SAFE_NO_PAD)?;
             let ciphertext = base64::decode_config(ciphertext_b64, base64::URL_SAFE_NO_PAD)?;
@@ -1219,8 +1210,9 @@ pub trait JweEncrypter: Debug + Send + Sync {
     /// Return a content encryption key and encypted data.
     /// # Arguments
     ///
+    /// * `key_len` - the length of content encryption key
     /// * `header` - the header
-    fn encrypt(&self, header: &mut JweHeader) -> Result<(Cow<[u8]>, Option<Vec<u8>>), JoseError>;
+    fn encrypt(&self, key_len: usize, header: &mut JweHeader) -> Result<(Cow<[u8]>, Option<Vec<u8>>), JoseError>;
 
     fn box_clone(&self) -> Box<dyn JweEncrypter>;
 }
@@ -1270,7 +1262,7 @@ pub trait JweContentEncryption: Debug + Send + Sync {
     /// Return the "enc" (encryption) header parameter value of JWE.
     fn name(&self) -> &str;
 
-    fn content_encryption_key_len(&self) -> usize;
+    fn key_len(&self) -> usize;
 
     fn iv_len(&self) -> usize;
 

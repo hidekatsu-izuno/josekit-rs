@@ -64,7 +64,7 @@ impl JweContentEncryption for AesCbcHmacJweEncryption {
         }
     }
 
-    fn content_encryption_key_len(&self) -> usize {
+    fn key_len(&self) -> usize {
         match self {
             Self::A128CbcHS256 => 16 + 16,
             Self::A192CbcHS384 => 24 + 16,
@@ -77,14 +77,23 @@ impl JweContentEncryption for AesCbcHmacJweEncryption {
     }
 
     fn encrypt(&self, key: &[u8], iv: &[u8], message: &[u8], aad: &[u8]) -> Result<(Vec<u8>, Vec<u8>), JoseError> {
-        let split_pos = self.content_encryption_key_len() - 16;
-        let mac_key = &key[0..split_pos];
-        let enc_key = &key[split_pos..];
+        let (encrypted_message, mac_key) = (|| -> anyhow::Result<(Vec<u8>, &[u8])> {
+            let expected_len = self.key_len();
+            if key.len() != expected_len {
+                bail!(
+                    "The length of content encryption key must be {}: {}",
+                    expected_len,
+                    key.len()
+                );
+            }
 
-        let encrypted_message = (|| -> anyhow::Result<Vec<u8>> {
+            let split_pos = self.key_len() - 16;
+            let mac_key = &key[0..split_pos];
+            let enc_key = &key[split_pos..];
+
             let cipher = self.cipher();
             let encrypted_message = symm::encrypt(cipher, enc_key, Some(iv), message)?;
-            Ok(encrypted_message)
+            Ok((encrypted_message, mac_key))
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))?;
 
@@ -94,14 +103,23 @@ impl JweContentEncryption for AesCbcHmacJweEncryption {
     }
 
     fn decrypt(&self,  key: &[u8], iv: &[u8], encrypted_message: &[u8], aad: &[u8], tag: &[u8]) -> Result<Vec<u8>, JoseError> {
-        let split_pos = self.content_encryption_key_len() - 16;
-        let mac_key = &key[0..split_pos];
-        let enc_key = &key[split_pos..];
+        let (message, mac_key) = (|| -> anyhow::Result<(Vec<u8>, &[u8])> {
+            let expected_len = self.key_len();
+            if key.len() != expected_len {
+                bail!(
+                    "The length of content encryption key must be {}: {}",
+                    expected_len,
+                    key.len()
+                );
+            }
+    
+            let split_pos = self.key_len() - 16;
+            let mac_key = &key[0..split_pos];
+            let enc_key = &key[split_pos..];
 
-        let message = (|| -> anyhow::Result<Vec<u8>> {
             let cipher = self.cipher();
             let message = symm::decrypt(cipher, enc_key, Some(iv), encrypted_message)?;
-            Ok(message)
+            Ok((message, mac_key))
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))?;
 

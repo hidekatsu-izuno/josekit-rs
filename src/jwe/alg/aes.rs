@@ -144,7 +144,7 @@ impl JweEncrypter for AesJweEncrypter {
         self.key_id = None;
     }
 
-    fn encrypt(&self, header: &mut JweHeader) -> Result<(Cow<[u8]>, Option<Vec<u8>>), JoseError> {
+    fn encrypt(&self, key_len: usize, header: &mut JweHeader) -> Result<(Cow<[u8]>, Option<Vec<u8>>), JoseError> {
         todo!();
     }
     

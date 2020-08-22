@@ -157,7 +157,7 @@ impl JweEncrypter for DirectJweEncrypter {
         self.key_id = None;
     }
 
-    fn encrypt(&self, header: &mut JweHeader) -> Result<(Cow<[u8]>, Option<Vec<u8>>), JoseError> {
+    fn encrypt(&self, _key_len: usize, header: &mut JweHeader) -> Result<(Cow<[u8]>, Option<Vec<u8>>), JoseError> {
         header.set_algorithm(self.algorithm.name());
         Ok((Cow::Borrowed(&self.content_encryption_key), None))
     }

@@ -4,10 +4,11 @@ use anyhow::bail;
 use once_cell::sync::Lazy;
 use openssl::pkey::{HasPublic, PKey, Private, Public};
 use openssl::rsa::Padding;
+use openssl::rand;
 use serde_json::Value;
 
 use crate::der::oid::ObjectIdentifier;
-use crate::der::{DerBuilder, DerReader, DerType, DerClass};
+use crate::der::{DerBuilder, DerType, DerClass};
 use crate::jose::JoseError;
 use crate::jwe::{JweHeader, JweAlgorithm, JweDecrypter, JweEncrypter};
 use crate::jwk::Jwk;
@@ -347,8 +348,20 @@ impl JweEncrypter for RsaesJweEncrypter {
         self.key_id = None;
     }
     
-    fn encrypt(&self, header: &mut JweHeader) -> Result<(Cow<[u8]>, Option<Vec<u8>>), JoseError> {
-        todo!();
+    fn encrypt(&self, key_len: usize, header: &mut JweHeader) -> Result<(Cow<[u8]>, Option<Vec<u8>>), JoseError> {
+        (|| -> anyhow::Result<(Cow<[u8]>, Option<Vec<u8>>)> {
+            header.set_algorithm(self.algorithm.name());
+
+            let mut key = vec![0; key_len];
+            rand::rand_bytes(&mut key)?;
+
+            let rsa = self.public_key.rsa()?;
+            let mut encrypted_key = vec![0; rsa.size() as usize];
+            rsa.public_encrypt(&key, &mut encrypted_key, self.algorithm.padding())?;
+
+            Ok((Cow::Owned(key), Some(encrypted_key)))
+        })()
+        .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
     fn box_clone(&self) -> Box<dyn JweEncrypter> {

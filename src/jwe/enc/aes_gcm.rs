@@ -1,4 +1,5 @@
 use openssl::symm::{self, Cipher};
+use anyhow::bail;
 
 use crate::jose::JoseError;
 use crate::jwe::JweContentEncryption;
@@ -32,7 +33,7 @@ impl JweContentEncryption for AesGcmJweEncryption {
         }
     }
 
-    fn content_encryption_key_len(&self) -> usize {
+    fn key_len(&self) -> usize {
         match self {
             Self::A128Gcm => 16,
             Self::A192Gcm => 24,
@@ -46,6 +47,15 @@ impl JweContentEncryption for AesGcmJweEncryption {
 
     fn encrypt(&self, key: &[u8], iv: &[u8], message: &[u8], aad: &[u8]) -> Result<(Vec<u8>, Vec<u8>), JoseError> {
         (|| -> anyhow::Result<(Vec<u8>, Vec<u8>)> {
+            let expected_len = self.key_len();
+            if key.len() != expected_len {
+                bail!(
+                    "The length of content encryption key must be {}: {}",
+                    expected_len,
+                    key.len()
+                );
+            }
+
             let cipher = self.cipher();
             let mut tag = [0; 16];
             let encrypted_message = symm::encrypt_aead(cipher, key, Some(iv), aad, message, &mut tag)?;
@@ -56,6 +66,15 @@ impl JweContentEncryption for AesGcmJweEncryption {
 
     fn decrypt(&self,  key: &[u8], iv: &[u8], encrypted_message: &[u8], aad: &[u8], tag: &[u8]) -> Result<Vec<u8>, JoseError> {
         (|| -> anyhow::Result<Vec<u8>> {
+            let expected_len = self.key_len();
+            if key.len() != expected_len {
+                bail!(
+                    "The length of content encryption key must be {}: {}",
+                    expected_len,
+                    key.len()
+                );
+            }
+
             let cipher = self.cipher();
             let message = symm::decrypt_aead(cipher, key, Some(iv), aad, encrypted_message, tag)?;
             Ok(message)
