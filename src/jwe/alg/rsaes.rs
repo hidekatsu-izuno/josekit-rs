@@ -348,18 +348,17 @@ impl JweEncrypter for RsaesJweEncrypter {
         self.key_id = None;
     }
     
-    fn encrypt(&self, key_len: usize, header: &mut JweHeader) -> Result<(Cow<[u8]>, Option<Vec<u8>>), JoseError> {
-        (|| -> anyhow::Result<(Cow<[u8]>, Option<Vec<u8>>)> {
+    fn encrypt(&self, header: &mut JweHeader, key: &mut [u8]) -> Result<Option<Vec<u8>>, JoseError> {
+        (|| -> anyhow::Result<Option<Vec<u8>>> {
             header.set_algorithm(self.algorithm.name());
 
-            let mut key = vec![0; key_len];
-            rand::rand_bytes(&mut key)?;
+            rand::rand_bytes(key)?;
 
             let rsa = self.public_key.rsa()?;
             let mut encrypted_key = vec![0; rsa.size() as usize];
             rsa.public_encrypt(&key, &mut encrypted_key, self.algorithm.padding())?;
 
-            Ok((Cow::Owned(key), Some(encrypted_key)))
+            Ok(Some(encrypted_key))
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }

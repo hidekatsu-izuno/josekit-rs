@@ -344,8 +344,8 @@ impl JweEncrypter for EcdhEsJweEncrypter {
         self.key_id = None;
     }
 
-    fn encrypt(&self, key_len: usize, header: &mut JweHeader) -> Result<(Cow<[u8]>, Option<Vec<u8>>), JoseError> {
-        (|| -> anyhow::Result<(Cow<[u8]>, Option<Vec<u8>>)> {
+    fn encrypt(&self, header: &mut JweHeader, key: &mut [u8]) -> Result<Option<Vec<u8>>, JoseError> {
+        (|| -> anyhow::Result<Option<Vec<u8>>> {
             header.set_algorithm(self.algorithm.name());
 
             let mut map = Map::new();
@@ -384,9 +384,9 @@ impl JweEncrypter for EcdhEsJweEncrypter {
 
             let mut deriver = Deriver::new(&private_key)?;
             deriver.set_peer(&self.public_key)?;
-            let key = deriver.derive_to_vec()?;
+            deriver.derive(key)?;
 
-            Ok((Cow::Owned(key), None))
+            Ok(None)
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
