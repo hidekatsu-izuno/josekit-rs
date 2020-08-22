@@ -7,7 +7,7 @@ use openssl::bn::{BigNum, BigNumContext};
 use openssl::ec::{EcGroup, EcKey};
 use openssl::nid::Nid;
 use openssl::derive::Deriver;
-use openssl::hash::MessageDigest;
+use openssl::hash::{MessageDigest, Hasher};
 use serde_json::{Map, Value};
 
 use crate::der::oid::ObjectIdentifier;
@@ -409,23 +409,29 @@ impl JweEncrypter for EcdhEsJweEncrypter {
                 _ => unreachable!(),
             };
 
-            let mut messages: Vec<&[u8]> = Vec::new();
-            messages.push(&derived_key);
-            messages.push(enc.as_bytes());
-            let apu_bytes;
-            if let Some(val) = apu {
-                apu_bytes = val;
-                messages.push(&apu_bytes);
-            }
-            let apv_bytes;
-            if let Some(val) = apv {
-                apv_bytes = val;
-                messages.push(&apv_bytes);
-            }
-            let key_len_bytes = (key_len as u32).to_be_bytes();
-            messages.push(&key_len_bytes);
+            // concat KDF
+            let md = MessageDigest::sha256();
+            let mut key = Vec::new();
+            for i in 1..util::ceiling(key_len, md.size()) {
+                let mut hasher = Hasher::new(md)?;
+                hasher.update(&(i as u32).to_be_bytes())?;
+                hasher.update(&derived_key)?;
+                hasher.update(enc.as_bytes())?;
+                if let Some(val) = &apu {
+                    hasher.update(val.as_slice())?;
+                }
+                if let Some(val) = &apv {
+                    hasher.update(val.as_slice())?;
+                }
+                hasher.update(&(key_len as u32).to_be_bytes())?;
 
-            let key = util::concat_kdf(MessageDigest::sha256(), &messages, key_len)?;
+                let digest = hasher.finish()?;
+                key.extend(digest.to_vec());
+            }
+            if key.len() != key_len {
+                key.truncate(key_len);
+            }
+
             Ok((Cow::Owned(key), None))
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
@@ -531,7 +537,7 @@ impl JweDecrypter for EcdhEsJweDecrypter {
                             PKey::public_key_from_der(&pkcs8)?
                         },
                         "OKP" => {
-                            let x = match map.get("x") {
+                            let _x = match map.get("x") {
                                 Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
                                 Some(_) => bail!("The x parameter in epk header claim must be a string."),
                                 None => bail!("The x parameter in epk header claim is required."),
@@ -555,23 +561,28 @@ impl JweDecrypter for EcdhEsJweDecrypter {
                 _ => unreachable!(),
             };
 
-            let mut messages: Vec<&[u8]> = Vec::new();
-            messages.push(&derived_key);
-            messages.push(enc.as_bytes());
-            let apu_bytes;
-            if let Some(val) = apu {
-                apu_bytes = val;
-                messages.push(&apu_bytes);
-            }
-            let apv_bytes;
-            if let Some(val) = apv {
-                apv_bytes = val;
-                messages.push(&apv_bytes);
-            }
-            let key_len_bytes = (key_len as u32).to_be_bytes();
-            messages.push(&key_len_bytes);
+            // concat KDF
+            let md = MessageDigest::sha256();
+            let mut key = Vec::new();
+            for i in 1..util::ceiling(key_len, md.size()) {
+                let mut hasher = Hasher::new(md)?;
+                hasher.update(&(i as u32).to_be_bytes())?;
+                hasher.update(&derived_key)?;
+                hasher.update(enc.as_bytes())?;
+                if let Some(val) = &apu {
+                    hasher.update(val.as_slice())?;
+                }
+                if let Some(val) = &apv {
+                    hasher.update(val.as_slice())?;
+                }
+                hasher.update(&(key_len as u32).to_be_bytes())?;
 
-            let key = util::concat_kdf(MessageDigest::sha256(), &messages, key_len)?;
+                let digest = hasher.finish()?;
+                key.extend(digest.to_vec());
+            }
+            if key.len() != key_len {
+                key.truncate(key_len);
+            }
 
             Ok(Cow::Owned(key))
         })()
