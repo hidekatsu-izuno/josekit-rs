@@ -1,4 +1,7 @@
 use std::borrow::Cow;
+
+use openssl::rand;
+use openssl::aes::{self, AesKey};
 use anyhow::bail;
 use serde_json::Value;
 
@@ -47,6 +50,10 @@ impl AesJweAlgorithm {
                 Some(val) => bail!("A parameter k must be string type but {:?}", val),
                 None => bail!("A parameter k is required."),
             };
+            
+            if k.len() != self.key_len() {
+                bail!("The key size must be {}: {}", self.key_len(), k.len());
+            }
 
             let key_id = jwk.key_id().map(|val| val.to_string());
 
@@ -91,6 +98,10 @@ impl AesJweAlgorithm {
                 None => bail!("A parameter k is required."),
             };
 
+            if k.len() != self.key_len() {
+                bail!("The key size must be {}: {}", self.key_len(), k.len());
+            }
+
             let key_id = jwk.key_id().map(|val| val.to_string());
 
             Ok(AesJweDecrypter {
@@ -100,6 +111,14 @@ impl AesJweAlgorithm {
             })
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
+    }
+
+    fn key_len(&self) -> usize {
+        match self {
+            Self::A128Kw => 16,
+            Self::A192Kw => 24,
+            Self::A256Kw => 32,
+        }
     }
 }
 
@@ -145,7 +164,28 @@ impl JweEncrypter for AesJweEncrypter {
     }
 
     fn encrypt(&self, header: &mut JweHeader, key_len: usize) -> Result<(Cow<[u8]>, Option<Vec<u8>>), JoseError> {
-        todo!();
+        (|| -> anyhow::Result<(Cow<[u8]>, Option<Vec<u8>>)> {
+            let aes = match AesKey::new_encrypt(&self.private_key) {
+                Ok(val) => val,
+                Err(err) => bail!("{:?}", err),
+            };
+
+            let mut key = vec![0; key_len];
+            rand::rand_bytes(&mut key)?;
+
+            let mut encrypted_key = vec![0; key_len + 8];
+            let len = match aes::wrap_key(&aes, None, &mut encrypted_key, &key) {
+                Ok(val) => val,
+                Err(err) => bail!("{:?}", err),
+            };
+            if len < encrypted_key.len() {
+                encrypted_key.truncate(len);
+            }
+
+            header.set_algorithm(self.algorithm.name());
+            Ok((Cow::Owned(key), Some(encrypted_key)))
+        })()
+        .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
     
     fn box_clone(&self) -> Box<dyn JweEncrypter> {
@@ -180,8 +220,25 @@ impl JweDecrypter for AesJweDecrypter {
         self.key_id = None;
     }
 
-    fn decrypt(&self, header: &JweHeader, encrypted_key: &[u8], key_len: usize) -> Result<Cow<[u8]>, JoseError> {
-        todo!();
+    fn decrypt(&self, _header: &JweHeader, encrypted_key: &[u8], key_len: usize) -> Result<Cow<[u8]>, JoseError> {
+        (|| -> anyhow::Result<Cow<[u8]>> {
+            let aes = match AesKey::new_decrypt(&self.private_key) {
+                Ok(val) => val,
+                Err(err) => bail!("{:?}", err),
+            };
+
+            let mut key = vec![0; key_len];
+            let len = match aes::unwrap_key(&aes, None, &mut key, encrypted_key) {
+                Ok(val) => val,
+                Err(err) => bail!("{:?}", err),
+            };
+            if len < key.len() {
+                key.truncate(len);
+            }
+
+            Ok(Cow::Owned(key))
+        })()
+        .map_err(|err| JoseError::InvalidJweFormat(err))
     }
         
     fn box_clone(&self) -> Box<dyn JweDecrypter> {

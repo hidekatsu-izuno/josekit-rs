@@ -434,7 +434,10 @@ impl JweEncrypter for EcdhEsJweEncrypter {
 
             Ok((Cow::Owned(key), None))
         })()
-        .map_err(|err| JoseError::InvalidKeyFormat(err))
+        .map_err(|err| match err.downcast::<JoseError>() {
+            Ok(err) => err,
+            Err(err) => JoseError::InvalidKeyFormat(err),
+        })
     }
     
     fn box_clone(&self) -> Box<dyn JweEncrypter> {
