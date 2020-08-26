@@ -13,7 +13,7 @@ use crate::jwe::{JweHeader, JweAlgorithm, JweDecrypter, JweEncrypter};
 use crate::jwk::Jwk;
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
-pub enum Pbes2HmacAesJweAlgorithm {
+pub enum Pbes2HmacJweAlgorithm {
     /// PBES2 with HMAC SHA-256 and "A128KW" wrapping
     Pbes2HS256A128Kw,
     /// PBES2 with HMAC SHA-384 and "A192KW" wrapping
@@ -22,9 +22,9 @@ pub enum Pbes2HmacAesJweAlgorithm {
     Pbes2HS512A256Kw,
 }
 
-impl Pbes2HmacAesJweAlgorithm {
-    pub fn encrypter_from_jwk(&self, jwk: &Jwk) -> Result<Pbes2HmacAesJweEncrypter, JoseError> {
-        (|| -> anyhow::Result<Pbes2HmacAesJweEncrypter> {
+impl Pbes2HmacJweAlgorithm {
+    pub fn encrypter_from_jwk(&self, jwk: &Jwk) -> Result<Pbes2HmacJweEncrypter, JoseError> {
+        (|| -> anyhow::Result<Pbes2HmacJweEncrypter> {
             match jwk.key_type() {
                 val if val == "oct" => {}
                 val => bail!("A parameter kty must be oct: {}", val),
@@ -50,7 +50,7 @@ impl Pbes2HmacAesJweAlgorithm {
                 None => bail!("A parameter k is required."),
             };
 
-            Ok(Pbes2HmacAesJweEncrypter {
+            Ok(Pbes2HmacJweEncrypter {
                 algorithm: self.clone(),
                 private_key: k,
                 key_id: jwk.key_id().map(|val| val.to_string()),
@@ -59,8 +59,8 @@ impl Pbes2HmacAesJweAlgorithm {
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
-    pub fn decrypter_from_jwk(&self, jwk: &Jwk) -> Result<Pbes2HmacAesJweDecrypter, JoseError> {
-        (|| -> anyhow::Result<Pbes2HmacAesJweDecrypter> {
+    pub fn decrypter_from_jwk(&self, jwk: &Jwk) -> Result<Pbes2HmacJweDecrypter, JoseError> {
+        (|| -> anyhow::Result<Pbes2HmacJweDecrypter> {
             match jwk.key_type() {
                 val if val == "oct" => {}
                 val => bail!("A parameter kty must be oct: {}", val),
@@ -89,7 +89,7 @@ impl Pbes2HmacAesJweAlgorithm {
 
             let key_id = jwk.key_id().map(|val| val.to_string());
 
-            Ok(Pbes2HmacAesJweDecrypter {
+            Ok(Pbes2HmacJweDecrypter {
                 algorithm: self.clone(),
                 private_key: k,
                 key_id,
@@ -107,7 +107,7 @@ impl Pbes2HmacAesJweAlgorithm {
     }
 }
 
-impl JweAlgorithm for Pbes2HmacAesJweAlgorithm {
+impl JweAlgorithm for Pbes2HmacJweAlgorithm {
     fn name(&self) -> &str {
         match self {
             Self::Pbes2HS256A128Kw => "PBES2-HS256+A128KW",
@@ -122,13 +122,13 @@ impl JweAlgorithm for Pbes2HmacAesJweAlgorithm {
 }
 
 #[derive(Debug, Clone)]
-pub struct Pbes2HmacAesJweEncrypter {
-    algorithm: Pbes2HmacAesJweAlgorithm,
+pub struct Pbes2HmacJweEncrypter {
+    algorithm: Pbes2HmacJweAlgorithm,
     private_key: Vec<u8>,
     key_id: Option<String>,
 }
 
-impl JweEncrypter for Pbes2HmacAesJweEncrypter {
+impl JweEncrypter for Pbes2HmacJweEncrypter {
     fn algorithm(&self) -> &dyn JweAlgorithm {
         &self.algorithm
     }
@@ -183,17 +183,17 @@ impl JweEncrypter for Pbes2HmacAesJweEncrypter {
                 Err(err) => bail!("{:?}", err),
             };
 
-            let mut wrapped_key = vec![0; key_len + 8];
-            let len = match aes::wrap_key(&aes, None, &mut wrapped_key, &key) {
+            let mut encrypted_key = vec![0; key_len + 8];
+            let len = match aes::wrap_key(&aes, None, &mut encrypted_key, &key) {
                 Ok(val) => val,
                 Err(err) => bail!("{:?}", err),
             };
-            if len < wrapped_key.len() {
-                wrapped_key.truncate(len);
+            if len < encrypted_key.len() {
+                encrypted_key.truncate(len);
             }
 
             header.set_algorithm(self.algorithm.name());
-            Ok((Cow::Owned(key), Some(wrapped_key)))
+            Ok((Cow::Owned(key), Some(encrypted_key)))
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
@@ -204,13 +204,13 @@ impl JweEncrypter for Pbes2HmacAesJweEncrypter {
 }
 
 #[derive(Debug, Clone)]
-pub struct Pbes2HmacAesJweDecrypter {
-    algorithm: Pbes2HmacAesJweAlgorithm,
+pub struct Pbes2HmacJweDecrypter {
+    algorithm: Pbes2HmacJweAlgorithm,
     private_key: Vec<u8>,
     key_id: Option<String>,
 }
 
-impl JweDecrypter for Pbes2HmacAesJweDecrypter {
+impl JweDecrypter for Pbes2HmacJweDecrypter {
     fn algorithm(&self) -> &dyn JweAlgorithm {
         &self.algorithm
     }

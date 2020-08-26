@@ -104,6 +104,12 @@ impl EcdhEsCurve {
 pub enum EcdhEsJweAlgorithm {
     /// Elliptic Curve Diffie-Hellman Ephemeral Static key agreement using Concat KDF
     EcdhEs,
+    /// ECDH-ES using Concat KDF and CEK wrapped with "A128KW"
+    EcdhEsA128Kw,
+    /// ECDH-ES using Concat KDF and CEK wrapped with "A192KW"
+    EcdhEsA192Kw,
+    /// ECDH-ES using Concat KDF and CEK wrapped with "A256KW"
+    EcdhEsA256Kw,
 }
 
 impl EcdhEsJweAlgorithm {
@@ -309,6 +315,9 @@ impl JweAlgorithm for EcdhEsJweAlgorithm {
     fn name(&self) -> &str {
         match self {
             Self::EcdhEs => "ECDH-ES",
+            Self::EcdhEsA128Kw => "ECDH-ES+A128KW",
+            Self::EcdhEsA192Kw => "ECDH-ES+A192KW",
+            Self::EcdhEsA256Kw => "ECDH-ES+A256KW",
         }
     }
         
