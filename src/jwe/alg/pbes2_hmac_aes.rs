@@ -1,8 +1,15 @@
+use std::borrow::Cow;
+use std::convert::TryFrom;
+
+use openssl::rand;
+use openssl::pkcs5;
+use openssl::aes::{self, AesKey};
+use openssl::hash::MessageDigest;
 use anyhow::bail;
 use serde_json::Value;
 
-use crate::jose::JoseError;
-use crate::jwe::{JweAlgorithm, JweDecrypter, JweEncrypter};
+use crate::jose::{JoseHeader, JoseError};
+use crate::jwe::{JweHeader, JweAlgorithm, JweDecrypter, JweEncrypter};
 use crate::jwk::Jwk;
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
@@ -90,6 +97,14 @@ impl Pbes2HmacAesJweAlgorithm {
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
+
+    fn digest(&self) -> MessageDigest {
+        match self {
+            Self::Pbes2HS256A128Kw => MessageDigest::sha256(),
+            Self::Pbes2HS384A192Kw => MessageDigest::sha384(),
+            Self::Pbes2HS512A256Kw => MessageDigest::sha512(),
+        }
+    }
 }
 
 impl JweAlgorithm for Pbes2HmacAesJweAlgorithm {
@@ -113,9 +128,152 @@ pub struct Pbes2HmacAesJweEncrypter {
     key_id: Option<String>,
 }
 
+impl JweEncrypter for Pbes2HmacAesJweEncrypter {
+    fn algorithm(&self) -> &dyn JweAlgorithm {
+        &self.algorithm
+    }
+
+    fn key_id(&self) -> Option<&str> {
+        match &self.key_id {
+            Some(val) => Some(val.as_ref()),
+            None => None,
+        }
+    }
+
+    fn set_key_id(&mut self, key_id: &str) {
+        self.key_id = Some(key_id.to_string());
+    }
+
+    fn remove_key_id(&mut self) {
+        self.key_id = None;
+    }
+
+    fn encrypt(&self, header: &mut JweHeader, key_len: usize) -> Result<(Cow<[u8]>, Option<Vec<u8>>), JoseError> {
+        (|| -> anyhow::Result<(Cow<[u8]>, Option<Vec<u8>>)> {
+            let p2s = match header.claim("p2s") {
+                Some(Value::String(val)) => {
+                    base64::decode_config(val, base64::URL_SAFE_NO_PAD)?
+                },
+                Some(_) => bail!("The p2s header claim must be string."),
+                None => {
+                    let mut p2s = vec![0, 8];
+                    rand::rand_bytes(&mut p2s)?;
+                    p2s
+                },
+            };
+            let p2c = match header.claim("p2c") {
+                Some(Value::Number(val)) => match val.as_u64() {
+                    Some(val) => usize::try_from(val)?,
+                    None => bail!("Overflow u64 value: {}", val),
+                },
+                Some(_) => bail!("The apv header claim must be string."),
+                None => 1000,
+            };
+
+            let md = self.algorithm.digest();
+
+            let mut derived_key = vec![0; key_len];
+            pkcs5::pbkdf2_hmac(&self.private_key, &p2s, p2c, md, &mut derived_key)?;
+
+            let mut key = vec![0; key_len];
+            rand::rand_bytes(&mut key)?;
+
+            let aes = match AesKey::new_encrypt(&derived_key) {
+                Ok(val) => val,
+                Err(err) => bail!("{:?}", err),
+            };
+
+            let mut wrapped_key = vec![0; key_len + 8];
+            let len = match aes::wrap_key(&aes, None, &mut wrapped_key, &key) {
+                Ok(val) => val,
+                Err(err) => bail!("{:?}", err),
+            };
+            if len < wrapped_key.len() {
+                wrapped_key.truncate(len);
+            }
+
+            header.set_algorithm(self.algorithm.name());
+            Ok((Cow::Owned(key), Some(wrapped_key)))
+        })()
+        .map_err(|err| JoseError::InvalidKeyFormat(err))
+    }
+    
+    fn box_clone(&self) -> Box<dyn JweEncrypter> {
+        Box::new(self.clone())
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Pbes2HmacAesJweDecrypter {
     algorithm: Pbes2HmacAesJweAlgorithm,
     private_key: Vec<u8>,
     key_id: Option<String>,
 }
+
+impl JweDecrypter for Pbes2HmacAesJweDecrypter {
+    fn algorithm(&self) -> &dyn JweAlgorithm {
+        &self.algorithm
+    }
+
+    fn key_id(&self) -> Option<&str> {
+        match &self.key_id {
+            Some(val) => Some(val.as_ref()),
+            None => None,
+        }
+    }
+
+    fn set_key_id(&mut self, key_id: &str) {
+        self.key_id = Some(key_id.to_string());
+    }
+
+    fn remove_key_id(&mut self) {
+        self.key_id = None;
+    }
+    
+    fn decrypt(&self, header: &JweHeader, encrypted_key: &[u8], key_len: usize) -> Result<Cow<[u8]>, JoseError> {
+        (|| -> anyhow::Result<Cow<[u8]>> {
+            let p2s = match header.claim("p2s") {
+                Some(Value::String(val)) => {
+                    base64::decode_config(val, base64::URL_SAFE_NO_PAD)?
+                },
+                Some(_) => bail!("The p2s header claim must be string."),
+                None => bail!("The p2s header claim is required."),
+            };
+            let p2c = match header.claim("p2c") {
+                Some(Value::Number(val)) => match val.as_u64() {
+                    Some(val) => usize::try_from(val)?,
+                    None => bail!("Overflow u64 value: {}", val),
+                },
+                Some(_) => bail!("The p2s header claim must be string."),
+                None => bail!("The p2c header claim is required."),
+            };
+
+            let md = self.algorithm.digest();
+
+            let mut derived_key = vec![0; key_len];
+            pkcs5::pbkdf2_hmac(&self.private_key, &p2s, p2c, md, &mut derived_key)?;
+            
+            let aes = match AesKey::new_encrypt(&derived_key) {
+                Ok(val) => val,
+                Err(err) => bail!("{:?}", err),
+            };
+
+            let mut key = vec![0; key_len + 8];
+            let len = match aes::unwrap_key(&aes, None, &mut key, &encrypted_key) {
+                Ok(val) => val,
+                Err(err) => bail!("{:?}", err),
+            };
+            if len < key.len() {
+                key.truncate(len);
+            }
+
+            Ok(Cow::Owned(key))
+        })()
+        .map_err(|err| JoseError::InvalidJweFormat(err))
+    }
+    
+    fn box_clone(&self) -> Box<dyn JweDecrypter> {
+        Box::new(self.clone())
+    }
+}
+
