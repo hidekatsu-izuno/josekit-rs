@@ -1020,6 +1020,117 @@ impl JweHeader {
             _ => unreachable!(),
         }
     }
+    
+    /// Set a value for url header claim (url).
+    ///
+    /// # Arguments
+    ///
+    /// * `value` - a url
+    pub fn set_url(&mut self, value: impl Into<String>) {
+        let value: String = value.into();
+        self.claims.insert("url".to_string(), Value::String(value));
+    }
+
+    /// Return the value for url header claim (url).
+    pub fn url(&self) -> Option<&str> {
+        match self.claims.get("url") {
+            Some(Value::String(val)) => Some(val),
+            _ => None,
+        }
+    }
+
+    /// Set a value for a nonce header claim (nonce).
+    ///
+    /// # Arguments
+    ///
+    /// * `value` - A nonce
+    pub fn set_nonce(&mut self, value: Vec<u8>) {
+        let key = "nonce".to_string();
+        let val = base64::encode_config(&value, base64::URL_SAFE_NO_PAD);
+        self.claims.insert(key.clone(), Value::String(val));
+        self.sources.insert(key, SourceValue::Bytes(value));
+    }
+
+    /// Return the value for nonce header claim (nonce).
+    pub fn nonce(&self) -> Option<&Vec<u8>> {
+        match self.sources.get("nonce") {
+            Some(SourceValue::Bytes(val)) => Some(val),
+            None => None,
+            _ => unreachable!(),
+        }
+    }
+
+    /// Set a value for issuer payload claim (iss).
+    ///
+    /// # Arguments
+    ///
+    /// * `value` - a issuer
+    pub fn set_issuer(&mut self, value: impl Into<String>) {
+        let value: String = value.into();
+        self.claims.insert("iss".to_string(), Value::String(value));
+    }
+
+    /// Return the value for issuer payload claim (iss).
+    pub fn issuer(&self) -> Option<&str> {
+        match self.claims.get("iss") {
+            Some(Value::String(val)) => Some(val),
+            _ => None,
+        }
+    }
+
+    /// Set a value for subject payload claim (sub).
+    ///
+    /// # Arguments
+    ///
+    /// * `value` - a subject
+    pub fn set_subject(&mut self, value: impl Into<String>) {
+        let value: String = value.into();
+        self.claims.insert("sub".to_string(), Value::String(value));
+    }
+
+    /// Return the value for subject payload claim (sub).
+    pub fn subject(&self) -> Option<&str> {
+        match self.claims.get("sub") {
+            Some(Value::String(val)) => Some(val),
+            _ => None,
+        }
+    }
+
+    /// Set values for audience payload claim (aud).
+    ///
+    /// # Arguments
+    ///
+    /// * `values` - a list of audiences
+    pub fn set_audience(&mut self, values: Vec<impl Into<String>>) {
+        let key = "aud".to_string();
+        if values.len() == 1 {
+            for val in values {
+                let val: String = val.into();
+                self.sources.remove(&key);
+                self.claims.insert(key, Value::String(val));
+                break;
+            }
+        } else if values.len() > 1 {
+            let mut vec1 = Vec::with_capacity(values.len());
+            let mut vec2 = Vec::with_capacity(values.len());
+            for val in values {
+                let val: String = val.into();
+                vec1.push(Value::String(val.clone()));
+                vec2.push(val);
+            }
+            self.claims.insert(key.clone(), Value::Array(vec1));
+            self.sources.insert(key, SourceValue::StringArray(vec2));
+        }
+    }
+
+    /// Return values for audience payload claim (aud).
+    pub fn audience(&self) -> Option<&Vec<String>> {
+        match self.sources.get("aud") {
+            Some(SourceValue::StringArray(val)) => Some(val),
+            None => None,
+            _ => unreachable!(),
+        }
+    }
 }
 
 impl JoseHeader for JweHeader {
