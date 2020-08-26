@@ -2,6 +2,7 @@ use std::borrow::Cow;
 
 use anyhow::bail;
 use once_cell::sync::Lazy;
+use openssl::aes::{self, AesKey};
 use openssl::pkey::{PKey, Private, Public};
 use openssl::bn::{BigNum, BigNumContext};
 use openssl::ec::{EcGroup, EcKey};
@@ -441,7 +442,26 @@ impl JweEncrypter for EcdhEsJweEncrypter {
                 key.truncate(key_len);
             }
 
-            Ok((Cow::Owned(key), None))
+            let encrypted_key = if self.algorithm != EcdhEsJweAlgorithm::EcdhEs {
+                let aes = match AesKey::new_encrypt(&derived_key) {
+                    Ok(val) => val,
+                    Err(err) => bail!("{:?}", err),
+                };
+
+                let mut encrypted_key = vec![0; key_len + 8];
+                let len = match aes::wrap_key(&aes, None, &mut encrypted_key, &key) {
+                    Ok(val) => val,
+                    Err(err) => bail!("{:?}", err),
+                };
+                if len < encrypted_key.len() {
+                    encrypted_key.truncate(len);
+                }
+                Some(encrypted_key)
+            } else {
+                None
+            };
+
+            Ok((Cow::Owned(key), encrypted_key))
         })()
         .map_err(|err| match err.downcast::<JoseError>() {
             Ok(err) => err,
@@ -595,6 +615,26 @@ impl JweDecrypter for EcdhEsJweDecrypter {
             if key.len() != key_len {
                 key.truncate(key_len);
             }
+
+            let key = if self.algorithm != EcdhEsJweAlgorithm::EcdhEs {
+                let aes = match AesKey::new_encrypt(&derived_key) {
+                    Ok(val) => val,
+                    Err(err) => bail!("{:?}", err),
+                };
+
+                let mut key = vec![0; key_len + 8];
+                let len = match aes::unwrap_key(&aes, None, &mut key, &encrypted_key) {
+                    Ok(val) => val,
+                    Err(err) => bail!("{:?}", err),
+                };
+                if len < key.len() {
+                    key.truncate(len);
+                }
+                
+                key
+            } else {
+                key
+            };
 
             Ok(Cow::Owned(key))
         })()
