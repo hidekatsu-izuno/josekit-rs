@@ -402,11 +402,19 @@ impl JweContext {
             let mut iv = vec![0; cencryption.iv_len()];
             rand::rand_bytes(&mut iv)?;
 
-            let (ciphertext, tag) = cencryption.encrypt(&key, &iv, content, &protected)?;
+            let protected_b64 = base64::encode_config(protected, base64::URL_SAFE_NO_PAD);
+            let (full_aad, aad_b64) = if let Some(val) = aad {
+                let aad_b64 = base64::encode_config(val, base64::URL_SAFE_NO_PAD);
+                (format!("{}.{}", &protected_b64, &aad_b64), Some(aad_b64))
+            } else {
+                (format!("{}.", &protected_b64), None)
+            };
+
+            let (ciphertext, tag) = cencryption.encrypt(&key, &iv, content, full_aad.as_bytes())?;
 
             let mut json = String::new();
             json.push_str("{\"protected\":\"");
-            base64::encode_config_buf(&protected, base64::URL_SAFE_NO_PAD, &mut json);
+            json.push_str(&protected_b64);
             json.push_str("\"");
 
             if let Some(val) = unprotected {
@@ -427,9 +435,9 @@ impl JweContext {
             }
             json.push_str("\"");
 
-            if let Some(val) = aad {
+            if let Some(val) = aad_b64 {
                 json.push_str(",\"aad\":\"");
-                base64::encode_config_buf(&val, base64::URL_SAFE_NO_PAD, &mut json);
+                json.push_str(&val);
                 json.push_str("\"");
             }
 
@@ -616,33 +624,47 @@ impl JweContext {
         (|| -> anyhow::Result<(Vec<u8>, JweHeader)> {
             let mut map: Map<String, Value> = serde_json::from_str(input)?;
 
-            let protected_b64 = match map.remove("protected") {
-                Some(Value::String(val)) => Some(val),
+            let (protected, protected_b64) = match map.remove("protected") {
+                Some(Value::String(val)) => (
+                    Some(base64::decode_config(&val, base64::URL_SAFE_NO_PAD)?),
+                    Some(val),
+                ),
                 Some(_) => bail!("The protected field must be string."),
-                None => None,
+                None => (None, None),
             };
-            let unprotected_b64 = match map.remove("unprotected") {
-                Some(Value::String(val)) => val,
+            let unprotected = match map.remove("unprotected") {
+                Some(Value::String(val)) => {
+                    Some(base64::decode_config(&val, base64::URL_SAFE_NO_PAD)?)
+                },
                 Some(_) => bail!("The unprotected field must be string."),
-                None => bail!("The unprotected field is required."),
-            };
-            let aad_b64 = match map.remove("aad") {
-                Some(Value::String(val)) => Some(val),
-                Some(_) => bail!("The aad field must be string."),
                 None => None,
             };
-            let iv_b64 = match map.remove("iv") {
-                Some(Value::String(val)) => Some(val),
+            let (aad, aad_b64) = match map.remove("aad") {
+                Some(Value::String(val)) => (
+                    Some(base64::decode_config(&val, base64::URL_SAFE_NO_PAD)?),
+                    Some(val),
+                ),
+                Some(_) => bail!("The aad field must be string."),
+                None => (None, None),
+            };
+            let iv = match map.remove("iv") {
+                Some(Value::String(val)) => {
+                    Some(base64::decode_config(&val, base64::URL_SAFE_NO_PAD)?)
+                },
                 Some(_) => bail!("The iv field must be string."),
                 None => None,
             };
-            let ciphertext_b64 = match map.remove("ciphertext") {
-                Some(Value::String(val)) => val,
+            let ciphertext = match map.remove("ciphertext") {
+                Some(Value::String(val)) => {
+                    base64::decode_config(&val, base64::URL_SAFE_NO_PAD)?
+                },
                 Some(_) => bail!("The ciphertext field must be string."),
                 None => bail!("The ciphertext field is required."),
             };
-            let tag_b64 = match map.remove("tag") {
-                Some(Value::String(val)) => Some(val),
+            let tag = match map.remove("tag") {
+                Some(Value::String(val)) => {
+                    Some(base64::decode_config(&val, base64::URL_SAFE_NO_PAD)?)
+                },
                 Some(_) => bail!("The tag field must be string."),
                 None => None,
             };
@@ -670,10 +692,12 @@ impl JweContext {
             for mut recipient in recipients {
                 let header = recipient.remove("header");
 
-                let encrypted_key_b64 = match recipient.get("encrypted_key") {
-                    Some(Value::String(val)) => val,
+                let encrypted_key = match recipient.get("encrypted_key") {
+                    Some(Value::String(val)) => {
+                        Some(base64::decode_config(&val, base64::URL_SAFE_NO_PAD)?)
+                    },
                     Some(_) => bail!("The encrypted_key field must be a string."),
-                    None => bail!("The JWW encrypted_key header claim must be present."),
+                    None => None,
                 };
             }
 
