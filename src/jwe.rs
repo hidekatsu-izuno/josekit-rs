@@ -296,6 +296,7 @@ impl JweContext {
     /// * `protected` - The JWE protected header claims.
     /// * `unprotected` - The JWE unprotected header claims.
     /// * `header` - The JWE unprotected header claims per recipient.
+    /// * `aad` - The JWE additional authenticated data.
     /// * `payload` - The payload data.
     /// * `encrypter` - The JWS encrypter.
     pub fn serialize_flattened_json(
@@ -304,9 +305,10 @@ impl JweContext {
         protected: Option<&JweHeader>,
         unprotected: Option<&JweHeader>,
         header: Option<&JweHeader>,
+        aad: Option<&[u8]>,
         encrypter: &dyn JweEncrypter,
     ) -> Result<String, JoseError> {
-        self.serialize_flattened_json_with_selector(payload, protected, unprotected, header, |_header| {
+        self.serialize_flattened_json_with_selector(payload, protected, unprotected, header, aad, |_header| {
             Some(encrypter)
         })
     }
@@ -319,6 +321,7 @@ impl JweContext {
     /// * `protected` - The JWS protected header claims.
     /// * `unprotected` - The JWE unprotected header claims.
     /// * `header` - The JWE unprotected header claims per recipient.
+    /// * `aad` - The JWE additional authenticated data.
     /// * `selector` - a function for selecting the encrypting algorithm.
     pub fn serialize_flattened_json_with_selector<'a, F>(
         &self,
@@ -326,6 +329,7 @@ impl JweContext {
         protected: Option<&JweHeader>,
         unprotected: Option<&JweHeader>,
         header: Option<&JweHeader>,
+        aad: Option<&[u8]>,
         selector: F,
     ) -> Result<String, JoseError>
     where
@@ -423,9 +427,11 @@ impl JweContext {
             }
             json.push_str("\"");
 
-            json.push_str(",\"aad\":\""); //TODO
-            base64::encode_config_buf(&protected, base64::URL_SAFE_NO_PAD, &mut json);
-            json.push_str("\"");
+            if let Some(val) = aad {
+                json.push_str(",\"aad\":\"");
+                base64::encode_config_buf(&val, base64::URL_SAFE_NO_PAD, &mut json);
+                json.push_str("\"");
+            }
 
             json.push_str(",\"iv\":\"");
             base64::encode_config_buf(&iv, base64::URL_SAFE_NO_PAD, &mut json);
@@ -608,6 +614,69 @@ impl JweContext {
         F: Fn(&JweHeader) -> Result<Option<&'a dyn JweDecrypter>, JoseError>,
     {
         (|| -> anyhow::Result<(Vec<u8>, JweHeader)> {
+            let mut map: Map<String, Value> = serde_json::from_str(input)?;
+
+            let protected_b64 = match map.remove("protected") {
+                Some(Value::String(val)) => Some(val),
+                Some(_) => bail!("The protected field must be string."),
+                None => None,
+            };
+            let unprotected_b64 = match map.remove("unprotected") {
+                Some(Value::String(val)) => val,
+                Some(_) => bail!("The unprotected field must be string."),
+                None => bail!("The unprotected field is required."),
+            };
+            let aad_b64 = match map.remove("aad") {
+                Some(Value::String(val)) => Some(val),
+                Some(_) => bail!("The aad field must be string."),
+                None => None,
+            };
+            let iv_b64 = match map.remove("iv") {
+                Some(Value::String(val)) => Some(val),
+                Some(_) => bail!("The iv field must be string."),
+                None => None,
+            };
+            let ciphertext_b64 = match map.remove("ciphertext") {
+                Some(Value::String(val)) => val,
+                Some(_) => bail!("The ciphertext field must be string."),
+                None => bail!("The ciphertext field is required."),
+            };
+            let tag_b64 = match map.remove("tag") {
+                Some(Value::String(val)) => Some(val),
+                Some(_) => bail!("The tag field must be string."),
+                None => None,
+            };
+
+            let recipients = match map.remove("recipients") {
+                Some(Value::Array(vals)) => {
+                    let mut vec = Vec::with_capacity(vals.len());
+                    for val in vals {
+                        if let Value::Object(val) = val {
+                            vec.push(val);
+                        } else {
+                            bail!("The recipients field must be a array of object.");
+                        }
+                    }
+                    vec
+                }
+                Some(_) => bail!("The recipients field must be a array."),
+                None => {
+                    let mut vec = Vec::with_capacity(1);
+                    vec.push(map);
+                    vec
+                }
+            };
+
+            for mut recipient in recipients {
+                let header = recipient.remove("header");
+
+                let encrypted_key_b64 = match recipient.get("encrypted_key") {
+                    Some(Value::String(val)) => val,
+                    Some(_) => bail!("The encrypted_key field must be a string."),
+                    None => bail!("The JWW encrypted_key header claim must be present."),
+                };
+            }
+
             unimplemented!("JWE is not supported yet.");
         })()
         .map_err(|err| match err.downcast::<JoseError>() {
@@ -656,6 +725,7 @@ where
 ///
 /// * `protected` - The JWE protected header claims.
 /// * `header` - The JWE unprotected header claims.
+/// * `aad` - The JWE additional authenticated data.
 /// * `payload` - The payload data.
 /// * `encrypter` - The JWS encrypter.
 pub fn serialize_flattened_json(
@@ -663,9 +733,10 @@ pub fn serialize_flattened_json(
     protected: Option<&JweHeader>,
     unprotected: Option<&JweHeader>,
     header: Option<&JweHeader>,
+    aad: Option<&[u8]>,
     encrypter: &dyn JweEncrypter,
 ) -> Result<String, JoseError> {
-    DEFAULT_CONTEXT.serialize_flattened_json(payload, protected, unprotected, header, encrypter)
+    DEFAULT_CONTEXT.serialize_flattened_json(payload, protected, unprotected, header, aad, encrypter)
 }
 
 /// Return a representation of the data that is formatted by flatted json serialization.
@@ -675,18 +746,20 @@ pub fn serialize_flattened_json(
 /// * `payload` - The payload data.
 /// * `protected` - The JWS protected header claims.
 /// * `header` - The JWS unprotected header claims.
+/// * `aad` - The JWE additional authenticated data.
 /// * `selector` - a function for selecting the encrypting algorithm.
 pub fn serialize_flattened_json_with_selector<'a, F>(
     payload: &[u8],
     protected: Option<&JweHeader>,
     unprotected: Option<&JweHeader>,
     header: Option<&JweHeader>,
+    aad: Option<&[u8]>,
     selector: F,
 ) -> Result<String, JoseError>
 where
     F: Fn(&JweHeader) -> Option<&'a dyn JweEncrypter>,
 {
-    DEFAULT_CONTEXT.serialize_flattened_json_with_selector(payload, protected, unprotected, header, selector)
+    DEFAULT_CONTEXT.serialize_flattened_json_with_selector(payload, protected, unprotected, header, aad, selector)
 }
 
 /// Deserialize the input that is formatted by compact serialization.

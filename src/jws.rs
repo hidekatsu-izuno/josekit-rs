@@ -511,7 +511,7 @@ impl JwsContext {
         (|| -> anyhow::Result<(Vec<u8>, JwsHeader)> {
             let mut map: Map<String, Value> = serde_json::from_str(input)?;
 
-            let payload_base64 = match map.remove("payload") {
+            let payload_b64 = match map.remove("payload") {
                 Some(Value::String(val)) => val,
                 Some(_) => bail!("The payload field must be string."),
                 None => bail!("The payload field is required."),
@@ -540,13 +540,13 @@ impl JwsContext {
             for mut sig in signatures {
                 let header = sig.remove("header");
 
-                let protected_base64 = match sig.get("protected") {
+                let protected_b64 = match sig.get("protected") {
                     Some(Value::String(val)) => val,
                     Some(_) => bail!("The protected field must be a string."),
                     None => bail!("The JWS alg header claim must be in protected."),
                 };
 
-                let protected = base64::decode_config(protected_base64, base64::URL_SAFE_NO_PAD)?;
+                let protected = base64::decode_config(protected_b64, base64::URL_SAFE_NO_PAD)?;
                 let protected: Map<String, Value> = serde_json::from_slice(&protected)?;
                 if let None = protected.get("alg") {
                     bail!("The JWS alg header claim must be in protected.");
@@ -567,7 +567,7 @@ impl JwsContext {
                     None => protected.clone(),
                 };
 
-                let signature_base64 = match sig.get("signature") {
+                let signature_b64 = match sig.get("signature") {
                     Some(Value::String(val)) => val,
                     Some(_) => bail!("The signature field must be string."),
                     None => bail!("The signature field is required."),
@@ -633,14 +633,14 @@ impl JwsContext {
                     }
                 }
 
-                let message = format!("{}.{}", &protected_base64, &payload_base64);
-                let signature = base64::decode_config(&signature_base64, base64::URL_SAFE_NO_PAD)?;
+                let message = format!("{}.{}", &protected_b64, &payload_b64);
+                let signature = base64::decode_config(&signature_b64, base64::URL_SAFE_NO_PAD)?;
                 verifier.verify(message.as_bytes(), &signature)?;
 
                 let payload = if b64 {
-                    base64::decode_config(&payload_base64, base64::URL_SAFE_NO_PAD)?
+                    base64::decode_config(&payload_b64, base64::URL_SAFE_NO_PAD)?
                 } else {
-                    payload_base64.into_bytes()
+                    payload_b64.into_bytes()
                 };
 
                 return Ok((payload, header));
