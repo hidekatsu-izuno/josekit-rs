@@ -281,17 +281,6 @@ impl RsaesJweAlgorithm {
 
         builder.build()
     }
-
-    #[allow(deprecated)]
-    fn padding(&self) -> Padding {
-        match self {
-            Self::Rsa1_5 => Padding::PKCS1,
-            Self::RsaOaep => Padding::PKCS1_OAEP,
-            Self::RsaOaep256 => Padding::PKCS1_OAEP,
-            Self::RsaOaep384 => Padding::PKCS1_OAEP,
-            Self::RsaOaep512 => Padding::PKCS1_OAEP,
-        }
-    }
     
     fn hash_oid(&self) -> &ObjectIdentifier {
         match self {
@@ -348,6 +337,7 @@ impl JweEncrypter for RsaesJweEncrypter {
         self.key_id = None;
     }
     
+    #[allow(deprecated)]
     fn encrypt(&self, header: &mut JweHeader, key_len: usize) -> Result<(Cow<[u8]>, Option<Vec<u8>>), JoseError> {
         (|| -> anyhow::Result<(Cow<[u8]>, Option<Vec<u8>>)> {
             header.set_algorithm(self.algorithm.name());
@@ -356,9 +346,29 @@ impl JweEncrypter for RsaesJweEncrypter {
             rand::rand_bytes(&mut key)?;
 
             let rsa = self.public_key.rsa()?;
-            let mut encrypted_key = vec![0; rsa.size() as usize];
-            let len = rsa.public_encrypt(&key, &mut encrypted_key, self.algorithm.padding())?;
-            encrypted_key.truncate(len);
+            let encrypted_key = match self.algorithm {
+                RsaesJweAlgorithm::Rsa1_5 => {
+                    let mut encrypted_key = vec![0; rsa.size() as usize];
+                    let len = rsa.public_encrypt(&key, &mut encrypted_key, Padding::PKCS1)?;
+                    encrypted_key.truncate(len);
+                    encrypted_key
+                }
+                RsaesJweAlgorithm::RsaOaep => {
+                    let mut encrypted_key = vec![0; rsa.size() as usize];
+                    let len = rsa.public_encrypt(&key, &mut encrypted_key, Padding::PKCS1_OAEP)?;
+                    encrypted_key.truncate(len);
+                    encrypted_key
+                }
+                RsaesJweAlgorithm::RsaOaep256 => {
+                    todo!();
+                },
+                RsaesJweAlgorithm::RsaOaep384 => {
+                    todo!();
+                },
+                RsaesJweAlgorithm::RsaOaep512  => {
+                    todo!();
+                },
+            };
 
             Ok((Cow::Owned(key), Some(encrypted_key)))
         })()
@@ -397,12 +407,33 @@ impl JweDecrypter for RsaesJweDecrypter {
         self.key_id = None;
     }
 
+    #[allow(deprecated)]
     fn decrypt(&self, _header: &JweHeader, encrypted_key: &[u8], key_len: usize) -> Result<Cow<[u8]>, JoseError> {
         (|| -> anyhow::Result<Cow<[u8]>> {
             let rsa = self.private_key.rsa()?;
-            let mut key = vec![0; rsa.size() as usize];
-            let len = rsa.public_decrypt(&encrypted_key, &mut key, self.algorithm.padding())?;
-            key.truncate(len);
+            let key = match self.algorithm {
+                RsaesJweAlgorithm::Rsa1_5 => {
+                    let mut key = vec![0; rsa.size() as usize];
+                    let len = rsa.public_decrypt(&encrypted_key, &mut key, Padding::PKCS1)?;
+                    key.truncate(len);
+                    key
+                }
+                RsaesJweAlgorithm::RsaOaep => {
+                    let mut key = vec![0; rsa.size() as usize];
+                    let len = rsa.public_decrypt(&encrypted_key, &mut key, Padding::PKCS1_OAEP)?;
+                    key.truncate(len);
+                    key
+                }
+                RsaesJweAlgorithm::RsaOaep256 => {
+                    todo!();
+                },
+                RsaesJweAlgorithm::RsaOaep384 => {
+                    todo!();
+                },
+                RsaesJweAlgorithm::RsaOaep512  => {
+                    todo!();
+                },
+            };
 
             if key.len() != key_len {
                 bail!("The key size is expected to be {}: {}", key_len, key.len());

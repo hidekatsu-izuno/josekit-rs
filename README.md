@@ -52,9 +52,9 @@ cargo build --release
     <th colspan="2">DER</th>
 </tr>
 <tr>
-    <th>PKCS#8</th>
+    <th>PKCS#8/PSKI</th>
     <th>Traditional</th>
-    <th>PKCS#8</th>
+    <th>PKCS#8/PSKI</th>
     <th>Raw</th>
 </tr>
 </thead>

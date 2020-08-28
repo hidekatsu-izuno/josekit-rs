@@ -1489,8 +1489,8 @@ mod tests {
     fn test_jws_compact_serialization() -> Result<()> {
         let alg = RS256;
 
-        let private_key = load_file("pem/RSA_2048bit_pkcs8_private.pem")?;
-        let public_key = load_file("pem/RSA_2048bit_pkcs8_public.pem")?;
+        let private_key = load_file("pem/RSA_2048bit_private.pem")?;
+        let public_key = load_file("pem/RSA_2048bit_public.pem")?;
 
         let mut src_header = JwsHeader::new();
         src_header.set_token_type("JWT");
@@ -1512,8 +1512,8 @@ mod tests {
     fn test_jws_json_serialization() -> Result<()> {
         let alg = RS256;
 
-        let private_key = load_file("pem/RSA_2048bit_pkcs8_private.pem")?;
-        let public_key = load_file("pem/RSA_2048bit_pkcs8_public.pem")?;
+        let private_key = load_file("pem/RSA_2048bit_private.pem")?;
+        let public_key = load_file("pem/RSA_2048bit_public.pem")?;
 
         let src_payload = b"test payload!";
         let mut src_protected = JwsHeader::new();
@@ -1541,11 +1541,11 @@ mod tests {
 
     #[test]
     fn test_jws_general_json_serialization() -> Result<()> {
-        let private_key_1 = load_file("pem/RSA_2048bit_pkcs8_private.pem")?;
-        let private_key_2 = load_file("pem/ECDSA_P-256_pkcs8_private.pem")?;
-        let private_key_3 = load_file("pem/ED25519_pkcs8_private.pem")?;
+        let private_key_1 = load_file("pem/RSA_2048bit_private.pem")?;
+        let private_key_2 = load_file("pem/ECDSA_P-256_private.pem")?;
+        let private_key_3 = load_file("pem/ED25519_private.pem")?;
 
-        let public_key = load_file("pem/ECDSA_P-256_pkcs8_public.pem")?;
+        let public_key = load_file("pem/ECDSA_P-256_public.pem")?;
 
         let src_payload = b"test payload!";
 

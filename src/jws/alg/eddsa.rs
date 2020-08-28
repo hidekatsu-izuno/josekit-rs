@@ -835,8 +835,8 @@ mod tests {
         let alg = EddsaJwsAlgorithm::EdDSA;
 
         for crv in &["ED25519", "ED448"] {
-            let private_key = load_file(&format!("pem/{}_pkcs8_private.pem", crv))?;
-            let public_key = load_file(&format!("pem/{}_pkcs8_public.pem", crv))?;
+            let private_key = load_file(&format!("pem/{}_private.pem", crv))?;
+            let public_key = load_file(&format!("pem/{}_public.pem", crv))?;
 
             let signer = alg.signer_from_pem(&private_key)?;
             let signature = signer.sign(input)?;
@@ -856,7 +856,7 @@ mod tests {
 
         for crv in &["ED25519", "ED448"] {
             let private_key = load_file(&format!("der/{}_pkcs8_private.der", crv))?;
-            let public_key = load_file(&format!("der/{}_pkcs8_public.der", crv))?;
+            let public_key = load_file(&format!("der/{}_spki_public.der", crv))?;
 
             let signer = alg.signer_from_der(&private_key)?;
             let signature = signer.sign(input)?;

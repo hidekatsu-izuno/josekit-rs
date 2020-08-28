@@ -625,25 +625,27 @@ impl JweContext {
             let mut map: Map<String, Value> = serde_json::from_str(input)?;
 
             let (protected, protected_b64) = match map.remove("protected") {
-                Some(Value::String(val)) => (
-                    Some(base64::decode_config(&val, base64::URL_SAFE_NO_PAD)?),
-                    Some(val),
-                ),
+                Some(Value::String(val)) => {
+                    let vec = base64::decode_config(&val, base64::URL_SAFE_NO_PAD)?;
+                    let json: Map<String, Value> = serde_json::from_slice(&vec)?;
+                    (Some(json), Some(val))
+                },
                 Some(_) => bail!("The protected field must be string."),
                 None => (None, None),
             };
             let unprotected = match map.remove("unprotected") {
                 Some(Value::String(val)) => {
-                    Some(base64::decode_config(&val, base64::URL_SAFE_NO_PAD)?)
+                    let json: Map<String, Value> = serde_json::from_str(&val)?;
+                    Some(json)
                 },
                 Some(_) => bail!("The unprotected field must be string."),
                 None => None,
             };
             let (aad, aad_b64) = match map.remove("aad") {
-                Some(Value::String(val)) => (
-                    Some(base64::decode_config(&val, base64::URL_SAFE_NO_PAD)?),
-                    Some(val),
-                ),
+                Some(Value::String(val)) => {
+                    let vec = base64::decode_config(&val, base64::URL_SAFE_NO_PAD)?;
+                    (Some(vec), Some(val),
+                )},
                 Some(_) => bail!("The aad field must be string."),
                 None => (None, None),
             };
@@ -694,7 +696,8 @@ impl JweContext {
 
                 let encrypted_key = match recipient.get("encrypted_key") {
                     Some(Value::String(val)) => {
-                        Some(base64::decode_config(&val, base64::URL_SAFE_NO_PAD)?)
+                        let vec = base64::decode_config(&val, base64::URL_SAFE_NO_PAD)?;
+                        Some(vec)
                     },
                     Some(_) => bail!("The encrypted_key field must be a string."),
                     None => None,

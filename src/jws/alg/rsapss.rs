@@ -1017,14 +1017,14 @@ mod tests {
             RsaPssJwsAlgorithm::PS512,
         ] {
             let private_key = load_file(match alg {
-                RsaPssJwsAlgorithm::PS256 => "pem/RSA-PSS_2048bit_SHA256_pkcs8_private.pem",
-                RsaPssJwsAlgorithm::PS384 => "pem/RSA-PSS_2048bit_SHA384_pkcs8_private.pem",
-                RsaPssJwsAlgorithm::PS512 => "pem/RSA-PSS_2048bit_SHA512_pkcs8_private.pem",
+                RsaPssJwsAlgorithm::PS256 => "pem/RSA-PSS_2048bit_SHA256_private.pem",
+                RsaPssJwsAlgorithm::PS384 => "pem/RSA-PSS_2048bit_SHA384_private.pem",
+                RsaPssJwsAlgorithm::PS512 => "pem/RSA-PSS_2048bit_SHA512_private.pem",
             })?;
             let public_key = load_file(match alg {
-                RsaPssJwsAlgorithm::PS256 => "pem/RSA-PSS_2048bit_SHA256_pkcs8_public.pem",
-                RsaPssJwsAlgorithm::PS384 => "pem/RSA-PSS_2048bit_SHA384_pkcs8_public.pem",
-                RsaPssJwsAlgorithm::PS512 => "pem/RSA-PSS_2048bit_SHA512_pkcs8_public.pem",
+                RsaPssJwsAlgorithm::PS256 => "pem/RSA-PSS_2048bit_SHA256_public.pem",
+                RsaPssJwsAlgorithm::PS384 => "pem/RSA-PSS_2048bit_SHA384_public.pem",
+                RsaPssJwsAlgorithm::PS512 => "pem/RSA-PSS_2048bit_SHA512_public.pem",
             })?;
 
             let signer = alg.signer_from_pem(&private_key)?;
@@ -1052,9 +1052,9 @@ mod tests {
                 RsaPssJwsAlgorithm::PS512 => "der/RSA-PSS_2048bit_SHA512_pkcs8_private.der",
             })?;
             let public_key = load_file(match alg {
-                RsaPssJwsAlgorithm::PS256 => "der/RSA-PSS_2048bit_SHA256_pkcs8_public.der",
-                RsaPssJwsAlgorithm::PS384 => "der/RSA-PSS_2048bit_SHA384_pkcs8_public.der",
-                RsaPssJwsAlgorithm::PS512 => "der/RSA-PSS_2048bit_SHA512_pkcs8_public.der",
+                RsaPssJwsAlgorithm::PS256 => "der/RSA-PSS_2048bit_SHA256_spki_public.der",
+                RsaPssJwsAlgorithm::PS384 => "der/RSA-PSS_2048bit_SHA384_spki_public.der",
+                RsaPssJwsAlgorithm::PS512 => "der/RSA-PSS_2048bit_SHA512_spki_public.der",
             })?;
 
             let signer = alg.signer_from_der(&private_key)?;

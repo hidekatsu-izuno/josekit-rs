@@ -1220,8 +1220,8 @@ mod tests {
     #[test]
     fn test_jwt_with_rsa_pem() -> Result<()> {
         for alg in &[RS256, RS384, RS512] {
-            let private_key = load_file("pem/RSA_2048bit_pkcs8_private.pem")?;
-            let public_key = load_file("pem/RSA_2048bit_pkcs8_public.pem")?;
+            let private_key = load_file("pem/RSA_2048bit_private.pem")?;
+            let public_key = load_file("pem/RSA_2048bit_public.pem")?;
 
             let mut src_header = JwsHeader::new();
             src_header.set_token_type("JWT");
@@ -1244,15 +1244,15 @@ mod tests {
     fn test_jwt_with_rsapss_pem() -> Result<()> {
         for alg in &[PS256, PS384, PS512] {
             let private_key = load_file(match alg.name() {
-                "PS256" => "pem/RSA-PSS_2048bit_SHA256_pkcs8_private.pem",
-                "PS384" => "pem/RSA-PSS_2048bit_SHA384_pkcs8_private.pem",
-                "PS512" => "pem/RSA-PSS_2048bit_SHA512_pkcs8_private.pem",
+                "PS256" => "pem/RSA-PSS_2048bit_SHA256_private.pem",
+                "PS384" => "pem/RSA-PSS_2048bit_SHA384_private.pem",
+                "PS512" => "pem/RSA-PSS_2048bit_SHA512_private.pem",
                 _ => unreachable!(),
             })?;
             let public_key = load_file(match alg.name() {
-                "PS256" => "pem/RSA-PSS_2048bit_SHA256_pkcs8_public.pem",
-                "PS384" => "pem/RSA-PSS_2048bit_SHA384_pkcs8_public.pem",
-                "PS512" => "pem/RSA-PSS_2048bit_SHA512_pkcs8_public.pem",
+                "PS256" => "pem/RSA-PSS_2048bit_SHA256_public.pem",
+                "PS384" => "pem/RSA-PSS_2048bit_SHA384_public.pem",
+                "PS512" => "pem/RSA-PSS_2048bit_SHA512_public.pem",
                 _ => unreachable!(),
             })?;
 
@@ -1277,7 +1277,7 @@ mod tests {
     fn test_jwt_with_rsa_der() -> Result<()> {
         for alg in &[RS256, RS384, RS512] {
             let private_key = load_file("der/RSA_2048bit_pkcs8_private.der")?;
-            let public_key = load_file("der/RSA_2048bit_pkcs8_public.der")?;
+            let public_key = load_file("der/RSA_2048bit_spki_public.der")?;
 
             let mut src_header = JwsHeader::new();
             src_header.set_token_type("JWT");
@@ -1300,16 +1300,16 @@ mod tests {
     fn test_jwt_with_ecdsa_pem() -> Result<()> {
         for alg in &[ES256, ES384, ES512, ES256K] {
             let private_key = load_file(match alg {
-                ES256 => "pem/ECDSA_P-256_pkcs8_private.pem",
-                ES384 => "pem/ECDSA_P-384_pkcs8_private.pem",
-                ES512 => "pem/ECDSA_P-521_pkcs8_private.pem",
-                ES256K => "pem/ECDSA_secp256k1_pkcs8_private.pem",
+                ES256 => "pem/ECDSA_P-256_private.pem",
+                ES384 => "pem/ECDSA_P-384_private.pem",
+                ES512 => "pem/ECDSA_P-521_private.pem",
+                ES256K => "pem/ECDSA_secp256k1_private.pem",
             })?;
             let public_key = load_file(match alg {
-                ES256 => "pem/ECDSA_P-256_pkcs8_public.pem",
-                ES384 => "pem/ECDSA_P-384_pkcs8_public.pem",
-                ES512 => "pem/ECDSA_P-521_pkcs8_public.pem",
-                ES256K => "pem/ECDSA_secp256k1_pkcs8_public.pem",
+                ES256 => "pem/ECDSA_P-256_public.pem",
+                ES384 => "pem/ECDSA_P-384_public.pem",
+                ES512 => "pem/ECDSA_P-521_public.pem",
+                ES256K => "pem/ECDSA_secp256k1_public.pem",
             })?;
 
             let mut src_header = JwsHeader::new();
@@ -1339,10 +1339,10 @@ mod tests {
                 ES256K => "der/ECDSA_secp256k1_pkcs8_private.der",
             })?;
             let public_key = load_file(match alg {
-                ES256 => "der/ECDSA_P-256_pkcs8_public.der",
-                ES384 => "der/ECDSA_P-384_pkcs8_public.der",
-                ES512 => "der/ECDSA_P-521_pkcs8_public.der",
-                ES256K => "der/ECDSA_secp256k1_pkcs8_public.der",
+                ES256 => "der/ECDSA_P-256_spki_public.der",
+                ES384 => "der/ECDSA_P-384_spki_public.der",
+                ES512 => "der/ECDSA_P-521_spki_public.der",
+                ES256K => "der/ECDSA_secp256k1_spki_public.der",
             })?;
 
             let mut src_header = JwsHeader::new();
