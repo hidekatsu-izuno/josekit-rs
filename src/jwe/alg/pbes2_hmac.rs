@@ -230,8 +230,13 @@ impl JweDecrypter for Pbes2HmacJweDecrypter {
         self.key_id = None;
     }
     
-    fn decrypt(&self, header: &JweHeader, encrypted_key: &[u8], key_len: usize) -> Result<Cow<[u8]>, JoseError> {
+    fn decrypt(&self, header: &JweHeader, encrypted_key: Option<&[u8]>, key_len: usize) -> Result<Cow<[u8]>, JoseError> {
         (|| -> anyhow::Result<Cow<[u8]>> {
+            let encrypted_key = match encrypted_key {
+                Some(val) => val,
+                None => bail!("A encrypted_key value is required."),
+            };
+            
             let p2s = match header.claim("p2s") {
                 Some(Value::String(val)) => {
                     base64::decode_config(val, base64::URL_SAFE_NO_PAD)?

@@ -231,8 +231,13 @@ impl JweDecrypter for AesGcmJweDecrypter {
         self.key_id = None;
     }
 
-    fn decrypt(&self, header: &JweHeader, encrypted_key: &[u8], key_len: usize) -> Result<Cow<[u8]>, JoseError> {
+    fn decrypt(&self, header: &JweHeader, encrypted_key: Option<&[u8]>, key_len: usize) -> Result<Cow<[u8]>, JoseError> {
         (|| -> anyhow::Result<Cow<[u8]>> {
+            let encrypted_key = match encrypted_key {
+                Some(val) => val,
+                None => bail!("A encrypted_key is required."),
+            };
+
             let iv = match header.claim("iv") {
                 Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
                 Some(_) => bail!("The iv header claim must be string."),

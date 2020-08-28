@@ -310,6 +310,13 @@ impl EcdhEsJweAlgorithm {
 
         builder.build()
     }
+
+    fn is_direct(&self) -> bool {
+        match self {
+            Self::EcdhEs => true,
+            _ => false
+        }
+    }
 }
 
 impl JweAlgorithm for EcdhEsJweAlgorithm {
@@ -502,10 +509,15 @@ impl JweDecrypter for EcdhEsJweDecrypter {
         self.key_id = None;
     }
 
-    fn decrypt(&self, header: &JweHeader, encrypted_key: &[u8], key_len: usize) -> Result<Cow<[u8]>, JoseError> {
+    fn decrypt(&self, header: &JweHeader, encrypted_key: Option<&[u8]>, key_len: usize) -> Result<Cow<[u8]>, JoseError> {
         (|| -> anyhow::Result<Cow<[u8]>> {
-            if encrypted_key.len() != 0 {
-                bail!("The encrypted_key must be empty.");
+            match encrypted_key {
+                Some(_) => if self.algorithm.is_direct() {
+                    bail!("The encrypted_key must not exist.");
+                },
+                None => if !self.algorithm.is_direct() {
+                    bail!("A encrypted_key is required.");
+                },
             }
 
             let apu = match header.claim("apu") {
@@ -616,7 +628,12 @@ impl JweDecrypter for EcdhEsJweDecrypter {
                 key.truncate(key_len);
             }
 
-            let key = if self.algorithm != EcdhEsJweAlgorithm::EcdhEs {
+            let key = if self.algorithm.is_direct() {
+                let encrypted_key = match encrypted_key {
+                    Some(val) => val,
+                    None => unreachable!(),
+                };
+
                 let aes = match AesKey::new_encrypt(&derived_key) {
                     Ok(val) => val,
                     Err(err) => bail!("{:?}", err),

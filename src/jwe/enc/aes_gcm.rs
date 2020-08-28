@@ -45,8 +45,8 @@ impl JweContentEncryption for AesGcmJweEncryption {
         12
     }
 
-    fn encrypt(&self, key: &[u8], iv: &[u8], message: &[u8], aad: &[u8]) -> Result<(Vec<u8>, Vec<u8>), JoseError> {
-        (|| -> anyhow::Result<(Vec<u8>, Vec<u8>)> {
+    fn encrypt(&self, key: &[u8], iv: Option<&[u8]>, message: &[u8], aad: &[u8]) -> Result<(Vec<u8>, Option<Vec<u8>>), JoseError> {
+        (|| -> anyhow::Result<(Vec<u8>, Option<Vec<u8>>)> {
             let expected_len = self.key_len();
             if key.len() != expected_len {
                 bail!(
@@ -58,13 +58,13 @@ impl JweContentEncryption for AesGcmJweEncryption {
 
             let cipher = self.cipher();
             let mut tag = [0; 16];
-            let encrypted_message = symm::encrypt_aead(cipher, key, Some(iv), aad, message, &mut tag)?;
-            Ok((encrypted_message, tag.to_vec()))
+            let encrypted_message = symm::encrypt_aead(cipher, key, iv, aad, message, &mut tag)?;
+            Ok((encrypted_message, Some(tag.to_vec())))
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
-    fn decrypt(&self,  key: &[u8], iv: &[u8], encrypted_message: &[u8], aad: &[u8], tag: &[u8]) -> Result<Vec<u8>, JoseError> {
+    fn decrypt(&self, key: &[u8], iv: Option<&[u8]>, encrypted_message: &[u8], aad: &[u8], tag: Option<&[u8]>) -> Result<Vec<u8>, JoseError> {
         (|| -> anyhow::Result<Vec<u8>> {
             let expected_len = self.key_len();
             if key.len() != expected_len {
@@ -75,11 +75,16 @@ impl JweContentEncryption for AesGcmJweEncryption {
                 );
             }
 
+            let tag = match tag {
+                Some(val) => val,
+                None => bail!("A tag value is required."),
+            };
+
             let cipher = self.cipher();
-            let message = symm::decrypt_aead(cipher, key, Some(iv), aad, encrypted_message, tag)?;
+            let message = symm::decrypt_aead(cipher, key, iv, aad, encrypted_message, tag)?;
             Ok(message)
         })()
-        .map_err(|err| JoseError::InvalidKeyFormat(err))
+        .map_err(|err| JoseError::InvalidJweFormat(err))
     }
 
     fn box_clone(&self) -> Box<dyn JweContentEncryption> {

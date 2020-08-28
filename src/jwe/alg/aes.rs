@@ -220,8 +220,13 @@ impl JweDecrypter for AesJweDecrypter {
         self.key_id = None;
     }
 
-    fn decrypt(&self, _header: &JweHeader, encrypted_key: &[u8], key_len: usize) -> Result<Cow<[u8]>, JoseError> {
+    fn decrypt(&self, _header: &JweHeader, encrypted_key: Option<&[u8]>, key_len: usize) -> Result<Cow<[u8]>, JoseError> {
         (|| -> anyhow::Result<Cow<[u8]>> {
+            let encrypted_key = match encrypted_key {
+                Some(val) => val,
+                None => bail!("A encrypted_key is required."),
+            };
+
             let aes = match AesKey::new_decrypt(&self.private_key) {
                 Ok(val) => val,
                 Err(err) => bail!("{:?}", err),

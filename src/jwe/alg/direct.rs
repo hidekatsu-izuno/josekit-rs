@@ -202,11 +202,12 @@ impl JweDecrypter for DirectJweDecrypter {
         self.key_id = None;
     }
 
-    fn decrypt(&self, _header: &JweHeader, encrypted_key: &[u8], key_len: usize) -> Result<Cow<[u8]>, JoseError> {
+    fn decrypt(&self, _header: &JweHeader, encrypted_key: Option<&[u8]>, key_len: usize) -> Result<Cow<[u8]>, JoseError> {
         (|| -> anyhow::Result<Cow<[u8]>> {
-            if encrypted_key.len() != 0 {
-                bail!("The encrypted_key must be empty.");
+            if let Some(_) = encrypted_key {
+                bail!("The encrypted_key must not exist.");
             }
+
             let actual_len = self.cencryption_key.len();
             if actual_len != key_len {
                 bail!("The key size is expected to be {}: {}", key_len, actual_len);

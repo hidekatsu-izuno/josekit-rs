@@ -408,8 +408,13 @@ impl JweDecrypter for RsaesJweDecrypter {
     }
 
     #[allow(deprecated)]
-    fn decrypt(&self, _header: &JweHeader, encrypted_key: &[u8], key_len: usize) -> Result<Cow<[u8]>, JoseError> {
+    fn decrypt(&self, _header: &JweHeader, encrypted_key: Option<&[u8]>, key_len: usize) -> Result<Cow<[u8]>, JoseError> {
         (|| -> anyhow::Result<Cow<[u8]>> {
+            let encrypted_key = match encrypted_key {
+                Some(val) => val,
+                None => bail!("A encrypted_key is required."),
+            };
+
             let rsa = self.private_key.rsa()?;
             let key = match self.algorithm {
                 RsaesJweAlgorithm::Rsa1_5 => {

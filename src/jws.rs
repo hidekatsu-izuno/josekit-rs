@@ -540,46 +540,49 @@ impl JwsContext {
             for mut sig in signatures {
                 let header = sig.remove("header");
 
-                let protected_b64 = match sig.get("protected") {
-                    Some(Value::String(val)) => val,
+                let (protected, protected_b64) = match sig.get("protected") {
+                    Some(Value::String(val)) => {
+                        let vec = base64::decode_config(&val, base64::URL_SAFE_NO_PAD)?;
+                        let json: Map<String, Value> = serde_json::from_slice(&vec)?;
+                        (json, val)
+                    },
                     Some(_) => bail!("The protected field must be a string."),
                     None => bail!("The JWS alg header claim must be in protected."),
                 };
 
-                let protected = base64::decode_config(protected_b64, base64::URL_SAFE_NO_PAD)?;
-                let protected: Map<String, Value> = serde_json::from_slice(&protected)?;
                 if let None = protected.get("alg") {
                     bail!("The JWS alg header claim must be in protected.");
                 }
 
-                let header = match header {
-                    Some(Value::Object(mut val)) => {
-                        for (key, value) in &protected {
-                            if val.contains_key(key) {
-                                bail!("Duplicate key exists: {}", key);
-                            } else {
-                                val.insert(key.clone(), value.clone());
-                            }
-                        }
-                        val
-                    }
+                let mut merged = match header {
+                    Some(Value::Object(val)) => val,
                     Some(_) => bail!("The protected field must be a object."),
                     None => protected.clone(),
                 };
 
-                let signature_b64 = match sig.get("signature") {
-                    Some(Value::String(val)) => val,
+                for (key, value) in &protected {
+                    if merged.contains_key(key) {
+                        bail!("A duplicate key exists: {}", key);
+                    } else {
+                        merged.insert(key.clone(), value.clone());
+                    }
+                }
+
+                let signature = match sig.get("signature") {
+                    Some(Value::String(val)) => {
+                        base64::decode_config(val, base64::URL_SAFE_NO_PAD)?
+                    },
                     Some(_) => bail!("The signature field must be string."),
                     None => bail!("The signature field is required."),
                 };
 
-                let header = JwsHeader::from_map(header)?;
-                let verifier = match selector(&header)? {
+                let merged = JwsHeader::from_map(merged)?;
+                let verifier = match selector(&merged)? {
                     Some(val) => val,
                     None => continue,
                 };
 
-                match header.claim("alg") {
+                match merged.claim("alg") {
                     Some(Value::String(val)) => {
                         let expected_alg = verifier.algorithm().name();
                         if val != expected_alg {
@@ -590,18 +593,8 @@ impl JwsContext {
                     None => bail!("The JWS alg header claim is required."),
                 }
 
-                match header.algorithm() {
-                    Some(val) => {
-                        let expected_alg = verifier.algorithm().name();
-                        if val != expected_alg {
-                            bail!("The JWS alg header claim is not {}: {}", expected_alg, val);
-                        }
-                    }
-                    None => bail!("The JWS alg header claim is required."),
-                }
-
                 match verifier.key_id() {
-                    Some(expected) => match header.key_id() {
+                    Some(expected) => match merged.key_id() {
                         Some(actual) if expected == actual => {}
                         Some(actual) => bail!("The JWS kid header claim is mismatched: {}", actual),
                         None => bail!("The JWS kid header claim is required."),
@@ -634,7 +627,6 @@ impl JwsContext {
                 }
 
                 let message = format!("{}.{}", &protected_b64, &payload_b64);
-                let signature = base64::decode_config(&signature_b64, base64::URL_SAFE_NO_PAD)?;
                 verifier.verify(message.as_bytes(), &signature)?;
 
                 let payload = if b64 {
@@ -643,10 +635,10 @@ impl JwsContext {
                     payload_b64.into_bytes()
                 };
 
-                return Ok((payload, header));
+                return Ok((payload, merged));
             }
 
-            bail!("A signature that matched the algorithm and key_id is not found.");
+            bail!("A signature that matched the header claims is not found.");
         })()
         .map_err(|err| match err.downcast::<JoseError>() {
             Ok(err) => err,
@@ -1425,7 +1417,7 @@ impl<'a> JwsMultiSigner<'a> {
                     let header_map = header.claims_set();
                     for key in header_map.keys() {
                         if protected_map.contains_key(key) {
-                            bail!("Duplicate key exists: {}", key);
+                            bail!("A duplicate key exists: {}", key);
                         }
                     }
                 }
