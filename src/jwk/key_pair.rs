@@ -1,8 +1,16 @@
+pub mod rsa;
+pub mod rsapss;
+pub mod ec;
+pub mod ed;
+
 use std::fmt::Debug;
 
 use crate::jwk::Jwk;
 
 pub trait KeyPair: Debug + Send + Sync {
+    fn set_algorithm(&mut self, name: Option<&str>);
+    fn algorithm(&self) -> Option<&str>;
+
     fn to_der_private_key(&self) -> Vec<u8>;
     fn to_der_public_key(&self) -> Vec<u8>;
     fn to_pem_private_key(&self) -> Vec<u8>;

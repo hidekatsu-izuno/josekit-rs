@@ -15,6 +15,13 @@ pub enum SourceValue {
     SystemTime(SystemTime),
 }
 
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub enum MessageDigest {
+    Sha256,
+    Sha384,
+    Sha512,
+}
+
 pub fn ceiling(len: usize, div: usize) -> usize {
     (len + (div - 1)) / div
 }
