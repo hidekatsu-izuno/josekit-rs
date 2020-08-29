@@ -638,7 +638,7 @@ mod tests {
     use std::path::PathBuf;
 
     #[test]
-    fn sign_and_verify_rsapss_generated_der() -> Result<()> {
+    fn sign_and_verify_rsassa_pss_generated_der() -> Result<()> {
         let input = b"abcde12345";
 
         for alg in &[
@@ -659,7 +659,7 @@ mod tests {
     }
 
     #[test]
-    fn sign_and_verify_rsapss_generated_raw() -> Result<()> {
+    fn sign_and_verify_rsassa_pss_generated_raw() -> Result<()> {
         let input = b"abcde12345";
 
         for alg in &[
@@ -680,7 +680,7 @@ mod tests {
     }
 
     #[test]
-    fn sign_and_verify_rsapss_generated_pem() -> Result<()> {
+    fn sign_and_verify_rsassa_pss_generated_pem() -> Result<()> {
         let input = b"abcde12345";
 
         for alg in &[
@@ -701,7 +701,7 @@ mod tests {
     }
 
     #[test]
-    fn sign_and_verify_rsapss_generated_traditional_pem() -> Result<()> {
+    fn sign_and_verify_rsassa_pss_generated_traditional_pem() -> Result<()> {
         let input = b"abcde12345";
 
         for alg in &[
@@ -722,7 +722,7 @@ mod tests {
     }
 
     #[test]
-    fn sign_and_verify_rsapss_generated_jwk() -> Result<()> {
+    fn sign_and_verify_rsassa_pss_generated_jwk() -> Result<()> {
         let input = b"abcde12345";
 
         for alg in &[
@@ -743,7 +743,7 @@ mod tests {
     }
 
     #[test]
-    fn sign_and_verify_rsspss_jwt() -> Result<()> {
+    fn sign_and_verify_rsassa_pss_jwt() -> Result<()> {
         let input = b"abcde12345";
 
         for alg in &[
@@ -765,7 +765,7 @@ mod tests {
     }
 
     #[test]
-    fn sign_and_verify_rsspss_pkcs8_pem() -> Result<()> {
+    fn sign_and_verify_rsassa_pss_pkcs8_pem() -> Result<()> {
         let input = b"abcde12345";
 
         for alg in &[
@@ -795,7 +795,7 @@ mod tests {
     }
 
     #[test]
-    fn sign_and_verify_rsspss_pkcs8_der() -> Result<()> {
+    fn sign_and_verify_rsassa_pss_pkcs8_der() -> Result<()> {
         let input = b"abcde12345";
 
         for alg in &[

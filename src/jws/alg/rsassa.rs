@@ -546,7 +546,7 @@ mod tests {
     }
 
     #[test]
-    fn sign_and_verify_rsa_generated_raw() -> Result<()> {
+    fn sign_and_verify_rsassa_generated_raw() -> Result<()> {
         let input = b"abcde12345";
 
         for alg in &[
@@ -567,7 +567,7 @@ mod tests {
     }
 
     #[test]
-    fn sign_and_verify_rsa_generated_pem() -> Result<()> {
+    fn sign_and_verify_rsassa_generated_pem() -> Result<()> {
         let input = b"abcde12345";
 
         for alg in &[
@@ -588,7 +588,7 @@ mod tests {
     }
 
     #[test]
-    fn sign_and_verify_rsa_generated_traditional_pem() -> Result<()> {
+    fn sign_and_verify_rsassa_generated_traditional_pem() -> Result<()> {
         let input = b"abcde12345";
 
         for alg in &[
@@ -609,7 +609,7 @@ mod tests {
     }
 
     #[test]
-    fn sign_and_verify_rsa_generated_jwk() -> Result<()> {
+    fn sign_and_verify_rsassa_generated_jwk() -> Result<()> {
         let input = b"abcde12345";
 
         for alg in &[
@@ -630,7 +630,7 @@ mod tests {
     }
 
     #[test]
-    fn sign_and_verify_rsa_jwt() -> Result<()> {
+    fn sign_and_verify_rsassa_jwt() -> Result<()> {
         let input = b"abcde12345";
 
         for alg in &[
@@ -652,7 +652,7 @@ mod tests {
     }
 
     #[test]
-    fn sign_and_verify_rsa_pkcs8_pem() -> Result<()> {
+    fn sign_and_verify_rsassa_pkcs8_pem() -> Result<()> {
         let input = b"abcde12345";
 
         for alg in &[
@@ -674,7 +674,7 @@ mod tests {
     }
 
     #[test]
-    fn sign_and_verify_rsa_pkcs8_der() -> Result<()> {
+    fn sign_and_verify_rsassa_pkcs8_der() -> Result<()> {
         let input = b"abcde12345";
 
         for alg in &[
@@ -696,7 +696,7 @@ mod tests {
     }
 
     #[test]
-    fn sign_and_verify_rsa_pkcs1_pem() -> Result<()> {
+    fn sign_and_verify_rsassa_pkcs1_pem() -> Result<()> {
         let input = b"abcde12345";
 
         for alg in &[
@@ -718,7 +718,7 @@ mod tests {
     }
 
     #[test]
-    fn sign_and_verify_rsa_pkcs1_der() -> Result<()> {
+    fn sign_and_verify_rsassa_pkcs1_der() -> Result<()> {
         let input = b"abcde12345";
 
         for alg in &[
