@@ -3,6 +3,7 @@ use once_cell::sync::Lazy;
 use openssl::bn::BigNumRef;
 use regex::bytes::{NoExpand, Regex};
 use std::time::SystemTime;
+use std::fmt::Display;
 
 use crate::jwk::Jwk;
 
@@ -20,6 +21,22 @@ pub enum MessageDigest {
     Sha256,
     Sha384,
     Sha512,
+}
+
+impl MessageDigest {
+    pub fn name(&self) -> &str {
+        match self {
+            Self::Sha256 => "SHA-256",
+            Self::Sha384 => "SHA-384",
+            Self::Sha512 => "SHA-512",
+        }
+    }
+}
+
+impl Display for MessageDigest {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+        fmt.write_str(self.name())
+    }
 }
 
 pub fn ceiling(len: usize, div: usize) -> usize {

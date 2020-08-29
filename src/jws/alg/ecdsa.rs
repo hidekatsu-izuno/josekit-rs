@@ -39,7 +39,8 @@ impl EcdsaJwsAlgorithm {
         (|| -> anyhow::Result<EcKeyPair> {
             let pkcs8;
             let pkcs8_ref = match EcKeyPair::detect_pkcs8(input.as_ref(), false) {
-                Some(_) => input.as_ref(),
+                Some(curve) if curve == self.curve() => input.as_ref(),
+                Some(curve) => bail!("The curve is mismatched: {}", curve),
                 None => {
                     pkcs8 = EcKeyPair::to_pkcs8(input.as_ref(), false, self.curve());
                     &pkcs8
@@ -81,12 +82,11 @@ impl EcdsaJwsAlgorithm {
             let (alg, data) = util::parse_pem(input.as_ref())?;
             let pkcs8;
             let pkcs8_ref = match alg.as_str() {
-                "PRIVATE KEY" => {
-                    if let None = EcKeyPair::detect_pkcs8(&data, false) {
-                        bail!("PEM contents is expected PKCS#8 wrapped key.");
-                    }
-                    &data
-                }
+                "PRIVATE KEY" => match EcKeyPair::detect_pkcs8(&data, false) {
+                    Some(curve) if curve == self.curve() => &data,
+                    Some(curve) => bail!("The curve is mismatched: {}", curve),
+                    None => bail!("PEM contents is expected PKCS#8 wrapped key."),
+                },
                 "EC PRIVATE KEY" => {
                     pkcs8 = EcKeyPair::to_pkcs8(&data, false, self.curve());
                     &pkcs8
@@ -218,7 +218,8 @@ impl EcdsaJwsAlgorithm {
         (|| -> anyhow::Result<EcdsaJwsVerifier> {
             let pkcs8;
             let pkcs8_ref = match EcKeyPair::detect_pkcs8(input.as_ref(), true) {
-                Some(_) => input.as_ref(),
+                Some(curve) if curve == self.curve() => input.as_ref(),
+                Some(curve) => bail!("The curve is mismatched: {}", curve),
                 None => {
                     pkcs8 = EcKeyPair::to_pkcs8(input.as_ref(), true, self.curve());
                     &pkcs8

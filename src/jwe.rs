@@ -2,13 +2,13 @@ pub mod alg;
 pub mod enc;
 pub mod zip;
 
-use std::ops::Deref;
 use std::borrow::Cow;
 use std::cmp::Eq;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::convert::Into;
 use std::fmt::{Debug, Display};
 use std::io;
+use std::ops::Deref;
 
 use anyhow::bail;
 use once_cell::sync::Lazy;
