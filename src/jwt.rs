@@ -1244,15 +1244,15 @@ mod tests {
     fn test_jwt_with_rsapss_pem() -> Result<()> {
         for alg in &[PS256, PS384, PS512] {
             let private_key = load_file(match alg.name() {
-                "PS256" => "pem/RSA-PSS_2048bit_SHA256_private.pem",
-                "PS384" => "pem/RSA-PSS_2048bit_SHA384_private.pem",
-                "PS512" => "pem/RSA-PSS_2048bit_SHA512_private.pem",
+                "PS256" => "pem/RSA-PSS_2048bit_SHA-256_private.pem",
+                "PS384" => "pem/RSA-PSS_2048bit_SHA-384_private.pem",
+                "PS512" => "pem/RSA-PSS_2048bit_SHA-512_private.pem",
                 _ => unreachable!(),
             })?;
             let public_key = load_file(match alg.name() {
-                "PS256" => "pem/RSA-PSS_2048bit_SHA256_public.pem",
-                "PS384" => "pem/RSA-PSS_2048bit_SHA384_public.pem",
-                "PS512" => "pem/RSA-PSS_2048bit_SHA512_public.pem",
+                "PS256" => "pem/RSA-PSS_2048bit_SHA-256_public.pem",
+                "PS384" => "pem/RSA-PSS_2048bit_SHA-384_public.pem",
+                "PS512" => "pem/RSA-PSS_2048bit_SHA-512_public.pem",
                 _ => unreachable!(),
             })?;
 
