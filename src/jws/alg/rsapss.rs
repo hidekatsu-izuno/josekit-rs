@@ -636,6 +636,7 @@ impl JwsAlgorithm for RsaPssJwsAlgorithm {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct RsaPssKeyPair {
     algorithm: RsaPssJwsAlgorithm,
     pkey: PKey<Private>,
@@ -768,6 +769,10 @@ impl KeyPair for RsaPssKeyPair {
 
     fn to_jwk_keypair(&self) -> Jwk {
         self.to_jwk(true, true)
+    }
+        
+    fn box_clone(&self) -> Box<dyn KeyPair> {
+        Box::new(self.clone())
     }
 }
 

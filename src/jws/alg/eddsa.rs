@@ -636,6 +636,10 @@ impl KeyPair for EddsaKeyPair {
     fn to_jwk_keypair(&self) -> Jwk {
         self.to_jwk(true, true)
     }
+        
+    fn box_clone(&self) -> Box<dyn KeyPair> {
+        Box::new(self.clone())
+    }
 }
 
 #[derive(Debug, Clone)]

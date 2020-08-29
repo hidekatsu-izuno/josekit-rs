@@ -255,7 +255,7 @@ impl JweContext {
             };
             
             let mut iv_vec;
-            let mut iv = if cencryption.iv_len() > 0 {
+            let iv = if cencryption.iv_len() > 0 {
                 iv_vec = vec![0; cencryption.iv_len()];
                 rand::rand_bytes(&mut iv_vec)?;
                 Some(iv_vec.as_slice())
@@ -414,7 +414,7 @@ impl JweContext {
             let protected = serde_json::to_vec(protected.claims_set())?;
 
             let mut iv_vec;
-            let mut iv = if cencryption.iv_len() > 0 {
+            let iv = if cencryption.iv_len() > 0 {
                 iv_vec = vec![0; cencryption.iv_len()];
                 rand::rand_bytes(&mut iv_vec)?;
                 Some(iv_vec.as_slice())
@@ -623,7 +623,6 @@ impl JweContext {
     /// # Arguments
     ///
     /// * `input` - The input data.
-    /// * `header` - The decoded JWS header claims.
     /// * `decrypter` - The JWE decrypter.
     pub fn deserialize_json<'a>(
         &self,
@@ -693,16 +692,16 @@ impl JweContext {
                 Some(_) => bail!("The unprotected field must be string."),
                 None => None,
             };
-            let (aad, aad_b64) = match map.remove("aad") {
+            let aad_b64 = match map.remove("aad") {
                 Some(Value::String(val)) => {
                     if val.len() == 0 {
                         bail!("The aad field must be empty.");
                     }
-                    let vec = base64::decode_config(&val, base64::URL_SAFE_NO_PAD)?;
-                    (Some(vec), Some(val))
+                    base64::decode_config(&val, base64::URL_SAFE_NO_PAD)?;
+                    Some(val)
                 },
                 Some(_) => bail!("The aad field must be string."),
-                None => (None, None),
+                None => None,
             };
             let iv_vec;
             let iv = match map.remove("iv") {
