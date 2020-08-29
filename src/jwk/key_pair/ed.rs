@@ -4,8 +4,8 @@ use once_cell::sync::Lazy;
 use openssl::pkey::{PKey, Private};
 use serde_json::Value;
 
-use crate::der::{DerType, DerReader, DerBuilder};
 use crate::der::oid::ObjectIdentifier;
+use crate::der::{DerBuilder, DerReader, DerType};
 use crate::jose::JoseError;
 use crate::jwk::{Jwk, KeyPair};
 
@@ -45,20 +45,20 @@ impl Display for EdCurve {
 
 #[derive(Debug, Clone)]
 pub struct EdKeyPair {
-    curve: EdCurve,
     private_key: PKey<Private>,
+    curve: EdCurve,
     alg: Option<String>,
 }
 
 impl EdKeyPair {
-    pub(crate) fn from_private_key(private_key: PKey<Private>, curve: EdCurve) -> Result<EdKeyPair, JoseError> {
-        Ok(EdKeyPair {
-            curve,
+    pub(crate) fn from_private_key(private_key: PKey<Private>, curve: EdCurve) -> EdKeyPair {
+        EdKeyPair {
             private_key,
+            curve,
             alg: None,
-        })
+        }
     }
-    
+
     pub(crate) fn into_private_key(self) -> PKey<Private> {
         self.private_key
     }
@@ -339,9 +339,8 @@ impl KeyPair for EdKeyPair {
     fn to_jwk_keypair(&self) -> Jwk {
         self.to_jwk(true, true)
     }
-        
+
     fn box_clone(&self) -> Box<dyn KeyPair> {
         Box::new(self.clone())
     }
 }
-

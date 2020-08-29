@@ -7,7 +7,7 @@ use openssl::nid::Nid;
 use openssl::pkey::{PKey, Private};
 use serde_json::Value;
 
-use crate::der::{DerType, DerReader, DerBuilder, oid::ObjectIdentifier};
+use crate::der::{oid::ObjectIdentifier, DerBuilder, DerReader, DerType};
 use crate::jose::JoseError;
 use crate::jwk::{Jwk, KeyPair};
 use crate::util::num_to_vec;
@@ -16,16 +16,16 @@ static OID_ID_EC_PUBLIC_KEY: Lazy<ObjectIdentifier> =
     Lazy::new(|| ObjectIdentifier::from_slice(&[1, 2, 840, 10045, 2, 1]));
 
 static OID_PRIME256V1: Lazy<ObjectIdentifier> =
-Lazy::new(|| ObjectIdentifier::from_slice(&[1, 2, 840, 10045, 3, 1, 7]));
+    Lazy::new(|| ObjectIdentifier::from_slice(&[1, 2, 840, 10045, 3, 1, 7]));
 
 static OID_SECP384R1: Lazy<ObjectIdentifier> =
-Lazy::new(|| ObjectIdentifier::from_slice(&[1, 3, 132, 0, 34]));
+    Lazy::new(|| ObjectIdentifier::from_slice(&[1, 3, 132, 0, 34]));
 
 static OID_SECP521R1: Lazy<ObjectIdentifier> =
-Lazy::new(|| ObjectIdentifier::from_slice(&[1, 3, 132, 0, 35]));
+    Lazy::new(|| ObjectIdentifier::from_slice(&[1, 3, 132, 0, 35]));
 
 static OID_SECP256K1: Lazy<ObjectIdentifier> =
-Lazy::new(|| ObjectIdentifier::from_slice(&[1, 3, 132, 0, 10]));
+    Lazy::new(|| ObjectIdentifier::from_slice(&[1, 3, 132, 0, 10]));
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum EcCurve {
@@ -80,30 +80,18 @@ impl Display for EcCurve {
 
 #[derive(Debug, Clone)]
 pub struct EcKeyPair {
-    curve: EcCurve,
     private_key: PKey<Private>,
+    curve: EcCurve,
     alg: Option<String>,
 }
 
 impl EcKeyPair {
-    pub(crate) fn from_private_key(private_key: PKey<Private>) -> Result<EcKeyPair, JoseError> {
-        (|| -> anyhow::Result<EcKeyPair> {
-            let ec_key = private_key.ec_key()?;
-            let curve = match ec_key.group().curve_name() {
-                Some(Nid::X9_62_PRIME256V1) => EcCurve::P256,
-                Some(Nid::SECP384R1) => EcCurve::P384,
-                Some(Nid::SECP521R1) => EcCurve::P521,
-                Some(Nid::SECP256K1) => EcCurve::Secp256K1,
-                _ => unreachable!(),
-            };
-
-            Ok(EcKeyPair {
-                curve,
-                private_key,
-                alg: None,
-            })
-        })()
-        .map_err(|err| JoseError::InvalidKeyFormat(err))
+    pub(crate) fn from_private_key(private_key: PKey<Private>, curve: EcCurve) -> EcKeyPair {
+        EcKeyPair {
+            private_key,
+            curve,
+            alg: None,
+        }
     }
 
     pub(crate) fn into_private_key(self) -> PKey<Private> {
@@ -154,11 +142,8 @@ impl EcKeyPair {
         if let Some(val) = &self.alg {
             jwk.set_algorithm(val);
         }
-        jwk.set_parameter(
-            "crv",
-            Some(Value::String(self.curve.to_string())),
-        )
-        .unwrap();
+        jwk.set_parameter("crv", Some(Value::String(self.curve.to_string())))
+            .unwrap();
         if private {
             let d = ec_key.private_key();
             let d = num_to_vec(&d, self.curve.coordinate_size());
@@ -312,7 +297,7 @@ impl KeyPair for EcKeyPair {
     fn to_jwk_keypair(&self) -> Jwk {
         self.to_jwk(true, true)
     }
-        
+
     fn box_clone(&self) -> Box<dyn KeyPair> {
         Box::new(self.clone())
     }

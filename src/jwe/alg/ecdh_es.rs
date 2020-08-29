@@ -3,18 +3,18 @@ use std::borrow::Cow;
 use anyhow::bail;
 use once_cell::sync::Lazy;
 use openssl::aes::{self, AesKey};
-use openssl::pkey::{PKey, Private, Public};
 use openssl::bn::{BigNum, BigNumContext};
-use openssl::ec::{EcGroup, EcKey};
-use openssl::nid::Nid;
 use openssl::derive::Deriver;
-use openssl::hash::{MessageDigest, Hasher};
+use openssl::ec::{EcGroup, EcKey};
+use openssl::hash::{Hasher, MessageDigest};
+use openssl::nid::Nid;
+use openssl::pkey::{PKey, Private, Public};
 use serde_json::{Map, Value};
 
 use crate::der::oid::ObjectIdentifier;
 use crate::der::{DerBuilder, DerType};
-use crate::jose::{JoseHeader, JoseError};
-use crate::jwe::{JweHeader, JweAlgorithm, JweDecrypter, JweEncrypter};
+use crate::jose::{JoseError, JoseHeader};
+use crate::jwe::{JweAlgorithm, JweDecrypter, JweEncrypter, JweHeader};
 use crate::jwk::Jwk;
 use crate::util;
 
@@ -79,7 +79,7 @@ impl EcdhEsCurve {
             Self::X448 => &*OID_X448,
         }
     }
-    
+
     fn nid(&self) -> Nid {
         match self {
             Self::P256 => Nid::X9_62_PRIME256V1,
@@ -128,11 +128,12 @@ impl EcdhEsJweAlgorithm {
             match jwk.key_operations() {
                 Some(vals) => {
                     if !vals.iter().any(|e| e == "deriveKey")
-                        || !vals.iter().any(|e| e == "deriveBits") {
+                        || !vals.iter().any(|e| e == "deriveBits")
+                    {
                         bail!("A parameter key_ops must contains deriveKey and deriveBits.");
                     }
-                },
-                None => {},
+                }
+                None => {}
             }
             match jwk.algorithm() {
                 Some(val) if val == self.name() => {}
@@ -140,23 +141,21 @@ impl EcdhEsJweAlgorithm {
                 Some(val) => bail!("A parameter alg must be {} but {}", self.name(), val),
             }
             let curve = match jwk.parameter("crv") {
-                Some(Value::String(val)) => {
-                    match key_type {
-                        "EC" => match val.as_str() {
-                            "P-256" => EcdhEsCurve::P256,
-                            "P-384" => EcdhEsCurve::P384,
-                            "P-521" => EcdhEsCurve::P521,
-                            "secp256k1" => EcdhEsCurve::Secp256K1,
-                            _ => bail!("EC key doesn't support the curve algorithm: {}", val),
-                        },
-                        "OKP" => match val.as_str() {
-                            "X25519" => EcdhEsCurve::X25519,
-                            "X448" => EcdhEsCurve::X448,
-                            _ => bail!("OKP key doesn't support the curve algorithm: {}", val),
-                        },
-                        _ => bail!("A parameter crv is invalid: {}", val),
-                    }
-                }
+                Some(Value::String(val)) => match key_type {
+                    "EC" => match val.as_str() {
+                        "P-256" => EcdhEsCurve::P256,
+                        "P-384" => EcdhEsCurve::P384,
+                        "P-521" => EcdhEsCurve::P521,
+                        "secp256k1" => EcdhEsCurve::Secp256K1,
+                        _ => bail!("EC key doesn't support the curve algorithm: {}", val),
+                    },
+                    "OKP" => match val.as_str() {
+                        "X25519" => EcdhEsCurve::X25519,
+                        "X448" => EcdhEsCurve::X448,
+                        _ => bail!("OKP key doesn't support the curve algorithm: {}", val),
+                    },
+                    _ => bail!("A parameter crv is invalid: {}", val),
+                },
                 Some(_) => bail!("A parameter crv must be a string."),
                 None => bail!("A parameter crv is required."),
             };
@@ -169,23 +168,25 @@ impl EcdhEsJweAlgorithm {
             let public_key = match key_type {
                 "EC" => {
                     let y = match jwk.parameter("y") {
-                        Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
+                        Some(Value::String(val)) => {
+                            base64::decode_config(val, base64::URL_SAFE_NO_PAD)?
+                        }
                         Some(_) => bail!("A parameter y must be a string."),
                         None => bail!("A parameter y is required."),
                     };
-        
+
                     let mut vec = Vec::with_capacity(1 + x.len() + y.len());
                     vec.push(0x04);
                     vec.extend_from_slice(&x);
                     vec.extend_from_slice(&y);
-        
+
                     let pkcs8 = self.to_pkcs8(&vec, true, curve);
                     PKey::public_key_from_der(&pkcs8)?
-                },
+                }
                 "OKP" => {
                     let pkcs8 = self.to_pkcs8(&x, true, curve);
                     PKey::public_key_from_der(&pkcs8)?
-                },
+                }
                 _ => unreachable!(),
             };
             let key_id = jwk.key_id().map(|val| val.to_string());
@@ -214,11 +215,12 @@ impl EcdhEsJweAlgorithm {
             match jwk.key_operations() {
                 Some(vals) => {
                     if !vals.iter().any(|e| e == "deriveKey")
-                        || !vals.iter().any(|e| e == "deriveBits") {
+                        || !vals.iter().any(|e| e == "deriveBits")
+                    {
                         bail!("A parameter key_ops must contains deriveKey and deriveBits.");
                     }
-                },
-                None => {},
+                }
+                None => {}
             }
             match jwk.algorithm() {
                 Some(val) if val == self.name() => {}
@@ -226,23 +228,21 @@ impl EcdhEsJweAlgorithm {
                 Some(val) => bail!("A parameter alg must be {} but {}", self.name(), val),
             }
             let curve = match jwk.parameter("crv") {
-                Some(Value::String(val)) => {
-                    match key_type {
-                        "EC" => match val.as_str() {
-                            "P-256" => EcdhEsCurve::P256,
-                            "P-384" => EcdhEsCurve::P384,
-                            "P-521" => EcdhEsCurve::P521,
-                            "secp256k1" => EcdhEsCurve::Secp256K1,
-                            _ => bail!("EC key doesn't support the curve algorithm: {}", val),
-                        },
-                        "OKP" => match val.as_str() {
-                            "X25519" => EcdhEsCurve::X25519,
-                            "X448" => EcdhEsCurve::X448,
-                            _ => bail!("OKP key doesn't support the curve algorithm: {}", val),
-                        },
-                        _ => bail!("A parameter crv is invalid: {}", val),
-                    }
-                }
+                Some(Value::String(val)) => match key_type {
+                    "EC" => match val.as_str() {
+                        "P-256" => EcdhEsCurve::P256,
+                        "P-384" => EcdhEsCurve::P384,
+                        "P-521" => EcdhEsCurve::P521,
+                        "secp256k1" => EcdhEsCurve::Secp256K1,
+                        _ => bail!("EC key doesn't support the curve algorithm: {}", val),
+                    },
+                    "OKP" => match val.as_str() {
+                        "X25519" => EcdhEsCurve::X25519,
+                        "X448" => EcdhEsCurve::X448,
+                        _ => bail!("OKP key doesn't support the curve algorithm: {}", val),
+                    },
+                    _ => bail!("A parameter crv is invalid: {}", val),
+                },
                 Some(_) => bail!("A parameter crv must be a string."),
                 None => bail!("A parameter crv is required."),
             };
@@ -261,17 +261,17 @@ impl EcdhEsJweAlgorithm {
                         builder.append_octed_string_from_slice(&d);
                     }
                     builder.end();
-        
+
                     let pkcs8 = self.to_pkcs8(&builder.build(), false, curve);
                     PKey::private_key_from_der(&pkcs8)?
-                },
+                }
                 "OKP" => {
                     let mut builder = DerBuilder::new();
                     builder.append_octed_string_from_slice(&d);
 
                     let pkcs8 = self.to_pkcs8(&builder.build(), false, curve);
                     PKey::private_key_from_der(&pkcs8)?
-                },
+                }
                 _ => unreachable!(),
             };
             let key_id = jwk.key_id().map(|val| val.to_string());
@@ -314,7 +314,7 @@ impl EcdhEsJweAlgorithm {
     fn is_direct(&self) -> bool {
         match self {
             Self::EcdhEs => true,
-            _ => false
+            _ => false,
         }
     }
 }
@@ -328,7 +328,7 @@ impl JweAlgorithm for EcdhEsJweAlgorithm {
             Self::EcdhEsA256Kw => "ECDH-ES+A256KW",
         }
     }
-        
+
     fn box_clone(&self) -> Box<dyn JweAlgorithm> {
         Box::new(self.clone())
     }
@@ -362,13 +362,17 @@ impl JweEncrypter for EcdhEsJweEncrypter {
         self.key_id = None;
     }
 
-    fn encrypt(&self, header: &mut JweHeader, key_len: usize) -> Result<(Cow<[u8]>, Option<Vec<u8>>), JoseError> {
+    fn encrypt(
+        &self,
+        header: &mut JweHeader,
+        key_len: usize,
+    ) -> Result<(Cow<[u8]>, Option<Vec<u8>>), JoseError> {
         (|| -> anyhow::Result<(Cow<[u8]>, Option<Vec<u8>>)> {
             let apu = match header.claim("apu") {
                 Some(Value::String(val)) => {
                     let apu = base64::decode_config(val, base64::URL_SAFE_NO_PAD)?;
                     Some(apu)
-                },
+                }
                 Some(_) => bail!("The apu header claim must be string."),
                 None => None,
             };
@@ -376,7 +380,7 @@ impl JweEncrypter for EcdhEsJweEncrypter {
                 Some(Value::String(val)) => {
                     let apv = base64::decode_config(val, base64::URL_SAFE_NO_PAD)?;
                     Some(apv)
-                },
+                }
                 Some(_) => bail!("The apv header claim must be string."),
                 None => None,
             };
@@ -384,8 +388,14 @@ impl JweEncrypter for EcdhEsJweEncrypter {
             header.set_algorithm(self.algorithm.name());
 
             let mut map = Map::new();
-            map.insert("kty".to_string(), Value::String(self.curve.key_type().to_string()));
-            map.insert("crv".to_string(), Value::String(self.curve.name().to_string()));
+            map.insert(
+                "kty".to_string(),
+                Value::String(self.curve.key_type().to_string()),
+            );
+            map.insert(
+                "crv".to_string(),
+                Value::String(self.curve.name().to_string()),
+            );
 
             let private_key = match self.curve.key_type() {
                 "EC" => {
@@ -396,13 +406,12 @@ impl JweEncrypter for EcdhEsJweEncrypter {
                     let mut x = BigNum::new()?;
                     let mut y = BigNum::new()?;
                     let mut ctx = BigNumContext::new()?;
-                    public_key
-                        .affine_coordinates_gfp(ec_key.group(), &mut x, &mut y, &mut ctx)?;
+                    public_key.affine_coordinates_gfp(ec_key.group(), &mut x, &mut y, &mut ctx)?;
 
                     let x = util::num_to_vec(&x, self.curve.coordinate_size());
                     let x = base64::encode_config(&x, base64::URL_SAFE_NO_PAD);
                     map.insert("x".to_string(), Value::String(x));
-            
+
                     let y = util::num_to_vec(&y, self.curve.coordinate_size());
                     let y = base64::encode_config(&y, base64::URL_SAFE_NO_PAD);
                     map.insert("y".to_string(), Value::String(y));
@@ -475,7 +484,7 @@ impl JweEncrypter for EcdhEsJweEncrypter {
             Err(err) => JoseError::InvalidKeyFormat(err),
         })
     }
-    
+
     fn box_clone(&self) -> Box<dyn JweEncrypter> {
         Box::new(self.clone())
     }
@@ -509,22 +518,31 @@ impl JweDecrypter for EcdhEsJweDecrypter {
         self.key_id = None;
     }
 
-    fn decrypt(&self, header: &JweHeader, encrypted_key: Option<&[u8]>, key_len: usize) -> Result<Cow<[u8]>, JoseError> {
+    fn decrypt(
+        &self,
+        header: &JweHeader,
+        encrypted_key: Option<&[u8]>,
+        key_len: usize,
+    ) -> Result<Cow<[u8]>, JoseError> {
         (|| -> anyhow::Result<Cow<[u8]>> {
             match encrypted_key {
-                Some(_) => if self.algorithm.is_direct() {
-                    bail!("The encrypted_key must not exist.");
-                },
-                None => if !self.algorithm.is_direct() {
-                    bail!("A encrypted_key is required.");
-                },
+                Some(_) => {
+                    if self.algorithm.is_direct() {
+                        bail!("The encrypted_key must not exist.");
+                    }
+                }
+                None => {
+                    if !self.algorithm.is_direct() {
+                        bail!("A encrypted_key is required.");
+                    }
+                }
             }
 
             let apu = match header.claim("apu") {
                 Some(Value::String(val)) => {
                     let apu = base64::decode_config(val, base64::URL_SAFE_NO_PAD)?;
                     Some(apu)
-                },
+                }
                 Some(_) => bail!("The apu header claim must be string."),
                 None => None,
             };
@@ -532,7 +550,7 @@ impl JweDecrypter for EcdhEsJweDecrypter {
                 Some(Value::String(val)) => {
                     let apv = base64::decode_config(val, base64::URL_SAFE_NO_PAD)?;
                     Some(apv)
-                },
+                }
                 Some(_) => bail!("The apv header claim must be string."),
                 None => None,
             };
@@ -544,7 +562,7 @@ impl JweDecrypter for EcdhEsJweDecrypter {
                             if val != self.curve.key_type() {
                                 bail!("The kty parameter in epk header claim is invalid: {}", val);
                             }
-                        },
+                        }
                         Some(_) => bail!("The kty parameter in epk header claim must be a string."),
                         None => bail!("The kty parameter in epk header claim is required."),
                     }
@@ -554,7 +572,7 @@ impl JweDecrypter for EcdhEsJweDecrypter {
                             if val != self.curve.name() {
                                 bail!("The crv parameter in epk header claim is invalid: {}", val);
                             }
-                        },
+                        }
                         Some(_) => bail!("The crv parameter in epk header claim must be a string."),
                         None => bail!("The crv parameter in epk header claim is required."),
                     }
@@ -562,13 +580,21 @@ impl JweDecrypter for EcdhEsJweDecrypter {
                     match self.curve.key_type() {
                         "EC" => {
                             let x = match map.get("x") {
-                                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
-                                Some(_) => bail!("The x parameter in epk header claim must be a string."),
+                                Some(Value::String(val)) => {
+                                    base64::decode_config(val, base64::URL_SAFE_NO_PAD)?
+                                }
+                                Some(_) => {
+                                    bail!("The x parameter in epk header claim must be a string.")
+                                }
                                 None => bail!("The x parameter in epk header claim is required."),
                             };
                             let y = match map.get("y") {
-                                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
-                                Some(_) => bail!("The x parameter in epk header claim must be a string."),
+                                Some(Value::String(val)) => {
+                                    base64::decode_config(val, base64::URL_SAFE_NO_PAD)?
+                                }
+                                Some(_) => {
+                                    bail!("The x parameter in epk header claim must be a string.")
+                                }
                                 None => bail!("The x parameter in epk header claim is required."),
                             };
 
@@ -576,22 +602,26 @@ impl JweDecrypter for EcdhEsJweDecrypter {
                             vec.push(0x04);
                             vec.extend_from_slice(&x);
                             vec.extend_from_slice(&y);
-                
+
                             let pkcs8 = self.algorithm.to_pkcs8(&vec, true, self.curve);
                             PKey::public_key_from_der(&pkcs8)?
-                        },
+                        }
                         "OKP" => {
                             let _x = match map.get("x") {
-                                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
-                                Some(_) => bail!("The x parameter in epk header claim must be a string."),
+                                Some(Value::String(val)) => {
+                                    base64::decode_config(val, base64::URL_SAFE_NO_PAD)?
+                                }
+                                Some(_) => {
+                                    bail!("The x parameter in epk header claim must be a string.")
+                                }
                                 None => bail!("The x parameter in epk header claim is required."),
                             };
 
                             todo!("openssl-rust is not supported X25519 and X448");
-                        },
+                        }
                         _ => unreachable!(),
                     }
-                },
+                }
                 Some(_) => bail!("The epk header claim must be object."),
                 None => bail!("This algorithm must have epk header claim."),
             };
@@ -647,7 +677,7 @@ impl JweDecrypter for EcdhEsJweDecrypter {
                 if len < key.len() {
                     key.truncate(len);
                 }
-                
+
                 key
             } else {
                 key
@@ -657,7 +687,7 @@ impl JweDecrypter for EcdhEsJweDecrypter {
         })()
         .map_err(|err| JoseError::InvalidJweFormat(err))
     }
-        
+
     fn box_clone(&self) -> Box<dyn JweDecrypter> {
         Box::new(self.clone())
     }

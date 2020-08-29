@@ -19,13 +19,13 @@ pub struct RsaKeyPair {
 }
 
 impl RsaKeyPair {
-    pub(crate) fn from_private_key(private_key: PKey<Private>) -> Result<RsaKeyPair, JoseError> {
-        Ok(RsaKeyPair {
+    pub(crate) fn from_private_key(private_key: PKey<Private>) -> RsaKeyPair {
+        RsaKeyPair {
             private_key,
             alg: None,
-        })
+        }
     }
-    
+
     pub(crate) fn into_private_key(self) -> PKey<Private> {
         self.private_key
     }
@@ -178,7 +178,7 @@ impl RsaKeyPair {
 
         Some(())
     }
-    
+
     pub(crate) fn to_pkcs8(input: &[u8], is_public: bool) -> Vec<u8> {
         let mut builder = DerBuilder::new();
         builder.begin(DerType::Sequence);
@@ -245,7 +245,7 @@ impl KeyPair for RsaKeyPair {
     fn to_jwk_keypair(&self) -> Jwk {
         self.to_jwk(true, true)
     }
-    
+
     fn box_clone(&self) -> Box<dyn KeyPair> {
         Box::new(self.clone())
     }

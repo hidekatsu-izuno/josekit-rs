@@ -1,6 +1,6 @@
 use std::collections::HashMap;
-use std::fmt::Display;
 use std::convert::Into;
+use std::fmt::Display;
 use std::time::{Duration, SystemTime};
 
 use anyhow::bail;
@@ -849,7 +849,7 @@ impl JwtPayload {
 impl AsRef<Map<String, Value>> for JwtPayload {
     fn as_ref(&self) -> &Map<String, Value> {
         &self.claims
-    }  
+    }
 }
 
 impl Into<Map<String, Value>> for JwtPayload {

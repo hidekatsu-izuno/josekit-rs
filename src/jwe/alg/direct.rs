@@ -4,7 +4,7 @@ use anyhow::bail;
 use serde_json::Value;
 
 use crate::jose::JoseError;
-use crate::jwe::{JweHeader, JweAlgorithm, JweDecrypter, JweEncrypter};
+use crate::jwe::{JweAlgorithm, JweDecrypter, JweEncrypter, JweHeader};
 use crate::jwk::Jwk;
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
@@ -53,7 +53,7 @@ impl DirectJweAlgorithm {
                 Some(val) => bail!("A parameter k must be string type but {:?}", val),
                 None => bail!("A parameter k is required."),
             };
-            
+
             let key_id = jwk.key_id().map(|val| val.to_string());
 
             Ok(DirectJweEncrypter {
@@ -124,7 +124,7 @@ impl JweAlgorithm for DirectJweAlgorithm {
             Self::Dir => "dir",
         }
     }
-        
+
     fn box_clone(&self) -> Box<dyn JweAlgorithm> {
         Box::new(self.clone())
     }
@@ -157,7 +157,11 @@ impl JweEncrypter for DirectJweEncrypter {
         self.key_id = None;
     }
 
-    fn encrypt(&self, header: &mut JweHeader, key_len: usize) -> Result<(Cow<[u8]>, Option<Vec<u8>>), JoseError> {
+    fn encrypt(
+        &self,
+        header: &mut JweHeader,
+        key_len: usize,
+    ) -> Result<(Cow<[u8]>, Option<Vec<u8>>), JoseError> {
         (|| -> anyhow::Result<(Cow<[u8]>, Option<Vec<u8>>)> {
             let actual_len = self.cencryption_key.len();
             if key_len != actual_len {
@@ -169,7 +173,7 @@ impl JweEncrypter for DirectJweEncrypter {
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
-    
+
     fn box_clone(&self) -> Box<dyn JweEncrypter> {
         Box::new(self.clone())
     }
@@ -202,7 +206,12 @@ impl JweDecrypter for DirectJweDecrypter {
         self.key_id = None;
     }
 
-    fn decrypt(&self, _header: &JweHeader, encrypted_key: Option<&[u8]>, key_len: usize) -> Result<Cow<[u8]>, JoseError> {
+    fn decrypt(
+        &self,
+        _header: &JweHeader,
+        encrypted_key: Option<&[u8]>,
+        key_len: usize,
+    ) -> Result<Cow<[u8]>, JoseError> {
         (|| -> anyhow::Result<Cow<[u8]>> {
             if let Some(_) = encrypted_key {
                 bail!("The encrypted_key must not exist.");
@@ -212,12 +221,12 @@ impl JweDecrypter for DirectJweDecrypter {
             if actual_len != key_len {
                 bail!("The key size is expected to be {}: {}", key_len, actual_len);
             }
-            
+
             Ok(Cow::Borrowed(&self.cencryption_key))
         })()
         .map_err(|err| JoseError::InvalidJweFormat(err))
     }
-    
+
     fn box_clone(&self) -> Box<dyn JweDecrypter> {
         Box::new(self.clone())
     }

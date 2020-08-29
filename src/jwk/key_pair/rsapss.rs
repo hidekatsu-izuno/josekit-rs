@@ -40,16 +40,16 @@ impl RsaPssKeyPair {
         hash: MessageDigest,
         mgf1_hash: MessageDigest,
         salt_len: u8,
-    ) -> Result<RsaPssKeyPair, JoseError> {
-        Ok(RsaPssKeyPair {
+    ) -> RsaPssKeyPair {
+        RsaPssKeyPair {
             private_key,
             hash,
             mgf1_hash,
             salt_len,
             alg: None,
-        })
+        }
     }
-    
+
     pub(crate) fn into_private_key(self) -> PKey<Private> {
         self.private_key
     }
@@ -162,7 +162,10 @@ impl RsaPssKeyPair {
         jwk
     }
 
-    pub(crate) fn detect_pkcs8(input: &[u8], is_public: bool) -> Option<(MessageDigest, MessageDigest, u8)> {
+    pub(crate) fn detect_pkcs8(
+        input: &[u8],
+        is_public: bool,
+    ) -> Option<(MessageDigest, MessageDigest, u8)> {
         let hash;
         let mgf1_hash;
         let salt_len;
@@ -311,7 +314,13 @@ impl RsaPssKeyPair {
         Some((hash, mgf1_hash, salt_len))
     }
 
-    pub(crate) fn to_pkcs8(input: &[u8], is_public: bool, hash: MessageDigest, mgf1_hash: MessageDigest, salt_len: u8) -> Vec<u8> {
+    pub(crate) fn to_pkcs8(
+        input: &[u8],
+        is_public: bool,
+        hash: MessageDigest,
+        mgf1_hash: MessageDigest,
+        salt_len: u8,
+    ) -> Vec<u8> {
         let mut builder = DerBuilder::new();
         builder.begin(DerType::Sequence);
         {
@@ -392,11 +401,23 @@ impl KeyPair for RsaPssKeyPair {
     }
 
     fn to_der_private_key(&self) -> Vec<u8> {
-        Self::to_pkcs8(&self.to_raw_private_key(), false, self.hash, self.mgf1_hash, self.salt_len)
+        Self::to_pkcs8(
+            &self.to_raw_private_key(),
+            false,
+            self.hash,
+            self.mgf1_hash,
+            self.salt_len,
+        )
     }
 
     fn to_der_public_key(&self) -> Vec<u8> {
-        Self::to_pkcs8(&self.to_raw_public_key(), true, self.hash, self.mgf1_hash, self.salt_len)
+        Self::to_pkcs8(
+            &self.to_raw_public_key(),
+            true,
+            self.hash,
+            self.mgf1_hash,
+            self.salt_len,
+        )
     }
 
     fn to_pem_private_key(&self) -> Vec<u8> {
@@ -438,7 +459,7 @@ impl KeyPair for RsaPssKeyPair {
     fn to_jwk_keypair(&self) -> Jwk {
         self.to_jwk(true, true)
     }
-        
+
     fn box_clone(&self) -> Box<dyn KeyPair> {
         Box::new(self.clone())
     }

@@ -2,12 +2,12 @@ pub mod alg;
 pub mod enc;
 pub mod zip;
 
+use std::borrow::Cow;
 use std::cmp::Eq;
-use std::collections::{BTreeSet, BTreeMap, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::convert::Into;
 use std::fmt::{Debug, Display};
 use std::io;
-use std::convert::Into;
-use std::borrow::Cow;
 
 use anyhow::bail;
 use once_cell::sync::Lazy;
@@ -253,7 +253,7 @@ impl JweContext {
             } else {
                 payload
             };
-            
+
             let mut iv_vec;
             let iv = if cencryption.iv_len() > 0 {
                 iv_vec = vec![0; cencryption.iv_len()];
@@ -322,9 +322,14 @@ impl JweContext {
         aad: Option<&[u8]>,
         encrypter: &dyn JweEncrypter,
     ) -> Result<String, JoseError> {
-        self.serialize_flattened_json_with_selector(payload, protected, unprotected, header, aad, |_header| {
-            Some(encrypter)
-        })
+        self.serialize_flattened_json_with_selector(
+            payload,
+            protected,
+            unprotected,
+            header,
+            aad,
+            |_header| Some(encrypter),
+        )
     }
 
     /// Return a representation of the data that is formatted by flatted json serialization.
@@ -367,7 +372,7 @@ impl JweContext {
             }
 
             if let Some(val) = header {
-                for  (key, value) in val.claims_set() {
+                for (key, value) in val.claims_set() {
                     if merged_map.contains_key(key) {
                         bail!("Duplicate key exists: {}", key);
                     }
@@ -404,7 +409,7 @@ impl JweContext {
             } else {
                 payload
             };
-            
+
             let (key, encrypted_key) = encrypter.encrypt(&mut protected, cencryption.key_len())?;
             if let None = merged.claim("kid") {
                 if let Some(key_id) = encrypter.key_id() {
@@ -530,7 +535,8 @@ impl JweContext {
             let encrypted_key_b64 = &input[(indexies[0] + 1)..(indexies[1])];
             let encrypted_key_vec;
             let encrypted_key = if encrypted_key_b64.len() > 0 {
-                encrypted_key_vec = base64::decode_config(encrypted_key_b64, base64::URL_SAFE_NO_PAD)?;
+                encrypted_key_vec =
+                    base64::decode_config(encrypted_key_b64, base64::URL_SAFE_NO_PAD)?;
                 Some(encrypted_key_vec.as_slice())
             } else {
                 None
@@ -677,7 +683,7 @@ impl JweContext {
                     let vec = base64::decode_config(&val, base64::URL_SAFE_NO_PAD)?;
                     let json: Map<String, Value> = serde_json::from_slice(&vec)?;
                     (Some(json), Some(val))
-                },
+                }
                 Some(_) => bail!("The protected field must be string."),
                 None => (None, None),
             };
@@ -688,7 +694,7 @@ impl JweContext {
                     }
                     let json: Map<String, Value> = serde_json::from_str(&val)?;
                     Some(json)
-                },
+                }
                 Some(_) => bail!("The unprotected field must be string."),
                 None => None,
             };
@@ -699,7 +705,7 @@ impl JweContext {
                     }
                     base64::decode_config(&val, base64::URL_SAFE_NO_PAD)?;
                     Some(val)
-                },
+                }
                 Some(_) => bail!("The aad field must be string."),
                 None => None,
             };
@@ -711,7 +717,7 @@ impl JweContext {
                     }
                     iv_vec = base64::decode_config(&val, base64::URL_SAFE_NO_PAD)?;
                     Some(iv_vec.as_slice())
-                },
+                }
                 Some(_) => bail!("The iv field must be string."),
                 None => None,
             };
@@ -721,7 +727,7 @@ impl JweContext {
                         bail!("The ciphertext field must be empty.");
                     }
                     base64::decode_config(&val, base64::URL_SAFE_NO_PAD)?
-                },
+                }
                 Some(_) => bail!("The ciphertext field must be string."),
                 None => bail!("The ciphertext field is required."),
             };
@@ -733,7 +739,7 @@ impl JweContext {
                     }
                     tag_vec = base64::decode_config(&val, base64::URL_SAFE_NO_PAD)?;
                     Some(tag_vec.as_slice())
-                },
+                }
                 Some(_) => bail!("The tag field must be string."),
                 None => None,
             };
@@ -772,7 +778,7 @@ impl JweContext {
                         }
                         encrypted_key_vec = base64::decode_config(&val, base64::URL_SAFE_NO_PAD)?;
                         Some(encrypted_key_vec.as_slice())
-                    },
+                    }
                     Some(_) => bail!("The encrypted_key field must be a string."),
                     None => None,
                 };
@@ -792,7 +798,7 @@ impl JweContext {
                         }
                     }
                 }
-                
+
                 if let Some(val) = &protected {
                     for (key, value) in val {
                         if merged.contains_key(key) {
@@ -809,7 +815,7 @@ impl JweContext {
                     Some(val) => val,
                     None => continue,
                 };
-    
+
                 let cencryption = match merged.claim("enc") {
                     Some(Value::String(val)) => match self.get_content_encryption(val) {
                         Some(val2) => val2,
@@ -818,7 +824,7 @@ impl JweContext {
                     Some(_) => bail!("A enc header claim must be string."),
                     None => bail!("A enc header claim is required."),
                 };
-    
+
                 let compression = match merged.claim("zip") {
                     Some(Value::String(val)) => match self.get_compression(val) {
                         Some(val2) => Some(val2),
@@ -827,7 +833,7 @@ impl JweContext {
                     Some(_) => bail!("A enc header claim must be string."),
                     None => None,
                 };
-    
+
                 match merged.algorithm() {
                     Some(val) => {
                         let expected_alg = decrypter.algorithm().name();
@@ -837,7 +843,7 @@ impl JweContext {
                     }
                     None => bail!("The JWE alg header claim is required."),
                 }
-    
+
                 match decrypter.key_id() {
                     Some(expected) => match merged.key_id() {
                         Some(actual) if expected == actual => {}
@@ -857,7 +863,8 @@ impl JweContext {
                 }
 
                 let key = decrypter.decrypt(&merged, encrypted_key, cencryption.key_len())?;
-                let content = cencryption.decrypt(&key, iv, &ciphertext, full_aad.as_bytes(), tag)?;
+                let content =
+                    cencryption.decrypt(&key, iv, &ciphertext, full_aad.as_bytes(), tag)?;
                 let content = match compression {
                     Some(val) => val.decompress(&content)?,
                     None => content,
@@ -925,7 +932,14 @@ pub fn serialize_flattened_json(
     aad: Option<&[u8]>,
     encrypter: &dyn JweEncrypter,
 ) -> Result<String, JoseError> {
-    DEFAULT_CONTEXT.serialize_flattened_json(payload, protected, unprotected, header, aad, encrypter)
+    DEFAULT_CONTEXT.serialize_flattened_json(
+        payload,
+        protected,
+        unprotected,
+        header,
+        aad,
+        encrypter,
+    )
 }
 
 /// Return a representation of the data that is formatted by flatted json serialization.
@@ -948,7 +962,14 @@ pub fn serialize_flattened_json_with_selector<'a, F>(
 where
     F: Fn(&JweHeader) -> Option<&'a dyn JweEncrypter>,
 {
-    DEFAULT_CONTEXT.serialize_flattened_json_with_selector(payload, protected, unprotected, header, aad, selector)
+    DEFAULT_CONTEXT.serialize_flattened_json_with_selector(
+        payload,
+        protected,
+        unprotected,
+        header,
+        aad,
+        selector,
+    )
 }
 
 /// Deserialize the input that is formatted by compact serialization.
@@ -1282,7 +1303,7 @@ impl JweHeader {
             _ => unreachable!(),
         }
     }
-    
+
     /// Set a value for url header claim (url).
     ///
     /// # Arguments
@@ -1525,7 +1546,7 @@ impl JoseHeader for JweHeader {
 impl AsRef<Map<String, Value>> for JweHeader {
     fn as_ref(&self) -> &Map<String, Value> {
         &self.claims
-    }  
+    }
 }
 
 impl Into<Map<String, Value>> for JweHeader {
@@ -1585,7 +1606,11 @@ pub trait JweEncrypter: Debug + Send + Sync {
     ///
     /// * `header` - the header
     /// * `key_len` - the length of the content encryption key
-    fn encrypt(&self, header: &mut JweHeader, key_len: usize) -> Result<(Cow<[u8]>, Option<Vec<u8>>), JoseError>;
+    fn encrypt(
+        &self,
+        header: &mut JweHeader,
+        key_len: usize,
+    ) -> Result<(Cow<[u8]>, Option<Vec<u8>>), JoseError>;
 
     fn box_clone(&self) -> Box<dyn JweEncrypter>;
 }
@@ -1621,8 +1646,13 @@ pub trait JweDecrypter: Debug + Send + Sync {
     /// * `header` - The header
     /// * `encrypted_key` - The encrypted key.
     /// * `key_len` - the length of the content encryption key
-    fn decrypt(&self, header: &JweHeader, encrypted_key: Option<&[u8]>, key_len: usize) -> Result<Cow<[u8]>, JoseError>;
-    
+    fn decrypt(
+        &self,
+        header: &JweHeader,
+        encrypted_key: Option<&[u8]>,
+        key_len: usize,
+    ) -> Result<Cow<[u8]>, JoseError>;
+
     fn box_clone(&self) -> Box<dyn JweDecrypter>;
 }
 
@@ -1640,9 +1670,22 @@ pub trait JweContentEncryption: Debug + Send + Sync {
 
     fn iv_len(&self) -> usize;
 
-    fn encrypt(&self, key: &[u8], iv: Option<&[u8]>, message: &[u8], aad: &[u8]) -> Result<(Vec<u8>, Option<Vec<u8>>), JoseError>;
+    fn encrypt(
+        &self,
+        key: &[u8],
+        iv: Option<&[u8]>,
+        message: &[u8],
+        aad: &[u8],
+    ) -> Result<(Vec<u8>, Option<Vec<u8>>), JoseError>;
 
-    fn decrypt(&self, key: &[u8], iv: Option<&[u8]>, encrypted_message: &[u8], aad: &[u8], tag: Option<&[u8]>) -> Result<Vec<u8>, JoseError>;
+    fn decrypt(
+        &self,
+        key: &[u8],
+        iv: Option<&[u8]>,
+        encrypted_message: &[u8],
+        aad: &[u8],
+        tag: Option<&[u8]>,
+    ) -> Result<Vec<u8>, JoseError>;
 
     fn box_clone(&self) -> Box<dyn JweContentEncryption>;
 }
@@ -1692,7 +1735,7 @@ mod tests {
     use serde_json::Value;
 
     use crate::jose::JoseHeader;
-    use crate::jwe::{self, Dir, JweHeader, JweAlgorithm};
+    use crate::jwe::{self, Dir, JweAlgorithm, JweHeader};
 
     #[test]
     fn test_jwe_compact_serialization() -> Result<()> {
@@ -1703,7 +1746,7 @@ mod tests {
             src_header.set_content_encryption(*enc);
             src_header.set_token_type("JWT");
             let src_payload = b"test payload!";
-    
+
             let alg = Dir;
             let key = match *enc {
                 "A128CBC-HS256" => b"01234567890123456789012345678901".as_ref(),
@@ -1713,14 +1756,14 @@ mod tests {
                 _ => unreachable!(),
             };
             let encrypter = alg.encrypter_from_slice(key)?;
-    
+
             let jwe = jwe::serialize_compact(src_payload, &src_header, &encrypter)?;
 
             println!("JWE: {}", jwe);
-    
+
             let decrypter = alg.decrypter_from_slice(key)?;
             let (dst_payload, dst_header) = jwe::deserialize_compact(&jwe, &decrypter)?;
-    
+
             src_header.set_claim("alg", Some(Value::String(alg.name().to_string())))?;
             assert_eq!(src_header, dst_header);
             assert_eq!(src_payload.to_vec(), dst_payload);

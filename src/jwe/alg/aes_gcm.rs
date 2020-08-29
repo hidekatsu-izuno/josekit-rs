@@ -1,12 +1,12 @@
 use std::borrow::Cow;
 
 use anyhow::bail;
-use serde_json::Value;
 use openssl::rand;
 use openssl::symm::{self, Cipher};
+use serde_json::Value;
 
-use crate::jose::{JoseHeader, JoseError};
-use crate::jwe::{JweHeader, JweAlgorithm, JweDecrypter, JweEncrypter};
+use crate::jose::{JoseError, JoseHeader};
+use crate::jwe::{JweAlgorithm, JweDecrypter, JweEncrypter, JweHeader};
 use crate::jwk::Jwk;
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
@@ -33,12 +33,12 @@ impl AesGcmJweAlgorithm {
             }
             match jwk.key_operations() {
                 Some(vals) => {
-                    if !vals.iter().any(|e| e == "encrypt")
-                        || !vals.iter().any(|e| e == "wrapKey") {
+                    if !vals.iter().any(|e| e == "encrypt") || !vals.iter().any(|e| e == "wrapKey")
+                    {
                         bail!("A parameter key_ops must contains encrypt and wrapKey.");
                     }
-                },
-                None => {},
+                }
+                None => {}
             }
             match jwk.algorithm() {
                 Some(val) if val == self.name() => {}
@@ -50,7 +50,7 @@ impl AesGcmJweAlgorithm {
                 Some(val) => bail!("A parameter k must be string type but {:?}", val),
                 None => bail!("A parameter k is required."),
             };
-            
+
             if k.len() != self.key_len() {
                 bail!("The key size must be {}: {}", self.key_len(), k.len());
             }
@@ -80,11 +80,12 @@ impl AesGcmJweAlgorithm {
             match jwk.key_operations() {
                 Some(vals) => {
                     if !vals.iter().any(|e| e == "decrypt")
-                        || !vals.iter().any(|e| e == "unwrapKey") {
+                        || !vals.iter().any(|e| e == "unwrapKey")
+                    {
                         bail!("A parameter key_ops must contains decrypt and unwrapKey.");
                     }
-                },
-                None => {},
+                }
+                None => {}
             }
             match jwk.algorithm() {
                 Some(val) if val == self.name() => {}
@@ -97,7 +98,7 @@ impl AesGcmJweAlgorithm {
                 Some(val) => bail!("A parameter k must be string type but {:?}", val),
                 None => bail!("A parameter k is required."),
             };
-            
+
             if k.len() != self.key_len() {
                 bail!("The key size must be {}: {}", self.key_len(), k.len());
             }
@@ -112,7 +113,7 @@ impl AesGcmJweAlgorithm {
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
-    
+
     fn key_len(&self) -> usize {
         match self {
             Self::A128GcmKw => 16,
@@ -138,7 +139,7 @@ impl JweAlgorithm for AesGcmJweAlgorithm {
             Self::A256GcmKw => "A256GCMKW",
         }
     }
-        
+
     fn box_clone(&self) -> Box<dyn JweAlgorithm> {
         Box::new(self.clone())
     }
@@ -171,7 +172,11 @@ impl JweEncrypter for AesGcmJweEncrypter {
         self.key_id = None;
     }
 
-    fn encrypt(&self, header: &mut JweHeader, key_len: usize) -> Result<(Cow<[u8]>, Option<Vec<u8>>), JoseError> {
+    fn encrypt(
+        &self,
+        header: &mut JweHeader,
+        key_len: usize,
+    ) -> Result<(Cow<[u8]>, Option<Vec<u8>>), JoseError> {
         (|| -> anyhow::Result<(Cow<[u8]>, Option<Vec<u8>>)> {
             let mut key = vec![0; key_len];
             rand::rand_bytes(&mut key)?;
@@ -181,14 +186,15 @@ impl JweEncrypter for AesGcmJweEncrypter {
 
             let cipher = self.algorithm.cipher();
             let mut tag = [0; 16];
-            let encrypted_key = symm::encrypt_aead(cipher, &self.private_key, Some(&iv), b"", &key, &mut tag)?;
+            let encrypted_key =
+                symm::encrypt_aead(cipher, &self.private_key, Some(&iv), b"", &key, &mut tag)?;
 
             header.set_algorithm(self.algorithm.name());
 
             let iv = base64::encode_config(&iv, base64::URL_SAFE_NO_PAD);
             header.set_claim("iv", Some(Value::String(iv)))?;
 
-            let tag = base64::encode_config(&tag, base64::URL_SAFE_NO_PAD);            
+            let tag = base64::encode_config(&tag, base64::URL_SAFE_NO_PAD);
             header.set_claim("tag", Some(Value::String(tag)))?;
 
             Ok((Cow::Owned(key), Some(encrypted_key)))
@@ -198,7 +204,7 @@ impl JweEncrypter for AesGcmJweEncrypter {
             Err(err) => JoseError::InvalidKeyFormat(err),
         })
     }
-    
+
     fn box_clone(&self) -> Box<dyn JweEncrypter> {
         Box::new(self.clone())
     }
@@ -231,7 +237,12 @@ impl JweDecrypter for AesGcmJweDecrypter {
         self.key_id = None;
     }
 
-    fn decrypt(&self, header: &JweHeader, encrypted_key: Option<&[u8]>, key_len: usize) -> Result<Cow<[u8]>, JoseError> {
+    fn decrypt(
+        &self,
+        header: &JweHeader,
+        encrypted_key: Option<&[u8]>,
+        key_len: usize,
+    ) -> Result<Cow<[u8]>, JoseError> {
         (|| -> anyhow::Result<Cow<[u8]>> {
             let encrypted_key = match encrypted_key {
                 Some(val) => val,
@@ -251,16 +262,23 @@ impl JweDecrypter for AesGcmJweDecrypter {
             };
 
             let cipher = self.algorithm.cipher();
-            let key = symm::decrypt_aead(cipher, &self.private_key, Some(&iv), b"", encrypted_key, &tag)?;
+            let key = symm::decrypt_aead(
+                cipher,
+                &self.private_key,
+                Some(&iv),
+                b"",
+                encrypted_key,
+                &tag,
+            )?;
             if key.len() != key_len {
                 bail!("The key size is expected to be {}: {}", key_len, key.len());
             }
-            
+
             Ok(Cow::Owned(key))
         })()
         .map_err(|err| JoseError::InvalidJweFormat(err))
     }
-        
+
     fn box_clone(&self) -> Box<dyn JweDecrypter> {
         Box::new(self.clone())
     }

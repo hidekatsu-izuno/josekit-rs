@@ -43,7 +43,13 @@ impl RsaPssJwsAlgorithm {
             let pkcs8_ref = match RsaPssKeyPair::detect_pkcs8(input.as_ref(), false) {
                 Some(_) => input.as_ref(),
                 None => {
-                    pkcs8 = RsaPssKeyPair::to_pkcs8(input.as_ref(), false, self.hash(), self.hash(), self.salt_len());
+                    pkcs8 = RsaPssKeyPair::to_pkcs8(
+                        input.as_ref(),
+                        false,
+                        self.hash(),
+                        self.hash(),
+                        self.salt_len(),
+                    );
                     &pkcs8
                 }
             };
@@ -51,7 +57,12 @@ impl RsaPssJwsAlgorithm {
             let private_key = PKey::private_key_from_der(pkcs8_ref)?;
             self.check_key(&private_key)?;
 
-            let mut keypair = RsaPssKeyPair::from_private_key(private_key, self.hash(), self.hash(), self.salt_len())?;
+            let mut keypair = RsaPssKeyPair::from_private_key(
+                private_key,
+                self.hash(),
+                self.hash(),
+                self.salt_len(),
+            );
             keypair.set_algorithm(Some(self.name()));
             Ok(keypair)
         })()
@@ -73,19 +84,32 @@ impl RsaPssJwsAlgorithm {
             let (alg, data) = util::parse_pem(input.as_ref())?;
 
             let private_key = match alg.as_str() {
-                "PRIVATE KEY" | "RSA-PSS PRIVATE KEY" => match RsaPssKeyPair::detect_pkcs8(&data, false) {
-                    Some(_) => PKey::private_key_from_der(&data)?,
-                    None => bail!("Invalid PEM contents."),
+                "PRIVATE KEY" | "RSA-PSS PRIVATE KEY" => {
+                    match RsaPssKeyPair::detect_pkcs8(&data, false) {
+                        Some(_) => PKey::private_key_from_der(&data)?,
+                        None => bail!("Invalid PEM contents."),
+                    }
                 }
                 "RSA PRIVATE KEY" => {
-                    let pkcs8 = RsaPssKeyPair::to_pkcs8(&data, false, self.hash(), self.hash(), self.salt_len());
+                    let pkcs8 = RsaPssKeyPair::to_pkcs8(
+                        &data,
+                        false,
+                        self.hash(),
+                        self.hash(),
+                        self.salt_len(),
+                    );
                     PKey::private_key_from_der(&pkcs8)?
                 }
                 alg => bail!("Inappropriate algorithm: {}", alg),
             };
             self.check_key(&private_key)?;
 
-            let mut keypair = RsaPssKeyPair::from_private_key(private_key, self.hash(), self.hash(), self.salt_len())?;
+            let mut keypair = RsaPssKeyPair::from_private_key(
+                private_key,
+                self.hash(),
+                self.hash(),
+                self.salt_len(),
+            );
             keypair.set_algorithm(Some(self.name()));
             Ok(keypair)
         })()
@@ -207,7 +231,13 @@ impl RsaPssJwsAlgorithm {
             }
             builder.end();
 
-            let pkcs8 = RsaPssKeyPair::to_pkcs8(&builder.build(), false, self.hash(), self.hash(), self.salt_len());
+            let pkcs8 = RsaPssKeyPair::to_pkcs8(
+                &builder.build(),
+                false,
+                self.hash(),
+                self.hash(),
+                self.salt_len(),
+            );
             let pkey = PKey::private_key_from_der(&pkcs8)?;
             self.check_key(&pkey)?;
 
@@ -233,7 +263,13 @@ impl RsaPssJwsAlgorithm {
             let pkcs8_ref = match RsaPssKeyPair::detect_pkcs8(input.as_ref(), true) {
                 Some(_) => input.as_ref(),
                 None => {
-                    pkcs8 = RsaPssKeyPair::to_pkcs8(input.as_ref(), true, self.hash(), self.hash(), self.salt_len());
+                    pkcs8 = RsaPssKeyPair::to_pkcs8(
+                        input.as_ref(),
+                        true,
+                        self.hash(),
+                        self.hash(),
+                        self.salt_len(),
+                    );
                     &pkcs8
                 }
             };
@@ -268,12 +304,20 @@ impl RsaPssJwsAlgorithm {
         (|| -> anyhow::Result<RsaPssJwsVerifier> {
             let (alg, data) = util::parse_pem(input.as_ref())?;
             let public_key = match alg.as_str() {
-                "PUBLIC KEY" | "RSA-PSS PUBLIC KEY" => match RsaPssKeyPair::detect_pkcs8(&data, true) {
-                    Some(_) => PKey::public_key_from_der(&data)?,
-                    None => bail!("Invalid PEM contents."),
+                "PUBLIC KEY" | "RSA-PSS PUBLIC KEY" => {
+                    match RsaPssKeyPair::detect_pkcs8(&data, true) {
+                        Some(_) => PKey::public_key_from_der(&data)?,
+                        None => bail!("Invalid PEM contents."),
+                    }
                 }
                 "RSA PUBLIC KEY" => {
-                    let pkcs8 = RsaPssKeyPair::to_pkcs8(&data, true, self.hash(), self.hash(), self.salt_len());
+                    let pkcs8 = RsaPssKeyPair::to_pkcs8(
+                        &data,
+                        true,
+                        self.hash(),
+                        self.hash(),
+                        self.salt_len(),
+                    );
                     PKey::public_key_from_der(&pkcs8)?
                 }
                 alg => bail!("Inappropriate algorithm: {}", alg),
@@ -334,7 +378,13 @@ impl RsaPssJwsAlgorithm {
             }
             builder.end();
 
-            let pkcs8 = RsaPssKeyPair::to_pkcs8(&builder.build(), true, self.hash(), self.hash(), self.salt_len());
+            let pkcs8 = RsaPssKeyPair::to_pkcs8(
+                &builder.build(),
+                true,
+                self.hash(),
+                self.hash(),
+                self.salt_len(),
+            );
             let public_key = PKey::public_key_from_der(&pkcs8)?;
             let key_id = jwk.key_id().map(|val| val.to_string());
 
@@ -436,7 +486,7 @@ impl JwsSigner for RsaPssJwsSigner {
         })()
         .map_err(|err| JoseError::InvalidSignature(err))
     }
-        
+
     fn box_clone(&self) -> Box<dyn JwsSigner> {
         Box::new(self.clone())
     }
@@ -484,7 +534,7 @@ impl JwsVerifier for RsaPssJwsVerifier {
         })()
         .map_err(|err| JoseError::InvalidSignature(err))
     }
-        
+
     fn box_clone(&self) -> Box<dyn JwsVerifier> {
         Box::new(self.clone())
     }

@@ -1,15 +1,15 @@
 use std::borrow::Cow;
 use std::convert::TryFrom;
 
-use openssl::rand;
-use openssl::pkcs5;
+use anyhow::bail;
 use openssl::aes::{self, AesKey};
 use openssl::hash::MessageDigest;
-use anyhow::bail;
+use openssl::pkcs5;
+use openssl::rand;
 use serde_json::Value;
 
-use crate::jose::{JoseHeader, JoseError};
-use crate::jwe::{JweHeader, JweAlgorithm, JweDecrypter, JweEncrypter};
+use crate::jose::{JoseError, JoseHeader};
+use crate::jwe::{JweAlgorithm, JweDecrypter, JweEncrypter, JweHeader};
 use crate::jwk::Jwk;
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
@@ -115,7 +115,7 @@ impl JweAlgorithm for Pbes2HmacJweAlgorithm {
             Self::Pbes2HS512A256Kw => "PBES2-HS512+A256KW",
         }
     }
-        
+
     fn box_clone(&self) -> Box<dyn JweAlgorithm> {
         Box::new(self.clone())
     }
@@ -148,18 +148,20 @@ impl JweEncrypter for Pbes2HmacJweEncrypter {
         self.key_id = None;
     }
 
-    fn encrypt(&self, header: &mut JweHeader, key_len: usize) -> Result<(Cow<[u8]>, Option<Vec<u8>>), JoseError> {
+    fn encrypt(
+        &self,
+        header: &mut JweHeader,
+        key_len: usize,
+    ) -> Result<(Cow<[u8]>, Option<Vec<u8>>), JoseError> {
         (|| -> anyhow::Result<(Cow<[u8]>, Option<Vec<u8>>)> {
             let p2s = match header.claim("p2s") {
-                Some(Value::String(val)) => {
-                    base64::decode_config(val, base64::URL_SAFE_NO_PAD)?
-                },
+                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
                 Some(_) => bail!("The p2s header claim must be string."),
                 None => {
                     let mut p2s = vec![0, 8];
                     rand::rand_bytes(&mut p2s)?;
                     p2s
-                },
+                }
             };
             let p2c = match header.claim("p2c") {
                 Some(Value::Number(val)) => match val.as_u64() {
@@ -197,7 +199,7 @@ impl JweEncrypter for Pbes2HmacJweEncrypter {
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
-    
+
     fn box_clone(&self) -> Box<dyn JweEncrypter> {
         Box::new(self.clone())
     }
@@ -229,18 +231,21 @@ impl JweDecrypter for Pbes2HmacJweDecrypter {
     fn remove_key_id(&mut self) {
         self.key_id = None;
     }
-    
-    fn decrypt(&self, header: &JweHeader, encrypted_key: Option<&[u8]>, key_len: usize) -> Result<Cow<[u8]>, JoseError> {
+
+    fn decrypt(
+        &self,
+        header: &JweHeader,
+        encrypted_key: Option<&[u8]>,
+        key_len: usize,
+    ) -> Result<Cow<[u8]>, JoseError> {
         (|| -> anyhow::Result<Cow<[u8]>> {
             let encrypted_key = match encrypted_key {
                 Some(val) => val,
                 None => bail!("A encrypted_key value is required."),
             };
-            
+
             let p2s = match header.claim("p2s") {
-                Some(Value::String(val)) => {
-                    base64::decode_config(val, base64::URL_SAFE_NO_PAD)?
-                },
+                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
                 Some(_) => bail!("The p2s header claim must be string."),
                 None => bail!("The p2s header claim is required."),
             };
@@ -257,7 +262,7 @@ impl JweDecrypter for Pbes2HmacJweDecrypter {
 
             let mut derived_key = vec![0; key_len];
             pkcs5::pbkdf2_hmac(&self.private_key, &p2s, p2c, md, &mut derived_key)?;
-            
+
             let aes = match AesKey::new_encrypt(&derived_key) {
                 Ok(val) => val,
                 Err(err) => bail!("{:?}", err),
@@ -276,9 +281,8 @@ impl JweDecrypter for Pbes2HmacJweDecrypter {
         })()
         .map_err(|err| JoseError::InvalidJweFormat(err))
     }
-    
+
     fn box_clone(&self) -> Box<dyn JweDecrypter> {
         Box::new(self.clone())
     }
 }
-

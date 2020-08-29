@@ -2,13 +2,14 @@ use std::iter::Iterator;
 
 use anyhow::bail;
 use openssl::hash::MessageDigest;
+use openssl::nid::Nid;
 use openssl::pkey::{PKey, Private, Public};
 use openssl::sign::{Signer, Verifier};
 use serde_json::Value;
 
 use crate::der::{DerBuilder, DerReader, DerType};
 use crate::jose::JoseError;
-use crate::jwk::{Jwk, KeyPair, EcKeyPair, EcCurve};
+use crate::jwk::{EcCurve, EcKeyPair, Jwk, KeyPair};
 use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier};
 use crate::util;
 
@@ -41,12 +42,21 @@ impl EcdsaJwsAlgorithm {
                 Some(_) => input.as_ref(),
                 None => {
                     pkcs8 = EcKeyPair::to_pkcs8(input.as_ref(), false, self.curve());
-                    &pkcs8    
+                    &pkcs8
                 }
             };
 
             let private_key = PKey::private_key_from_der(pkcs8_ref)?;
-            let mut keypair = EcKeyPair::from_private_key(private_key)?;
+            let ec_key = private_key.ec_key()?;
+            let curve = match ec_key.group().curve_name() {
+                Some(Nid::X9_62_PRIME256V1) => EcCurve::P256,
+                Some(Nid::SECP384R1) => EcCurve::P384,
+                Some(Nid::SECP521R1) => EcCurve::P521,
+                Some(Nid::SECP256K1) => EcCurve::Secp256K1,
+                _ => unreachable!(),
+            };
+
+            let mut keypair = EcKeyPair::from_private_key(private_key, curve);
             keypair.set_algorithm(Some(self.name()));
             Ok(keypair)
         })()
@@ -85,7 +95,16 @@ impl EcdsaJwsAlgorithm {
             };
 
             let private_key = PKey::private_key_from_der(pkcs8_ref)?;
-            let mut keypair = EcKeyPair::from_private_key(private_key)?;
+            let ec_key = private_key.ec_key()?;
+            let curve = match ec_key.group().curve_name() {
+                Some(Nid::X9_62_PRIME256V1) => EcCurve::P256,
+                Some(Nid::SECP384R1) => EcCurve::P384,
+                Some(Nid::SECP521R1) => EcCurve::P521,
+                Some(Nid::SECP256K1) => EcCurve::Secp256K1,
+                _ => unreachable!(),
+            };
+
+            let mut keypair = EcKeyPair::from_private_key(private_key, curve);
             keypair.set_algorithm(Some(self.name()));
             Ok(keypair)
         })()
@@ -420,7 +439,7 @@ impl JwsSigner for EcdsaJwsSigner {
         })()
         .map_err(|err| JoseError::InvalidSignature(err))
     }
-    
+
     fn box_clone(&self) -> Box<dyn JwsSigner> {
         Box::new(self.clone())
     }
@@ -478,7 +497,7 @@ impl JwsVerifier for EcdsaJwsVerifier {
         })()
         .map_err(|err| JoseError::InvalidSignature(err))
     }
-    
+
     fn box_clone(&self) -> Box<dyn JwsVerifier> {
         Box::new(self.clone())
     }

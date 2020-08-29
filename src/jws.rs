@@ -2,7 +2,7 @@ pub mod alg;
 
 use std::collections::BTreeSet;
 use std::collections::HashMap;
-use std::fmt::{ Display, Debug };
+use std::fmt::{Debug, Display};
 
 use anyhow::bail;
 use once_cell::sync::Lazy;
@@ -198,7 +198,8 @@ impl JwsContext {
                 );
 
                 let protected_bytes = serde_json::to_vec(&protected)?;
-                let protected_b64 = base64::encode_config(&protected_bytes, base64::URL_SAFE_NO_PAD);
+                let protected_b64 =
+                    base64::encode_config(&protected_bytes, base64::URL_SAFE_NO_PAD);
 
                 let message = format!("{}.{}", &protected_b64, &payload_b64);
                 let signature = signer.sign(message.as_bytes())?;
@@ -270,7 +271,7 @@ impl JwsContext {
     {
         (|| -> anyhow::Result<String> {
             let mut b64 = true;
-            
+
             let mut protected_map = if let Some(val) = protected {
                 if let Some(vals) = val.critical() {
                     if vals.iter().any(|e| e == "b64") {
@@ -545,7 +546,7 @@ impl JwsContext {
                         let vec = base64::decode_config(&val, base64::URL_SAFE_NO_PAD)?;
                         let json: Map<String, Value> = serde_json::from_slice(&vec)?;
                         (json, val)
-                    },
+                    }
                     Some(_) => bail!("The protected field must be a string."),
                     None => bail!("The JWS alg header claim must be in protected."),
                 };
@@ -571,7 +572,7 @@ impl JwsContext {
                 let signature = match sig.get("signature") {
                     Some(Value::String(val)) => {
                         base64::decode_config(val, base64::URL_SAFE_NO_PAD)?
-                    },
+                    }
                     Some(_) => bail!("The signature field must be string."),
                     None => bail!("The signature field is required."),
                 };
@@ -1315,7 +1316,7 @@ impl JoseHeader for JwsHeader {
 impl AsRef<Map<String, Value>> for JwsHeader {
     fn as_ref(&self) -> &Map<String, Value> {
         &self.claims
-    }  
+    }
 }
 
 impl Into<Map<String, Value>> for JwsHeader {
@@ -1334,7 +1335,7 @@ impl Display for JwsHeader {
 pub trait JwsAlgorithm: Debug + Send + Sync {
     /// Return the "alg" (algorithm) header parameter value of JWS.
     fn name(&self) -> &str;
-    
+
     fn box_clone(&self) -> Box<dyn JwsAlgorithm>;
 }
 
@@ -1379,7 +1380,7 @@ pub trait JwsSigner: Debug + Send + Sync {
     ///
     /// * `message` - The message data to sign.
     fn sign(&self, message: &[u8]) -> Result<Vec<u8>, JoseError>;
-        
+
     fn box_clone(&self) -> Box<dyn JwsSigner>;
 }
 
@@ -1465,7 +1466,6 @@ impl Clone for Box<dyn JwsVerifier> {
         self.box_clone()
     }
 }
-
 
 #[cfg(test)]
 mod tests {

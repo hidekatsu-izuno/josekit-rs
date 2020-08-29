@@ -26,7 +26,13 @@ impl AesCbcHmacJweEncryption {
         }
     }
 
-    fn calcurate_tag(&self, aad: &[u8], iv: Option<&[u8]>, ciphertext: &[u8], mac_key: &[u8]) -> Result<Vec<u8>, JoseError> {
+    fn calcurate_tag(
+        &self,
+        aad: &[u8],
+        iv: Option<&[u8]>,
+        ciphertext: &[u8],
+        mac_key: &[u8],
+    ) -> Result<Vec<u8>, JoseError> {
         let (message_digest, tlen) = match self {
             Self::A128CbcHS256 => (MessageDigest::sha256(), 16),
             Self::A192CbcHS384 => (MessageDigest::sha384(), 24),
@@ -78,7 +84,13 @@ impl JweContentEncryption for AesCbcHmacJweEncryption {
         16
     }
 
-    fn encrypt(&self, key: &[u8], iv: Option<&[u8]>, message: &[u8], aad: &[u8]) -> Result<(Vec<u8>, Option<Vec<u8>>), JoseError> {
+    fn encrypt(
+        &self,
+        key: &[u8],
+        iv: Option<&[u8]>,
+        message: &[u8],
+        aad: &[u8],
+    ) -> Result<(Vec<u8>, Option<Vec<u8>>), JoseError> {
         let (encrypted_message, mac_key) = (|| -> anyhow::Result<(Vec<u8>, &[u8])> {
             let expected_len = self.key_len();
             if key.len() != expected_len {
@@ -104,7 +116,14 @@ impl JweContentEncryption for AesCbcHmacJweEncryption {
         Ok((encrypted_message, Some(tag)))
     }
 
-    fn decrypt(&self,  key: &[u8], iv: Option<&[u8]>, encrypted_message: &[u8], aad: &[u8], tag: Option<&[u8]>) -> Result<Vec<u8>, JoseError> {
+    fn decrypt(
+        &self,
+        key: &[u8],
+        iv: Option<&[u8]>,
+        encrypted_message: &[u8],
+        aad: &[u8],
+        tag: Option<&[u8]>,
+    ) -> Result<Vec<u8>, JoseError> {
         let (message, mac_key) = (|| -> anyhow::Result<(Vec<u8>, &[u8])> {
             let expected_len = self.key_len();
             if key.len() != expected_len {
@@ -114,7 +133,7 @@ impl JweContentEncryption for AesCbcHmacJweEncryption {
                     key.len()
                 );
             }
-    
+
             let split_pos = self.key_len() - 16;
             let mac_key = &key[0..split_pos];
             let enc_key = &key[split_pos..];

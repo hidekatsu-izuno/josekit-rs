@@ -1,7 +1,7 @@
-pub mod rsa;
-pub mod rsapss;
 pub mod ec;
 pub mod ed;
+pub mod rsa;
+pub mod rsapss;
 
 use std::fmt::Debug;
 
@@ -38,6 +38,5 @@ impl Clone for Box<dyn KeyPair> {
 
 #[derive(Debug, Clone)]
 pub struct KeyPairRef<'a> {
-    key_pair: &'a dyn KeyPair
+    key_pair: &'a dyn KeyPair,
 }
-

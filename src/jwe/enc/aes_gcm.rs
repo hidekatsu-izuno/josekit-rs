@@ -1,5 +1,5 @@
-use openssl::symm::{self, Cipher};
 use anyhow::bail;
+use openssl::symm::{self, Cipher};
 
 use crate::jose::JoseError;
 use crate::jwe::JweContentEncryption;
@@ -45,7 +45,13 @@ impl JweContentEncryption for AesGcmJweEncryption {
         12
     }
 
-    fn encrypt(&self, key: &[u8], iv: Option<&[u8]>, message: &[u8], aad: &[u8]) -> Result<(Vec<u8>, Option<Vec<u8>>), JoseError> {
+    fn encrypt(
+        &self,
+        key: &[u8],
+        iv: Option<&[u8]>,
+        message: &[u8],
+        aad: &[u8],
+    ) -> Result<(Vec<u8>, Option<Vec<u8>>), JoseError> {
         (|| -> anyhow::Result<(Vec<u8>, Option<Vec<u8>>)> {
             let expected_len = self.key_len();
             if key.len() != expected_len {
@@ -64,7 +70,14 @@ impl JweContentEncryption for AesGcmJweEncryption {
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
-    fn decrypt(&self, key: &[u8], iv: Option<&[u8]>, encrypted_message: &[u8], aad: &[u8], tag: Option<&[u8]>) -> Result<Vec<u8>, JoseError> {
+    fn decrypt(
+        &self,
+        key: &[u8],
+        iv: Option<&[u8]>,
+        encrypted_message: &[u8],
+        aad: &[u8],
+        tag: Option<&[u8]>,
+    ) -> Result<Vec<u8>, JoseError> {
         (|| -> anyhow::Result<Vec<u8>> {
             let expected_len = self.key_len();
             if key.len() != expected_len {

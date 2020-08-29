@@ -7,7 +7,7 @@ use serde_json::Value;
 
 use crate::der::DerBuilder;
 use crate::jose::JoseError;
-use crate::jwk::{Jwk, KeyPair, EdKeyPair, EdCurve};
+use crate::jwk::{EdCurve, EdKeyPair, Jwk, KeyPair};
 use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier};
 use crate::util;
 
@@ -41,7 +41,7 @@ impl EddsaJwsAlgorithm {
 
             let private_key = PKey::private_key_from_der(input.as_ref())?;
 
-            let mut keypair = EdKeyPair::from_private_key(private_key, curve)?;
+            let mut keypair = EdKeyPair::from_private_key(private_key, curve);
             keypair.set_algorithm(Some(self.name()));
             Ok(keypair)
         })()
@@ -68,29 +68,33 @@ impl EddsaJwsAlgorithm {
                         (val, private_key)
                     }
                     None => bail!("The EdDSA private key must be wrapped by PKCS#8 format."),
-                }
+                },
                 "ED25519 PRIVATE KEY" => match EdKeyPair::detect_pkcs8(&data, false) {
-                    Some(val) => if val == EdCurve::Ed25519 {
-                        let private_key = PKey::private_key_from_der(&data)?;
-                        (val, private_key)
-                    } else {
-                        bail!("The EdDSA curve is mismatched: {}", val.name());
+                    Some(val) => {
+                        if val == EdCurve::Ed25519 {
+                            let private_key = PKey::private_key_from_der(&data)?;
+                            (val, private_key)
+                        } else {
+                            bail!("The EdDSA curve is mismatched: {}", val.name());
+                        }
                     }
                     None => bail!("The EdDSA private key must be wrapped by PKCS#8 format."),
-                }
+                },
                 "ED448 PRIVATE KEY" => match EdKeyPair::detect_pkcs8(&data, false) {
-                    Some(val) => if val == EdCurve::Ed448 {
-                        let private_key = PKey::private_key_from_der(&data)?;
-                        (val, private_key)
-                    } else {
-                        bail!("The EdDSA curve is mismatched: {}", val.name());
+                    Some(val) => {
+                        if val == EdCurve::Ed448 {
+                            let private_key = PKey::private_key_from_der(&data)?;
+                            (val, private_key)
+                        } else {
+                            bail!("The EdDSA curve is mismatched: {}", val.name());
+                        }
                     }
                     None => bail!("The EdDSA private key must be wrapped by PKCS#8 format."),
-                }
+                },
                 alg => bail!("Inappropriate algorithm: {}", alg),
             };
 
-            let mut keypair = EdKeyPair::from_private_key(private_key, curve)?;
+            let mut keypair = EdKeyPair::from_private_key(private_key, curve);
             keypair.set_algorithm(Some(self.name()));
             Ok(keypair)
         })()
@@ -229,23 +233,27 @@ impl EddsaJwsAlgorithm {
                 "PUBLIC KEY" => match EdKeyPair::detect_pkcs8(&data, true) {
                     Some(_) => PKey::public_key_from_der(&data)?,
                     None => bail!("The EdDSA public key must be wrapped by PKCS#8 format."),
-                }
+                },
                 "ED25519 PUBLIC KEY" => match EdKeyPair::detect_pkcs8(&data, true) {
-                    Some(val) => if val == EdCurve::Ed25519 {
-                        PKey::public_key_from_der(&data)?
-                    } else {
-                        bail!("The EdDSA curve is mismatched: {}", val.name());
+                    Some(val) => {
+                        if val == EdCurve::Ed25519 {
+                            PKey::public_key_from_der(&data)?
+                        } else {
+                            bail!("The EdDSA curve is mismatched: {}", val.name());
+                        }
                     }
                     None => bail!("The EdDSA public key must be wrapped by PKCS#8 format."),
-                }
+                },
                 "ED448 PUBLIC KEY" => match EdKeyPair::detect_pkcs8(&data, true) {
-                    Some(val) => if val == EdCurve::Ed448 {
-                        PKey::public_key_from_der(&data)?
-                    } else {
-                        bail!("The EdDSA curve is mismatched: {}", val.name());
+                    Some(val) => {
+                        if val == EdCurve::Ed448 {
+                            PKey::public_key_from_der(&data)?
+                        } else {
+                            bail!("The EdDSA curve is mismatched: {}", val.name());
+                        }
                     }
                     None => bail!("The EdDSA public key must be wrapped by PKCS#8 format."),
-                }
+                },
                 alg => bail!("Unacceptable algorithm: {}", alg),
             };
 
@@ -314,7 +322,7 @@ impl JwsAlgorithm for EddsaJwsAlgorithm {
     fn name(&self) -> &str {
         "EdDSA"
     }
-    
+
     fn box_clone(&self) -> Box<dyn JwsAlgorithm> {
         Box::new(self.clone())
     }
@@ -364,7 +372,7 @@ impl JwsSigner for EddsaJwsSigner {
         })()
         .map_err(|err| JoseError::InvalidSignature(err))
     }
-        
+
     fn box_clone(&self) -> Box<dyn JwsSigner> {
         Box::new(self.clone())
     }
@@ -405,7 +413,7 @@ impl JwsVerifier for EddsaJwsVerifier {
         })()
         .map_err(|err| JoseError::InvalidSignature(err))
     }
-    
+
     fn box_clone(&self) -> Box<dyn JwsVerifier> {
         Box::new(self.clone())
     }

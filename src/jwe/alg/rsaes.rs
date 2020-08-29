@@ -3,14 +3,14 @@ use std::borrow::Cow;
 use anyhow::bail;
 use once_cell::sync::Lazy;
 use openssl::pkey::{HasPublic, PKey, Private, Public};
-use openssl::rsa::Padding;
 use openssl::rand;
+use openssl::rsa::Padding;
 use serde_json::Value;
 
 use crate::der::oid::ObjectIdentifier;
-use crate::der::{DerBuilder, DerType, DerClass};
+use crate::der::{DerBuilder, DerClass, DerType};
 use crate::jose::JoseError;
-use crate::jwe::{JweHeader, JweAlgorithm, JweDecrypter, JweEncrypter};
+use crate::jwe::{JweAlgorithm, JweDecrypter, JweEncrypter, JweHeader};
 use crate::jwk::Jwk;
 
 static OID_RSA_ENCRYPTION: Lazy<ObjectIdentifier> =
@@ -66,12 +66,12 @@ impl RsaesJweAlgorithm {
             }
             match jwk.key_operations() {
                 Some(vals) => {
-                    if !vals.iter().any(|e| e == "encrypt")
-                        || !vals.iter().any(|e| e == "wrapKey") {
+                    if !vals.iter().any(|e| e == "encrypt") || !vals.iter().any(|e| e == "wrapKey")
+                    {
                         bail!("A parameter key_ops must contains encrypt and wrapKey.");
                     }
-                },
-                None => {},
+                }
+                None => {}
             }
             match jwk.algorithm() {
                 Some(val) if val == self.name() => {}
@@ -127,11 +127,12 @@ impl RsaesJweAlgorithm {
             match jwk.key_operations() {
                 Some(vals) => {
                     if !vals.iter().any(|e| e == "decrypt")
-                        || !vals.iter().any(|e| e == "unwrapKey") {
+                        || !vals.iter().any(|e| e == "unwrapKey")
+                    {
                         bail!("A parameter key_ops must contains decrypt and unwrapKey.");
                     }
-                },
-                None => {},
+                }
+                None => {}
             }
             match jwk.algorithm() {
                 Some(val) if val == self.name() => {}
@@ -281,7 +282,7 @@ impl RsaesJweAlgorithm {
 
         builder.build()
     }
-    
+
     fn hash_oid(&self) -> &ObjectIdentifier {
         match self {
             Self::RsaOaep => &OID_SHA1,
@@ -304,7 +305,7 @@ impl JweAlgorithm for RsaesJweAlgorithm {
             Self::RsaOaep512 => "RSA-OAEP-512",
         }
     }
-        
+
     fn box_clone(&self) -> Box<dyn JweAlgorithm> {
         Box::new(self.clone())
     }
@@ -336,9 +337,13 @@ impl JweEncrypter for RsaesJweEncrypter {
     fn remove_key_id(&mut self) {
         self.key_id = None;
     }
-    
+
     #[allow(deprecated)]
-    fn encrypt(&self, header: &mut JweHeader, key_len: usize) -> Result<(Cow<[u8]>, Option<Vec<u8>>), JoseError> {
+    fn encrypt(
+        &self,
+        header: &mut JweHeader,
+        key_len: usize,
+    ) -> Result<(Cow<[u8]>, Option<Vec<u8>>), JoseError> {
         (|| -> anyhow::Result<(Cow<[u8]>, Option<Vec<u8>>)> {
             header.set_algorithm(self.algorithm.name());
 
@@ -361,13 +366,13 @@ impl JweEncrypter for RsaesJweEncrypter {
                 }
                 RsaesJweAlgorithm::RsaOaep256 => {
                     todo!();
-                },
+                }
                 RsaesJweAlgorithm::RsaOaep384 => {
                     todo!();
-                },
-                RsaesJweAlgorithm::RsaOaep512  => {
+                }
+                RsaesJweAlgorithm::RsaOaep512 => {
                     todo!();
-                },
+                }
             };
 
             Ok((Cow::Owned(key), Some(encrypted_key)))
@@ -408,7 +413,12 @@ impl JweDecrypter for RsaesJweDecrypter {
     }
 
     #[allow(deprecated)]
-    fn decrypt(&self, _header: &JweHeader, encrypted_key: Option<&[u8]>, key_len: usize) -> Result<Cow<[u8]>, JoseError> {
+    fn decrypt(
+        &self,
+        _header: &JweHeader,
+        encrypted_key: Option<&[u8]>,
+        key_len: usize,
+    ) -> Result<Cow<[u8]>, JoseError> {
         (|| -> anyhow::Result<Cow<[u8]>> {
             let encrypted_key = match encrypted_key {
                 Some(val) => val,
@@ -431,13 +441,13 @@ impl JweDecrypter for RsaesJweDecrypter {
                 }
                 RsaesJweAlgorithm::RsaOaep256 => {
                     todo!();
-                },
+                }
                 RsaesJweAlgorithm::RsaOaep384 => {
                     todo!();
-                },
-                RsaesJweAlgorithm::RsaOaep512  => {
+                }
+                RsaesJweAlgorithm::RsaOaep512 => {
                     todo!();
-                },
+                }
             };
 
             if key.len() != key_len {
@@ -448,7 +458,7 @@ impl JweDecrypter for RsaesJweDecrypter {
         })()
         .map_err(|err| JoseError::InvalidJweFormat(err))
     }
-    
+
     fn box_clone(&self) -> Box<dyn JweDecrypter> {
         Box::new(self.clone())
     }

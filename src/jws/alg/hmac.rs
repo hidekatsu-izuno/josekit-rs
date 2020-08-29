@@ -172,7 +172,7 @@ impl JwsAlgorithm for HmacJwsAlgorithm {
             Self::HS512 => "HS512",
         }
     }
-    
+
     fn box_clone(&self) -> Box<dyn JwsAlgorithm> {
         Box::new(self.clone())
     }
@@ -228,7 +228,7 @@ impl JwsSigner for HmacJwsSigner {
         })()
         .map_err(|err| JoseError::InvalidSignature(err))
     }
-        
+
     fn box_clone(&self) -> Box<dyn JwsSigner> {
         Box::new(self.clone())
     }
@@ -279,7 +279,7 @@ impl JwsVerifier for HmacJwsVerifier {
         })()
         .map_err(|err| JoseError::InvalidSignature(err))
     }
-    
+
     fn box_clone(&self) -> Box<dyn JwsVerifier> {
         Box::new(self.clone())
     }

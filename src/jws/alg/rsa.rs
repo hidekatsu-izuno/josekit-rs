@@ -8,7 +8,7 @@ use serde_json::Value;
 
 use crate::der::{DerBuilder, DerType};
 use crate::jose::JoseError;
-use crate::jwk::{Jwk, KeyPair, RsaKeyPair };
+use crate::jwk::{Jwk, KeyPair, RsaKeyPair};
 use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier};
 use crate::util;
 
@@ -53,7 +53,7 @@ impl RsaJwsAlgorithm {
             let private_key = PKey::private_key_from_der(pkcs8_ref)?;
             self.check_key(&private_key)?;
 
-            let mut keypair = RsaKeyPair::from_private_key(private_key)?;
+            let mut keypair = RsaKeyPair::from_private_key(private_key);
             keypair.set_algorithm(Some(self.name()));
             Ok(keypair)
         })()
@@ -78,7 +78,7 @@ impl RsaJwsAlgorithm {
                 "PRIVATE KEY" => match RsaKeyPair::detect_pkcs8(&data, false) {
                     Some(_) => PKey::private_key_from_der(&data)?,
                     None => bail!("Invalid PEM contents."),
-                }
+                },
                 "RSA PRIVATE KEY" => {
                     let pkcs8 = RsaKeyPair::to_pkcs8(&data, false);
                     PKey::private_key_from_der(&pkcs8)?
@@ -87,7 +87,7 @@ impl RsaJwsAlgorithm {
             };
             self.check_key(&private_key)?;
 
-            let mut keypair = RsaKeyPair::from_private_key(private_key)?;
+            let mut keypair = RsaKeyPair::from_private_key(private_key);
             keypair.set_algorithm(Some(self.name()));
             Ok(keypair)
         })()
@@ -268,7 +268,7 @@ impl RsaJwsAlgorithm {
                 "PUBLIC KEY" => match RsaKeyPair::detect_pkcs8(&data, true) {
                     Some(_) => PKey::public_key_from_der(&data)?,
                     None => bail!("Invalid PEM contents."),
-                }
+                },
                 "RSA PUBLIC KEY" => {
                     let pkcs8 = RsaKeyPair::to_pkcs8(&data, true);
                     PKey::public_key_from_der(&pkcs8)?
@@ -366,7 +366,7 @@ impl JwsAlgorithm for RsaJwsAlgorithm {
             Self::RS512 => "RS512",
         }
     }
-    
+
     fn box_clone(&self) -> Box<dyn JwsAlgorithm> {
         Box::new(self.clone())
     }
@@ -418,7 +418,7 @@ impl JwsSigner for RsaJwsSigner {
         })()
         .map_err(|err| JoseError::InvalidSignature(err))
     }
-        
+
     fn box_clone(&self) -> Box<dyn JwsSigner> {
         Box::new(self.clone())
     }
@@ -466,7 +466,7 @@ impl JwsVerifier for RsaJwsVerifier {
         })()
         .map_err(|err| JoseError::InvalidSignature(err))
     }
-    
+
     fn box_clone(&self) -> Box<dyn JwsVerifier> {
         Box::new(self.clone())
     }
