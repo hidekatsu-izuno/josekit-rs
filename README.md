@@ -60,7 +60,7 @@ cargo build --release
 </thead>
 <tbody>
 <tr>
-    <td>RSA</td>
+    <td>RSASSA</td>
     <td>OK</td>
     <td>OK</td>
     <td>OK</td>
@@ -68,7 +68,7 @@ cargo build --release
     <td>OK</td>
 </tr>
 <tr>
-    <td>RSA-PSS</td>
+    <td>RSASSA-PSS</td>
     <td>OK</td>
     <td>OK</td>
     <td>OK</td>
@@ -123,10 +123,10 @@ let verifier = HS256.signer_from_bytes(private_key)?
 let (payload, header) = jwt::decode_with_verifier(&jwt, &verifier)?;
 ```
 
-### Signing a JWT by RSA
+### Signing a JWT by RSASSA
 
-RSA is used to verify the integrity of a message by two keys: public and private.
-Three types of RSA algorithms are available: RS256, RS384, and RS512.
+RSASSA is used to verify the integrity of a message by two keys: public and private.
+Three types of RSASSA algorithms are available: RS256, RS384, and RS512.
 
 You can generate the keys by executing openssl command.
 
@@ -159,13 +159,13 @@ let verifier = RS256.verifier_from_pem(&public_key)?;
 let (payload, header) = jwt::decode_with_verifier(&jwt, &verifier)?;
 ```
 
-### Signing a JWT by RSA-PSS
+### Signing a JWT by RSASSA-PSS
 
-RSA-PSS is used to verify the integrity of a message by two keys: public and private.
+RSASSA-PSS is used to verify the integrity of a message by two keys: public and private.
 
-The raw key format of RSA-PSS is the same as RSA. So you should use a PKCS#8 wrapped key. It contains some optional attributes.
+The raw key format of RSASSA-PSS is the same as RSASSA. So you should use a PKCS#8 wrapped key. It contains some optional attributes.
 
-Three types of RSA-PSS algorithms are available: PS256, PS384, and PS512.
+Three types of RSASSA-PSS algorithms are available: PS256, PS384, and PS512.
 You can generate the keys by executing openssl command.
 
 ```sh

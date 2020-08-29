@@ -1108,7 +1108,6 @@ mod tests {
         RS256, RS384, RS512,
     };
     use crate::jwt::{self, JwtPayload, JwtPayloadValidator};
-    use crate::prelude::*;
 
     #[test]
     fn test_new_header() -> Result<()> {

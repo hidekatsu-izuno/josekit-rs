@@ -9,63 +9,44 @@ use serde_json::Value;
 
 use crate::der::{DerBuilder, DerType};
 use crate::jose::JoseError;
-use crate::jwk::{Jwk, KeyPair, RsaPssKeyPair};
+use crate::jwk::{Jwk, KeyPair, RsaKeyPair};
 use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier};
 use crate::util;
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
-pub enum RsaPssJwsAlgorithm {
-    /// RSASSA-PSS using SHA-256 and MGF1 with SHA-256
-    PS256,
-    /// RSASSA-PSS using SHA-384 and MGF1 with SHA-384
-    PS384,
-    /// RSASSA-PSS using SHA-512 and MGF1 with SHA-512
-    PS512,
+pub enum RsassaJwsAlgorithm {
+    /// RSASSA-PKCS1-v1_5 using SHA-256
+    RS256,
+
+    /// RSASSA-PKCS1-v1_5 using SHA-384
+    RS384,
+
+    /// RSASSA-PKCS1-v1_5 using SHA-512
+    RS512,
 }
 
-impl RsaPssJwsAlgorithm {
+impl RsassaJwsAlgorithm {
     /// Generate RSA key pair.
     ///
     /// # Arguments
     /// * `bits` - RSA key length
-    pub fn generate_keypair(&self, bits: u32) -> Result<RsaPssKeyPair, JoseError> {
-        let mut keypair = RsaPssKeyPair::generate(
-            bits,
-            self.message_digest(),
-            self.message_digest(),
-            self.salt_len(),
-        )?;
+    pub fn generate_keypair(&self, bits: u32) -> Result<RsaKeyPair, JoseError> {
+        let mut keypair = RsaKeyPair::generate(bits)?;
         keypair.set_algorithm(Some(self.name()));
         Ok(keypair)
     }
 
-    /// Create a RSA-PSS key pair from a private key that is a DER encoded PKCS#8 PrivateKeyInfo or PKCS#1 RSAPrivateKey.
+    /// Create a RSA key pair from a private key that is a DER encoded PKCS#8 PrivateKeyInfo or PKCS#1 RSAPrivateKey.
     ///
     /// # Arguments
     /// * `input` - A private key that is a DER encoded PKCS#8 PrivateKeyInfo or PKCS#1 RSAPrivateKey.
-    pub fn keypair_from_der(&self, input: impl AsRef<[u8]>) -> Result<RsaPssKeyPair, JoseError> {
-        (|| -> anyhow::Result<RsaPssKeyPair> {
+    pub fn keypair_from_der(&self, input: impl AsRef<[u8]>) -> Result<RsaKeyPair, JoseError> {
+        (|| -> anyhow::Result<RsaKeyPair> {
             let pkcs8;
-            let pkcs8_ref = match RsaPssKeyPair::detect_pkcs8(input.as_ref(), false) {
-                Some((md, mgf1_md, salt_len)) => {
-                    if md != self.message_digest() {
-                        bail!("The message digest parameter is mismatched: {}", md);
-                    } else if mgf1_md != self.message_digest() {
-                        bail!("The mgf1 message digest parameter is mismatched: {}", mgf1_md);
-                    } else if salt_len != self.salt_len() {
-                        bail!("The salt size is mismatched: {}", salt_len);
-                    }
-
-                    input.as_ref()
-                },
+            let pkcs8_ref = match RsaKeyPair::detect_pkcs8(input.as_ref(), false) {
+                Some(_) => input.as_ref(),
                 None => {
-                    pkcs8 = RsaPssKeyPair::to_pkcs8(
-                        input.as_ref(),
-                        false,
-                        self.message_digest(),
-                        self.message_digest(),
-                        self.salt_len(),
-                    );
+                    pkcs8 = RsaKeyPair::to_pkcs8(input.as_ref(), false);
                     &pkcs8
                 }
             };
@@ -73,69 +54,41 @@ impl RsaPssJwsAlgorithm {
             let private_key = PKey::private_key_from_der(pkcs8_ref)?;
             self.check_key(&private_key)?;
 
-            let mut keypair = RsaPssKeyPair::from_private_key(
-                private_key,
-                self.message_digest(),
-                self.message_digest(),
-                self.salt_len(),
-            );
+            let mut keypair = RsaKeyPair::from_private_key(private_key);
             keypair.set_algorithm(Some(self.name()));
             Ok(keypair)
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
-    /// Create a RSA-PSS key pair from a private key of common or traditinal PEM format.
+    /// Create a RSA key pair from a private key of common or traditinal PEM format.
     ///
     /// Common PEM format is a DER and base64 encoded PKCS#8 PrivateKeyInfo
     /// that surrounded by "-----BEGIN/END PRIVATE KEY----".
     ///
-    /// Traditional PEM format is a DER and base64 encoded PKCS#8 PrivateKeyInfo or PKCS#1 RSAPrivateKey
-    /// that surrounded by "-----BEGIN/END RSA-PSS/RSA PRIVATE KEY----".
+    /// Traditional PEM format is a DER and base64 encoded PKCS#1 RSAPrivateKey
+    /// that surrounded by "-----BEGIN/END RSA PRIVATE KEY----".
     ///
     /// # Arguments
     /// * `input` - A private key of common or traditinal PEM format.
-    pub fn keypair_from_pem(&self, input: impl AsRef<[u8]>) -> Result<RsaPssKeyPair, JoseError> {
-        (|| -> anyhow::Result<RsaPssKeyPair> {
+    pub fn keypair_from_pem(&self, input: impl AsRef<[u8]>) -> Result<RsaKeyPair, JoseError> {
+        (|| -> anyhow::Result<RsaKeyPair> {
             let (alg, data) = util::parse_pem(input.as_ref())?;
 
             let private_key = match alg.as_str() {
-                "PRIVATE KEY" | "RSA-PSS PRIVATE KEY" => {
-                    match RsaPssKeyPair::detect_pkcs8(&data, false) {
-                        Some((md, mgf1_md, salt_len)) => {
-                            if md != self.message_digest() {
-                                bail!("The message digest parameter is mismatched: {}", md);
-                            } else if mgf1_md != self.message_digest() {
-                                bail!("The mgf1 message digest parameter is mismatched: {}", mgf1_md);
-                            } else if salt_len != self.salt_len() {
-                                bail!("The salt size is mismatched: {}", salt_len);
-                            }
-
-                            PKey::private_key_from_der(&data)?
-                        },
-                        None => bail!("Invalid PEM contents."),
-                    }
-                }
+                "PRIVATE KEY" => match RsaKeyPair::detect_pkcs8(&data, false) {
+                    Some(_) => PKey::private_key_from_der(&data)?,
+                    None => bail!("Invalid PEM contents."),
+                },
                 "RSA PRIVATE KEY" => {
-                    let pkcs8 = RsaPssKeyPair::to_pkcs8(
-                        &data,
-                        false,
-                        self.message_digest(),
-                        self.message_digest(),
-                        self.salt_len(),
-                    );
+                    let pkcs8 = RsaKeyPair::to_pkcs8(&data, false);
                     PKey::private_key_from_der(&pkcs8)?
                 }
                 alg => bail!("Inappropriate algorithm: {}", alg),
             };
             self.check_key(&private_key)?;
 
-            let mut keypair = RsaPssKeyPair::from_private_key(
-                private_key,
-                self.message_digest(),
-                self.message_digest(),
-                self.salt_len(),
-            );
+            let mut keypair = RsaKeyPair::from_private_key(private_key);
             keypair.set_algorithm(Some(self.name()));
             Ok(keypair)
         })()
@@ -146,9 +99,9 @@ impl RsaPssJwsAlgorithm {
     ///
     /// # Arguments
     /// * `input` - A private key that is a DER encoded PKCS#8 PrivateKeyInfo or PKCS#1 RSAPrivateKey.
-    pub fn signer_from_der(&self, input: impl AsRef<[u8]>) -> Result<RsaPssJwsSigner, JoseError> {
+    pub fn signer_from_der(&self, input: impl AsRef<[u8]>) -> Result<RsassaJwsSigner, JoseError> {
         let keypair = self.keypair_from_der(input.as_ref())?;
-        Ok(RsaPssJwsSigner {
+        Ok(RsassaJwsSigner {
             algorithm: self.clone(),
             private_key: keypair.into_private_key(),
             key_id: None,
@@ -160,14 +113,14 @@ impl RsaPssJwsAlgorithm {
     /// Common PEM format is a DER and base64 encoded PKCS#8 PrivateKeyInfo
     /// that surrounded by "-----BEGIN/END PRIVATE KEY----".
     ///
-    /// Traditional PEM format is a DER and base64 encoded PKCS#8 PrivateKeyInfo or PKCS#1 RSAPrivateKey
-    /// that surrounded by "-----BEGIN/END RSA-PSS/RSA PRIVATE KEY----".
+    /// Traditional PEM format is a DER and base64 encoded PKCS#1 RSAPrivateKey
+    /// that surrounded by "-----BEGIN/END RSA PRIVATE KEY----".
     ///
     /// # Arguments
     /// * `input` - A private key of common or traditinal PEM format.
-    pub fn signer_from_pem(&self, input: impl AsRef<[u8]>) -> Result<RsaPssJwsSigner, JoseError> {
+    pub fn signer_from_pem(&self, input: impl AsRef<[u8]>) -> Result<RsassaJwsSigner, JoseError> {
         let keypair = self.keypair_from_pem(input.as_ref())?;
-        Ok(RsaPssJwsSigner {
+        Ok(RsassaJwsSigner {
             algorithm: self.clone(),
             private_key: keypair.into_private_key(),
             key_id: None,
@@ -178,8 +131,8 @@ impl RsaPssJwsAlgorithm {
     ///
     /// # Arguments
     /// * `jwk` - A private key that is formatted by a JWK of RSA type.
-    pub fn signer_from_jwk(&self, jwk: &Jwk) -> Result<RsaPssJwsSigner, JoseError> {
-        (|| -> anyhow::Result<RsaPssJwsSigner> {
+    pub fn signer_from_jwk(&self, jwk: &Jwk) -> Result<RsassaJwsSigner, JoseError> {
+        (|| -> anyhow::Result<RsassaJwsSigner> {
             match jwk.key_type() {
                 val if val == "RSA" => {}
                 val => bail!("A parameter kty must be RSA: {}", val),
@@ -199,8 +152,6 @@ impl RsaPssJwsAlgorithm {
                 None => {}
                 Some(val) => bail!("A parameter alg must be {} but {}", self.name(), val),
             }
-            let key_id = jwk.key_id();
-
             let n = match jwk.parameter("n") {
                 Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
                 Some(_) => bail!("A parameter n must be a string."),
@@ -257,55 +208,32 @@ impl RsaPssJwsAlgorithm {
             }
             builder.end();
 
-            let pkcs8 = RsaPssKeyPair::to_pkcs8(
-                &builder.build(),
-                false,
-                self.message_digest(),
-                self.message_digest(),
-                self.salt_len(),
-            );
-            let pkey = PKey::private_key_from_der(&pkcs8)?;
-            self.check_key(&pkey)?;
+            let pkcs8 = RsaKeyPair::to_pkcs8(&builder.build(), false);
+            let private_key = PKey::private_key_from_der(&pkcs8)?;
+            let key_id = jwk.key_id().map(|val| val.to_string());
 
-            Ok(RsaPssJwsSigner {
+            self.check_key(&private_key)?;
+
+            Ok(RsassaJwsSigner {
                 algorithm: self.clone(),
-                private_key: pkey,
-                key_id: key_id.map(|val| val.to_string()),
+                private_key,
+                key_id,
             })
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
-    /// Return a verifier from a public key that is a DER encoded SubjectPublicKeyInfo or PKCS#1 RSAPublicKey.
+    /// Return the verifier from a public key that is a DER encoded SubjectPublicKeyInfo or PKCS#1 RSAPublicKey.
     ///
     /// # Arguments
     /// * `input` - A public key that is a DER encoded SubjectPublicKeyInfo or PKCS#1 RSAPublicKey.
-    pub fn verifier_from_der(
-        &self,
-        input: impl AsRef<[u8]>,
-    ) -> Result<RsaPssJwsVerifier, JoseError> {
-        (|| -> anyhow::Result<RsaPssJwsVerifier> {
+    pub fn verifier_from_der(&self, input: impl AsRef<[u8]>) -> Result<RsassaJwsVerifier, JoseError> {
+        (|| -> anyhow::Result<RsassaJwsVerifier> {
             let pkcs8;
-            let pkcs8_ref = match RsaPssKeyPair::detect_pkcs8(input.as_ref(), true) {
-                Some((md, mgf1_md, salt_len)) => {
-                    if md != self.message_digest() {
-                        bail!("The message digest parameter is mismatched: {}", md);
-                    } else if mgf1_md != self.message_digest() {
-                        bail!("The mgf1 message digest parameter is mismatched: {}", mgf1_md);
-                    } else if salt_len != self.salt_len() {
-                        bail!("The salt size is mismatched: {}", salt_len);
-                    }
-                    
-                    input.as_ref()
-                },
+            let pkcs8_ref = match RsaKeyPair::detect_pkcs8(input.as_ref(), true) {
+                Some(_) => input.as_ref(),
                 None => {
-                    pkcs8 = RsaPssKeyPair::to_pkcs8(
-                        input.as_ref(),
-                        true,
-                        self.message_digest(),
-                        self.message_digest(),
-                        self.salt_len(),
-                    );
+                    pkcs8 = RsaKeyPair::to_pkcs8(input.as_ref(), true);
                     &pkcs8
                 }
             };
@@ -314,7 +242,7 @@ impl RsaPssJwsAlgorithm {
 
             self.check_key(&public_key)?;
 
-            Ok(RsaPssJwsVerifier {
+            Ok(RsassaJwsVerifier {
                 algorithm: self.clone(),
                 public_key,
                 key_id: None,
@@ -328,42 +256,22 @@ impl RsaPssJwsAlgorithm {
     /// Common PEM format is a DER and base64 encoded SubjectPublicKeyInfo
     /// that surrounded by "-----BEGIN/END PUBLIC KEY----".
     ///
-    /// Traditional PEM format is a DER and base64 SubjectPublicKeyInfo or PKCS#1 RSAPublicKey
-    /// that surrounded by "-----BEGIN/END RSA-PSS/RSA PUBLIC KEY----".
+    /// Traditional PEM format is a DER and base64 PKCS#1 RSAPublicKey
+    /// that surrounded by "-----BEGIN/END RSA PUBLIC KEY----".
     ///
     /// # Arguments
     /// * `input` - A public key of common or traditional PEM format.
-    pub fn verifier_from_pem(
-        &self,
-        input: impl AsRef<[u8]>,
-    ) -> Result<RsaPssJwsVerifier, JoseError> {
-        (|| -> anyhow::Result<RsaPssJwsVerifier> {
+    pub fn verifier_from_pem(&self, input: impl AsRef<[u8]>) -> Result<RsassaJwsVerifier, JoseError> {
+        (|| -> anyhow::Result<RsassaJwsVerifier> {
             let (alg, data) = util::parse_pem(input.as_ref())?;
+
             let public_key = match alg.as_str() {
-                "PUBLIC KEY" | "RSA-PSS PUBLIC KEY" => {
-                    match RsaPssKeyPair::detect_pkcs8(&data, true) {
-                        Some((md, mgf1_md, salt_len)) => {
-                            if md != self.message_digest() {
-                                bail!("The message digest parameter is mismatched: {}", md);
-                            } else if mgf1_md != self.message_digest() {
-                                bail!("The mgf1 message digest parameter is mismatched: {}", mgf1_md);
-                            } else if salt_len != self.salt_len() {
-                                bail!("The salt size is mismatched: {}", salt_len);
-                            }
-                            
-                            PKey::public_key_from_der(&data)?
-                        },
-                        None => bail!("Invalid PEM contents."),
-                    }
-                }
+                "PUBLIC KEY" => match RsaKeyPair::detect_pkcs8(&data, true) {
+                    Some(_) => PKey::public_key_from_der(&data)?,
+                    None => bail!("Invalid PEM contents."),
+                },
                 "RSA PUBLIC KEY" => {
-                    let pkcs8 = RsaPssKeyPair::to_pkcs8(
-                        &data,
-                        true,
-                        self.message_digest(),
-                        self.message_digest(),
-                        self.salt_len(),
-                    );
+                    let pkcs8 = RsaKeyPair::to_pkcs8(&data, true);
                     PKey::public_key_from_der(&pkcs8)?
                 }
                 alg => bail!("Inappropriate algorithm: {}", alg),
@@ -371,7 +279,7 @@ impl RsaPssJwsAlgorithm {
 
             self.check_key(&public_key)?;
 
-            Ok(RsaPssJwsVerifier {
+            Ok(RsassaJwsVerifier {
                 algorithm: self.clone(),
                 public_key,
                 key_id: None,
@@ -384,17 +292,17 @@ impl RsaPssJwsAlgorithm {
     ///
     /// # Arguments
     /// * `jwk` - A public key that is formatted by a JWK of RSA type.
-    pub fn verifier_from_jwk(&self, jwk: &Jwk) -> Result<RsaPssJwsVerifier, JoseError> {
-        (|| -> anyhow::Result<RsaPssJwsVerifier> {
+    pub fn verifier_from_jwk(&self, jwk: &Jwk) -> Result<RsassaJwsVerifier, JoseError> {
+        (|| -> anyhow::Result<RsassaJwsVerifier> {
             match jwk.key_type() {
                 val if val == "RSA" => {}
                 val => bail!("A parameter kty must be RSA: {}", val),
-            };
+            }
             match jwk.key_use() {
                 Some(val) if val == "sig" => {}
                 None => {}
                 Some(val) => bail!("A parameter use must be sig: {}", val),
-            };
+            }
             match jwk.key_operations() {
                 Some(vals) if vals.iter().any(|e| e == "verify") => {}
                 None => {}
@@ -405,6 +313,7 @@ impl RsaPssJwsAlgorithm {
                 None => {}
                 Some(val) => bail!("A parameter alg must be {} but {}", self.name(), val),
             }
+
             let n = match jwk.parameter("n") {
                 Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
                 Some(_) => bail!("A parameter n must be a string."),
@@ -424,41 +333,19 @@ impl RsaPssJwsAlgorithm {
             }
             builder.end();
 
-            let pkcs8 = RsaPssKeyPair::to_pkcs8(
-                &builder.build(),
-                true,
-                self.message_digest(),
-                self.message_digest(),
-                self.salt_len(),
-            );
+            let pkcs8 = RsaKeyPair::to_pkcs8(&builder.build(), true);
             let public_key = PKey::public_key_from_der(&pkcs8)?;
             let key_id = jwk.key_id().map(|val| val.to_string());
 
             self.check_key(&public_key)?;
 
-            Ok(RsaPssJwsVerifier {
+            Ok(RsassaJwsVerifier {
                 algorithm: self.clone(),
                 public_key,
                 key_id,
             })
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
-    }
-
-    fn message_digest(&self) -> util::MessageDigest {
-        match self {
-            RsaPssJwsAlgorithm::PS256 => util::MessageDigest::Sha256,
-            RsaPssJwsAlgorithm::PS384 => util::MessageDigest::Sha384,
-            RsaPssJwsAlgorithm::PS512 => util::MessageDigest::Sha512,
-        }
-    }
-
-    fn salt_len(&self) -> u8 {
-        match self {
-            RsaPssJwsAlgorithm::PS256 => 32,
-            RsaPssJwsAlgorithm::PS384 => 48,
-            RsaPssJwsAlgorithm::PS512 => 64,
-        }
     }
 
     fn check_key<T: HasPublic>(&self, pkey: &PKey<T>) -> anyhow::Result<()> {
@@ -472,12 +359,12 @@ impl RsaPssJwsAlgorithm {
     }
 }
 
-impl JwsAlgorithm for RsaPssJwsAlgorithm {
+impl JwsAlgorithm for RsassaJwsAlgorithm {
     fn name(&self) -> &str {
         match self {
-            Self::PS256 => "PS256",
-            Self::PS384 => "PS384",
-            Self::PS512 => "PS512",
+            Self::RS256 => "RS256",
+            Self::RS384 => "RS384",
+            Self::RS512 => "RS512",
         }
     }
 
@@ -486,7 +373,7 @@ impl JwsAlgorithm for RsaPssJwsAlgorithm {
     }
 }
 
-impl Deref for RsaPssJwsAlgorithm {
+impl Deref for RsassaJwsAlgorithm {
     type Target = dyn JwsAlgorithm;
 
     fn deref(&self) -> &Self::Target {
@@ -494,20 +381,20 @@ impl Deref for RsaPssJwsAlgorithm {
     }
 }
 
-impl DerefMut for RsaPssJwsAlgorithm {
+impl DerefMut for RsassaJwsAlgorithm {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct RsaPssJwsSigner {
-    algorithm: RsaPssJwsAlgorithm,
+pub struct RsassaJwsSigner {
+    algorithm: RsassaJwsAlgorithm,
     private_key: PKey<Private>,
     key_id: Option<String>,
 }
 
-impl JwsSigner for RsaPssJwsSigner {
+impl JwsSigner for RsassaJwsSigner {
     fn algorithm(&self) -> &dyn JwsAlgorithm {
         &self.algorithm
     }
@@ -534,9 +421,9 @@ impl JwsSigner for RsaPssJwsSigner {
     fn sign(&self, message: &[u8]) -> Result<Vec<u8>, JoseError> {
         (|| -> anyhow::Result<Vec<u8>> {
             let message_digest = match self.algorithm {
-                RsaPssJwsAlgorithm::PS256 => MessageDigest::sha256(),
-                RsaPssJwsAlgorithm::PS384 => MessageDigest::sha384(),
-                RsaPssJwsAlgorithm::PS512 => MessageDigest::sha512(),
+                RsassaJwsAlgorithm::RS256 => MessageDigest::sha256(),
+                RsassaJwsAlgorithm::RS384 => MessageDigest::sha384(),
+                RsassaJwsAlgorithm::RS512 => MessageDigest::sha512(),
             };
 
             let mut signer = Signer::new(message_digest, &self.private_key)?;
@@ -552,7 +439,7 @@ impl JwsSigner for RsaPssJwsSigner {
     }
 }
 
-impl Deref for RsaPssJwsSigner {
+impl Deref for RsassaJwsSigner {
     type Target = dyn JwsSigner;
 
     fn deref(&self) -> &Self::Target {
@@ -560,20 +447,20 @@ impl Deref for RsaPssJwsSigner {
     }
 }
 
-impl DerefMut for RsaPssJwsSigner {
+impl DerefMut for RsassaJwsSigner {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct RsaPssJwsVerifier {
-    algorithm: RsaPssJwsAlgorithm,
+pub struct RsassaJwsVerifier {
+    algorithm: RsassaJwsAlgorithm,
     public_key: PKey<Public>,
     key_id: Option<String>,
 }
 
-impl JwsVerifier for RsaPssJwsVerifier {
+impl JwsVerifier for RsassaJwsVerifier {
     fn algorithm(&self) -> &dyn JwsAlgorithm {
         &self.algorithm
     }
@@ -596,9 +483,9 @@ impl JwsVerifier for RsaPssJwsVerifier {
     fn verify(&self, message: &[u8], signature: &[u8]) -> Result<(), JoseError> {
         (|| -> anyhow::Result<()> {
             let message_digest = match self.algorithm {
-                RsaPssJwsAlgorithm::PS256 => MessageDigest::sha256(),
-                RsaPssJwsAlgorithm::PS384 => MessageDigest::sha384(),
-                RsaPssJwsAlgorithm::PS512 => MessageDigest::sha512(),
+                RsassaJwsAlgorithm::RS256 => MessageDigest::sha256(),
+                RsassaJwsAlgorithm::RS384 => MessageDigest::sha384(),
+                RsassaJwsAlgorithm::RS512 => MessageDigest::sha512(),
             };
 
             let mut verifier = Verifier::new(message_digest, &self.public_key)?;
@@ -614,7 +501,7 @@ impl JwsVerifier for RsaPssJwsVerifier {
     }
 }
 
-impl Deref for RsaPssJwsVerifier {
+impl Deref for RsassaJwsVerifier {
     type Target = dyn JwsVerifier;
 
     fn deref(&self) -> &Self::Target {
@@ -622,7 +509,7 @@ impl Deref for RsaPssJwsVerifier {
     }
 }
 
-impl DerefMut for RsaPssJwsVerifier {
+impl DerefMut for RsassaJwsVerifier {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self
     }
@@ -638,13 +525,13 @@ mod tests {
     use std::path::PathBuf;
 
     #[test]
-    fn sign_and_verify_rsapss_generated_der() -> Result<()> {
+    fn sign_and_verify_rsassa_generated_der() -> Result<()> {
         let input = b"abcde12345";
 
         for alg in &[
-            RsaPssJwsAlgorithm::PS256,
-            RsaPssJwsAlgorithm::PS384,
-            RsaPssJwsAlgorithm::PS512,
+            RsassaJwsAlgorithm::RS256,
+            RsassaJwsAlgorithm::RS384,
+            RsassaJwsAlgorithm::RS512,
         ] {
             let keypair = alg.generate_keypair(2048)?;
 
@@ -659,13 +546,13 @@ mod tests {
     }
 
     #[test]
-    fn sign_and_verify_rsapss_generated_raw() -> Result<()> {
+    fn sign_and_verify_rsa_generated_raw() -> Result<()> {
         let input = b"abcde12345";
 
         for alg in &[
-            RsaPssJwsAlgorithm::PS256,
-            RsaPssJwsAlgorithm::PS384,
-            RsaPssJwsAlgorithm::PS512,
+            RsassaJwsAlgorithm::RS256,
+            RsassaJwsAlgorithm::RS384,
+            RsassaJwsAlgorithm::RS512,
         ] {
             let keypair = alg.generate_keypair(2048)?;
 
@@ -680,13 +567,13 @@ mod tests {
     }
 
     #[test]
-    fn sign_and_verify_rsapss_generated_pem() -> Result<()> {
+    fn sign_and_verify_rsa_generated_pem() -> Result<()> {
         let input = b"abcde12345";
 
         for alg in &[
-            RsaPssJwsAlgorithm::PS256,
-            RsaPssJwsAlgorithm::PS384,
-            RsaPssJwsAlgorithm::PS512,
+            RsassaJwsAlgorithm::RS256,
+            RsassaJwsAlgorithm::RS384,
+            RsassaJwsAlgorithm::RS512,
         ] {
             let keypair = alg.generate_keypair(2048)?;
 
@@ -701,20 +588,20 @@ mod tests {
     }
 
     #[test]
-    fn sign_and_verify_rsapss_generated_traditional_pem() -> Result<()> {
+    fn sign_and_verify_rsa_generated_traditional_pem() -> Result<()> {
         let input = b"abcde12345";
 
         for alg in &[
-            RsaPssJwsAlgorithm::PS256,
-            RsaPssJwsAlgorithm::PS384,
-            RsaPssJwsAlgorithm::PS512,
+            RsassaJwsAlgorithm::RS256,
+            RsassaJwsAlgorithm::RS384,
+            RsassaJwsAlgorithm::RS512,
         ] {
             let keypair = alg.generate_keypair(2048)?;
 
             let signer = alg.signer_from_pem(&keypair.to_traditional_pem_private_key())?;
             let signature = signer.sign(input)?;
 
-            let verifier = alg.verifier_from_pem(&keypair.to_pem_public_key())?;
+            let verifier = alg.verifier_from_pem(&keypair.to_traditional_pem_public_key())?;
             verifier.verify(input, &signature)?;
         }
 
@@ -722,13 +609,13 @@ mod tests {
     }
 
     #[test]
-    fn sign_and_verify_rsapss_generated_jwk() -> Result<()> {
+    fn sign_and_verify_rsa_generated_jwk() -> Result<()> {
         let input = b"abcde12345";
 
         for alg in &[
-            RsaPssJwsAlgorithm::PS256,
-            RsaPssJwsAlgorithm::PS384,
-            RsaPssJwsAlgorithm::PS512,
+            RsassaJwsAlgorithm::RS256,
+            RsassaJwsAlgorithm::RS384,
+            RsassaJwsAlgorithm::RS512,
         ] {
             let keypair = alg.generate_keypair(2048)?;
 
@@ -743,13 +630,13 @@ mod tests {
     }
 
     #[test]
-    fn sign_and_verify_rsspss_jwt() -> Result<()> {
+    fn sign_and_verify_rsa_jwt() -> Result<()> {
         let input = b"abcde12345";
 
         for alg in &[
-            RsaPssJwsAlgorithm::PS256,
-            RsaPssJwsAlgorithm::PS384,
-            RsaPssJwsAlgorithm::PS512,
+            RsassaJwsAlgorithm::RS256,
+            RsassaJwsAlgorithm::RS384,
+            RsassaJwsAlgorithm::RS512,
         ] {
             let private_key = load_file("jwk/RSA_private.jwk")?;
             let public_key = load_file("jwk/RSA_public.jwk")?;
@@ -765,24 +652,16 @@ mod tests {
     }
 
     #[test]
-    fn sign_and_verify_rsspss_pkcs8_pem() -> Result<()> {
+    fn sign_and_verify_rsa_pkcs8_pem() -> Result<()> {
         let input = b"abcde12345";
 
         for alg in &[
-            RsaPssJwsAlgorithm::PS256,
-            RsaPssJwsAlgorithm::PS384,
-            RsaPssJwsAlgorithm::PS512,
+            RsassaJwsAlgorithm::RS256,
+            RsassaJwsAlgorithm::RS384,
+            RsassaJwsAlgorithm::RS512,
         ] {
-            let private_key = load_file(match alg {
-                RsaPssJwsAlgorithm::PS256 => "pem/RSA-PSS_2048bit_SHA-256_private.pem",
-                RsaPssJwsAlgorithm::PS384 => "pem/RSA-PSS_2048bit_SHA-384_private.pem",
-                RsaPssJwsAlgorithm::PS512 => "pem/RSA-PSS_2048bit_SHA-512_private.pem",
-            })?;
-            let public_key = load_file(match alg {
-                RsaPssJwsAlgorithm::PS256 => "pem/RSA-PSS_2048bit_SHA-256_public.pem",
-                RsaPssJwsAlgorithm::PS384 => "pem/RSA-PSS_2048bit_SHA-384_public.pem",
-                RsaPssJwsAlgorithm::PS512 => "pem/RSA-PSS_2048bit_SHA-512_public.pem",
-            })?;
+            let private_key = load_file("pem/RSA_2048bit_private.pem")?;
+            let public_key = load_file("pem/RSA_2048bit_public.pem")?;
 
             let signer = alg.signer_from_pem(&private_key)?;
             let signature = signer.sign(input)?;
@@ -795,24 +674,60 @@ mod tests {
     }
 
     #[test]
-    fn sign_and_verify_rsspss_pkcs8_der() -> Result<()> {
+    fn sign_and_verify_rsa_pkcs8_der() -> Result<()> {
         let input = b"abcde12345";
 
         for alg in &[
-            RsaPssJwsAlgorithm::PS256,
-            RsaPssJwsAlgorithm::PS384,
-            RsaPssJwsAlgorithm::PS512,
+            RsassaJwsAlgorithm::RS256,
+            RsassaJwsAlgorithm::RS384,
+            RsassaJwsAlgorithm::RS512,
         ] {
-            let private_key = load_file(match alg {
-                RsaPssJwsAlgorithm::PS256 => "der/RSA-PSS_2048bit_SHA-256_pkcs8_private.der",
-                RsaPssJwsAlgorithm::PS384 => "der/RSA-PSS_2048bit_SHA-384_pkcs8_private.der",
-                RsaPssJwsAlgorithm::PS512 => "der/RSA-PSS_2048bit_SHA-512_pkcs8_private.der",
-            })?;
-            let public_key = load_file(match alg {
-                RsaPssJwsAlgorithm::PS256 => "der/RSA-PSS_2048bit_SHA-256_spki_public.der",
-                RsaPssJwsAlgorithm::PS384 => "der/RSA-PSS_2048bit_SHA-384_spki_public.der",
-                RsaPssJwsAlgorithm::PS512 => "der/RSA-PSS_2048bit_SHA-512_spki_public.der",
-            })?;
+            let private_key = load_file("der/RSA_2048bit_pkcs8_private.der")?;
+            let public_key = load_file("der/RSA_2048bit_spki_public.der")?;
+
+            let signer = alg.signer_from_der(&private_key)?;
+            let signature = signer.sign(input)?;
+
+            let verifier = alg.verifier_from_der(&public_key)?;
+            verifier.verify(input, &signature)?;
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn sign_and_verify_rsa_pkcs1_pem() -> Result<()> {
+        let input = b"abcde12345";
+
+        for alg in &[
+            RsassaJwsAlgorithm::RS256,
+            RsassaJwsAlgorithm::RS384,
+            RsassaJwsAlgorithm::RS512,
+        ] {
+            let private_key = load_file("pem/RSA_2048bit_private.pem")?;
+            let public_key = load_file("pem/RSA_2048bit_public.pem")?;
+
+            let signer = alg.signer_from_pem(&private_key)?;
+            let signature = signer.sign(input)?;
+
+            let verifier = alg.verifier_from_pem(&public_key)?;
+            verifier.verify(input, &signature)?;
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn sign_and_verify_rsa_pkcs1_der() -> Result<()> {
+        let input = b"abcde12345";
+
+        for alg in &[
+            RsassaJwsAlgorithm::RS256,
+            RsassaJwsAlgorithm::RS384,
+            RsassaJwsAlgorithm::RS512,
+        ] {
+            let private_key = load_file("der/RSA_2048bit_raw_private.der")?;
+            let public_key = load_file("der/RSA_2048bit_raw_public.der")?;
 
             let signer = alg.signer_from_der(&private_key)?;
             let signature = signer.sign(input)?;

@@ -17,13 +17,13 @@ pub use crate::jws::alg::hmac::HmacJwsAlgorithm::HS256;
 pub use crate::jws::alg::hmac::HmacJwsAlgorithm::HS384;
 pub use crate::jws::alg::hmac::HmacJwsAlgorithm::HS512;
 
-pub use crate::jws::alg::rsa::RsaJwsAlgorithm::RS256;
-pub use crate::jws::alg::rsa::RsaJwsAlgorithm::RS384;
-pub use crate::jws::alg::rsa::RsaJwsAlgorithm::RS512;
+pub use crate::jws::alg::rsassa::RsassaJwsAlgorithm::RS256;
+pub use crate::jws::alg::rsassa::RsassaJwsAlgorithm::RS384;
+pub use crate::jws::alg::rsassa::RsassaJwsAlgorithm::RS512;
 
-pub use crate::jws::alg::rsapss::RsaPssJwsAlgorithm::PS256;
-pub use crate::jws::alg::rsapss::RsaPssJwsAlgorithm::PS384;
-pub use crate::jws::alg::rsapss::RsaPssJwsAlgorithm::PS512;
+pub use crate::jws::alg::rsassa_pss::RsassaPssJwsAlgorithm::PS256;
+pub use crate::jws::alg::rsassa_pss::RsassaPssJwsAlgorithm::PS384;
+pub use crate::jws::alg::rsassa_pss::RsassaPssJwsAlgorithm::PS512;
 
 pub use crate::jws::alg::ecdsa::EcdsaJwsAlgorithm::ES256;
 pub use crate::jws::alg::ecdsa::EcdsaJwsAlgorithm::ES256K;
@@ -1505,7 +1505,6 @@ impl Clone for Box<dyn JwsVerifier> {
 #[cfg(test)]
 mod tests {
     use crate::jws::{self, EdDSA, JwsHeader, JwsMultiSigner, ES256, RS256};
-    use crate::prelude::*;
     use anyhow::Result;
     use serde_json::Value;
     use std::fs::File;
