@@ -5,7 +5,7 @@ use std::fmt::Display;
 
 pub use crate::jose::error::JoseError;
 
-pub trait JoseHeader: Clone + Display + Into<Map<String, Value>> {
+pub trait JoseHeader: Display + Into<Map<String, Value>> + Send + Sync {
     /// Return a new header instance from json style header.
     ///
     /// # Arguments

@@ -1,4 +1,5 @@
 use std::fmt::Display;
+use std::ops::Deref;
 
 use once_cell::sync::Lazy;
 use openssl::bn::{BigNum, BigNumContext};
@@ -300,5 +301,13 @@ impl KeyPair for EcKeyPair {
 
     fn box_clone(&self) -> Box<dyn KeyPair> {
         Box::new(self.clone())
+    }
+}
+
+impl Deref for EcKeyPair {
+    type Target = dyn KeyPair;
+
+    fn deref(&self) -> &Self::Target {
+        self
     }
 }

@@ -3,6 +3,7 @@ pub mod alg;
 use std::collections::BTreeSet;
 use std::collections::HashMap;
 use std::fmt::{Debug, Display};
+use std::ops::Deref;
 
 use anyhow::bail;
 use once_cell::sync::Lazy;

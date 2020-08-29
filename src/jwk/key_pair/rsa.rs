@@ -1,3 +1,5 @@
+use std::ops::Deref;
+
 use anyhow::bail;
 use once_cell::sync::Lazy;
 use openssl::pkey::{PKey, Private};
@@ -248,5 +250,13 @@ impl KeyPair for RsaKeyPair {
 
     fn box_clone(&self) -> Box<dyn KeyPair> {
         Box::new(self.clone())
+    }
+}
+
+impl Deref for RsaKeyPair {
+    type Target = dyn KeyPair;
+
+    fn deref(&self) -> &Self::Target {
+        self
     }
 }

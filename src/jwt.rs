@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::convert::Into;
 use std::fmt::Display;
 use std::time::{Duration, SystemTime};
+use std::ops::Deref;
 
 use anyhow::bail;
 use chrono::{DateTime, Utc};

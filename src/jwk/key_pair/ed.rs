@@ -1,4 +1,5 @@
 use std::fmt::Display;
+use std::ops::Deref;
 
 use once_cell::sync::Lazy;
 use openssl::pkey::{PKey, Private};
@@ -342,5 +343,13 @@ impl KeyPair for EdKeyPair {
 
     fn box_clone(&self) -> Box<dyn KeyPair> {
         Box::new(self.clone())
+    }
+}
+
+impl Deref for EdKeyPair {
+    type Target = dyn KeyPair;
+
+    fn deref(&self) -> &Self::Target {
+        self
     }
 }
