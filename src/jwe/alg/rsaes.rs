@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::ops::{Deref, DerefMut};
 
 use anyhow::bail;
 use once_cell::sync::Lazy;
@@ -311,6 +312,20 @@ impl JweAlgorithm for RsaesJweAlgorithm {
     }
 }
 
+impl Deref for RsaesJweAlgorithm {
+    type Target = dyn JweAlgorithm;
+
+    fn deref(&self) -> &Self::Target {
+        self
+    }
+}
+
+impl DerefMut for RsaesJweAlgorithm {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct RsaesJweEncrypter {
     algorithm: RsaesJweAlgorithm,
@@ -382,6 +397,20 @@ impl JweEncrypter for RsaesJweEncrypter {
 
     fn box_clone(&self) -> Box<dyn JweEncrypter> {
         Box::new(self.clone())
+    }
+}
+
+impl Deref for RsaesJweEncrypter {
+    type Target = dyn JweEncrypter;
+
+    fn deref(&self) -> &Self::Target {
+        self
+    }
+}
+
+impl DerefMut for RsaesJweEncrypter {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self
     }
 }
 
@@ -461,5 +490,19 @@ impl JweDecrypter for RsaesJweDecrypter {
 
     fn box_clone(&self) -> Box<dyn JweDecrypter> {
         Box::new(self.clone())
+    }
+}
+
+impl Deref for RsaesJweDecrypter {
+    type Target = dyn JweDecrypter;
+
+    fn deref(&self) -> &Self::Target {
+        self
+    }
+}
+
+impl DerefMut for RsaesJweDecrypter {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self
     }
 }

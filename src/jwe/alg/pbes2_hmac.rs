@@ -1,5 +1,6 @@
 use std::borrow::Cow;
 use std::convert::TryFrom;
+use std::ops::{Deref, DerefMut};
 
 use anyhow::bail;
 use openssl::aes::{self, AesKey};
@@ -121,6 +122,20 @@ impl JweAlgorithm for Pbes2HmacJweAlgorithm {
     }
 }
 
+impl Deref for Pbes2HmacJweAlgorithm {
+    type Target = dyn JweAlgorithm;
+
+    fn deref(&self) -> &Self::Target {
+        self
+    }
+}
+
+impl DerefMut for Pbes2HmacJweAlgorithm {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Pbes2HmacJweEncrypter {
     algorithm: Pbes2HmacJweAlgorithm,
@@ -205,6 +220,20 @@ impl JweEncrypter for Pbes2HmacJweEncrypter {
     }
 }
 
+impl Deref for Pbes2HmacJweEncrypter {
+    type Target = dyn JweEncrypter;
+
+    fn deref(&self) -> &Self::Target {
+        self
+    }
+}
+
+impl DerefMut for Pbes2HmacJweEncrypter {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Pbes2HmacJweDecrypter {
     algorithm: Pbes2HmacJweAlgorithm,
@@ -284,5 +313,19 @@ impl JweDecrypter for Pbes2HmacJweDecrypter {
 
     fn box_clone(&self) -> Box<dyn JweDecrypter> {
         Box::new(self.clone())
+    }
+}
+
+impl Deref for Pbes2HmacJweDecrypter {
+    type Target = dyn JweDecrypter;
+
+    fn deref(&self) -> &Self::Target {
+        self
+    }
+}
+
+impl DerefMut for Pbes2HmacJweDecrypter {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self
     }
 }

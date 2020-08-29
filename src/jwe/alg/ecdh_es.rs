@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::ops::{Deref, DerefMut};
 
 use anyhow::bail;
 use once_cell::sync::Lazy;
@@ -334,6 +335,20 @@ impl JweAlgorithm for EcdhEsJweAlgorithm {
     }
 }
 
+impl Deref for EcdhEsJweAlgorithm {
+    type Target = dyn JweAlgorithm;
+
+    fn deref(&self) -> &Self::Target {
+        self
+    }
+}
+
+impl DerefMut for EcdhEsJweAlgorithm {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct EcdhEsJweEncrypter {
     algorithm: EcdhEsJweAlgorithm,
@@ -487,6 +502,20 @@ impl JweEncrypter for EcdhEsJweEncrypter {
 
     fn box_clone(&self) -> Box<dyn JweEncrypter> {
         Box::new(self.clone())
+    }
+}
+
+impl Deref for EcdhEsJweEncrypter {
+    type Target = dyn JweEncrypter;
+
+    fn deref(&self) -> &Self::Target {
+        self
+    }
+}
+
+impl DerefMut for EcdhEsJweEncrypter {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self
     }
 }
 
@@ -690,5 +719,19 @@ impl JweDecrypter for EcdhEsJweDecrypter {
 
     fn box_clone(&self) -> Box<dyn JweDecrypter> {
         Box::new(self.clone())
+    }
+}
+
+impl Deref for EcdhEsJweDecrypter {
+    type Target = dyn JweDecrypter;
+
+    fn deref(&self) -> &Self::Target {
+        self
+    }
+}
+
+impl DerefMut for EcdhEsJweDecrypter {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self
     }
 }

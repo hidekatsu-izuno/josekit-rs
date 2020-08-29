@@ -1,4 +1,5 @@
 use std::iter::Iterator;
+use std::ops::{Deref, DerefMut};
 
 use anyhow::bail;
 use openssl::pkey::{PKey, Private, Public};
@@ -328,6 +329,20 @@ impl JwsAlgorithm for EddsaJwsAlgorithm {
     }
 }
 
+impl Deref for EddsaJwsAlgorithm {
+    type Target = dyn JwsAlgorithm;
+
+    fn deref(&self) -> &Self::Target {
+        self
+    }
+}
+
+impl DerefMut for EddsaJwsAlgorithm {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct EddsaJwsSigner {
     algorithm: EddsaJwsAlgorithm,
@@ -378,6 +393,20 @@ impl JwsSigner for EddsaJwsSigner {
     }
 }
 
+impl Deref for EddsaJwsSigner {
+    type Target = dyn JwsSigner;
+
+    fn deref(&self) -> &Self::Target {
+        self
+    }
+}
+
+impl DerefMut for EddsaJwsSigner {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct EddsaJwsVerifier {
     algorithm: EddsaJwsAlgorithm,
@@ -416,6 +445,20 @@ impl JwsVerifier for EddsaJwsVerifier {
 
     fn box_clone(&self) -> Box<dyn JwsVerifier> {
         Box::new(self.clone())
+    }
+}
+
+impl Deref for EddsaJwsVerifier {
+    type Target = dyn JwsVerifier;
+
+    fn deref(&self) -> &Self::Target {
+        self
+    }
+}
+
+impl DerefMut for EddsaJwsVerifier {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self
     }
 }
 

@@ -1,4 +1,5 @@
 use std::iter::Iterator;
+use std::ops::{Deref, DerefMut};
 
 use anyhow::bail;
 use openssl::hash::MessageDigest;
@@ -485,6 +486,20 @@ impl JwsAlgorithm for RsaPssJwsAlgorithm {
     }
 }
 
+impl Deref for RsaPssJwsAlgorithm {
+    type Target = dyn JwsAlgorithm;
+
+    fn deref(&self) -> &Self::Target {
+        self
+    }
+}
+
+impl DerefMut for RsaPssJwsAlgorithm {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct RsaPssJwsSigner {
     algorithm: RsaPssJwsAlgorithm,
@@ -537,6 +552,20 @@ impl JwsSigner for RsaPssJwsSigner {
     }
 }
 
+impl Deref for RsaPssJwsSigner {
+    type Target = dyn JwsSigner;
+
+    fn deref(&self) -> &Self::Target {
+        self
+    }
+}
+
+impl DerefMut for RsaPssJwsSigner {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct RsaPssJwsVerifier {
     algorithm: RsaPssJwsAlgorithm,
@@ -582,6 +611,20 @@ impl JwsVerifier for RsaPssJwsVerifier {
 
     fn box_clone(&self) -> Box<dyn JwsVerifier> {
         Box::new(self.clone())
+    }
+}
+
+impl Deref for RsaPssJwsVerifier {
+    type Target = dyn JwsVerifier;
+
+    fn deref(&self) -> &Self::Target {
+        self
+    }
+}
+
+impl DerefMut for RsaPssJwsVerifier {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self
     }
 }
 

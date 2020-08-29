@@ -35,8 +35,3 @@ impl Clone for Box<dyn KeyPair> {
         self.box_clone()
     }
 }
-
-#[derive(Debug, Clone)]
-pub struct KeyPairRef<'a> {
-    key_pair: &'a dyn KeyPair,
-}

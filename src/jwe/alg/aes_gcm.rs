@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::ops::{Deref, DerefMut};
 
 use anyhow::bail;
 use openssl::rand;
@@ -145,6 +146,20 @@ impl JweAlgorithm for AesGcmJweAlgorithm {
     }
 }
 
+impl Deref for AesGcmJweAlgorithm {
+    type Target = dyn JweAlgorithm;
+
+    fn deref(&self) -> &Self::Target {
+        self
+    }
+}
+
+impl DerefMut for AesGcmJweAlgorithm {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct AesGcmJweEncrypter {
     algorithm: AesGcmJweAlgorithm,
@@ -207,6 +222,20 @@ impl JweEncrypter for AesGcmJweEncrypter {
 
     fn box_clone(&self) -> Box<dyn JweEncrypter> {
         Box::new(self.clone())
+    }
+}
+
+impl Deref for AesGcmJweEncrypter {
+    type Target = dyn JweEncrypter;
+
+    fn deref(&self) -> &Self::Target {
+        self
+    }
+}
+
+impl DerefMut for AesGcmJweEncrypter {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self
     }
 }
 
@@ -281,5 +310,19 @@ impl JweDecrypter for AesGcmJweDecrypter {
 
     fn box_clone(&self) -> Box<dyn JweDecrypter> {
         Box::new(self.clone())
+    }
+}
+
+impl Deref for AesGcmJweDecrypter {
+    type Target = dyn JweDecrypter;
+
+    fn deref(&self) -> &Self::Target {
+        self
+    }
+}
+
+impl DerefMut for AesGcmJweDecrypter {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self
     }
 }

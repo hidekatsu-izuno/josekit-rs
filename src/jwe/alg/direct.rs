@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::ops::{Deref, DerefMut};
 
 use anyhow::bail;
 use serde_json::Value;
@@ -130,6 +131,20 @@ impl JweAlgorithm for DirectJweAlgorithm {
     }
 }
 
+impl Deref for DirectJweAlgorithm {
+    type Target = dyn JweAlgorithm;
+
+    fn deref(&self) -> &Self::Target {
+        self
+    }
+}
+
+impl DerefMut for DirectJweAlgorithm {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct DirectJweEncrypter {
     algorithm: DirectJweAlgorithm,
@@ -176,6 +191,20 @@ impl JweEncrypter for DirectJweEncrypter {
 
     fn box_clone(&self) -> Box<dyn JweEncrypter> {
         Box::new(self.clone())
+    }
+}
+
+impl Deref for DirectJweEncrypter {
+    type Target = dyn JweEncrypter;
+
+    fn deref(&self) -> &Self::Target {
+        self
+    }
+}
+
+impl DerefMut for DirectJweEncrypter {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self
     }
 }
 
@@ -229,5 +258,19 @@ impl JweDecrypter for DirectJweDecrypter {
 
     fn box_clone(&self) -> Box<dyn JweDecrypter> {
         Box::new(self.clone())
+    }
+}
+
+impl Deref for DirectJweDecrypter {
+    type Target = dyn JweDecrypter;
+
+    fn deref(&self) -> &Self::Target {
+        self
+    }
+}
+
+impl DerefMut for DirectJweDecrypter {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self
     }
 }

@@ -3,7 +3,7 @@ pub mod alg;
 use std::collections::BTreeSet;
 use std::collections::HashMap;
 use std::fmt::{Debug, Display};
-use std::ops::Deref;
+use std::ops::{Deref, DerefMut};
 
 use anyhow::bail;
 use once_cell::sync::Lazy;
@@ -811,6 +811,115 @@ impl JwsHeader {
         }
     }
 
+    /// Return a new header instance from json style header.
+    ///
+    /// # Arguments
+    ///
+    /// * `value` - The json style header claims
+    pub fn from_slice(value: &[u8]) -> Result<Self, JoseError> {
+        (|| -> anyhow::Result<Self> {
+            let claims: Map<String, Value> = serde_json::from_slice(value)?;
+            Ok(Self::from_map(claims)?)
+        })()
+        .map_err(|err| match err.downcast::<JoseError>() {
+            Ok(err) => err,
+            Err(err) => JoseError::InvalidJson(err),
+        })
+    }
+
+    pub fn from_map(claims: Map<String, Value>) -> Result<Self, JoseError> {
+        (|| -> anyhow::Result<Self> {
+            if let Some(Value::Bool(false)) = claims.get("b64") {
+                if let Some(Value::Array(vals)) = claims.get("crit") {
+                    if !vals.iter().any(|e| e == "b64") {
+                        bail!("The b64 header claim name must be in critical.");
+                    }
+                }
+            }
+
+            let mut sources = HashMap::new();
+            for (key, value) in &claims {
+                match key.as_ref() {
+                    "alg" | "jku" | "x5u" | "kid" | "typ" | "cty" | "url" => match value {
+                        Value::String(_) => {},
+                        _ => bail!("The JWT {} header claim must be a string.", key),
+                    },
+                    "b64" => match value {
+                        Value::Bool(_) => {},
+                        _ => bail!("The JWT {} header claim must be a bool.", key),
+                    },
+                    "jwk" => match value {
+                        Value::Object(vals) => {
+                            let vals = Jwk::from_map(vals.clone())?;
+                            sources.insert(key.clone(), SourceValue::Jwk(vals));
+                        },
+                        _ => bail!("The JWT {} header claim must be a string.", key),
+                    },
+                    "x5t" => match value {
+                        Value::String(val) => {
+                            let val = base64::decode_config(val, base64::URL_SAFE_NO_PAD)?;
+                            sources.insert(key.clone(), SourceValue::Bytes(val));
+                        },
+                        _ => bail!("The JWT {} header claim must be a string.", key),
+                    },
+                    "x5t#S256" =>  match value {
+                        Value::String(val) => {
+                            let val = base64::decode_config(val, base64::URL_SAFE_NO_PAD)?;
+                            sources.insert(key.clone(), SourceValue::Bytes(val));
+                        },
+                        _ => bail!("The JWT {} header claim must be a string.", key),
+                    },
+                    "x5c" => match value {
+                        Value::Array(vals) => {
+                            let mut vec = Vec::with_capacity(vals.len());
+                            for val in vals {
+                                match val {
+                                    Value::String(val) => {
+                                        let decoded = base64::decode_config(val, base64::URL_SAFE_NO_PAD)?;
+                                        vec.push(decoded);
+                                    },
+                                    _ => bail!("An element of the JWT {} header claim must be a string.", key),
+                                }
+                            }
+                            sources.insert(key.clone(), SourceValue::BytesArray(vec));
+                        },
+                        _ => bail!("The JWT {} header claim must be a array.", key),
+                    },
+                    "crit" => match value {
+                        Value::Array(vals) => {
+                            let mut vec = Vec::with_capacity(vals.len());
+                            for val in vals {
+                                match val {
+                                    Value::String(val) => vec.push(val.to_string()),
+                                    _ => bail!("An element of the JWT {} header claim must be a string.", key),
+                                }
+                            }
+                            sources.insert(key.clone(), SourceValue::StringArray(vec));
+                        },
+                        _ => bail!("The JWT {} header claim must be a array.", key),
+                    },
+                    "nonce" => match value {
+                        Value::String(val) => {
+                            let val = base64::decode_config(val, base64::URL_SAFE_NO_PAD)?;
+                            sources.insert(key.clone(), SourceValue::Bytes(val));
+                        },
+                        _ => bail!("The JWT {} header claim must be a string.", key),
+                    },
+                    _ => {},
+                }
+            }
+
+            Ok(Self {
+                claims,
+                sources,
+            })
+        })()
+        .map_err(|err| match err.downcast::<JoseError>() {
+            Ok(err) => err,
+            Err(err) => JoseError::InvalidJwsFormat(err)
+        })
+    }
+
     /// Set a value for algorithm header claim (alg).
     ///
     /// # Arguments
@@ -1089,99 +1198,6 @@ impl JwsHeader {
 }
 
 impl JoseHeader for JwsHeader {
-    fn from_map(claims: Map<String, Value>) -> Result<Self, JoseError> {
-        (|| -> anyhow::Result<Self> {
-            if let Some(Value::Bool(false)) = claims.get("b64") {
-                if let Some(Value::Array(vals)) = claims.get("crit") {
-                    if !vals.iter().any(|e| e == "b64") {
-                        bail!("The b64 header claim name must be in critical.");
-                    }
-                }
-            }
-
-            let mut sources = HashMap::new();
-            for (key, value) in &claims {
-                match key.as_ref() {
-                    "alg" | "jku" | "x5u" | "kid" | "typ" | "cty" | "url" => match value {
-                        Value::String(_) => {},
-                        _ => bail!("The JWT {} header claim must be a string.", key),
-                    },
-                    "b64" => match value {
-                        Value::Bool(_) => {},
-                        _ => bail!("The JWT {} header claim must be a bool.", key),
-                    },
-                    "jwk" => match value {
-                        Value::Object(vals) => {
-                            let vals = Jwk::from_map(vals.clone())?;
-                            sources.insert(key.clone(), SourceValue::Jwk(vals));
-                        },
-                        _ => bail!("The JWT {} header claim must be a string.", key),
-                    },
-                    "x5t" => match value {
-                        Value::String(val) => {
-                            let val = base64::decode_config(val, base64::URL_SAFE_NO_PAD)?;
-                            sources.insert(key.clone(), SourceValue::Bytes(val));
-                        },
-                        _ => bail!("The JWT {} header claim must be a string.", key),
-                    },
-                    "x5t#S256" =>  match value {
-                        Value::String(val) => {
-                            let val = base64::decode_config(val, base64::URL_SAFE_NO_PAD)?;
-                            sources.insert(key.clone(), SourceValue::Bytes(val));
-                        },
-                        _ => bail!("The JWT {} header claim must be a string.", key),
-                    },
-                    "x5c" => match value {
-                        Value::Array(vals) => {
-                            let mut vec = Vec::with_capacity(vals.len());
-                            for val in vals {
-                                match val {
-                                    Value::String(val) => {
-                                        let decoded = base64::decode_config(val, base64::URL_SAFE_NO_PAD)?;
-                                        vec.push(decoded);
-                                    },
-                                    _ => bail!("An element of the JWT {} header claim must be a string.", key),
-                                }
-                            }
-                            sources.insert(key.clone(), SourceValue::BytesArray(vec));
-                        },
-                        _ => bail!("The JWT {} header claim must be a array.", key),
-                    },
-                    "crit" => match value {
-                        Value::Array(vals) => {
-                            let mut vec = Vec::with_capacity(vals.len());
-                            for val in vals {
-                                match val {
-                                    Value::String(val) => vec.push(val.to_string()),
-                                    _ => bail!("An element of the JWT {} header claim must be a string.", key),
-                                }
-                            }
-                            sources.insert(key.clone(), SourceValue::StringArray(vec));
-                        },
-                        _ => bail!("The JWT {} header claim must be a array.", key),
-                    },
-                    "nonce" => match value {
-                        Value::String(val) => {
-                            let val = base64::decode_config(val, base64::URL_SAFE_NO_PAD)?;
-                            sources.insert(key.clone(), SourceValue::Bytes(val));
-                        },
-                        _ => bail!("The JWT {} header claim must be a string.", key),
-                    },
-                    _ => {},
-                }
-            }
-
-            Ok(Self {
-                claims,
-                sources,
-            })
-        })()
-        .map_err(|err| match err.downcast::<JoseError>() {
-            Ok(err) => err,
-            Err(err) => JoseError::InvalidJwsFormat(err)
-        })
-    }
-
     fn claims_set(&self) -> &Map<String, Value> {
         &self.claims
     }
@@ -1312,6 +1328,10 @@ impl JoseHeader for JwsHeader {
         })()
         .map_err(|err| JoseError::InvalidJwsFormat(err))
     }
+    
+    fn box_clone(&self) -> Box<dyn JoseHeader> {
+        Box::new(self.clone())
+    }
 }
 
 impl AsRef<Map<String, Value>> for JwsHeader {
@@ -1330,6 +1350,20 @@ impl Display for JwsHeader {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
         let val = serde_json::to_string(self.claims_set()).map_err(|_e| std::fmt::Error {})?;
         fmt.write_str(&val)
+    }
+}
+
+impl Deref for JwsHeader {
+    type Target = dyn JoseHeader;
+
+    fn deref(&self) -> &Self::Target {
+        self
+    }
+}
+
+impl DerefMut for JwsHeader {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self
     }
 }
 

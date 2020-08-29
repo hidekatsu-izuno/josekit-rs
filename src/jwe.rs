@@ -8,7 +8,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::convert::Into;
 use std::fmt::{Debug, Display};
 use std::io;
-use std::ops::Deref;
+use std::ops::{Deref, DerefMut};
 
 use anyhow::bail;
 use once_cell::sync::Lazy;
@@ -1047,6 +1047,34 @@ impl JweHeader {
         }
     }
 
+    /// Return a new header instance from json style header.
+    ///
+    /// # Arguments
+    ///
+    /// * `value` - The json style header claims
+    pub fn from_slice(value: &[u8]) -> Result<Self, JoseError> {
+        (|| -> anyhow::Result<Self> {
+            let claims: Map<String, Value> = serde_json::from_slice(value)?;
+            Ok(Self::from_map(claims)?)
+        })()
+        .map_err(|err| match err.downcast::<JoseError>() {
+            Ok(err) => err,
+            Err(err) => JoseError::InvalidJson(err),
+        })
+    }
+
+    /// Return a new header instance from map.
+    ///
+    /// # Arguments
+    ///
+    /// * `claims` - The header claims
+    pub fn from_map(claims: Map<String, Value>) -> Result<Self, JoseError> {
+        Ok(Self {
+            claims,
+            sources: HashMap::new(),
+        })
+    }
+
     /// Set a value for algorithm header claim (alg).
     ///
     /// # Arguments
@@ -1418,13 +1446,6 @@ impl JweHeader {
 }
 
 impl JoseHeader for JweHeader {
-    fn from_map(claims: Map<String, Value>) -> Result<Self, JoseError> {
-        Ok(Self {
-            claims,
-            sources: HashMap::new(),
-        })
-    }
-
     fn claims_set(&self) -> &Map<String, Value> {
         &self.claims
     }
@@ -1542,6 +1563,10 @@ impl JoseHeader for JweHeader {
         })()
         .map_err(|err| JoseError::InvalidJweFormat(err))
     }
+
+    fn box_clone(&self) -> Box<dyn JoseHeader> {
+        Box::new(self.clone())
+    }
 }
 
 impl AsRef<Map<String, Value>> for JweHeader {
@@ -1560,6 +1585,20 @@ impl Display for JweHeader {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
         let val = serde_json::to_string(self.claims_set()).map_err(|_e| std::fmt::Error {})?;
         fmt.write_str(&val)
+    }
+}
+
+impl Deref for JweHeader {
+    type Target = dyn JoseHeader;
+
+    fn deref(&self) -> &Self::Target {
+        self
+    }
+}
+
+impl DerefMut for JweHeader {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self
     }
 }
 
