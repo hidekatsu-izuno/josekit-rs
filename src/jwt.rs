@@ -1300,16 +1300,16 @@ mod tests {
     fn test_jwt_with_ecdsa_pem() -> Result<()> {
         for alg in &[ES256, ES384, ES512, ES256K] {
             let private_key = load_file(match alg {
-                ES256 => "pem/ECDSA_P-256_private.pem",
-                ES384 => "pem/ECDSA_P-384_private.pem",
-                ES512 => "pem/ECDSA_P-521_private.pem",
-                ES256K => "pem/ECDSA_secp256k1_private.pem",
+                ES256 => "pem/EC_P-256_private.pem",
+                ES384 => "pem/EC_P-384_private.pem",
+                ES512 => "pem/EC_P-521_private.pem",
+                ES256K => "pem/EC_secp256k1_private.pem",
             })?;
             let public_key = load_file(match alg {
-                ES256 => "pem/ECDSA_P-256_public.pem",
-                ES384 => "pem/ECDSA_P-384_public.pem",
-                ES512 => "pem/ECDSA_P-521_public.pem",
-                ES256K => "pem/ECDSA_secp256k1_public.pem",
+                ES256 => "pem/EC_P-256_public.pem",
+                ES384 => "pem/EC_P-384_public.pem",
+                ES512 => "pem/EC_P-521_public.pem",
+                ES256K => "pem/EC_secp256k1_public.pem",
             })?;
 
             let mut src_header = JwsHeader::new();
@@ -1333,16 +1333,16 @@ mod tests {
     fn test_jwt_with_ecdsa_der() -> Result<()> {
         for alg in &[ES256, ES384, ES512, ES256K] {
             let private_key = load_file(match alg {
-                ES256 => "der/ECDSA_P-256_pkcs8_private.der",
-                ES384 => "der/ECDSA_P-384_pkcs8_private.der",
-                ES512 => "der/ECDSA_P-521_pkcs8_private.der",
-                ES256K => "der/ECDSA_secp256k1_pkcs8_private.der",
+                ES256 => "der/EC_P-256_pkcs8_private.der",
+                ES384 => "der/EC_P-384_pkcs8_private.der",
+                ES512 => "der/EC_P-521_pkcs8_private.der",
+                ES256K => "der/EC_secp256k1_pkcs8_private.der",
             })?;
             let public_key = load_file(match alg {
-                ES256 => "der/ECDSA_P-256_spki_public.der",
-                ES384 => "der/ECDSA_P-384_spki_public.der",
-                ES512 => "der/ECDSA_P-521_spki_public.der",
-                ES256K => "der/ECDSA_secp256k1_spki_public.der",
+                ES256 => "der/EC_P-256_spki_public.der",
+                ES384 => "der/EC_P-384_spki_public.der",
+                ES512 => "der/EC_P-521_spki_public.der",
+                ES256K => "der/EC_secp256k1_spki_public.der",
             })?;
 
             let mut src_header = JwsHeader::new();

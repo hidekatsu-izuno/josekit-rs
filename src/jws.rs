@@ -1534,10 +1534,10 @@ mod tests {
     #[test]
     fn test_jws_general_json_serialization() -> Result<()> {
         let private_key_1 = load_file("pem/RSA_2048bit_private.pem")?;
-        let private_key_2 = load_file("pem/ECDSA_P-256_private.pem")?;
+        let private_key_2 = load_file("pem/EC_P-256_private.pem")?;
         let private_key_3 = load_file("pem/ED25519_private.pem")?;
 
-        let public_key = load_file("pem/ECDSA_P-256_public.pem")?;
+        let public_key = load_file("pem/EC_P-256_public.pem")?;
 
         let src_payload = b"test payload!";
 
