@@ -115,9 +115,9 @@ impl RsaesJweAlgorithm {
                 val => bail!("A parameter kty must be RSA: {}", val),
             }
             match jwk.key_use() {
-                Some(val) if val == "sig" => {}
+                Some(val) if val == "enc" => {}
                 None => {}
-                Some(val) => bail!("A parameter use must be sig: {}", val),
+                Some(val) => bail!("A parameter use must be enc: {}", val),
             }
             if !jwk.is_for_key_operation("decrypt") {
                 bail!("A parameter key_ops must contains decrypt.");
@@ -443,13 +443,13 @@ impl JweDecrypter for RsaesJweDecrypter {
             let key = match self.algorithm {
                 RsaesJweAlgorithm::Rsa1_5 => {
                     let mut key = vec![0; rsa.size() as usize];
-                    let len = rsa.public_decrypt(&encrypted_key, &mut key, Padding::PKCS1)?;
+                    let len = rsa.private_decrypt(&encrypted_key, &mut key, Padding::PKCS1)?;
                     key.truncate(len);
                     key
                 }
                 RsaesJweAlgorithm::RsaOaep => {
                     let mut key = vec![0; rsa.size() as usize];
-                    let len = rsa.public_decrypt(&encrypted_key, &mut key, Padding::PKCS1_OAEP)?;
+                    let len = rsa.private_decrypt(&encrypted_key, &mut key, Padding::PKCS1_OAEP)?;
                     key.truncate(len);
                     key
                 }
@@ -483,5 +483,61 @@ impl Deref for RsaesJweDecrypter {
 
     fn deref(&self) -> &Self::Target {
         self
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use anyhow::Result;
+    use std::fs::File;
+    use std::io::Read;
+    use std::path::PathBuf;
+
+    use super::RsaesJweAlgorithm;
+    use crate::jwe::JweHeader;
+    use crate::jwe::enc::aes_cbc_hmac::AesCbcHmacJweEncryption;
+    use crate::jwk::Jwk;
+
+    #[test]
+    #[allow(deprecated)]
+    fn encrypt_and_decrypt_rsaes() -> Result<()> {
+        let enc = AesCbcHmacJweEncryption::A128CbcHS256;
+
+        let private_key = load_file("jwk/RSA_private.jwk")?;
+        let mut private_key = Jwk::from_slice(&private_key)?;
+        private_key.set_key_use("enc");
+
+        let public_key = load_file("jwk/RSA_public.jwk")?;
+        let mut public_key = Jwk::from_slice(&public_key)?;
+        public_key.set_key_use("enc");
+
+        for alg in vec![
+            RsaesJweAlgorithm::Rsa1_5,
+            RsaesJweAlgorithm::RsaOaep,
+        ] {
+            let mut header = JweHeader::new();
+            header.set_content_encryption(enc.name());
+
+            let encrypter = alg.encrypter_from_jwk(&public_key)?;
+            let (src_key, encrypted_key) = encrypter.encrypt(&mut header, enc.key_len())?;
+
+            let decrypter = alg.decrypter_from_jwk(&private_key)?;
+            let dst_key = decrypter.decrypt(&header, encrypted_key.as_deref(), enc.key_len())?;
+
+            assert_eq!(&src_key, &dst_key);
+        }
+        
+        Ok(())
+    }
+
+    fn load_file(path: &str) -> Result<Vec<u8>> {
+        let mut pb = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        pb.push("data");
+        pb.push(path);
+
+        let mut file = File::open(&pb)?;
+        let mut data = Vec::new();
+        file.read_to_end(&mut data)?;
+        Ok(data)
     }
 }
