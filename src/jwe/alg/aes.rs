@@ -282,3 +282,51 @@ impl Deref for AesJweDecrypter {
         self
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use anyhow::Result;
+    use base64;
+    use openssl::rand;
+    use serde_json::json;
+
+    use super::AesJweAlgorithm;
+    use crate::jwe::JweHeader;
+    use crate::jwe::enc::aes_cbc_hmac::AesCbcHmacJweEncryption;
+    use crate::jwk::Jwk;
+
+    #[test]
+    fn encrypt_and_decrypt_aes() -> Result<()> {
+        let enc = AesCbcHmacJweEncryption::A128CbcHS256;
+
+        for alg in vec![
+            AesJweAlgorithm::A128Kw,
+            AesJweAlgorithm::A192Kw,
+            AesJweAlgorithm::A256Kw,
+        ] {
+            let mut header = JweHeader::new();
+            header.set_content_encryption(enc.name());
+
+            let jwk = {
+                let mut key = vec![0; alg.key_len()];
+                rand::rand_bytes(&mut key)?;
+                let key = base64::encode_config(&key, base64::URL_SAFE_NO_PAD);
+
+                let mut jwk = Jwk::new("oct");
+                jwk.set_key_use("enc");
+                jwk.set_parameter("k", Some(json!(key)))?;
+                jwk
+            };
+
+            let encrypter = alg.encrypter_from_jwk(&jwk)?;
+            let (src_key, encrypted_key) = encrypter.encrypt(&mut header, enc.key_len())?;
+
+            let decrypter = alg.decrypter_from_jwk(&jwk)?;
+            let dst_key = decrypter.decrypt(&header, encrypted_key.as_deref(), enc.key_len())?;
+
+            assert_eq!(&src_key, &dst_key);
+        }
+        
+        Ok(())
+    }
+}
