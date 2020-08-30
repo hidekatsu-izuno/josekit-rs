@@ -10,7 +10,7 @@ use crate::der::oid::ObjectIdentifier;
 use crate::der::{DerBuilder, DerClass, DerReader, DerType};
 use crate::jose::JoseError;
 use crate::jwk::{Jwk, KeyPair};
-use crate::util::MessageDigest;
+use crate::util::HashAlgorithm;
 
 static OID_RSASSA_PSS: Lazy<ObjectIdentifier> =
     Lazy::new(|| ObjectIdentifier::from_slice(&[1, 2, 840, 113549, 1, 1, 10]));
@@ -30,8 +30,8 @@ static OID_MGF1: Lazy<ObjectIdentifier> =
 #[derive(Debug, Clone)]
 pub struct RsaPssKeyPair {
     private_key: PKey<Private>,
-    md: MessageDigest,
-    mgf1_md: MessageDigest,
+    md: HashAlgorithm,
+    mgf1_md: HashAlgorithm,
     salt_len: u8,
     alg: Option<String>,
 }
@@ -39,8 +39,8 @@ pub struct RsaPssKeyPair {
 impl RsaPssKeyPair {
     pub(crate) fn from_private_key(
         private_key: PKey<Private>,
-        md: MessageDigest,
-        mgf1_md: MessageDigest,
+        md: HashAlgorithm,
+        mgf1_md: HashAlgorithm,
         salt_len: u8,
     ) -> RsaPssKeyPair {
         RsaPssKeyPair {
@@ -62,8 +62,8 @@ impl RsaPssKeyPair {
     /// * `bits` - RSA key length
     pub fn generate(
         bits: u32,
-        md: MessageDigest,
-        mgf1_md: MessageDigest,
+        md: HashAlgorithm,
+        mgf1_md: HashAlgorithm,
         salt_len: u8,
     ) -> Result<RsaPssKeyPair, JoseError> {
         (|| -> anyhow::Result<RsaPssKeyPair> {
@@ -167,7 +167,7 @@ impl RsaPssKeyPair {
     pub(crate) fn detect_pkcs8(
         input: &[u8],
         is_public: bool,
-    ) -> Option<(MessageDigest, MessageDigest, u8)> {
+    ) -> Option<(HashAlgorithm, HashAlgorithm, u8)> {
         let md;
         let mgf1_md;
         let salt_len;
@@ -232,9 +232,9 @@ impl RsaPssKeyPair {
                         md = match reader.next() {
                             Ok(Some(DerType::ObjectIdentifier)) => {
                                 match reader.to_object_identifier() {
-                                    Ok(val) if val == *OID_SHA256 => MessageDigest::Sha256,
-                                    Ok(val) if val == *OID_SHA384 => MessageDigest::Sha384,
-                                    Ok(val) if val == *OID_SHA512 => MessageDigest::Sha512,
+                                    Ok(val) if val == *OID_SHA256 => HashAlgorithm::Sha256,
+                                    Ok(val) if val == *OID_SHA384 => HashAlgorithm::Sha384,
+                                    Ok(val) if val == *OID_SHA512 => HashAlgorithm::Sha512,
                                     _ => return None,
                                 }
                             }
@@ -281,9 +281,9 @@ impl RsaPssKeyPair {
                             mgf1_md = match reader.next() {
                                 Ok(Some(DerType::ObjectIdentifier)) => {
                                     match reader.to_object_identifier() {
-                                        Ok(val) if val == *OID_SHA256 => MessageDigest::Sha256,
-                                        Ok(val) if val == *OID_SHA384 => MessageDigest::Sha384,
-                                        Ok(val) if val == *OID_SHA512 => MessageDigest::Sha512,
+                                        Ok(val) if val == *OID_SHA256 => HashAlgorithm::Sha256,
+                                        Ok(val) if val == *OID_SHA384 => HashAlgorithm::Sha384,
+                                        Ok(val) if val == *OID_SHA512 => HashAlgorithm::Sha512,
                                         _ => return None,
                                     }
                                 }
@@ -319,8 +319,8 @@ impl RsaPssKeyPair {
     pub(crate) fn to_pkcs8(
         input: &[u8],
         is_public: bool,
-        md: MessageDigest,
-        mgf1_md: MessageDigest,
+        md: HashAlgorithm,
+        mgf1_md: HashAlgorithm,
         salt_len: u8,
     ) -> Vec<u8> {
         let mut builder = DerBuilder::new();
@@ -340,9 +340,9 @@ impl RsaPssKeyPair {
                         builder.begin(DerType::Sequence);
                         {
                             builder.append_object_identifier(match md {
-                                MessageDigest::Sha256 => &OID_SHA256,
-                                MessageDigest::Sha384 => &OID_SHA384,
-                                MessageDigest::Sha512 => &OID_SHA512,
+                                HashAlgorithm::Sha256 => &OID_SHA256,
+                                HashAlgorithm::Sha384 => &OID_SHA384,
+                                HashAlgorithm::Sha512 => &OID_SHA512,
                             });
                         }
                         builder.end();
@@ -357,9 +357,9 @@ impl RsaPssKeyPair {
                             builder.begin(DerType::Sequence);
                             {
                                 builder.append_object_identifier(match mgf1_md {
-                                    MessageDigest::Sha256 => &OID_SHA256,
-                                    MessageDigest::Sha384 => &OID_SHA384,
-                                    MessageDigest::Sha512 => &OID_SHA512,
+                                    HashAlgorithm::Sha256 => &OID_SHA256,
+                                    HashAlgorithm::Sha384 => &OID_SHA384,
+                                    HashAlgorithm::Sha512 => &OID_SHA512,
                                 });
                             }
                             builder.end();

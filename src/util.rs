@@ -17,13 +17,13 @@ pub enum SourceValue {
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
-pub enum MessageDigest {
+pub enum HashAlgorithm {
     Sha256,
     Sha384,
     Sha512,
 }
 
-impl MessageDigest {
+impl HashAlgorithm {
     pub fn name(&self) -> &str {
         match self {
             Self::Sha256 => "SHA-256",
@@ -33,7 +33,7 @@ impl MessageDigest {
     }
 }
 
-impl Display for MessageDigest {
+impl Display for HashAlgorithm {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
         fmt.write_str(self.name())
     }

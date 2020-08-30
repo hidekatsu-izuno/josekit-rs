@@ -10,7 +10,7 @@ use crate::der::{DerBuilder, DerType};
 use crate::jose::JoseError;
 use crate::jwk::{Jwk, KeyPair, RsaPssKeyPair};
 use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier};
-use crate::util;
+use crate::util::{self, HashAlgorithm};
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum RsassaPssJwsAlgorithm {
@@ -440,11 +440,11 @@ impl RsassaPssJwsAlgorithm {
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
-    fn message_digest(&self) -> util::MessageDigest {
+    fn message_digest(&self) -> HashAlgorithm {
         match self {
-            RsassaPssJwsAlgorithm::PS256 => util::MessageDigest::Sha256,
-            RsassaPssJwsAlgorithm::PS384 => util::MessageDigest::Sha384,
-            RsassaPssJwsAlgorithm::PS512 => util::MessageDigest::Sha512,
+            RsassaPssJwsAlgorithm::PS256 => HashAlgorithm::Sha256,
+            RsassaPssJwsAlgorithm::PS384 => HashAlgorithm::Sha384,
+            RsassaPssJwsAlgorithm::PS512 => HashAlgorithm::Sha512,
         }
     }
 
