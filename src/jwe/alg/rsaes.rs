@@ -1,5 +1,5 @@
 use std::borrow::Cow;
-use std::ops::{Deref, DerefMut};
+use std::ops::Deref;
 
 use anyhow::bail;
 use once_cell::sync::Lazy;
@@ -307,17 +307,24 @@ impl Deref for RsaesJweAlgorithm {
     }
 }
 
-impl DerefMut for RsaesJweAlgorithm {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct RsaesJweEncrypter {
     algorithm: RsaesJweAlgorithm,
     public_key: PKey<Public>,
     key_id: Option<String>,
+}
+
+impl RsaesJweEncrypter {
+    pub fn set_key_id(&mut self, key_id: Option<impl Into<String>>) {
+        match key_id {
+            Some(val) => {
+                self.key_id = Some(val.into());
+            },
+            None => {
+                self.key_id = None;
+            }
+        }
+    }
 }
 
 impl JweEncrypter for RsaesJweEncrypter {
@@ -330,14 +337,6 @@ impl JweEncrypter for RsaesJweEncrypter {
             Some(val) => Some(val.as_ref()),
             None => None,
         }
-    }
-
-    fn set_key_id(&mut self, key_id: &str) {
-        self.key_id = Some(key_id.to_string());
-    }
-
-    fn remove_key_id(&mut self) {
-        self.key_id = None;
     }
 
     #[allow(deprecated)]
@@ -395,17 +394,24 @@ impl Deref for RsaesJweEncrypter {
     }
 }
 
-impl DerefMut for RsaesJweEncrypter {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct RsaesJweDecrypter {
     algorithm: RsaesJweAlgorithm,
     private_key: PKey<Private>,
     key_id: Option<String>,
+}
+
+impl RsaesJweDecrypter {
+    pub fn set_key_id(&mut self, key_id: Option<impl Into<String>>) {
+        match key_id {
+            Some(val) => {
+                self.key_id = Some(val.into());
+            },
+            None => {
+                self.key_id = None;
+            }
+        }
+    }
 }
 
 impl JweDecrypter for RsaesJweDecrypter {
@@ -418,14 +424,6 @@ impl JweDecrypter for RsaesJweDecrypter {
             Some(val) => Some(val.as_ref()),
             None => None,
         }
-    }
-
-    fn set_key_id(&mut self, key_id: &str) {
-        self.key_id = Some(key_id.to_string());
-    }
-
-    fn remove_key_id(&mut self) {
-        self.key_id = None;
     }
 
     #[allow(deprecated)]
@@ -484,12 +482,6 @@ impl Deref for RsaesJweDecrypter {
     type Target = dyn JweDecrypter;
 
     fn deref(&self) -> &Self::Target {
-        self
-    }
-}
-
-impl DerefMut for RsaesJweDecrypter {
-    fn deref_mut(&mut self) -> &mut Self::Target {
         self
     }
 }

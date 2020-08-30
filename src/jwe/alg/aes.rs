@@ -1,5 +1,5 @@
 use std::borrow::Cow;
-use std::ops::{Deref, DerefMut};
+use std::ops::Deref;
 
 use anyhow::bail;
 use openssl::aes::{self, AesKey};
@@ -133,17 +133,24 @@ impl Deref for AesJweAlgorithm {
     }
 }
 
-impl DerefMut for AesJweAlgorithm {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct AesJweEncrypter {
     algorithm: AesJweAlgorithm,
     private_key: Vec<u8>,
     key_id: Option<String>,
+}
+
+impl AesJweEncrypter {
+    pub fn set_key_id(&mut self, key_id: Option<impl Into<String>>) {
+        match key_id {
+            Some(val) => {
+                self.key_id = Some(val.into());
+            },
+            None => {
+                self.key_id = None;
+            }
+        }
+    }
 }
 
 impl JweEncrypter for AesJweEncrypter {
@@ -156,14 +163,6 @@ impl JweEncrypter for AesJweEncrypter {
             Some(val) => Some(val.as_ref()),
             None => None,
         }
-    }
-
-    fn set_key_id(&mut self, key_id: &str) {
-        self.key_id = Some(key_id.to_string());
-    }
-
-    fn remove_key_id(&mut self) {
-        self.key_id = None;
     }
 
     fn encrypt(
@@ -208,17 +207,24 @@ impl Deref for AesJweEncrypter {
     }
 }
 
-impl DerefMut for AesJweEncrypter {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct AesJweDecrypter {
     algorithm: AesJweAlgorithm,
     private_key: Vec<u8>,
     key_id: Option<String>,
+}
+
+impl AesJweDecrypter {
+    pub fn set_key_id(&mut self, key_id: Option<impl Into<String>>) {
+        match key_id {
+            Some(val) => {
+                self.key_id = Some(val.into());
+            },
+            None => {
+                self.key_id = None;
+            }
+        }
+    }
 }
 
 impl JweDecrypter for AesJweDecrypter {
@@ -231,14 +237,6 @@ impl JweDecrypter for AesJweDecrypter {
             Some(val) => Some(val.as_ref()),
             None => None,
         }
-    }
-
-    fn set_key_id(&mut self, key_id: &str) {
-        self.key_id = Some(key_id.to_string());
-    }
-
-    fn remove_key_id(&mut self) {
-        self.key_id = None;
     }
 
     fn decrypt(
@@ -281,12 +279,6 @@ impl Deref for AesJweDecrypter {
     type Target = dyn JweDecrypter;
 
     fn deref(&self) -> &Self::Target {
-        self
-    }
-}
-
-impl DerefMut for AesJweDecrypter {
-    fn deref_mut(&mut self) -> &mut Self::Target {
         self
     }
 }

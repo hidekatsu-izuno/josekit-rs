@@ -195,6 +195,19 @@ pub struct HmacJwsSigner {
     key_id: Option<String>,
 }
 
+impl HmacJwsSigner {
+    pub fn set_key_id(&mut self, key_id: Option<impl Into<String>>) {
+        match key_id {
+            Some(val) => {
+                self.key_id = Some(val.into());
+            },
+            None => {
+                self.key_id = None;
+            }
+        }
+    }
+}
+
 impl JwsSigner for HmacJwsSigner {
     fn algorithm(&self) -> &dyn JwsAlgorithm {
         &self.algorithm
@@ -213,14 +226,6 @@ impl JwsSigner for HmacJwsSigner {
             Some(val) => Some(val.as_ref()),
             None => None,
         }
-    }
-
-    fn set_key_id(&mut self, key_id: &str) {
-        self.key_id = Some(key_id.to_string());
-    }
-
-    fn remove_key_id(&mut self) {
-        self.key_id = None;
     }
 
     fn sign(&self, message: &[u8]) -> Result<Vec<u8>, JoseError> {
@@ -265,6 +270,19 @@ pub struct HmacJwsVerifier {
     key_id: Option<String>,
 }
 
+impl HmacJwsVerifier {
+    pub fn set_key_id(&mut self, key_id: Option<impl Into<String>>) {
+        match key_id {
+            Some(val) => {
+                self.key_id = Some(val.into());
+            },
+            None => {
+                self.key_id = None;
+            }
+        }
+    }
+}
+
 impl JwsVerifier for HmacJwsVerifier {
     fn algorithm(&self) -> &dyn JwsAlgorithm {
         &self.algorithm
@@ -275,14 +293,6 @@ impl JwsVerifier for HmacJwsVerifier {
             Some(val) => Some(val.as_ref()),
             None => None,
         }
-    }
-
-    fn set_key_id(&mut self, key_id: &str) {
-        self.key_id = Some(key_id.to_string());
-    }
-
-    fn remove_key_id(&mut self) {
-        self.key_id = None;
     }
 
     fn verify(&self, message: &[u8], signature: &[u8]) -> Result<(), JoseError> {

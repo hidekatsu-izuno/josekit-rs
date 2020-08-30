@@ -1,5 +1,5 @@
 use std::borrow::Cow;
-use std::ops::{Deref, DerefMut};
+use std::ops::Deref;
 
 use anyhow::bail;
 use once_cell::sync::Lazy;
@@ -329,18 +329,25 @@ impl Deref for EcdhEsJweAlgorithm {
     }
 }
 
-impl DerefMut for EcdhEsJweAlgorithm {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct EcdhEsJweEncrypter {
     algorithm: EcdhEsJweAlgorithm,
     curve: EcdhEsCurve,
     public_key: PKey<Public>,
     key_id: Option<String>,
+}
+
+impl EcdhEsJweEncrypter {
+    pub fn set_key_id(&mut self, key_id: Option<impl Into<String>>) {
+        match key_id {
+            Some(val) => {
+                self.key_id = Some(val.into());
+            },
+            None => {
+                self.key_id = None;
+            }
+        }
+    }
 }
 
 impl JweEncrypter for EcdhEsJweEncrypter {
@@ -353,14 +360,6 @@ impl JweEncrypter for EcdhEsJweEncrypter {
             Some(val) => Some(val.as_ref()),
             None => None,
         }
-    }
-
-    fn set_key_id(&mut self, key_id: &str) {
-        self.key_id = Some(key_id.to_string());
-    }
-
-    fn remove_key_id(&mut self) {
-        self.key_id = None;
     }
 
     fn encrypt(
@@ -499,18 +498,25 @@ impl Deref for EcdhEsJweEncrypter {
     }
 }
 
-impl DerefMut for EcdhEsJweEncrypter {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct EcdhEsJweDecrypter {
     algorithm: EcdhEsJweAlgorithm,
     curve: EcdhEsCurve,
     private_key: PKey<Private>,
     key_id: Option<String>,
+}
+
+impl EcdhEsJweDecrypter {
+    pub fn set_key_id(&mut self, key_id: Option<impl Into<String>>) {
+        match key_id {
+            Some(val) => {
+                self.key_id = Some(val.into());
+            },
+            None => {
+                self.key_id = None;
+            }
+        }
+    }
 }
 
 impl JweDecrypter for EcdhEsJweDecrypter {
@@ -523,14 +529,6 @@ impl JweDecrypter for EcdhEsJweDecrypter {
             Some(val) => Some(val.as_ref()),
             None => None,
         }
-    }
-
-    fn set_key_id(&mut self, key_id: &str) {
-        self.key_id = Some(key_id.to_string());
-    }
-
-    fn remove_key_id(&mut self) {
-        self.key_id = None;
     }
 
     fn decrypt(
@@ -712,12 +710,6 @@ impl Deref for EcdhEsJweDecrypter {
     type Target = dyn JweDecrypter;
 
     fn deref(&self) -> &Self::Target {
-        self
-    }
-}
-
-impl DerefMut for EcdhEsJweDecrypter {
-    fn deref_mut(&mut self) -> &mut Self::Target {
         self
     }
 }

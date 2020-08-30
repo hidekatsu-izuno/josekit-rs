@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 use std::convert::TryFrom;
-use std::ops::{Deref, DerefMut};
+use std::ops::Deref;
 
 use anyhow::bail;
 use openssl::aes::{self, AesKey};
@@ -126,17 +126,24 @@ impl Deref for Pbes2HmacJweAlgorithm {
     }
 }
 
-impl DerefMut for Pbes2HmacJweAlgorithm {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct Pbes2HmacJweEncrypter {
     algorithm: Pbes2HmacJweAlgorithm,
     private_key: Vec<u8>,
     key_id: Option<String>,
+}
+
+impl Pbes2HmacJweEncrypter {
+    pub fn set_key_id(&mut self, key_id: Option<impl Into<String>>) {
+        match key_id {
+            Some(val) => {
+                self.key_id = Some(val.into());
+            },
+            None => {
+                self.key_id = None;
+            }
+        }
+    }
 }
 
 impl JweEncrypter for Pbes2HmacJweEncrypter {
@@ -149,14 +156,6 @@ impl JweEncrypter for Pbes2HmacJweEncrypter {
             Some(val) => Some(val.as_ref()),
             None => None,
         }
-    }
-
-    fn set_key_id(&mut self, key_id: &str) {
-        self.key_id = Some(key_id.to_string());
-    }
-
-    fn remove_key_id(&mut self) {
-        self.key_id = None;
     }
 
     fn encrypt(
@@ -224,17 +223,24 @@ impl Deref for Pbes2HmacJweEncrypter {
     }
 }
 
-impl DerefMut for Pbes2HmacJweEncrypter {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct Pbes2HmacJweDecrypter {
     algorithm: Pbes2HmacJweAlgorithm,
     private_key: Vec<u8>,
     key_id: Option<String>,
+}
+
+impl Pbes2HmacJweDecrypter {
+    pub fn set_key_id(&mut self, key_id: Option<impl Into<String>>) {
+        match key_id {
+            Some(val) => {
+                self.key_id = Some(val.into());
+            },
+            None => {
+                self.key_id = None;
+            }
+        }
+    }
 }
 
 impl JweDecrypter for Pbes2HmacJweDecrypter {
@@ -247,14 +253,6 @@ impl JweDecrypter for Pbes2HmacJweDecrypter {
             Some(val) => Some(val.as_ref()),
             None => None,
         }
-    }
-
-    fn set_key_id(&mut self, key_id: &str) {
-        self.key_id = Some(key_id.to_string());
-    }
-
-    fn remove_key_id(&mut self) {
-        self.key_id = None;
     }
 
     fn decrypt(
@@ -316,12 +314,6 @@ impl Deref for Pbes2HmacJweDecrypter {
     type Target = dyn JweDecrypter;
 
     fn deref(&self) -> &Self::Target {
-        self
-    }
-}
-
-impl DerefMut for Pbes2HmacJweDecrypter {
-    fn deref_mut(&mut self) -> &mut Self::Target {
         self
     }
 }

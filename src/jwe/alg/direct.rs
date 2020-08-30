@@ -1,5 +1,5 @@
 use std::borrow::Cow;
-use std::ops::{Deref, DerefMut};
+use std::ops::Deref;
 
 use anyhow::bail;
 use serde_json::Value;
@@ -135,17 +135,24 @@ impl Deref for DirectJweAlgorithm {
     }
 }
 
-impl DerefMut for DirectJweAlgorithm {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct DirectJweEncrypter {
     algorithm: DirectJweAlgorithm,
     cencryption_key: Vec<u8>,
     key_id: Option<String>,
+}
+
+impl DirectJweEncrypter {
+    pub fn set_key_id(&mut self, key_id: Option<impl Into<String>>) {
+        match key_id {
+            Some(val) => {
+                self.key_id = Some(val.into());
+            },
+            None => {
+                self.key_id = None;
+            }
+        }
+    }
 }
 
 impl JweEncrypter for DirectJweEncrypter {
@@ -158,14 +165,6 @@ impl JweEncrypter for DirectJweEncrypter {
             Some(val) => Some(val.as_ref()),
             None => None,
         }
-    }
-
-    fn set_key_id(&mut self, key_id: &str) {
-        self.key_id = Some(key_id.to_string());
-    }
-
-    fn remove_key_id(&mut self) {
-        self.key_id = None;
     }
 
     fn encrypt(
@@ -198,17 +197,24 @@ impl Deref for DirectJweEncrypter {
     }
 }
 
-impl DerefMut for DirectJweEncrypter {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct DirectJweDecrypter {
     algorithm: DirectJweAlgorithm,
     cencryption_key: Vec<u8>,
     key_id: Option<String>,
+}
+
+impl DirectJweDecrypter {
+    pub fn set_key_id(&mut self, key_id: Option<impl Into<String>>) {
+        match key_id {
+            Some(val) => {
+                self.key_id = Some(val.into());
+            },
+            None => {
+                self.key_id = None;
+            }
+        }
+    }
 }
 
 impl JweDecrypter for DirectJweDecrypter {
@@ -221,14 +227,6 @@ impl JweDecrypter for DirectJweDecrypter {
             Some(val) => Some(val.as_ref()),
             None => None,
         }
-    }
-
-    fn set_key_id(&mut self, key_id: &str) {
-        self.key_id = Some(key_id.to_string());
-    }
-
-    fn remove_key_id(&mut self) {
-        self.key_id = None;
     }
 
     fn decrypt(
@@ -261,12 +259,6 @@ impl Deref for DirectJweDecrypter {
     type Target = dyn JweDecrypter;
 
     fn deref(&self) -> &Self::Target {
-        self
-    }
-}
-
-impl DerefMut for DirectJweDecrypter {
-    fn deref_mut(&mut self) -> &mut Self::Target {
         self
     }
 }
