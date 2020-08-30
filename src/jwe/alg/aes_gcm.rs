@@ -32,8 +32,8 @@ impl AesGcmJweAlgorithm {
                 None => {}
                 Some(val) => bail!("A parameter use must be enc: {}", val),
             }
-            if !jwk.is_for_key_operation("encrypt") || !jwk.is_for_key_operation("wrapKey") {
-                bail!("A parameter key_ops must contains encrypt and wrapKey.");
+            if !jwk.is_for_key_operation("encrypt") {
+                bail!("A parameter key_ops must contains encrypt.");
             }
             match jwk.algorithm() {
                 Some(val) if val == self.name() => {}
@@ -72,8 +72,8 @@ impl AesGcmJweAlgorithm {
                 None => {}
                 Some(val) => bail!("A parameter use must be enc: {}", val),
             }
-            if !jwk.is_for_key_operation("decrypt") || !jwk.is_for_key_operation("unwrapKey") {
-                bail!("A parameter key_ops must contains decrypt and wrapKey.");
+            if !jwk.is_for_key_operation("decrypt") {
+                bail!("A parameter key_ops must contains decrypt.");
             }
             match jwk.algorithm() {
                 Some(val) if val == self.name() => {}

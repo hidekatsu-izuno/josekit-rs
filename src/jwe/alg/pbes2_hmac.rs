@@ -35,8 +35,8 @@ impl Pbes2HmacJweAlgorithm {
                 None => {}
                 Some(val) => bail!("A parameter use must be enc: {}", val),
             }
-            if !jwk.is_for_key_operation("encrypt") {
-                bail!("A parameter key_ops must contains encrypt.");
+            if !jwk.is_for_key_operation("deriveKey") {
+                bail!("A parameter key_ops must contains deriveKey.");
             }
             match jwk.algorithm() {
                 Some(val) if val == self.name() => {}
@@ -69,8 +69,8 @@ impl Pbes2HmacJweAlgorithm {
                 None => {}
                 Some(val) => bail!("A parameter use must be enc: {}", val),
             }
-            if !jwk.is_for_key_operation("decrypt") {
-                bail!("A parameter key_ops must contains decrypt.");
+            if !jwk.is_for_key_operation("deriveKey") {
+                bail!("A parameter key_ops must contains deriveKey.");
             }
             match jwk.algorithm() {
                 Some(val) if val == self.name() => {}
