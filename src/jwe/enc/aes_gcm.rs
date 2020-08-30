@@ -1,3 +1,5 @@
+use std::ops::Deref;
+
 use anyhow::bail;
 use openssl::symm::{self, Cipher};
 
@@ -102,5 +104,54 @@ impl JweContentEncryption for AesGcmJweEncryption {
 
     fn box_clone(&self) -> Box<dyn JweContentEncryption> {
         Box::new(self.clone())
+    }
+}
+
+impl Deref for AesGcmJweEncryption {
+    type Target = dyn JweContentEncryption;
+
+    fn deref(&self) -> &Self::Target {
+        self
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use anyhow::{bail, Result};
+    use openssl::rand;
+
+    use super::AesGcmJweEncryption;
+
+    #[test]
+    fn encrypt_and_decrypt_aes_gcm() -> Result<()> {
+        let message = b"abcde12345";
+        let aad = b"test";
+
+        for enc in vec![
+            AesGcmJweEncryption::A128Gcm,
+            AesGcmJweEncryption::A192Gcm,
+            AesGcmJweEncryption::A256Gcm,
+        ] {
+            let mut key = vec![0; enc.key_len()];
+            rand::rand_bytes(&mut key)?;
+
+            let mut iv = vec![0; enc.iv_len()];
+            rand::rand_bytes(&mut iv)?;
+
+            let (encrypted_message, tag) = enc.encrypt(&key, Some(&iv), message, aad)?;
+            let decrypted = enc.decrypt(
+                &key, 
+                Some(&iv), 
+                &encrypted_message, 
+                &aad[..], 
+                tag.as_deref()
+            )?;
+
+            if &message[..] != &decrypted[..] {
+                bail!("Failed to decrypt.");
+            }
+        }
+        
+        Ok(())
     }
 }

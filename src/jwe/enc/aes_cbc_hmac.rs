@@ -1,3 +1,5 @@
+use std::ops::Deref;
+
 use anyhow::bail;
 use openssl::hash::MessageDigest;
 use openssl::pkey::{PKey, Private};
@@ -75,8 +77,8 @@ impl JweContentEncryption for AesCbcHmacJweEncryption {
     fn key_len(&self) -> usize {
         match self {
             Self::A128CbcHS256 => 16 + 16,
-            Self::A192CbcHS384 => 24 + 16,
-            Self::A256CbcHS512 => 32 + 16,
+            Self::A192CbcHS384 => 16 + 24,
+            Self::A256CbcHS512 => 16 + 32,
         }
     }
 
@@ -101,9 +103,8 @@ impl JweContentEncryption for AesCbcHmacJweEncryption {
                 );
             }
 
-            let split_pos = self.key_len() - 16;
-            let mac_key = &key[0..split_pos];
-            let enc_key = &key[split_pos..];
+            let mac_key = &key[0..16];
+            let enc_key = &key[16..];
 
             let cipher = self.cipher();
             let encrypted_message = symm::encrypt(cipher, enc_key, iv, message)?;
@@ -134,9 +135,8 @@ impl JweContentEncryption for AesCbcHmacJweEncryption {
                 );
             }
 
-            let split_pos = self.key_len() - 16;
-            let mac_key = &key[0..split_pos];
-            let enc_key = &key[split_pos..];
+            let mac_key = &key[0..16];
+            let enc_key = &key[16..];
 
             let cipher = self.cipher();
             let message = symm::decrypt(cipher, enc_key, iv, encrypted_message)?;
@@ -164,5 +164,54 @@ impl JweContentEncryption for AesCbcHmacJweEncryption {
 
     fn box_clone(&self) -> Box<dyn JweContentEncryption> {
         Box::new(self.clone())
+    }
+}
+
+impl Deref for AesCbcHmacJweEncryption {
+    type Target = dyn JweContentEncryption;
+
+    fn deref(&self) -> &Self::Target {
+        self
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use anyhow::{bail, Result};
+    use openssl::rand;
+
+    use super::AesCbcHmacJweEncryption;
+
+    #[test]
+    fn encrypt_and_decrypt_aes_cbc_hmac() -> Result<()> {
+        let message = b"abcde12345";
+        let aad = b"test";
+
+        for enc in vec![
+            AesCbcHmacJweEncryption::A128CbcHS256,
+            AesCbcHmacJweEncryption::A192CbcHS384,
+            AesCbcHmacJweEncryption::A256CbcHS512,
+        ] {
+            let mut key = vec![0; enc.key_len()];
+            rand::rand_bytes(&mut key)?;
+
+            let mut iv = vec![0; enc.iv_len()];
+            rand::rand_bytes(&mut iv)?;
+
+            let (encrypted_message, tag) = enc.encrypt(&key, Some(&iv), message, aad)?;
+            let decrypted = enc.decrypt(
+                &key, 
+                Some(&iv), 
+                &encrypted_message, 
+                &aad[..], 
+                tag.as_deref()
+            )?;
+
+            if &message[..] != &decrypted[..] {
+                bail!("Failed to decrypt.");
+            }
+        }
+        
+        Ok(())
     }
 }
