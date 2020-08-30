@@ -65,14 +65,8 @@ impl RsaesJweAlgorithm {
                 None => {}
                 Some(val) => bail!("A parameter use must be enc: {}", val),
             }
-            match jwk.key_operations() {
-                Some(vals) => {
-                    if !vals.iter().any(|e| e == "encrypt") || !vals.iter().any(|e| e == "wrapKey")
-                    {
-                        bail!("A parameter key_ops must contains encrypt and wrapKey.");
-                    }
-                }
-                None => {}
+            if !jwk.is_for_key_operation("encrypt") || !jwk.is_for_key_operation("wrapKey") {
+                bail!("A parameter key_ops must contains encrypt and wrapKey.");
             }
             match jwk.algorithm() {
                 Some(val) if val == self.name() => {}
@@ -125,15 +119,8 @@ impl RsaesJweAlgorithm {
                 None => {}
                 Some(val) => bail!("A parameter use must be sig: {}", val),
             }
-            match jwk.key_operations() {
-                Some(vals) => {
-                    if !vals.iter().any(|e| e == "decrypt")
-                        || !vals.iter().any(|e| e == "unwrapKey")
-                    {
-                        bail!("A parameter key_ops must contains decrypt and unwrapKey.");
-                    }
-                }
-                None => {}
+            if !jwk.is_for_key_operation("decrypt") || !jwk.is_for_key_operation("unwrapKey") {
+                bail!("A parameter key_ops must contains decrypt and unwrapKey.");
             }
             match jwk.algorithm() {
                 Some(val) if val == self.name() => {}

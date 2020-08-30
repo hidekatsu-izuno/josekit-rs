@@ -1,4 +1,3 @@
-use std::iter::Iterator;
 use std::ops::{Deref, DerefMut};
 
 use anyhow::bail;
@@ -72,10 +71,8 @@ impl HmacJwsAlgorithm {
                 None => {}
                 Some(val) => bail!("A parameter use must be sig: {}", val),
             }
-            match jwk.key_operations() {
-                Some(vals) if vals.iter().any(|e| e == "sign") => {}
-                None => {}
-                _ => bail!("A parameter key_ops must contains sign."),
+            if !jwk.is_for_key_operation("sign") {
+                bail!("A parameter key_ops must contains sign.");
             }
             match jwk.algorithm() {
                 Some(val) if val == self.name() => {}
@@ -135,10 +132,8 @@ impl HmacJwsAlgorithm {
                 None => {}
                 Some(val) => bail!("A parameter use must be sig: {}", val),
             }
-            match jwk.key_operations() {
-                Some(vals) if vals.iter().any(|e| e == "verify") => {}
-                None => {}
-                _ => bail!("A parameter key_ops must contains verify."),
+            if !jwk.is_for_key_operation("verify") {
+                bail!("A parameter key_ops must contains verify.");
             }
             match jwk.algorithm() {
                 Some(val) if val == self.name() => {}

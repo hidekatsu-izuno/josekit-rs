@@ -39,10 +39,8 @@ impl DirectJweAlgorithm {
                 None => {}
                 Some(val) => bail!("A parameter use must be enc: {}", val),
             }
-            match jwk.key_operations() {
-                Some(vals) if vals.iter().any(|e| e == "encrypt") => {}
-                None => {}
-                _ => bail!("A parameter key_ops must contains encrypt."),
+            if !jwk.is_for_key_operation("encrypt") {
+                bail!("A parameter key_ops must contains encrypt.");
             }
             match jwk.algorithm() {
                 Some(val) if val == self.name() => {}
@@ -90,10 +88,8 @@ impl DirectJweAlgorithm {
                 None => {}
                 Some(val) => bail!("A parameter use must be enc: {}", val),
             }
-            match jwk.key_operations() {
-                Some(vals) if vals.iter().any(|e| e == "decrypt") => {}
-                None => {}
-                _ => bail!("A parameter key_ops must contains decrypt."),
+            if !jwk.is_for_key_operation("decrypt") {
+                bail!("A parameter key_ops must contains decrypt.");
             }
             match jwk.algorithm() {
                 Some(val) if val == self.name() => {}
@@ -272,5 +268,45 @@ impl Deref for DirectJweDecrypter {
 impl DerefMut for DirectJweDecrypter {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use anyhow::Result;
+    use serde_json::json;
+
+    use super::DirectJweAlgorithm;
+    use crate::jwe::JweHeader;
+    use crate::jwe::enc::aes_cbc_hmac::AesCbcHmacJweEncryption;
+    use crate::jwk::Jwk;
+
+    #[test]
+    fn encrypt_and_decrypt_direct() -> Result<()> {
+        let enc = AesCbcHmacJweEncryption::A128CbcHS256;
+        let jwk = {
+            let mut jwk = Jwk::new("oct");
+            jwk.set_key_use("enc");
+            jwk.set_parameter("k", Some(json!("MDEyMzQ1Njc4OUFCQ0RFRjAxMjM0NTY3ODlBQkNERUY=")))?;
+            jwk
+        };
+
+        for alg in vec![
+            DirectJweAlgorithm::Dir,
+        ] {
+            let mut header = JweHeader::new();
+            header.set_content_encryption(enc.name());
+
+            let encrypter = alg.encrypter_from_jwk(&jwk)?;
+            let (src_key, encrypted_key) = encrypter.encrypt(&mut header, enc.key_len())?;
+            assert_eq!(encrypted_key, None);
+
+            let decrypter = alg.decrypter_from_jwk(&jwk)?;
+            let dst_key = decrypter.decrypt(&header, encrypted_key.as_deref(), enc.key_len())?;
+
+            assert_eq!(&src_key, &dst_key);
+        }
+        
+        Ok(())
     }
 }

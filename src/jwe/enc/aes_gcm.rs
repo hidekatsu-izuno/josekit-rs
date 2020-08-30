@@ -117,7 +117,7 @@ impl Deref for AesGcmJweEncryption {
 
 #[cfg(test)]
 mod tests {
-    use anyhow::{bail, Result};
+    use anyhow::Result;
     use openssl::rand;
 
     use super::AesGcmJweEncryption;
@@ -139,7 +139,7 @@ mod tests {
             rand::rand_bytes(&mut iv)?;
 
             let (encrypted_message, tag) = enc.encrypt(&key, Some(&iv), message, aad)?;
-            let decrypted = enc.decrypt(
+            let decrypted_message = enc.decrypt(
                 &key, 
                 Some(&iv), 
                 &encrypted_message, 
@@ -147,9 +147,7 @@ mod tests {
                 tag.as_deref()
             )?;
 
-            if &message[..] != &decrypted[..] {
-                bail!("Failed to decrypt.");
-            }
+            assert_eq!(&message[..], &decrypted_message[..]);
         }
         
         Ok(())

@@ -126,15 +126,8 @@ impl EcdhEsJweAlgorithm {
                 None => {}
                 Some(val) => bail!("A parameter use must be enc: {}", val),
             }
-            match jwk.key_operations() {
-                Some(vals) => {
-                    if !vals.iter().any(|e| e == "deriveKey")
-                        || !vals.iter().any(|e| e == "deriveBits")
-                    {
-                        bail!("A parameter key_ops must contains deriveKey and deriveBits.");
-                    }
-                }
-                None => {}
+            if !jwk.is_for_key_operation("deriveKey") || !jwk.is_for_key_operation("deriveBits") {
+                bail!("A parameter key_ops must contains deriveKey and deriveBits.");
             }
             match jwk.algorithm() {
                 Some(val) if val == self.name() => {}
@@ -213,15 +206,8 @@ impl EcdhEsJweAlgorithm {
                 None => {}
                 Some(val) => bail!("A parameter use must be enc: {}", val),
             }
-            match jwk.key_operations() {
-                Some(vals) => {
-                    if !vals.iter().any(|e| e == "deriveKey")
-                        || !vals.iter().any(|e| e == "deriveBits")
-                    {
-                        bail!("A parameter key_ops must contains deriveKey and deriveBits.");
-                    }
-                }
-                None => {}
+            if !jwk.is_for_key_operation("deriveKey") || !jwk.is_for_key_operation("deriveBits") {
+                bail!("A parameter key_ops must contains deriveKey and deriveBits.");
             }
             match jwk.algorithm() {
                 Some(val) if val == self.name() => {}
