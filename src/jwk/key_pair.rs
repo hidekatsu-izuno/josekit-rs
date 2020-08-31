@@ -1,7 +1,8 @@
-pub mod ec;
-pub mod ed;
 pub mod rsa;
 pub mod rsapss;
+pub mod ec;
+pub mod ed;
+pub mod x;
 
 use std::fmt::Debug;
 

@@ -29,7 +29,9 @@ pub enum EcdsaJwsAlgorithm {
 impl EcdsaJwsAlgorithm {
     /// Generate ECDSA key pair.
     pub fn generate_keypair(&self) -> Result<EcKeyPair, JoseError> {
-        EcKeyPair::generate(self.curve())
+        let mut keypair = EcKeyPair::generate(self.curve())?;
+        keypair.set_algorithm(Some(self.name()));
+        Ok(keypair)
     }
 
     /// Create a EcDSA key pair from a private key that is a DER encoded PKCS#8 PrivateKeyInfo or ECPrivateKey.

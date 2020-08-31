@@ -10,50 +10,50 @@ use crate::der::{DerBuilder, DerReader, DerType};
 use crate::jose::JoseError;
 use crate::jwk::{Jwk, KeyPair};
 
-static OID_ED25519: Lazy<ObjectIdentifier> =
-    Lazy::new(|| ObjectIdentifier::from_slice(&[1, 3, 101, 112]));
+static OID_X25519: Lazy<ObjectIdentifier> =
+    Lazy::new(|| ObjectIdentifier::from_slice(&[1, 3, 101, 110]));
 
-static OID_ED448: Lazy<ObjectIdentifier> =
-    Lazy::new(|| ObjectIdentifier::from_slice(&[1, 3, 101, 113]));
+static OID_X448: Lazy<ObjectIdentifier> =
+    Lazy::new(|| ObjectIdentifier::from_slice(&[1, 3, 101, 111]));
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
-pub enum EdCurve {
-    Ed25519,
-    Ed448,
+pub enum XCurve {
+    X25519,
+    X448,
 }
 
-impl EdCurve {
+impl XCurve {
     pub fn name(&self) -> &str {
         match self {
-            Self::Ed25519 => "Ed25519",
-            Self::Ed448 => "Ed448",
+            Self::X25519 => "X25519",
+            Self::X448 => "X448",
         }
     }
 
     pub fn oid(&self) -> &ObjectIdentifier {
         match self {
-            Self::Ed25519 => &*OID_ED25519,
-            Self::Ed448 => &*OID_ED448,
+            Self::X25519 => &*OID_X25519,
+            Self::X448 => &*OID_X448,
         }
     }
 }
 
-impl Display for EdCurve {
+impl Display for XCurve {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
         fmt.write_str(self.name())
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct EdKeyPair {
+pub struct XKeyPair {
     private_key: PKey<Private>,
-    curve: EdCurve,
+    curve: XCurve,
     alg: Option<String>,
 }
 
-impl EdKeyPair {
-    pub(crate) fn from_private_key(private_key: PKey<Private>, curve: EdCurve) -> EdKeyPair {
-        EdKeyPair {
+impl XKeyPair {
+    pub(crate) fn from_private_key(private_key: PKey<Private>, curve: XCurve) -> XKeyPair {
+        XKeyPair {
             private_key,
             curve,
             alg: None,
@@ -64,22 +64,22 @@ impl EdKeyPair {
         self.private_key
     }
 
-    pub fn curve(&self) -> EdCurve {
+    pub fn curve(&self) -> XCurve {
         self.curve
     }
 
     /// Generate a Ed keypair
     ///
     /// # Arguments
-    /// * `curve` - EdDSA curve algorithm
-    pub fn generate(curve: EdCurve) -> Result<EdKeyPair, JoseError> {
-        (|| -> anyhow::Result<EdKeyPair> {
+    /// * `curve` - X curve algorithm
+    pub fn generate(curve: XCurve) -> Result<XKeyPair, JoseError> {
+        (|| -> anyhow::Result<XKeyPair> {
             let private_key = match curve {
-                EdCurve::Ed25519 => PKey::generate_ed25519()?,
-                EdCurve::Ed448 => PKey::generate_ed448()?,
+                XCurve::X25519 => PKey::generate_ed25519()?,
+                XCurve::X448 => PKey::generate_ed448()?,
             };
 
-            Ok(EdKeyPair {
+            Ok(XKeyPair {
                 curve,
                 private_key,
                 alg: None,
@@ -92,8 +92,8 @@ impl EdKeyPair {
         let der = self.private_key.private_key_to_der().unwrap();
         let der = base64::encode_config(&der, base64::STANDARD);
         let alg = match self.curve {
-            EdCurve::Ed25519 => "ED25519 PRIVATE KEY",
-            EdCurve::Ed448 => "ED448 PRIVATE KEY",
+            XCurve::X25519 => "X25519 PRIVATE KEY",
+            XCurve::X448 => "X448 PRIVATE KEY",
         };
 
         let mut result = String::new();
@@ -113,17 +113,6 @@ impl EdKeyPair {
 
     fn to_jwk(&self, private: bool, public: bool) -> Jwk {
         let mut jwk = Jwk::new("OKP");
-        jwk.set_key_use("sig");
-        jwk.set_key_operations({
-            let mut key_ops = Vec::new();
-            if private {
-                key_ops.push("sign");
-            }
-            if public {
-                key_ops.push("verify");
-            }
-            key_ops
-        });
         if let Some(val) = &self.alg {
             jwk.set_algorithm(val);
         }
@@ -230,7 +219,7 @@ impl EdKeyPair {
         jwk
     }
 
-    pub(crate) fn detect_pkcs8(input: &[u8], is_public: bool) -> Option<EdCurve> {
+    pub(crate) fn detect_pkcs8(input: &[u8], is_public: bool) -> Option<XCurve> {
         let curve;
         let mut reader = DerReader::from_reader(input);
 
@@ -263,8 +252,8 @@ impl EdKeyPair {
             {
                 curve = match reader.next() {
                     Ok(Some(DerType::ObjectIdentifier)) => match reader.to_object_identifier() {
-                        Ok(val) if val == *OID_ED25519 => EdCurve::Ed25519,
-                        Ok(val) if val == *OID_ED448 => EdCurve::Ed448,
+                        Ok(val) if val == *OID_X25519 => XCurve::X25519,
+                        Ok(val) if val == *OID_X448 => XCurve::X448,
                         _ => return None,
                     },
                     _ => return None,
@@ -275,7 +264,7 @@ impl EdKeyPair {
         Some(curve)
     }
 
-    pub(crate) fn to_pkcs8(input: &[u8], is_public: bool, curve: EdCurve) -> Vec<u8> {
+    pub(crate) fn to_pkcs8(input: &[u8], is_public: bool, curve: XCurve) -> Vec<u8> {
         let mut builder = DerBuilder::new();
         builder.begin(DerType::Sequence);
         {
@@ -301,7 +290,7 @@ impl EdKeyPair {
     }
 }
 
-impl KeyPair for EdKeyPair {
+impl KeyPair for XKeyPair {
     fn set_algorithm(&mut self, value: Option<&str>) {
         self.alg = value.map(|val| val.to_string());
     }
@@ -346,7 +335,7 @@ impl KeyPair for EdKeyPair {
     }
 }
 
-impl Deref for EdKeyPair {
+impl Deref for XKeyPair {
     type Target = dyn KeyPair;
 
     fn deref(&self) -> &Self::Target {

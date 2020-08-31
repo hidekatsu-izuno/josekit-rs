@@ -129,17 +129,6 @@ impl EcKeyPair {
         let ec_key = self.private_key.ec_key().unwrap();
 
         let mut jwk = Jwk::new("EC");
-        jwk.set_key_use("sig");
-        jwk.set_key_operations({
-            let mut key_ops = Vec::new();
-            if private {
-                key_ops.push("sign");
-            }
-            if public {
-                key_ops.push("verify");
-            }
-            key_ops
-        });
         if let Some(val) = &self.alg {
             jwk.set_algorithm(val);
         }

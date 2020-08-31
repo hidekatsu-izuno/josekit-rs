@@ -432,6 +432,13 @@ impl AsRef<Map<String, Value>> for Jwk {
     }
 }
 
+impl Into<Map<String, Value>> for Jwk {
+    fn into(self) -> Map<String, Value> {
+        self.map
+    }
+}
+
+
 impl Serialize for Jwk {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
