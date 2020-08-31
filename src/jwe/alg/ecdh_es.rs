@@ -567,7 +567,6 @@ impl JweDecrypter for EcdhEsJweDecrypter {
                             let pkcs8 = XKeyPair::to_pkcs8(&x, true, *curve);
                             PKey::public_key_from_der(&pkcs8)?
                         }
-                        _ => unreachable!(),
                     }
                 }
                 Some(_) => bail!("The epk header claim must be object."),

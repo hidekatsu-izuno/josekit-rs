@@ -73,7 +73,7 @@ impl RsaKeyPair {
         rsa.public_key_to_pem_pkcs1().unwrap()
     }
 
-    fn to_jwk(&self, private: bool, public: bool) -> Jwk {
+    fn to_jwk(&self, private: bool, _public: bool) -> Jwk {
         let rsa = self.private_key.rsa().unwrap();
 
         let mut jwk = Jwk::new("RSA");

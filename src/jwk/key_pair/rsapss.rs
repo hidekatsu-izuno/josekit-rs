@@ -109,7 +109,7 @@ impl RsaPssKeyPair {
         result.into_bytes()
     }
 
-    fn to_jwk(&self, private: bool, public: bool) -> Jwk {
+    fn to_jwk(&self, private: bool, _public: bool) -> Jwk {
         let rsa = self.private_key.rsa().unwrap();
 
         let mut jwk = Jwk::new("RSA");
