@@ -3,41 +3,15 @@ use std::borrow::Cow;
 use std::ops::Deref;
 
 use anyhow::bail;
-use once_cell::sync::Lazy;
 use openssl::pkey::{HasPublic, PKey, Private, Public};
 use openssl::rand;
 use openssl::rsa::Padding;
 use serde_json::Value;
 
-use crate::der::oid::ObjectIdentifier;
-use crate::der::{DerBuilder, DerClass, DerType};
+use crate::der::{DerBuilder, DerType};
 use crate::jose::JoseError;
 use crate::jwe::{JweAlgorithm, JweDecrypter, JweEncrypter, JweHeader};
-use crate::jwk::Jwk;
-
-static OID_RSA_ENCRYPTION: Lazy<ObjectIdentifier> =
-    Lazy::new(|| ObjectIdentifier::from_slice(&[1, 2, 840, 113549, 1, 1, 1]));
-
-static OID_RSAES_OAEP: Lazy<ObjectIdentifier> =
-    Lazy::new(|| ObjectIdentifier::from_slice(&[1, 2, 840, 113549, 1, 1, 7]));
-
-static OID_P_SPECIFIED: Lazy<ObjectIdentifier> =
-    Lazy::new(|| ObjectIdentifier::from_slice(&[1, 2, 840, 113549, 1, 1, 9]));
-
-static OID_SHA1: Lazy<ObjectIdentifier> =
-    Lazy::new(|| ObjectIdentifier::from_slice(&[1, 3, 14, 3, 2, 26]));
-
-static OID_SHA256: Lazy<ObjectIdentifier> =
-    Lazy::new(|| ObjectIdentifier::from_slice(&[2, 16, 840, 1, 101, 3, 4, 2, 1]));
-
-static OID_SHA384: Lazy<ObjectIdentifier> =
-    Lazy::new(|| ObjectIdentifier::from_slice(&[2, 16, 840, 1, 101, 3, 4, 2, 2]));
-
-static OID_SHA512: Lazy<ObjectIdentifier> =
-    Lazy::new(|| ObjectIdentifier::from_slice(&[2, 16, 840, 1, 101, 3, 4, 2, 3]));
-
-static OID_MGF1: Lazy<ObjectIdentifier> =
-    Lazy::new(|| ObjectIdentifier::from_slice(&[1, 2, 840, 113549, 1, 1, 8]));
+use crate::jwk::{Jwk, RsaKeyPair};
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum RsaesJweAlgorithm {
@@ -94,7 +68,7 @@ impl RsaesJweAlgorithm {
             }
             builder.end();
 
-            let pkcs8 = self.to_pkcs8(&builder.build(), true);
+            let pkcs8 = RsaKeyPair::to_pkcs8(&builder.build(), true);
             let public_key = PKey::public_key_from_der(&pkcs8)?;
             let key_id = jwk.key_id().map(|val| val.to_string());
 
@@ -184,7 +158,7 @@ impl RsaesJweAlgorithm {
             }
             builder.end();
 
-            let pkcs8 = self.to_pkcs8(&builder.build(), false);
+            let pkcs8 = RsaKeyPair::to_pkcs8(&builder.build(), false);
             let private_key = PKey::private_key_from_der(&pkcs8)?;
             let key_id = jwk.key_id().map(|val| val.to_string());
 
@@ -207,79 +181,6 @@ impl RsaesJweAlgorithm {
         }
 
         Ok(())
-    }
-
-    #[allow(deprecated)]
-    fn to_pkcs8(&self, input: &[u8], is_public: bool) -> Vec<u8> {
-        let mut builder = DerBuilder::new();
-        builder.begin(DerType::Sequence);
-        {
-            if !is_public {
-                builder.append_integer_from_u8(0);
-            }
-
-            builder.begin(DerType::Sequence);
-            if let Self::Rsa1_5 = self {
-                builder.append_object_identifier(&OID_RSA_ENCRYPTION);
-                builder.append_null();
-            } else {
-                builder.append_object_identifier(&OID_RSAES_OAEP);
-                builder.begin(DerType::Sequence);
-                {
-                    builder.begin(DerType::Other(DerClass::ContextSpecific, 0));
-                    {
-                        builder.begin(DerType::Sequence);
-                        {
-                            builder.append_object_identifier(self.hash_oid());
-                        }
-                        builder.end();
-                    }
-                    builder.end();
-
-                    builder.begin(DerType::Other(DerClass::ContextSpecific, 1));
-                    {
-                        builder.begin(DerType::Sequence);
-                        {
-                            builder.append_object_identifier(&OID_MGF1);
-                            builder.begin(DerType::Sequence);
-                            {
-                                builder.append_object_identifier(self.hash_oid());
-                            }
-                            builder.end();
-                        }
-                        builder.end();
-                    }
-                    builder.end();
-
-                    builder.begin(DerType::Other(DerClass::ContextSpecific, 2));
-                    {
-                        builder.append_object_identifier(&OID_P_SPECIFIED);
-                    }
-                    builder.end();
-                }
-                builder.end();
-            }
-            builder.end();
-
-            if is_public {
-                builder.append_bit_string_from_slice(input, 0);
-            } else {
-                builder.append_octed_string_from_slice(input);
-            }
-        }
-        builder.end();
-
-        builder.build()
-    }
-
-    fn hash_oid(&self) -> &ObjectIdentifier {
-        match self {
-            Self::RsaOaep => &OID_SHA1,
-            Self::RsaOaep256 => &OID_SHA256,
-            Self::RsaOaep384 => &OID_SHA384,
-            Self::RsaOaep512 => &OID_SHA512,
-            _ => unreachable!(),
-        }
     }
 }
 
@@ -522,8 +423,6 @@ mod tests {
             RsaesJweAlgorithm::Rsa1_5,
             RsaesJweAlgorithm::RsaOaep,
         ] {
-            println!("alg={}", alg);
-
             let mut header = JweHeader::new();
             header.set_content_encryption(enc.name());
 
