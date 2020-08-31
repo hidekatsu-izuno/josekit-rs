@@ -7,7 +7,7 @@ use openssl::aes::{self, AesKey};
 use openssl::hash::MessageDigest;
 use openssl::pkcs5;
 use openssl::rand;
-use serde_json::Value;
+use serde_json::{Value, Number};
 
 use crate::jose::{JoseError, JoseHeader};
 use crate::jwe::{JweAlgorithm, JweDecrypter, JweEncrypter, JweHeader};
@@ -95,11 +95,19 @@ impl Pbes2HmacJweAlgorithm {
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
-    fn digest(&self) -> MessageDigest {
+    fn md(&self) -> MessageDigest {
         match self {
             Self::Pbes2HS256A128Kw => MessageDigest::sha256(),
             Self::Pbes2HS384A192Kw => MessageDigest::sha384(),
             Self::Pbes2HS512A256Kw => MessageDigest::sha512(),
+        }
+    }
+
+    fn derived_key_len(&self) -> usize {
+        match self {
+            Self::Pbes2HS256A128Kw => 16,
+            Self::Pbes2HS384A192Kw => 24,
+            Self::Pbes2HS512A256Kw => 32,
         }
     }
 }
@@ -170,6 +178,8 @@ impl JweEncrypter for Pbes2HmacJweEncrypter {
                 None => {
                     let mut p2s = vec![0, 8];
                     rand::rand_bytes(&mut p2s)?;
+                    let p2s_b64 = base64::encode_config(&p2s, base64::URL_SAFE_NO_PAD);
+                    header.set_claim("p2s", Some(Value::String(p2s_b64)))?;
                     p2s
                 }
             };
@@ -179,26 +189,29 @@ impl JweEncrypter for Pbes2HmacJweEncrypter {
                     None => bail!("Overflow u64 value: {}", val),
                 },
                 Some(_) => bail!("The apv header claim must be string."),
-                None => 1000,
+                None => {
+                    let p2c = 1000;
+                    header.set_claim("p2c", Some(Value::Number(Number::from(p2c))))?;
+                    p2c
+                },
             };
 
-            let md = self.algorithm.digest();
-
-            let mut derived_key = vec![0; key_len];
+            let md = self.algorithm.md();
+            let mut derived_key = vec![0; self.algorithm.derived_key_len()];
             pkcs5::pbkdf2_hmac(&self.private_key, &p2s, p2c, md, &mut derived_key)?;
+
+            let aes = match AesKey::new_encrypt(&derived_key) {
+                Ok(val) => val,
+                Err(_) => bail!("Failed to set encrypt key."),
+            };
 
             let mut key = vec![0; key_len];
             rand::rand_bytes(&mut key)?;
 
-            let aes = match AesKey::new_encrypt(&derived_key) {
-                Ok(val) => val,
-                Err(err) => bail!("{:?}", err),
-            };
-
             let mut encrypted_key = vec![0; key_len + 8];
             let len = match aes::wrap_key(&aes, None, &mut encrypted_key, &key) {
                 Ok(val) => val,
-                Err(err) => bail!("{:?}", err),
+                Err(_) => bail!("Failed to wrap key."),
             };
             if len < encrypted_key.len() {
                 encrypted_key.truncate(len);
@@ -281,20 +294,19 @@ impl JweDecrypter for Pbes2HmacJweDecrypter {
                 None => bail!("The p2c header claim is required."),
             };
 
-            let md = self.algorithm.digest();
-
-            let mut derived_key = vec![0; key_len];
+            let md = self.algorithm.md();
+            let mut derived_key = vec![0; self.algorithm.derived_key_len()];
             pkcs5::pbkdf2_hmac(&self.private_key, &p2s, p2c, md, &mut derived_key)?;
 
-            let aes = match AesKey::new_encrypt(&derived_key) {
+            let aes = match AesKey::new_decrypt(&derived_key) {
                 Ok(val) => val,
-                Err(err) => bail!("{:?}", err),
+                Err(_) => bail!("Failed to set decrypt key."),
             };
 
-            let mut key = vec![0; key_len + 8];
+            let mut key = vec![0; key_len];
             let len = match aes::unwrap_key(&aes, None, &mut key, &encrypted_key) {
                 Ok(val) => val,
-                Err(err) => bail!("{:?}", err),
+                Err(_) => bail!("Failed to unwrap key."),
             };
             if len < key.len() {
                 key.truncate(len);
@@ -315,5 +327,54 @@ impl Deref for Pbes2HmacJweDecrypter {
 
     fn deref(&self) -> &Self::Target {
         self
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use anyhow::Result;
+    use base64;
+    use openssl::rand;
+    use serde_json::json;
+
+    use super::Pbes2HmacJweAlgorithm;
+    use crate::jwe::JweHeader;
+    use crate::jwe::enc::aes_cbc_hmac::AesCbcHmacJweEncryption;
+    use crate::jwk::Jwk;
+
+    #[test]
+    fn encrypt_and_decrypt_pbes2_hmac() -> Result<()> {
+        let enc = AesCbcHmacJweEncryption::A128CbcHS256;
+
+        for alg in vec![
+            Pbes2HmacJweAlgorithm::Pbes2HS256A128Kw,
+            Pbes2HmacJweAlgorithm::Pbes2HS384A192Kw,
+            Pbes2HmacJweAlgorithm::Pbes2HS512A256Kw,
+        ] {
+            let mut header = JweHeader::new();
+            header.set_content_encryption(enc.name());
+
+            let jwk = {
+                let mut key = vec![0; 25];
+                rand::rand_bytes(&mut key)?;
+                let key = base64::encode_config(&key, base64::URL_SAFE_NO_PAD);
+
+                let mut jwk = Jwk::new("oct");
+                jwk.set_key_use("enc");
+                jwk.set_parameter("k", Some(json!(key)))?;
+                jwk
+            };
+
+            let encrypter = alg.encrypter_from_jwk(&jwk)?;
+            let (src_key, encrypted_key) = encrypter.encrypt(&mut header, enc.key_len())?;
+
+            let decrypter = alg.decrypter_from_jwk(&jwk)?;
+
+            let dst_key = decrypter.decrypt(&header, encrypted_key.as_deref(), enc.key_len())?;
+
+            assert_eq!(&src_key, &dst_key);
+        }
+        
+        Ok(())
     }
 }

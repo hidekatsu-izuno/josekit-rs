@@ -4,16 +4,16 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug unit tests in executable 'jwt_rs'",
+            "name": "Debug unit tests in executable 'josekit'",
             "cargo": {
                 "args": [
                     "test",
                     "--no-run",
-                    "--lib=jwt_rs",
-                    "--package=jwt_rs"
+                    "--lib=josekit",
+                    "--package=josekit"
                 ],
                 "filter": {
-                    "name": "jwt_rs",
+                    "name": "josekit",
                     "kind": "lib"
                 }
             },

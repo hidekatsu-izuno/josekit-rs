@@ -173,7 +173,7 @@ impl JweEncrypter for AesJweEncrypter {
         (|| -> anyhow::Result<(Cow<[u8]>, Option<Vec<u8>>)> {
             let aes = match AesKey::new_encrypt(&self.private_key) {
                 Ok(val) => val,
-                Err(err) => bail!("{:?}", err),
+                Err(_) => bail!("Failed to set encrypt key."),
             };
 
             let mut key = vec![0; key_len];
@@ -182,7 +182,7 @@ impl JweEncrypter for AesJweEncrypter {
             let mut encrypted_key = vec![0; key_len + 8];
             let len = match aes::wrap_key(&aes, None, &mut encrypted_key, &key) {
                 Ok(val) => val,
-                Err(err) => bail!("{:?}", err),
+                Err(_) => bail!("Failed to wrap key."),
             };
             if len < encrypted_key.len() {
                 encrypted_key.truncate(len);
@@ -253,13 +253,13 @@ impl JweDecrypter for AesJweDecrypter {
 
             let aes = match AesKey::new_decrypt(&self.private_key) {
                 Ok(val) => val,
-                Err(err) => bail!("{:?}", err),
+                Err(_) => bail!("Failed to set decrypt key."),
             };
 
             let mut key = vec![0; key_len];
             let len = match aes::unwrap_key(&aes, None, &mut key, encrypted_key) {
                 Ok(val) => val,
-                Err(err) => bail!("{:?}", err),
+                Err(_) => bail!("Failed to unwrap key."),
             };
             if len < key.len() {
                 key.truncate(len);
