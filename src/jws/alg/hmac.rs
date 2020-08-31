@@ -1,4 +1,5 @@
-use std::ops::{Deref, DerefMut};
+use std::fmt::Display;
+use std::ops::Deref;
 
 use anyhow::bail;
 use openssl::hash::MessageDigest;
@@ -174,16 +175,16 @@ impl JwsAlgorithm for HmacJwsAlgorithm {
     }
 }
 
+impl Display for HmacJwsAlgorithm {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+        fmt.write_str(self.name())
+    }
+}
+
 impl Deref for HmacJwsAlgorithm {
     type Target = dyn JwsAlgorithm;
 
     fn deref(&self) -> &Self::Target {
-        self
-    }
-}
-
-impl DerefMut for HmacJwsAlgorithm {
-    fn deref_mut(&mut self) -> &mut Self::Target {
         self
     }
 }
@@ -257,12 +258,6 @@ impl Deref for HmacJwsSigner {
     }
 }
 
-impl DerefMut for HmacJwsSigner {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct HmacJwsVerifier {
     algorithm: HmacJwsAlgorithm,
@@ -323,12 +318,6 @@ impl Deref for HmacJwsVerifier {
     type Target = dyn JwsVerifier;
 
     fn deref(&self) -> &Self::Target {
-        self
-    }
-}
-
-impl DerefMut for HmacJwsVerifier {
-    fn deref_mut(&mut self) -> &mut Self::Target {
         self
     }
 }

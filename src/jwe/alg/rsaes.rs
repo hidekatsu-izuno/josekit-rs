@@ -1,3 +1,4 @@
+use std::fmt::Display;
 use std::borrow::Cow;
 use std::ops::Deref;
 
@@ -299,6 +300,12 @@ impl JweAlgorithm for RsaesJweAlgorithm {
     }
 }
 
+impl Display for RsaesJweAlgorithm {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+        fmt.write_str(self.name())
+    }
+}
+
 impl Deref for RsaesJweAlgorithm {
     type Target = dyn JweAlgorithm;
 
@@ -515,6 +522,8 @@ mod tests {
             RsaesJweAlgorithm::Rsa1_5,
             RsaesJweAlgorithm::RsaOaep,
         ] {
+            println!("alg={}", alg);
+
             let mut header = JweHeader::new();
             header.set_content_encryption(enc.name());
 

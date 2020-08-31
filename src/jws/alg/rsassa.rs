@@ -1,4 +1,5 @@
-use std::ops::{Deref, DerefMut};
+use std::fmt::Display;
+use std::ops::Deref;
 
 use anyhow::bail;
 use openssl::hash::MessageDigest;
@@ -368,16 +369,16 @@ impl JwsAlgorithm for RsassaJwsAlgorithm {
     }
 }
 
+impl Display for RsassaJwsAlgorithm {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+        fmt.write_str(self.name())
+    }
+}
+
 impl Deref for RsassaJwsAlgorithm {
     type Target = dyn JwsAlgorithm;
 
     fn deref(&self) -> &Self::Target {
-        self
-    }
-}
-
-impl DerefMut for RsassaJwsAlgorithm {
-    fn deref_mut(&mut self) -> &mut Self::Target {
         self
     }
 }
@@ -447,12 +448,6 @@ impl Deref for RsassaJwsSigner {
     }
 }
 
-impl DerefMut for RsassaJwsSigner {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct RsassaJwsVerifier {
     algorithm: RsassaJwsAlgorithm,
@@ -510,12 +505,6 @@ impl Deref for RsassaJwsVerifier {
     type Target = dyn JwsVerifier;
 
     fn deref(&self) -> &Self::Target {
-        self
-    }
-}
-
-impl DerefMut for RsassaJwsVerifier {
-    fn deref_mut(&mut self) -> &mut Self::Target {
         self
     }
 }

@@ -1,4 +1,5 @@
-use std::ops::{Deref, DerefMut};
+use std::fmt::Display;
+use std::ops::Deref;
 
 use anyhow::bail;
 use openssl::hash::MessageDigest;
@@ -365,16 +366,16 @@ impl JwsAlgorithm for EcdsaJwsAlgorithm {
     }
 }
 
+impl Display for EcdsaJwsAlgorithm {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+        fmt.write_str(self.name())
+    }
+}
+
 impl Deref for EcdsaJwsAlgorithm {
     type Target = dyn JwsAlgorithm;
 
     fn deref(&self) -> &Self::Target {
-        self
-    }
-}
-
-impl DerefMut for EcdsaJwsAlgorithm {
-    fn deref_mut(&mut self) -> &mut Self::Target {
         self
     }
 }
@@ -469,12 +470,6 @@ impl Deref for EcdsaJwsSigner {
     }
 }
 
-impl DerefMut for EcdsaJwsSigner {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct EcdsaJwsVerifier {
     algorithm: EcdsaJwsAlgorithm,
@@ -542,12 +537,6 @@ impl Deref for EcdsaJwsVerifier {
     type Target = dyn JwsVerifier;
 
     fn deref(&self) -> &Self::Target {
-        self
-    }
-}
-
-impl DerefMut for EcdsaJwsVerifier {
-    fn deref_mut(&mut self) -> &mut Self::Target {
         self
     }
 }

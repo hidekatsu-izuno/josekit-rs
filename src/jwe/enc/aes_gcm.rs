@@ -1,3 +1,4 @@
+use std::fmt::Display;
 use std::ops::Deref;
 
 use anyhow::bail;
@@ -104,6 +105,12 @@ impl JweContentEncryption for AesGcmJweEncryption {
 
     fn box_clone(&self) -> Box<dyn JweContentEncryption> {
         Box::new(self.clone())
+    }
+}
+
+impl Display for AesGcmJweEncryption {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+        fmt.write_str(self.name())
     }
 }
 

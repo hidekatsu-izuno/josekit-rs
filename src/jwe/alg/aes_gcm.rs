@@ -1,3 +1,4 @@
+use std::fmt::Display;
 use std::borrow::Cow;
 use std::ops::Deref;
 
@@ -130,6 +131,12 @@ impl JweAlgorithm for AesGcmJweAlgorithm {
 
     fn box_clone(&self) -> Box<dyn JweAlgorithm> {
         Box::new(self.clone())
+    }
+}
+
+impl Display for AesGcmJweAlgorithm {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+        fmt.write_str(self.name())
     }
 }
 
