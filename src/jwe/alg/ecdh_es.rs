@@ -392,7 +392,9 @@ impl JweEncrypter for EcdhEsJweEncrypter {
                 key.truncate(key_len);
             }
 
-            let encrypted_key = if self.algorithm != EcdhEsJweAlgorithm::EcdhEs {
+            let encrypted_key = if self.algorithm.is_direct() {
+                None
+            } else {
                 let aes = match AesKey::new_encrypt(&derived_key) {
                     Ok(val) => val,
                     Err(_) => bail!("Failed to set encrypt key."),
@@ -406,9 +408,8 @@ impl JweEncrypter for EcdhEsJweEncrypter {
                 if len < encrypted_key.len() {
                     encrypted_key.truncate(len);
                 }
+                
                 Some(encrypted_key)
-            } else {
-                None
             };
 
             Ok((Cow::Owned(key), encrypted_key))
