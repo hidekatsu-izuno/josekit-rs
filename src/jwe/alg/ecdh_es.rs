@@ -395,13 +395,13 @@ impl JweEncrypter for EcdhEsJweEncrypter {
             let encrypted_key = if self.algorithm != EcdhEsJweAlgorithm::EcdhEs {
                 let aes = match AesKey::new_encrypt(&derived_key) {
                     Ok(val) => val,
-                    Err(err) => bail!("{:?}", err),
+                    Err(_) => bail!("Failed to set encrypt key."),
                 };
 
                 let mut encrypted_key = vec![0; key_len + 8];
                 let len = match aes::wrap_key(&aes, None, &mut encrypted_key, &key) {
                     Ok(val) => val,
-                    Err(err) => bail!("{:?}", err),
+                    Err(_) => bail!("Failed to wrap key."),
                 };
                 if len < encrypted_key.len() {
                     encrypted_key.truncate(len);
@@ -606,6 +606,8 @@ impl JweDecrypter for EcdhEsJweDecrypter {
             }
 
             let key = if self.algorithm.is_direct() {
+                key
+            } else {
                 let encrypted_key = match encrypted_key {
                     Some(val) => val,
                     None => unreachable!(),
@@ -613,20 +615,18 @@ impl JweDecrypter for EcdhEsJweDecrypter {
 
                 let aes = match AesKey::new_encrypt(&derived_key) {
                     Ok(val) => val,
-                    Err(err) => bail!("{:?}", err),
+                    Err(_) => bail!("Failed to set encrypt key."),
                 };
 
                 let mut key = vec![0; key_len + 8];
                 let len = match aes::unwrap_key(&aes, None, &mut key, &encrypted_key) {
                     Ok(val) => val,
-                    Err(err) => bail!("{:?}", err),
+                    Err(_) => bail!("Failed to unwrap key."),
                 };
                 if len < key.len() {
                     key.truncate(len);
                 }
 
-                key
-            } else {
                 key
             };
 
@@ -679,13 +679,15 @@ mod tests {
                 EcdhEsKeyType::X(XCurve::X25519),
                 EcdhEsKeyType::X(XCurve::X448),
             ] {
+                println!("{}:{:?}", alg, key);
+
                 let private_key = load_file(match key {
                     EcdhEsKeyType::Ec(EcCurve::P256) => "jwk/EC_P-256_private.jwk",
                     EcdhEsKeyType::Ec(EcCurve::P384) => "jwk/EC_P-384_private.jwk",
                     EcdhEsKeyType::Ec(EcCurve::P521) => "jwk/EC_P-521_private.jwk",
                     EcdhEsKeyType::Ec(EcCurve::Secp256K1) => "jwk/EC_secp256k1_private.jwk",
-                    EcdhEsKeyType::X(XCurve::X25519) => "jwk/OKP_x25519_private.jwk",
-                    EcdhEsKeyType::X(XCurve::X448) => "jwk/OKP_x448_private.jwk",
+                    EcdhEsKeyType::X(XCurve::X25519) => "jwk/OKP_X25519_private.jwk",
+                    EcdhEsKeyType::X(XCurve::X448) => "jwk/OKP_X448_private.jwk",
                 })?;
 
                 let mut private_key = Jwk::from_slice(&private_key)?;
