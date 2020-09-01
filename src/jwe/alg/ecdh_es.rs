@@ -647,3 +647,86 @@ impl Deref for EcdhEsJweDecrypter {
         self
     }
 }
+
+
+#[cfg(test)]
+mod tests {
+    use anyhow::Result;
+    use std::fs::File;
+    use std::io::Read;
+    use std::path::PathBuf;
+
+    use super::{ EcdhEsJweAlgorithm, EcdhEsKeyType };
+    use crate::jwe::JweHeader;
+    use crate::jwe::enc::aes_cbc_hmac::AesCbcHmacJweEncryption;
+    use crate::jwk::{Jwk, EcCurve, XCurve };
+
+    #[test]
+    fn encrypt_and_decrypt_ecdh_es() -> Result<()> {
+        let enc = AesCbcHmacJweEncryption::A128CbcHS256;
+
+        for alg in vec![
+            EcdhEsJweAlgorithm::EcdhEs,
+            EcdhEsJweAlgorithm::EcdhEsA128Kw,
+            EcdhEsJweAlgorithm::EcdhEsA192Kw,
+            EcdhEsJweAlgorithm::EcdhEsA256Kw,
+        ] {
+            for key in vec![
+                EcdhEsKeyType::Ec(EcCurve::P256),
+                EcdhEsKeyType::Ec(EcCurve::P384),
+                EcdhEsKeyType::Ec(EcCurve::P521),
+                EcdhEsKeyType::Ec(EcCurve::Secp256K1),
+                EcdhEsKeyType::X(XCurve::X25519),
+                EcdhEsKeyType::X(XCurve::X448),
+            ] {
+                let private_key = load_file(match key {
+                    EcdhEsKeyType::Ec(EcCurve::P256) => "jwk/EC_P-256_private.jwk",
+                    EcdhEsKeyType::Ec(EcCurve::P384) => "jwk/EC_P-384_private.jwk",
+                    EcdhEsKeyType::Ec(EcCurve::P521) => "jwk/EC_P-521_private.jwk",
+                    EcdhEsKeyType::Ec(EcCurve::Secp256K1) => "jwk/EC_secp256k1_private.jwk",
+                    EcdhEsKeyType::X(XCurve::X25519) => "jwk/OKP_x25519_private.jwk",
+                    EcdhEsKeyType::X(XCurve::X448) => "jwk/OKP_x448_private.jwk",
+                })?;
+
+                let mut private_key = Jwk::from_slice(&private_key)?;
+                private_key.set_key_use("enc");
+        
+                let public_key = load_file(match key {
+                    EcdhEsKeyType::Ec(EcCurve::P256) => "jwk/EC_P-256_public.jwk",
+                    EcdhEsKeyType::Ec(EcCurve::P384) => "jwk/EC_P-384_public.jwk",
+                    EcdhEsKeyType::Ec(EcCurve::P521) => "jwk/EC_P-521_public.jwk",
+                    EcdhEsKeyType::Ec(EcCurve::Secp256K1) => "jwk/EC_secp256k1_public.jwk",
+                    EcdhEsKeyType::X(XCurve::X25519) => "jwk/OKP_X25519_public.jwk",
+                    EcdhEsKeyType::X(XCurve::X448) => "jwk/OKP_X448_public.jwk",
+                })?;
+                let mut public_key = Jwk::from_slice(&public_key)?;
+                public_key.set_key_use("enc");
+
+                let mut header = JweHeader::new();
+                header.set_content_encryption(enc.name());
+    
+                let encrypter = alg.encrypter_from_jwk(&public_key)?;
+                let (src_key, encrypted_key) = encrypter.encrypt(&mut header, enc.key_len())?;
+    
+                let decrypter = alg.decrypter_from_jwk(&private_key)?;
+                let dst_key = decrypter.decrypt(&header, encrypted_key.as_deref(), enc.key_len())?;
+    
+                assert_eq!(&src_key, &dst_key);    
+            }
+        }
+        
+        Ok(())
+    }
+
+    fn load_file(path: &str) -> Result<Vec<u8>> {
+        let mut pb = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        pb.push("data");
+        pb.push(path);
+
+        let mut file = File::open(&pb)?;
+        let mut data = Vec::new();
+        file.read_to_end(&mut data)?;
+        Ok(data)
+    }
+}
+

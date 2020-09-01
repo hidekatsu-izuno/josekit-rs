@@ -353,3 +353,36 @@ impl Deref for EdKeyPair {
         self
     }
 }
+
+/*
+#[cfg(test)]
+mod tests {
+    use anyhow::Result;
+    use std::fs::File;
+    use std::io::Write;
+    use std::path::PathBuf;
+
+    use super::{EdKeyPair, EdCurve};
+
+    #[test]
+    fn test_write_jwk() -> Result<()> {
+        let keypair = EdKeyPair::generate(EdCurve::Ed448)?;
+        let jwk = keypair.to_jwk_keypair().to_string();
+
+        write_file("jwk/OKP_Ed448_private.jwk", &jwk)?;
+
+        Ok(())
+    }
+
+    fn write_file(path: &str, input: impl AsRef<[u8]>) -> Result<()> {
+        let mut pb = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        pb.push("data");
+        pb.push(path);
+
+        let mut file = File::create(pb)?;
+        file.write_all(input.as_ref())?;
+
+        Ok(())
+    }
+}
+*/

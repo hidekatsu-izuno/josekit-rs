@@ -5,6 +5,19 @@ use regex::bytes::{NoExpand, Regex};
 use std::time::SystemTime;
 use std::fmt::Display;
 
+use std::ptr;
+use std::os::raw::c_int;
+use openssl::error::ErrorStack;
+use openssl::pkey::{PKey, Private};
+use openssl_sys::{
+    EVP_PKEY_CTX_new_id,
+    EVP_PKEY_keygen_init,
+    EVP_PKEY_CTX_free,
+    EVP_PKEY_keygen,
+    EVP_PKEY_free,
+    i2d_PrivateKey
+};
+
 use crate::jwk::Jwk;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -86,4 +99,53 @@ pub fn num_to_vec(num: &BigNumRef, len: usize) -> Vec<u8> {
     } else {
         vec
     }
+}
+
+const NID_X25519: c_int = 1034;
+const NID_X448: c_int = 1035;
+
+pub fn generate_x25519() -> Result<PKey<Private>, ErrorStack> {
+    generate_der(NID_X25519)
+}
+
+pub fn generate_x448() -> Result<PKey<Private>, ErrorStack> {
+    generate_der(NID_X448)
+}
+
+fn generate_der(nid: c_int) -> Result<PKey<Private>, ErrorStack> {
+    let der = unsafe {
+        let kctx = match EVP_PKEY_CTX_new_id(nid, ptr::null_mut()) {
+            val if val.is_null() => return Err(ErrorStack::get()),
+            val => val,
+        };
+
+        if EVP_PKEY_keygen_init(kctx) <= 0 {
+            EVP_PKEY_CTX_free(kctx);
+            return Err(ErrorStack::get());
+        }
+
+        let mut pkey = ptr::null_mut();
+        if EVP_PKEY_keygen(kctx, &mut pkey) <= 0 {
+            EVP_PKEY_CTX_free(kctx);
+            return Err(ErrorStack::get());
+        }
+
+        let len = match i2d_PrivateKey(pkey, ptr::null_mut()) {
+            val if val <= 0 => {
+                EVP_PKEY_free(pkey);
+                return Err(ErrorStack::get());
+            },
+            val => val,
+        };
+
+        let mut der = vec![0; len as usize];
+        if i2d_PrivateKey(pkey, &mut der.as_mut_ptr()) != len {
+            EVP_PKEY_free(pkey);
+            return Err(ErrorStack::get());
+        }
+
+        der
+    };
+
+    PKey::private_key_from_der(&der)
 }

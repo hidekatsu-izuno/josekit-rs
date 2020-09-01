@@ -9,6 +9,7 @@ use crate::der::oid::ObjectIdentifier;
 use crate::der::{DerBuilder, DerReader, DerType};
 use crate::jose::JoseError;
 use crate::jwk::{Jwk, KeyPair};
+use crate::util;
 
 static OID_X25519: Lazy<ObjectIdentifier> =
     Lazy::new(|| ObjectIdentifier::from_slice(&[1, 3, 101, 110]));
@@ -75,8 +76,8 @@ impl XKeyPair {
     pub fn generate(curve: XCurve) -> Result<XKeyPair, JoseError> {
         (|| -> anyhow::Result<XKeyPair> {
             let private_key = match curve {
-                XCurve::X25519 => PKey::generate_ed25519()?,
-                XCurve::X448 => PKey::generate_ed448()?,
+                XCurve::X25519 => util::generate_x25519()?,
+                XCurve::X448 => util::generate_x448()?,
             };
 
             Ok(XKeyPair {
@@ -342,3 +343,35 @@ impl Deref for XKeyPair {
         self
     }
 }
+/*
+#[cfg(test)]
+mod tests {
+    use anyhow::Result;
+    use std::fs::File;
+    use std::io::Write;
+    use std::path::PathBuf;
+
+    use super::{XKeyPair, XCurve};
+
+    #[test]
+    fn test_write_jwk() -> Result<()> {
+        let keypair = XKeyPair::generate(XCurve::X448)?;
+        let jwk = keypair.to_jwk_keypair().to_string();
+
+        write_file("jwk/OKP_X448_private.jwk", &jwk)?;
+
+        Ok(())
+    }
+
+    fn write_file(path: &str, input: impl AsRef<[u8]>) -> Result<()> {
+        let mut pb = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        pb.push("data");
+        pb.push(path);
+
+        let mut file = File::create(pb)?;
+        file.write_all(input.as_ref())?;
+
+        Ok(())
+    }
+}
+*/
