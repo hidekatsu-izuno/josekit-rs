@@ -53,6 +53,7 @@ pub struct XKeyPair {
 }
 
 impl XKeyPair {
+    #[allow(dead_code)]
     pub(crate) fn from_private_key(private_key: PKey<Private>, curve: XCurve) -> XKeyPair {
         XKeyPair {
             private_key,
@@ -220,6 +221,7 @@ impl XKeyPair {
         jwk
     }
 
+    #[allow(dead_code)]
     pub(crate) fn detect_pkcs8(input: &[u8], is_public: bool) -> Option<XCurve> {
         let curve;
         let mut reader = DerReader::from_reader(input);
