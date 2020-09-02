@@ -7,6 +7,7 @@ use openssl::aes::{self, AesKey};
 use openssl::derive::Deriver;
 use openssl::hash::{Hasher, MessageDigest};
 use openssl::pkey::{PKey, Private, Public};
+use openssl::rand;
 use serde_json::{Map, Value};
 
 use crate::der::{DerBuilder, DerType};
@@ -326,8 +327,8 @@ impl JweEncrypter for EcdhEsJweEncrypter {
                 Value::String(self.key_type.curve_name().to_string()),
             );
             let private_key = match self.key_type {
-                EcdhEsKeyType::Ec(val) => {
-                    let keypair = EcKeyPair::generate(val)?;
+                EcdhEsKeyType::Ec(curve) => {
+                    let keypair = EcKeyPair::generate(curve)?;
                     let mut jwk: Map<String, Value> = keypair.to_jwk_public_key().into();
 
                     match jwk.remove("x") {
@@ -342,10 +343,11 @@ impl JweEncrypter for EcdhEsJweEncrypter {
                         },
                         None => unreachable!(),
                     }
+
                     keypair.into_private_key()
                 },
-                EcdhEsKeyType::X(val) => {
-                    let keypair = XKeyPair::generate(val)?;
+                EcdhEsKeyType::X(curve) => {
+                    let keypair = XKeyPair::generate(curve)?;
                     let mut jwk: Map<String, Value> = keypair.to_jwk_public_key().into();
 
                     match jwk.remove("x") {
@@ -354,6 +356,7 @@ impl JweEncrypter for EcdhEsJweEncrypter {
                         },
                         None => unreachable!(),
                     }
+                    
                     keypair.into_private_key()
                 },
             };
@@ -364,55 +367,61 @@ impl JweEncrypter for EcdhEsJweEncrypter {
             deriver.set_peer(&self.public_key)?;
             let derived_key = deriver.derive_to_vec()?;
 
-            let enc = match header.content_encryption() {
-                Some(val) => val,
-                _ => unreachable!(),
-            };
-
             // concat KDF
+            let alg = if self.algorithm.is_direct() {
+                header.content_encryption().unwrap()
+            } else {
+                header.algorithm().unwrap()
+            };
+            let shared_key_len = match self.algorithm {
+                EcdhEsJweAlgorithm::EcdhEs => key_len,
+                EcdhEsJweAlgorithm::EcdhEsA128Kw => 128 / 8,
+                EcdhEsJweAlgorithm::EcdhEsA192Kw => 192 / 8,
+                EcdhEsJweAlgorithm::EcdhEsA256Kw => 256 / 8,
+            };
             let md = MessageDigest::sha256();
-            let mut key = Vec::new();
-            for i in 1..util::ceiling(key_len, md.size()) {
+            let mut shared_key = Vec::new();
+            for i in 0..util::ceiling(shared_key_len, md.size()) {
                 let mut hasher = Hasher::new(md)?;
-                hasher.update(&(i as u32).to_be_bytes())?;
+                hasher.update(&((i + 1) as u32).to_be_bytes())?;
                 hasher.update(&derived_key)?;
-                hasher.update(enc.as_bytes())?;
+                hasher.update(alg.as_bytes())?;
                 if let Some(val) = &apu {
                     hasher.update(val.as_slice())?;
                 }
                 if let Some(val) = &apv {
                     hasher.update(val.as_slice())?;
                 }
-                hasher.update(&(key_len as u32).to_be_bytes())?;
+                hasher.update(&((shared_key_len * 8) as u32).to_be_bytes())?;
 
                 let digest = hasher.finish()?;
-                key.extend(digest.to_vec());
+                shared_key.extend(digest.to_vec());
             }
-            if key.len() != key_len {
-                key.truncate(key_len);
+            if shared_key.len() != shared_key_len {
+                shared_key.truncate(shared_key_len);
             }
 
-            let encrypted_key = if self.algorithm.is_direct() {
-                None
+            if self.algorithm.is_direct() {
+                Ok((Cow::Owned(shared_key), None))
             } else {
-                let aes = match AesKey::new_encrypt(&derived_key) {
+                let aes = match AesKey::new_encrypt(&shared_key) {
                     Ok(val) => val,
                     Err(_) => bail!("Failed to set encrypt key."),
                 };
 
-                let mut encrypted_key = vec![0; key_len + 8];
-                let len = match aes::wrap_key(&aes, None, &mut encrypted_key, &key) {
-                    Ok(val) => val,
+                let mut key = vec![0; key_len];
+                rand::rand_bytes(&mut key)?;
+
+                let mut encrypted_key = vec![0; key.len() + 8];
+                match aes::wrap_key(&aes, None, &mut encrypted_key, &key) {
+                    Ok(len) => if len < encrypted_key.len() {
+                        encrypted_key.truncate(len);
+                    },
                     Err(_) => bail!("Failed to wrap key."),
-                };
-                if len < encrypted_key.len() {
-                    encrypted_key.truncate(len);
                 }
                 
-                Some(encrypted_key)
-            };
-
-            Ok((Cow::Owned(key), encrypted_key))
+                Ok((Cow::Owned(key), Some(encrypted_key)))
+            }
         })()
         .map_err(|err| match err.downcast::<JoseError>() {
             Ok(err) => err,
@@ -578,60 +587,63 @@ impl JweDecrypter for EcdhEsJweDecrypter {
             deriver.set_peer(&public_key)?;
             let derived_key = deriver.derive_to_vec()?;
 
-            let enc = match header.content_encryption() {
-                Some(val) => val,
-                _ => unreachable!(),
-            };
-
             // concat KDF
+            let alg = if self.algorithm.is_direct() {
+                header.content_encryption().unwrap()
+            } else {
+                header.algorithm().unwrap()
+            };
+            let shared_key_len = match self.algorithm {
+                EcdhEsJweAlgorithm::EcdhEs => key_len,
+                EcdhEsJweAlgorithm::EcdhEsA128Kw => 128 / 8,
+                EcdhEsJweAlgorithm::EcdhEsA192Kw => 192 / 8,
+                EcdhEsJweAlgorithm::EcdhEsA256Kw => 256 / 8,
+            };
             let md = MessageDigest::sha256();
-            let mut key = Vec::new();
-            for i in 1..util::ceiling(key_len, md.size()) {
+            let mut shared_key = Vec::new();
+            for i in 0..util::ceiling(shared_key_len, md.size()) {
                 let mut hasher = Hasher::new(md)?;
-                hasher.update(&(i as u32).to_be_bytes())?;
+                hasher.update(&((i + 1) as u32).to_be_bytes())?;
                 hasher.update(&derived_key)?;
-                hasher.update(enc.as_bytes())?;
+                hasher.update(alg.as_bytes())?;
                 if let Some(val) = &apu {
                     hasher.update(val.as_slice())?;
                 }
                 if let Some(val) = &apv {
                     hasher.update(val.as_slice())?;
                 }
-                hasher.update(&(key_len as u32).to_be_bytes())?;
+                hasher.update(&((shared_key_len * 8) as u32).to_be_bytes())?;
 
                 let digest = hasher.finish()?;
-                key.extend(digest.to_vec());
+                shared_key.extend(digest.to_vec());
             }
-            if key.len() != key_len {
-                key.truncate(key_len);
+            if shared_key.len() != shared_key_len {
+                shared_key.truncate(shared_key_len);
             }
 
-            let key = if self.algorithm.is_direct() {
-                key
+            if self.algorithm.is_direct() {
+                Ok(Cow::Owned(shared_key))
             } else {
+                let aes = match AesKey::new_encrypt(&shared_key) {
+                    Ok(val) => val,
+                    Err(_) => bail!("Failed to set encrypt key."),
+                };
+
                 let encrypted_key = match encrypted_key {
                     Some(val) => val,
                     None => unreachable!(),
                 };
 
-                let aes = match AesKey::new_encrypt(&derived_key) {
-                    Ok(val) => val,
-                    Err(_) => bail!("Failed to set encrypt key."),
-                };
-
-                let mut key = vec![0; key_len + 8];
-                let len = match aes::unwrap_key(&aes, None, &mut key, &encrypted_key) {
-                    Ok(val) => val,
+                let mut key = vec![0; key_len];
+                match aes::unwrap_key(&aes, None, &mut key, &encrypted_key) {
+                    Ok(len) => if len < key.len() {
+                        key.truncate(len);
+                    },
                     Err(_) => bail!("Failed to unwrap key."),
                 };
-                if len < key.len() {
-                    key.truncate(len);
-                }
 
-                key
-            };
-
-            Ok(Cow::Owned(key))
+                Ok(Cow::Owned(key))
+            }
         })()
         .map_err(|err| JoseError::InvalidJweFormat(err))
     }
