@@ -397,8 +397,10 @@ impl JweEncrypter for EcdhEsJweEncrypter {
                 let digest = hasher.finish()?;
                 shared_key.extend(digest.to_vec());
             }
-            if shared_key.len() != shared_key_len {
+            if shared_key.len() > shared_key_len {
                 shared_key.truncate(shared_key_len);
+            } else if shared_key.len() < shared_key_len {
+                unreachable!();
             }
 
             if self.algorithm.is_direct() {
@@ -617,8 +619,10 @@ impl JweDecrypter for EcdhEsJweDecrypter {
                 let digest = hasher.finish()?;
                 shared_key.extend(digest.to_vec());
             }
-            if shared_key.len() != shared_key_len {
+            if shared_key.len() > shared_key_len {
                 shared_key.truncate(shared_key_len);
+            } else if shared_key.len() < shared_key_len {
+                unreachable!();
             }
 
             if self.algorithm.is_direct() {
