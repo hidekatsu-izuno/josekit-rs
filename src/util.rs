@@ -1,6 +1,7 @@
 use anyhow::bail;
 use once_cell::sync::Lazy;
 use openssl::bn::BigNumRef;
+use openssl::hash::MessageDigest;
 use regex::bytes::{NoExpand, Regex};
 use std::time::SystemTime;
 use std::fmt::Display;
@@ -42,6 +43,14 @@ impl HashAlgorithm {
             Self::Sha256 => "SHA-256",
             Self::Sha384 => "SHA-384",
             Self::Sha512 => "SHA-512",
+        }
+    }
+
+    pub fn message_digest(&self) -> MessageDigest {
+        match self {
+            Self::Sha256 => MessageDigest::sha256(),
+            Self::Sha384 => MessageDigest::sha384(),
+            Self::Sha512 => MessageDigest::sha512(),
         }
     }
 }

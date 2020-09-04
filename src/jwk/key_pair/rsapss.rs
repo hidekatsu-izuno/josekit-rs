@@ -10,7 +10,7 @@ use crate::der::oid::ObjectIdentifier;
 use crate::der::{DerBuilder, DerClass, DerReader, DerType};
 use crate::jose::JoseError;
 use crate::jwk::{Jwk, KeyPair};
-use crate::util::HashAlgorithm;
+use crate::util::{self, HashAlgorithm};
 
 static OID_RSASSA_PSS: Lazy<ObjectIdentifier> =
     Lazy::new(|| ObjectIdentifier::from_slice(&[1, 2, 840, 113549, 1, 1, 10]));
@@ -30,26 +30,16 @@ static OID_MGF1: Lazy<ObjectIdentifier> =
 #[derive(Debug, Clone)]
 pub struct RsaPssKeyPair {
     private_key: PKey<Private>,
-    md: HashAlgorithm,
-    mgf1_md: HashAlgorithm,
+    key_len: u32,
+    hash: HashAlgorithm,
+    mgf1_hash: HashAlgorithm,
     salt_len: u8,
     alg: Option<String>,
 }
 
 impl RsaPssKeyPair {
-    pub(crate) fn from_private_key(
-        private_key: PKey<Private>,
-        md: HashAlgorithm,
-        mgf1_md: HashAlgorithm,
-        salt_len: u8,
-    ) -> RsaPssKeyPair {
-        RsaPssKeyPair {
-            private_key,
-            md,
-            mgf1_md,
-            salt_len,
-            alg: None,
-        }
+    pub fn key_len(&self) -> u32 {
+        self.key_len
     }
 
     pub(crate) fn into_private_key(self) -> PKey<Private> {
@@ -62,25 +52,131 @@ impl RsaPssKeyPair {
     /// * `bits` - RSA key length
     pub fn generate(
         bits: u32,
-        md: HashAlgorithm,
-        mgf1_md: HashAlgorithm,
+        hash: HashAlgorithm,
+        mgf1_hash: HashAlgorithm,
         salt_len: u8,
     ) -> Result<RsaPssKeyPair, JoseError> {
         (|| -> anyhow::Result<RsaPssKeyPair> {
-            if bits < 2048 {
-                bail!("key length must be 2048 or more.");
-            }
-
             let rsa = Rsa::generate(bits)?;
+            let key_len = rsa.size();
             let private_key = PKey::from_rsa(rsa)?;
 
             Ok(RsaPssKeyPair {
                 private_key,
-                md,
-                mgf1_md,
+                key_len,
+                hash,
+                mgf1_hash,
                 salt_len,
                 alg: None,
             })
+        })()
+        .map_err(|err| JoseError::InvalidKeyFormat(err))
+    }
+
+    /// Create a RSA-PSS key pair from a private key that is a DER encoded PKCS#8 PrivateKeyInfo or PKCS#1 RSAPrivateKey.
+    ///
+    /// # Arguments
+    /// * `input` - A private key that is a DER encoded PKCS#8 PrivateKeyInfo or PKCS#1 RSAPrivateKey.
+    pub fn from_der(input: impl AsRef<[u8]>, hash: HashAlgorithm, mgf1_hash: HashAlgorithm, salt_len: u8) -> Result<Self, JoseError> {
+        (|| -> anyhow::Result<Self> {
+            let pkcs8;
+            let pkcs8_ref = match Self::detect_pkcs8(input.as_ref(), false) {
+                Some((hash2, mgf1_hash2, salt_len2)) => {
+                    if hash2 != hash {
+                        bail!("The message digest parameter is mismatched: {}", hash2);
+                    } else if mgf1_hash2 != mgf1_hash {
+                        bail!("The mgf1 message digest parameter is mismatched: {}", mgf1_hash2);
+                    } else if salt_len2 != salt_len {
+                        bail!("The salt size is mismatched: {}", salt_len2);
+                    }
+
+                    input.as_ref()
+                },
+                None => {
+                    pkcs8 = Self::to_pkcs8(
+                        input.as_ref(),
+                        false,
+                        hash,
+                        mgf1_hash,
+                        salt_len,
+                    );
+                    pkcs8.as_slice()
+                }
+            };
+
+            let private_key = PKey::private_key_from_der(pkcs8_ref)?;
+            let rsa = private_key.rsa()?;
+            let key_len = rsa.size();
+
+            let keypair = RsaPssKeyPair {
+                private_key,
+                key_len,
+                hash,
+                mgf1_hash,
+                salt_len,
+                alg: None,
+            };
+            Ok(keypair)
+        })()
+        .map_err(|err| JoseError::InvalidKeyFormat(err))
+    }
+
+    /// Create a RSA-PSS key pair from a private key of common or traditinal PEM format.
+    ///
+    /// Common PEM format is a DER and base64 encoded PKCS#8 PrivateKeyInfo
+    /// that surrounded by "-----BEGIN/END PRIVATE KEY----".
+    ///
+    /// Traditional PEM format is a DER and base64 encoded PKCS#8 PrivateKeyInfo or PKCS#1 RSAPrivateKey
+    /// that surrounded by "-----BEGIN/END RSA-PSS/RSA PRIVATE KEY----".
+    ///
+    /// # Arguments
+    /// * `input` - A private key of common or traditinal PEM format.
+    pub fn from_pem(input: impl AsRef<[u8]>, hash: HashAlgorithm, mgf1_hash: HashAlgorithm, salt_len: u8) -> Result<Self, JoseError> {
+        (|| -> anyhow::Result<Self> {
+            let (alg, data) = util::parse_pem(input.as_ref())?;
+
+            let private_key = match alg.as_str() {
+                "PRIVATE KEY" | "RSA-PSS PRIVATE KEY" => {
+                    match Self::detect_pkcs8(&data, false) {
+                        Some((hash2, mgf1_hash2, salt_len2)) => {
+                            if hash2 != hash {
+                                bail!("The message digest parameter is mismatched: {}", hash2);
+                            } else if mgf1_hash2 != mgf1_hash {
+                                bail!("The mgf1 message digest parameter is mismatched: {}", mgf1_hash2);
+                            } else if salt_len2 != salt_len {
+                                bail!("The salt size is mismatched: {}", salt_len2);
+                            }
+
+                            PKey::private_key_from_der(&data)?
+                        },
+                        None => bail!("Invalid PEM contents."),
+                    }
+                }
+                "RSA PRIVATE KEY" => {
+                    let pkcs8 = Self::to_pkcs8(
+                        &data,
+                        false,
+                        hash,
+                        mgf1_hash,
+                        salt_len,
+                    );
+                    PKey::private_key_from_der(&pkcs8)?
+                }
+                alg => bail!("Inappropriate algorithm: {}", alg),
+            };
+
+            let rsa = private_key.rsa()?;
+            let key_len = rsa.size();
+
+            let keypair = RsaPssKeyPair {
+                private_key,
+                key_len,
+                hash,
+                mgf1_hash,
+                salt_len,
+                alg: None,
+            };
+            Ok(keypair)
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
@@ -308,8 +404,8 @@ impl RsaPssKeyPair {
     pub(crate) fn to_pkcs8(
         input: &[u8],
         is_public: bool,
-        md: HashAlgorithm,
-        mgf1_md: HashAlgorithm,
+        hash: HashAlgorithm,
+        mgf1_hash: HashAlgorithm,
         salt_len: u8,
     ) -> Vec<u8> {
         let mut builder = DerBuilder::new();
@@ -328,7 +424,7 @@ impl RsaPssKeyPair {
                     {
                         builder.begin(DerType::Sequence);
                         {
-                            builder.append_object_identifier(match md {
+                            builder.append_object_identifier(match hash {
                                 HashAlgorithm::Sha256 => &OID_SHA256,
                                 HashAlgorithm::Sha384 => &OID_SHA384,
                                 HashAlgorithm::Sha512 => &OID_SHA512,
@@ -345,7 +441,7 @@ impl RsaPssKeyPair {
                             builder.append_object_identifier(&OID_MGF1);
                             builder.begin(DerType::Sequence);
                             {
-                                builder.append_object_identifier(match mgf1_md {
+                                builder.append_object_identifier(match mgf1_hash {
                                     HashAlgorithm::Sha256 => &OID_SHA256,
                                     HashAlgorithm::Sha384 => &OID_SHA384,
                                     HashAlgorithm::Sha512 => &OID_SHA512,
@@ -395,8 +491,8 @@ impl KeyPair for RsaPssKeyPair {
         Self::to_pkcs8(
             &self.to_raw_private_key(),
             false,
-            self.md,
-            self.mgf1_md,
+            self.hash,
+            self.mgf1_hash,
             self.salt_len,
         )
     }
@@ -405,8 +501,8 @@ impl KeyPair for RsaPssKeyPair {
         Self::to_pkcs8(
             &self.to_raw_public_key(),
             true,
-            self.md,
-            self.mgf1_md,
+            self.hash,
+            self.mgf1_hash,
             self.salt_len,
         )
     }

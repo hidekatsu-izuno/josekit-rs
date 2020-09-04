@@ -2,8 +2,7 @@ use std::fmt::Display;
 use std::ops::Deref;
 
 use anyhow::bail;
-use openssl::hash::MessageDigest;
-use openssl::pkey::{HasPublic, PKey, Private, Public};
+use openssl::pkey::{PKey, Private, Public};
 use openssl::sign::{Signer, Verifier};
 use serde_json::Value;
 
@@ -11,7 +10,7 @@ use crate::der::{DerBuilder, DerType};
 use crate::jose::JoseError;
 use crate::jwk::{Jwk, KeyPair, RsaKeyPair};
 use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier};
-use crate::util;
+use crate::util::{self, HashAlgorithm};
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum RsassaJwsAlgorithm {
@@ -31,9 +30,19 @@ impl RsassaJwsAlgorithm {
     /// # Arguments
     /// * `bits` - RSA key length
     pub fn generate_keypair(&self, bits: u32) -> Result<RsaKeyPair, JoseError> {
-        let mut keypair = RsaKeyPair::generate(bits)?;
-        keypair.set_algorithm(Some(self.name()));
-        Ok(keypair)
+        (|| -> anyhow::Result<RsaKeyPair> {
+            if bits < 2048 {
+                bail!("key length must be 2048 or more.");
+            }
+
+            let mut keypair = RsaKeyPair::generate(bits)?;
+            keypair.set_algorithm(Some(self.name()));
+            Ok(keypair)
+        })()
+        .map_err(|err| match err.downcast::<JoseError>() {
+            Ok(err) => err,
+            Err(err) => JoseError::InvalidKeyFormat(err),
+        })
     }
 
     /// Create a RSA key pair from a private key that is a DER encoded PKCS#8 PrivateKeyInfo or PKCS#1 RSAPrivateKey.
@@ -43,6 +52,11 @@ impl RsassaJwsAlgorithm {
     pub fn keypair_from_der(&self, input: impl AsRef<[u8]>) -> Result<RsaKeyPair, JoseError> {
         (|| -> anyhow::Result<RsaKeyPair> {
             let mut keypair = RsaKeyPair::from_der(input)?;
+            
+            if keypair.key_len() * 8 < 2048 {
+                bail!("key length must be 2048 or more.");
+            }
+
             keypair.set_algorithm(Some(self.name()));
             Ok(keypair)
         })()
@@ -194,7 +208,10 @@ impl RsassaJwsAlgorithm {
             let private_key = PKey::private_key_from_der(&pkcs8)?;
             let key_id = jwk.key_id().map(|val| val.to_string());
 
-            self.check_key(&private_key)?;
+            let rsa = private_key.rsa()?;
+            if rsa.size() * 8 < 2048 {
+                bail!("key length must be 2048 or more.");
+            }
 
             Ok(RsassaJwsSigner {
                 algorithm: self.clone(),
@@ -222,7 +239,10 @@ impl RsassaJwsAlgorithm {
 
             let public_key = PKey::public_key_from_der(pkcs8_ref)?;
 
-            self.check_key(&public_key)?;
+            let rsa = public_key.rsa()?;
+            if rsa.size() * 8 < 2048 {
+                bail!("key length must be 2048 or more.");
+            }
 
             Ok(RsassaJwsVerifier {
                 algorithm: self.clone(),
@@ -259,7 +279,10 @@ impl RsassaJwsAlgorithm {
                 alg => bail!("Inappropriate algorithm: {}", alg),
             };
 
-            self.check_key(&public_key)?;
+            let rsa = public_key.rsa()?;
+            if rsa.size() * 8 < 2048 {
+                bail!("key length must be 2048 or more.");
+            }
 
             Ok(RsassaJwsVerifier {
                 algorithm: self.clone(),
@@ -317,7 +340,10 @@ impl RsassaJwsAlgorithm {
             let public_key = PKey::public_key_from_der(&pkcs8)?;
             let key_id = jwk.key_id().map(|val| val.to_string());
 
-            self.check_key(&public_key)?;
+            let rsa = public_key.rsa()?;
+            if rsa.size() * 8 < 2048 {
+                bail!("key length must be 2048 or more.");
+            }
 
             Ok(RsassaJwsVerifier {
                 algorithm: self.clone(),
@@ -328,14 +354,12 @@ impl RsassaJwsAlgorithm {
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
-    fn check_key<T: HasPublic>(&self, pkey: &PKey<T>) -> anyhow::Result<()> {
-        let rsa = pkey.rsa()?;
-
-        if rsa.size() * 8 < 2048 {
-            bail!("key length must be 2048 or more.");
+    fn hash_algorithm(&self) -> HashAlgorithm {
+        match self {
+            RsassaJwsAlgorithm::RS256 => HashAlgorithm::Sha256,
+            RsassaJwsAlgorithm::RS384 => HashAlgorithm::Sha384,
+            RsassaJwsAlgorithm::RS512 => HashAlgorithm::Sha512,
         }
-
-        Ok(())
     }
 }
 
@@ -405,13 +429,9 @@ impl JwsSigner for RsassaJwsSigner {
 
     fn sign(&self, message: &[u8]) -> Result<Vec<u8>, JoseError> {
         (|| -> anyhow::Result<Vec<u8>> {
-            let message_digest = match self.algorithm {
-                RsassaJwsAlgorithm::RS256 => MessageDigest::sha256(),
-                RsassaJwsAlgorithm::RS384 => MessageDigest::sha384(),
-                RsassaJwsAlgorithm::RS512 => MessageDigest::sha512(),
-            };
+            let md = self.algorithm.hash_algorithm().message_digest();
 
-            let mut signer = Signer::new(message_digest, &self.private_key)?;
+            let mut signer = Signer::new(md, &self.private_key)?;
             signer.update(message)?;
             let signature = signer.sign_to_vec()?;
             Ok(signature)
@@ -466,13 +486,9 @@ impl JwsVerifier for RsassaJwsVerifier {
 
     fn verify(&self, message: &[u8], signature: &[u8]) -> Result<(), JoseError> {
         (|| -> anyhow::Result<()> {
-            let message_digest = match self.algorithm {
-                RsassaJwsAlgorithm::RS256 => MessageDigest::sha256(),
-                RsassaJwsAlgorithm::RS384 => MessageDigest::sha384(),
-                RsassaJwsAlgorithm::RS512 => MessageDigest::sha512(),
-            };
+            let md = self.algorithm.hash_algorithm().message_digest();
 
-            let mut verifier = Verifier::new(message_digest, &self.public_key)?;
+            let mut verifier = Verifier::new(md, &self.public_key)?;
             verifier.update(message)?;
             verifier.verify(signature)?;
             Ok(())

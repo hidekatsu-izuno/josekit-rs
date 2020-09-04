@@ -2,8 +2,7 @@ use std::fmt::Display;
 use std::ops::Deref;
 
 use anyhow::bail;
-use openssl::hash::MessageDigest;
-use openssl::pkey::{HasPublic, PKey, Private, Public};
+use openssl::pkey::{PKey, Private, Public};
 use openssl::sign::{Signer, Verifier};
 use serde_json::Value;
 
@@ -29,14 +28,24 @@ impl RsassaPssJwsAlgorithm {
     /// # Arguments
     /// * `bits` - RSA key length
     pub fn generate_keypair(&self, bits: u32) -> Result<RsaPssKeyPair, JoseError> {
-        let mut keypair = RsaPssKeyPair::generate(
-            bits,
-            self.message_digest(),
-            self.message_digest(),
-            self.salt_len(),
-        )?;
-        keypair.set_algorithm(Some(self.name()));
-        Ok(keypair)
+        (|| -> anyhow::Result<RsaPssKeyPair> {
+            if bits < 2048 {
+                bail!("key length must be 2048 or more.");
+            }
+
+            let mut keypair = RsaPssKeyPair::generate(
+                bits,
+                self.hash_algorithm(),
+                self.hash_algorithm(),
+                self.salt_len(),
+            )?;
+            keypair.set_algorithm(Some(self.name()));
+            Ok(keypair)
+        })()
+        .map_err(|err| match err.downcast::<JoseError>() {
+            Ok(err) => err,
+            Err(err) => JoseError::InvalidKeyFormat(err),
+        })
     }
 
     /// Create a RSA-PSS key pair from a private key that is a DER encoded PKCS#8 PrivateKeyInfo or PKCS#1 RSAPrivateKey.
@@ -45,44 +54,23 @@ impl RsassaPssJwsAlgorithm {
     /// * `input` - A private key that is a DER encoded PKCS#8 PrivateKeyInfo or PKCS#1 RSAPrivateKey.
     pub fn keypair_from_der(&self, input: impl AsRef<[u8]>) -> Result<RsaPssKeyPair, JoseError> {
         (|| -> anyhow::Result<RsaPssKeyPair> {
-            let pkcs8;
-            let pkcs8_ref = match RsaPssKeyPair::detect_pkcs8(input.as_ref(), false) {
-                Some((md, mgf1_md, salt_len)) => {
-                    if md != self.message_digest() {
-                        bail!("The message digest parameter is mismatched: {}", md);
-                    } else if mgf1_md != self.message_digest() {
-                        bail!("The mgf1 message digest parameter is mismatched: {}", mgf1_md);
-                    } else if salt_len != self.salt_len() {
-                        bail!("The salt size is mismatched: {}", salt_len);
-                    }
-
-                    input.as_ref()
-                },
-                None => {
-                    pkcs8 = RsaPssKeyPair::to_pkcs8(
-                        input.as_ref(),
-                        false,
-                        self.message_digest(),
-                        self.message_digest(),
-                        self.salt_len(),
-                    );
-                    &pkcs8
-                }
-            };
-
-            let private_key = PKey::private_key_from_der(pkcs8_ref)?;
-            self.check_key(&private_key)?;
-
-            let mut keypair = RsaPssKeyPair::from_private_key(
-                private_key,
-                self.message_digest(),
-                self.message_digest(),
+            let mut keypair = RsaPssKeyPair::from_der(input,
+                self.hash_algorithm(),
+                self.hash_algorithm(),
                 self.salt_len(),
-            );
+            )?;
+            
+            if keypair.key_len() * 8 < 2048 {
+                bail!("key length must be 2048 or more.");
+            }
+
             keypair.set_algorithm(Some(self.name()));
             Ok(keypair)
         })()
-        .map_err(|err| JoseError::InvalidKeyFormat(err))
+        .map_err(|err| match err.downcast::<JoseError>() {
+            Ok(err) => err,
+            Err(err) => JoseError::InvalidKeyFormat(err),
+        })
     }
 
     /// Create a RSA-PSS key pair from a private key of common or traditinal PEM format.
@@ -97,49 +85,24 @@ impl RsassaPssJwsAlgorithm {
     /// * `input` - A private key of common or traditinal PEM format.
     pub fn keypair_from_pem(&self, input: impl AsRef<[u8]>) -> Result<RsaPssKeyPair, JoseError> {
         (|| -> anyhow::Result<RsaPssKeyPair> {
-            let (alg, data) = util::parse_pem(input.as_ref())?;
+            let mut keypair = RsaPssKeyPair::from_pem(
+                input.as_ref(),
+                self.hash_algorithm(),
+                self.hash_algorithm(),
+            self.salt_len(),
+            )?;
 
-            let private_key = match alg.as_str() {
-                "PRIVATE KEY" | "RSA-PSS PRIVATE KEY" => {
-                    match RsaPssKeyPair::detect_pkcs8(&data, false) {
-                        Some((md, mgf1_md, salt_len)) => {
-                            if md != self.message_digest() {
-                                bail!("The message digest parameter is mismatched: {}", md);
-                            } else if mgf1_md != self.message_digest() {
-                                bail!("The mgf1 message digest parameter is mismatched: {}", mgf1_md);
-                            } else if salt_len != self.salt_len() {
-                                bail!("The salt size is mismatched: {}", salt_len);
-                            }
+            if keypair.key_len() * 8 < 2048 {
+                bail!("key length must be 2048 or more.");
+            }
 
-                            PKey::private_key_from_der(&data)?
-                        },
-                        None => bail!("Invalid PEM contents."),
-                    }
-                }
-                "RSA PRIVATE KEY" => {
-                    let pkcs8 = RsaPssKeyPair::to_pkcs8(
-                        &data,
-                        false,
-                        self.message_digest(),
-                        self.message_digest(),
-                        self.salt_len(),
-                    );
-                    PKey::private_key_from_der(&pkcs8)?
-                }
-                alg => bail!("Inappropriate algorithm: {}", alg),
-            };
-            self.check_key(&private_key)?;
-
-            let mut keypair = RsaPssKeyPair::from_private_key(
-                private_key,
-                self.message_digest(),
-                self.message_digest(),
-                self.salt_len(),
-            );
             keypair.set_algorithm(Some(self.name()));
             Ok(keypair)
         })()
-        .map_err(|err| JoseError::InvalidKeyFormat(err))
+        .map_err(|err| match err.downcast::<JoseError>() {
+            Ok(err) => err,
+            Err(err) => JoseError::InvalidKeyFormat(err),
+        })
     }
 
     /// Return a signer from a private key that is a DER encoded PKCS#8 PrivateKeyInfo or PKCS#1 RSAPrivateKey.
@@ -258,16 +221,19 @@ impl RsassaPssJwsAlgorithm {
             let pkcs8 = RsaPssKeyPair::to_pkcs8(
                 &builder.build(),
                 false,
-                self.message_digest(),
-                self.message_digest(),
+                self.hash_algorithm(),
+                self.hash_algorithm(),
                 self.salt_len(),
             );
-            let pkey = PKey::private_key_from_der(&pkcs8)?;
-            self.check_key(&pkey)?;
+            let private_key = PKey::private_key_from_der(&pkcs8)?;
+            let rsa = private_key.rsa()?;
+            if rsa.size() * 8 < 2048 {
+                bail!("key length must be 2048 or more.");
+            }
 
             Ok(RsassaPssJwsSigner {
                 algorithm: self.clone(),
-                private_key: pkey,
+                private_key,
                 key_id: key_id.map(|val| val.to_string()),
             })
         })()
@@ -285,11 +251,11 @@ impl RsassaPssJwsAlgorithm {
         (|| -> anyhow::Result<RsassaPssJwsVerifier> {
             let pkcs8;
             let pkcs8_ref = match RsaPssKeyPair::detect_pkcs8(input.as_ref(), true) {
-                Some((md, mgf1_md, salt_len)) => {
-                    if md != self.message_digest() {
-                        bail!("The message digest parameter is mismatched: {}", md);
-                    } else if mgf1_md != self.message_digest() {
-                        bail!("The mgf1 message digest parameter is mismatched: {}", mgf1_md);
+                Some((hash, mgf1_hash, salt_len)) => {
+                    if hash != self.hash_algorithm() {
+                        bail!("The message digest parameter is mismatched: {}", hash);
+                    } else if mgf1_hash != self.hash_algorithm() {
+                        bail!("The mgf1 message digest parameter is mismatched: {}", mgf1_hash);
                     } else if salt_len != self.salt_len() {
                         bail!("The salt size is mismatched: {}", salt_len);
                     }
@@ -300,8 +266,8 @@ impl RsassaPssJwsAlgorithm {
                     pkcs8 = RsaPssKeyPair::to_pkcs8(
                         input.as_ref(),
                         true,
-                        self.message_digest(),
-                        self.message_digest(),
+                        self.hash_algorithm(),
+                        self.hash_algorithm(),
                         self.salt_len(),
                     );
                     &pkcs8
@@ -310,7 +276,10 @@ impl RsassaPssJwsAlgorithm {
 
             let public_key = PKey::public_key_from_der(pkcs8_ref)?;
 
-            self.check_key(&public_key)?;
+            let rsa = public_key.rsa()?;
+            if rsa.size() * 8 < 2048 {
+                bail!("key length must be 2048 or more.");
+            }
 
             Ok(RsassaPssJwsVerifier {
                 algorithm: self.clone(),
@@ -340,11 +309,11 @@ impl RsassaPssJwsAlgorithm {
             let public_key = match alg.as_str() {
                 "PUBLIC KEY" | "RSA-PSS PUBLIC KEY" => {
                     match RsaPssKeyPair::detect_pkcs8(&data, true) {
-                        Some((md, mgf1_md, salt_len)) => {
-                            if md != self.message_digest() {
-                                bail!("The message digest parameter is mismatched: {}", md);
-                            } else if mgf1_md != self.message_digest() {
-                                bail!("The mgf1 message digest parameter is mismatched: {}", mgf1_md);
+                        Some((hash, mgf1_hash, salt_len)) => {
+                            if hash != self.hash_algorithm() {
+                                bail!("The message digest parameter is mismatched: {}", hash);
+                            } else if mgf1_hash != self.hash_algorithm() {
+                                bail!("The mgf1 message digest parameter is mismatched: {}", mgf1_hash);
                             } else if salt_len != self.salt_len() {
                                 bail!("The salt size is mismatched: {}", salt_len);
                             }
@@ -358,8 +327,8 @@ impl RsassaPssJwsAlgorithm {
                     let pkcs8 = RsaPssKeyPair::to_pkcs8(
                         &data,
                         true,
-                        self.message_digest(),
-                        self.message_digest(),
+                        self.hash_algorithm(),
+                        self.hash_algorithm(),
                         self.salt_len(),
                     );
                     PKey::public_key_from_der(&pkcs8)?
@@ -367,7 +336,10 @@ impl RsassaPssJwsAlgorithm {
                 alg => bail!("Inappropriate algorithm: {}", alg),
             };
 
-            self.check_key(&public_key)?;
+            let rsa = public_key.rsa()?;
+            if rsa.size() * 8 < 2048 {
+                bail!("key length must be 2048 or more.");
+            }
 
             Ok(RsassaPssJwsVerifier {
                 algorithm: self.clone(),
@@ -423,14 +395,17 @@ impl RsassaPssJwsAlgorithm {
             let pkcs8 = RsaPssKeyPair::to_pkcs8(
                 &builder.build(),
                 true,
-                self.message_digest(),
-                self.message_digest(),
+                self.hash_algorithm(),
+                self.hash_algorithm(),
                 self.salt_len(),
             );
             let public_key = PKey::public_key_from_der(&pkcs8)?;
             let key_id = jwk.key_id().map(|val| val.to_string());
 
-            self.check_key(&public_key)?;
+            let rsa = public_key.rsa()?;
+            if rsa.size() * 8 < 2048 {
+                bail!("key length must be 2048 or more.");
+            }
 
             Ok(RsassaPssJwsVerifier {
                 algorithm: self.clone(),
@@ -441,7 +416,7 @@ impl RsassaPssJwsAlgorithm {
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
-    fn message_digest(&self) -> HashAlgorithm {
+    fn hash_algorithm(&self) -> HashAlgorithm {
         match self {
             RsassaPssJwsAlgorithm::PS256 => HashAlgorithm::Sha256,
             RsassaPssJwsAlgorithm::PS384 => HashAlgorithm::Sha384,
@@ -455,16 +430,6 @@ impl RsassaPssJwsAlgorithm {
             RsassaPssJwsAlgorithm::PS384 => 48,
             RsassaPssJwsAlgorithm::PS512 => 64,
         }
-    }
-
-    fn check_key<T: HasPublic>(&self, pkey: &PKey<T>) -> anyhow::Result<()> {
-        let rsa = pkey.rsa()?;
-
-        if rsa.size() * 8 < 2048 {
-            bail!("key length must be 2048 or more.");
-        }
-
-        Ok(())
     }
 }
 
@@ -534,13 +499,9 @@ impl JwsSigner for RsassaPssJwsSigner {
 
     fn sign(&self, message: &[u8]) -> Result<Vec<u8>, JoseError> {
         (|| -> anyhow::Result<Vec<u8>> {
-            let message_digest = match self.algorithm {
-                RsassaPssJwsAlgorithm::PS256 => MessageDigest::sha256(),
-                RsassaPssJwsAlgorithm::PS384 => MessageDigest::sha384(),
-                RsassaPssJwsAlgorithm::PS512 => MessageDigest::sha512(),
-            };
+            let md = self.algorithm.hash_algorithm().message_digest();
 
-            let mut signer = Signer::new(message_digest, &self.private_key)?;
+            let mut signer = Signer::new(md, &self.private_key)?;
             signer.update(message)?;
             let signature = signer.sign_to_vec()?;
             Ok(signature)
@@ -595,13 +556,9 @@ impl JwsVerifier for RsassaPssJwsVerifier {
 
     fn verify(&self, message: &[u8], signature: &[u8]) -> Result<(), JoseError> {
         (|| -> anyhow::Result<()> {
-            let message_digest = match self.algorithm {
-                RsassaPssJwsAlgorithm::PS256 => MessageDigest::sha256(),
-                RsassaPssJwsAlgorithm::PS384 => MessageDigest::sha384(),
-                RsassaPssJwsAlgorithm::PS512 => MessageDigest::sha512(),
-            };
+            let md = self.algorithm.hash_algorithm().message_digest();
 
-            let mut verifier = Verifier::new(message_digest, &self.public_key)?;
+            let mut verifier = Verifier::new(md, &self.public_key)?;
             verifier.update(message)?;
             verifier.verify(signature)?;
             Ok(())

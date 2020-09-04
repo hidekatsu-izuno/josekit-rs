@@ -45,10 +45,6 @@ impl RsaKeyPair {
     /// * `bits` - RSA key length
     pub fn generate(bits: u32) -> Result<RsaKeyPair, JoseError> {
         (|| -> anyhow::Result<RsaKeyPair> {
-            if bits < 2048 {
-                bail!("key length must be 2048 or more.");
-            }
-
             let rsa = Rsa::generate(bits)?;
             let key_len = rsa.size();
             let private_key = PKey::from_rsa(rsa)?;
@@ -73,7 +69,7 @@ impl RsaKeyPair {
                 Some(_) => input.as_ref(),
                 None => {
                     pkcs8 = Self::to_pkcs8(input.as_ref(), false);
-                    &pkcs8
+                    pkcs8.as_slice()
                 }
             };
 
