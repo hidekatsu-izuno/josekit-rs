@@ -3,7 +3,6 @@ use std::ops::Deref;
 
 use anyhow::bail;
 use openssl::hash::MessageDigest;
-use openssl::nid::Nid;
 use openssl::pkey::{PKey, Private, Public};
 use openssl::sign::{Signer, Verifier};
 use serde_json::Value;
@@ -39,35 +38,9 @@ impl EcdsaJwsAlgorithm {
     /// # Arguments
     /// * `input` - A private key that is a DER encoded PKCS#8 PrivateKeyInfo or ECPrivateKey.
     pub fn keypair_from_der(&self, input: impl AsRef<[u8]>) -> Result<EcKeyPair, JoseError> {
-        (|| -> anyhow::Result<EcKeyPair> {
-            let pkcs8;
-            let pkcs8_ref = match EcKeyPair::detect_pkcs8(input.as_ref(), false) {
-                Some(curve) if curve == self.curve() => input.as_ref(),
-                Some(curve) => bail!("The curve is mismatched: {}", curve),
-                None => {
-                    pkcs8 = EcKeyPair::to_pkcs8(input.as_ref(), false, self.curve());
-                    &pkcs8
-                }
-            };
-
-            let private_key = PKey::private_key_from_der(pkcs8_ref)?;
-            let ec_key = private_key.ec_key()?;
-            let curve = match ec_key.group().curve_name() {
-                Some(Nid::X9_62_PRIME256V1) => EcCurve::P256,
-                Some(Nid::SECP384R1) => EcCurve::P384,
-                Some(Nid::SECP521R1) => EcCurve::P521,
-                Some(Nid::SECP256K1) => EcCurve::Secp256K1,
-                _ => unreachable!(),
-            };
-
-            let mut keypair = EcKeyPair::from_private_key(private_key, curve);
-            keypair.set_algorithm(Some(self.name()));
-            Ok(keypair)
-        })()
-        .map_err(|err| match err.downcast::<JoseError>() {
-            Ok(err) => err,
-            Err(err) => JoseError::InvalidJwtFormat(err),
-        })
+        let mut keypair = EcKeyPair::from_der(input, Some(self.curve()))?;
+        keypair.set_algorithm(Some(self.name()));
+        Ok(keypair)
     }
 
     /// Create a EcDSA key pair from a private key of common or traditinal PEM format.
@@ -81,40 +54,9 @@ impl EcdsaJwsAlgorithm {
     /// # Arguments
     /// * `input` - A private key of common or traditinal PEM format.
     pub fn keypair_from_pem(&self, input: impl AsRef<[u8]>) -> Result<EcKeyPair, JoseError> {
-        (|| -> anyhow::Result<EcKeyPair> {
-            let (alg, data) = util::parse_pem(input.as_ref())?;
-            let pkcs8;
-            let pkcs8_ref = match alg.as_str() {
-                "PRIVATE KEY" => match EcKeyPair::detect_pkcs8(&data, false) {
-                    Some(curve) if curve == self.curve() => &data,
-                    Some(curve) => bail!("The curve is mismatched: {}", curve),
-                    None => bail!("PEM contents is expected PKCS#8 wrapped key."),
-                },
-                "EC PRIVATE KEY" => {
-                    pkcs8 = EcKeyPair::to_pkcs8(&data, false, self.curve());
-                    &pkcs8
-                }
-                alg => bail!("Inappropriate algorithm: {}", alg),
-            };
-
-            let private_key = PKey::private_key_from_der(pkcs8_ref)?;
-            let ec_key = private_key.ec_key()?;
-            let curve = match ec_key.group().curve_name() {
-                Some(Nid::X9_62_PRIME256V1) => EcCurve::P256,
-                Some(Nid::SECP384R1) => EcCurve::P384,
-                Some(Nid::SECP521R1) => EcCurve::P521,
-                Some(Nid::SECP256K1) => EcCurve::Secp256K1,
-                _ => unreachable!(),
-            };
-
-            let mut keypair = EcKeyPair::from_private_key(private_key, curve);
-            keypair.set_algorithm(Some(self.name()));
-            Ok(keypair)
-        })()
-        .map_err(|err| match err.downcast::<JoseError>() {
-            Ok(err) => err,
-            Err(err) => JoseError::InvalidJwtFormat(err),
-        })
+        let mut keypair = EcKeyPair::from_pem(input.as_ref(), Some(self.curve()))?;
+        keypair.set_algorithm(Some(self.name()));
+        Ok(keypair)
     }
 
     /// Return a signer from a private key that is a DER encoded PKCS#8 PrivateKeyInfo or ECPrivateKey.

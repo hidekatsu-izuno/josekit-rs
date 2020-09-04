@@ -114,19 +114,19 @@ pub fn generate_x448() -> Result<PKey<Private>, ErrorStack> {
 
 fn generate_der(nid: c_int) -> Result<PKey<Private>, ErrorStack> {
     let der = unsafe {
-        let kctx = match EVP_PKEY_CTX_new_id(nid, ptr::null_mut()) {
+        let pctx = match EVP_PKEY_CTX_new_id(nid, ptr::null_mut()) {
             val if val.is_null() => return Err(ErrorStack::get()),
             val => val,
         };
 
-        if EVP_PKEY_keygen_init(kctx) <= 0 {
-            EVP_PKEY_CTX_free(kctx);
+        if EVP_PKEY_keygen_init(pctx) <= 0 {
+            EVP_PKEY_CTX_free(pctx);
             return Err(ErrorStack::get());
         }
 
         let mut pkey = ptr::null_mut();
-        if EVP_PKEY_keygen(kctx, &mut pkey) <= 0 {
-            EVP_PKEY_CTX_free(kctx);
+        if EVP_PKEY_keygen(pctx, &mut pkey) <= 0 {
+            EVP_PKEY_CTX_free(pctx);
             return Err(ErrorStack::get());
         }
 

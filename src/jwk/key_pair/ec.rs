@@ -1,6 +1,7 @@
 use std::fmt::Display;
 use std::ops::Deref;
 
+use anyhow::bail;
 use once_cell::sync::Lazy;
 use openssl::bn::{BigNum, BigNumContext};
 use openssl::ec::{EcGroup, EcKey};
@@ -11,7 +12,7 @@ use serde_json::Value;
 use crate::der::{oid::ObjectIdentifier, DerBuilder, DerReader, DerType};
 use crate::jose::JoseError;
 use crate::jwk::{Jwk, KeyPair};
-use crate::util::num_to_vec;
+use crate::util;
 
 static OID_ID_EC_PUBLIC_KEY: Lazy<ObjectIdentifier> =
     Lazy::new(|| ObjectIdentifier::from_slice(&[1, 2, 840, 10045, 2, 1]));
@@ -115,6 +116,103 @@ impl EcKeyPair {
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
+    /// Create a EC key pair from a private key that is a DER encoded PKCS#8 PrivateKeyInfo or ECPrivateKey.
+    ///
+    /// # Arguments
+    /// 
+    /// * `input` - A private key that is a DER encoded PKCS#8 PrivateKeyInfo or ECPrivateKey.
+    /// * `curve` - EC curve
+    pub fn from_der(input: impl AsRef<[u8]>, curve: Option<EcCurve>) -> Result<Self, JoseError> {
+        (|| -> anyhow::Result<EcKeyPair> {
+            let pkcs8;
+            let pkcs8_ref = match Self::detect_pkcs8(input.as_ref(), false) {
+                Some(val) => match curve {
+                    Some(val2) if val2 == val => input.as_ref(),
+                    Some(val2) => bail!("The curve is mismatched: {}", val2),
+                    None => input.as_ref(),
+                },
+                None => match curve {
+                    Some(val) => {
+                        pkcs8 = Self::to_pkcs8(input.as_ref(), false, val);
+                        &pkcs8
+                    },
+                    None => bail!("A curve is required for raw format."), 
+                }
+            };
+
+            let private_key = PKey::private_key_from_der(pkcs8_ref)?;
+            let ec_key = private_key.ec_key()?;
+            let curve = match ec_key.group().curve_name() {
+                Some(Nid::X9_62_PRIME256V1) => EcCurve::P256,
+                Some(Nid::SECP384R1) => EcCurve::P384,
+                Some(Nid::SECP521R1) => EcCurve::P521,
+                Some(Nid::SECP256K1) => EcCurve::Secp256K1,
+                _ => unreachable!(),
+            };
+
+            let keypair = Self::from_private_key(private_key, curve);
+            Ok(keypair)
+        })()
+        .map_err(|err| match err.downcast::<JoseError>() {
+            Ok(err) => err,
+            Err(err) => JoseError::InvalidKeyFormat(err),
+        })
+    }
+
+    /// Create a Ec key pair from a private key of common or traditinal PEM format.
+    ///
+    /// Common PEM format is a DER and base64 encoded PKCS#8 PrivateKeyInfo
+    /// that surrounded by "-----BEGIN/END PRIVATE KEY----".
+    ///
+    /// Traditional PEM format is a DER and base64 encoded ECPrivateKey
+    /// that surrounded by "-----BEGIN/END EC PRIVATE KEY----".
+    ///
+    /// # Arguments
+    /// 
+    /// * `input` - A private key of common or traditinal PEM format.
+    /// * `curve` - EC curve
+    pub fn from_pem(input: impl AsRef<[u8]>, curve: Option<EcCurve>) -> Result<Self, JoseError> {
+        (|| -> anyhow::Result<Self> {
+            let (alg, data) = util::parse_pem(input.as_ref())?;
+            let pkcs8;
+            let pkcs8_ref = match alg.as_str() {
+                "PRIVATE KEY" => match Self::detect_pkcs8(&data, false) {
+                    Some(val) => match curve {
+                        Some(val2) if val2 == val => &data,
+                        Some(val2) => bail!("The curve is mismatched: {}", val2),
+                        None => &data,
+                    },
+                    None => bail!("PEM contents is expected PKCS#8 wrapped key."),
+                },
+                "EC PRIVATE KEY" => match curve {
+                    Some(val) => {
+                        pkcs8 = Self::to_pkcs8(&data, false, val);
+                        &pkcs8
+                    },
+                    None => bail!("A curve is required for raw format."), 
+                }
+                alg => bail!("Inappropriate algorithm: {}", alg),
+            };
+
+            let private_key = PKey::private_key_from_der(pkcs8_ref)?;
+            let ec_key = private_key.ec_key()?;
+            let curve = match ec_key.group().curve_name() {
+                Some(Nid::X9_62_PRIME256V1) => EcCurve::P256,
+                Some(Nid::SECP384R1) => EcCurve::P384,
+                Some(Nid::SECP521R1) => EcCurve::P521,
+                Some(Nid::SECP256K1) => EcCurve::Secp256K1,
+                _ => unreachable!(),
+            };
+
+            let keypair = EcKeyPair::from_private_key(private_key, curve);
+            Ok(keypair)
+        })()
+        .map_err(|err| match err.downcast::<JoseError>() {
+            Ok(err) => err,
+            Err(err) => JoseError::InvalidJwtFormat(err),
+        })
+    }
+
     pub fn to_raw_private_key(&self) -> Vec<u8> {
         let ec_key = self.private_key.ec_key().unwrap();
         ec_key.private_key_to_der().unwrap()
@@ -136,7 +234,7 @@ impl EcKeyPair {
             .unwrap();
         if private {
             let d = ec_key.private_key();
-            let d = num_to_vec(&d, self.curve.coordinate_size());
+            let d = util::num_to_vec(&d, self.curve.coordinate_size());
             let d = base64::encode_config(&d, base64::URL_SAFE_NO_PAD);
 
             jwk.set_parameter("d", Some(Value::String(d))).unwrap();
@@ -150,10 +248,10 @@ impl EcKeyPair {
                 .affine_coordinates_gfp(ec_key.group(), &mut x, &mut y, &mut ctx)
                 .unwrap();
 
-            let x = num_to_vec(&x, self.curve.coordinate_size());
+            let x = util::num_to_vec(&x, self.curve.coordinate_size());
             let x = base64::encode_config(&x, base64::URL_SAFE_NO_PAD);
 
-            let y = num_to_vec(&y, self.curve.coordinate_size());
+            let y = util::num_to_vec(&y, self.curve.coordinate_size());
             let y = base64::encode_config(&y, base64::URL_SAFE_NO_PAD);
 
             jwk.set_parameter("x", Some(Value::String(x))).unwrap();
@@ -298,5 +396,24 @@ impl Deref for EcKeyPair {
 
     fn deref(&self) -> &Self::Target {
         self
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use anyhow::Result;
+
+    use crate::jwk::{EcCurve, EcKeyPair};
+
+    #[test]
+    fn export_import_ec_jwt() -> Result<()> {
+        for curve in vec![
+            EcCurve::P256
+        ] {
+            let keypair = EcKeyPair::generate(curve)?;
+            let jwk_keypair = keypair.to_jwk_keypair();
+        }
+
+        Ok(())
     }
 }

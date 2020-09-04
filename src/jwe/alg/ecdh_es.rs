@@ -747,5 +747,34 @@ mod tests {
         file.read_to_end(&mut data)?;
         Ok(data)
     }
+
+    use openssl::nid::Nid;
+    use openssl::ec::{EcGroup, EcKey};
+    use openssl::pkey::PKey;
+    use openssl::derive::Deriver;
+    use crate::util;
+
+    #[test]
+    fn test_ecdh() -> Result<()> {
+        let private_key_1 = util::generate_x25519()?;
+        let public_key_1_der = private_key_1.public_key_to_der()?;
+        let public_key_1 = PKey::public_key_from_der(&public_key_1_der)?;
+
+        let private_key_2 = util::generate_x25519()?;
+        let public_key_2_der = private_key_2.public_key_to_der()?;
+        let public_key_2 = PKey::public_key_from_der(&public_key_2_der)?;
+
+        let mut deriver_1 = Deriver::new(&private_key_1)?;
+        deriver_1.set_peer(&public_key_2)?;
+        let result_1 = deriver_1.derive_to_vec()?;
+
+        let mut deriver_2 = Deriver::new(&private_key_2)?;
+        deriver_2.set_peer(&public_key_1)?;
+        let result_2 = deriver_2.derive_to_vec()?;
+
+        assert_eq!(&result_1, &result_2);
+
+        Ok(())
+    }
 }
 
