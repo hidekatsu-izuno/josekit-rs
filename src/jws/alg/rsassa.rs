@@ -42,23 +42,14 @@ impl RsassaJwsAlgorithm {
     /// * `input` - A private key that is a DER encoded PKCS#8 PrivateKeyInfo or PKCS#1 RSAPrivateKey.
     pub fn keypair_from_der(&self, input: impl AsRef<[u8]>) -> Result<RsaKeyPair, JoseError> {
         (|| -> anyhow::Result<RsaKeyPair> {
-            let pkcs8;
-            let pkcs8_ref = match RsaKeyPair::detect_pkcs8(input.as_ref(), false) {
-                Some(_) => input.as_ref(),
-                None => {
-                    pkcs8 = RsaKeyPair::to_pkcs8(input.as_ref(), false);
-                    &pkcs8
-                }
-            };
-
-            let private_key = PKey::private_key_from_der(pkcs8_ref)?;
-            self.check_key(&private_key)?;
-
-            let mut keypair = RsaKeyPair::from_private_key(private_key);
+            let mut keypair = RsaKeyPair::from_der(input)?;
             keypair.set_algorithm(Some(self.name()));
             Ok(keypair)
         })()
-        .map_err(|err| JoseError::InvalidKeyFormat(err))
+        .map_err(|err| match err.downcast::<JoseError>() {
+            Ok(err) => err,
+            Err(err) => JoseError::InvalidKeyFormat(err),
+        })
     }
 
     /// Create a RSA key pair from a private key of common or traditinal PEM format.
@@ -73,26 +64,19 @@ impl RsassaJwsAlgorithm {
     /// * `input` - A private key of common or traditinal PEM format.
     pub fn keypair_from_pem(&self, input: impl AsRef<[u8]>) -> Result<RsaKeyPair, JoseError> {
         (|| -> anyhow::Result<RsaKeyPair> {
-            let (alg, data) = util::parse_pem(input.as_ref())?;
+            let mut keypair = RsaKeyPair::from_pem(input.as_ref())?;
 
-            let private_key = match alg.as_str() {
-                "PRIVATE KEY" => match RsaKeyPair::detect_pkcs8(&data, false) {
-                    Some(_) => PKey::private_key_from_der(&data)?,
-                    None => bail!("Invalid PEM contents."),
-                },
-                "RSA PRIVATE KEY" => {
-                    let pkcs8 = RsaKeyPair::to_pkcs8(&data, false);
-                    PKey::private_key_from_der(&pkcs8)?
-                }
-                alg => bail!("Inappropriate algorithm: {}", alg),
-            };
-            self.check_key(&private_key)?;
+            if keypair.key_len() * 8 < 2048 {
+                bail!("key length must be 2048 or more.");
+            }
 
-            let mut keypair = RsaKeyPair::from_private_key(private_key);
             keypair.set_algorithm(Some(self.name()));
             Ok(keypair)
         })()
-        .map_err(|err| JoseError::InvalidKeyFormat(err))
+        .map_err(|err| match err.downcast::<JoseError>() {
+            Ok(err) => err,
+            Err(err) => JoseError::InvalidKeyFormat(err),
+        })
     }
 
     /// Return a signer from a private key that is a DER encoded PKCS#8 PrivateKeyInfo or PKCS#1 RSAPrivateKey.

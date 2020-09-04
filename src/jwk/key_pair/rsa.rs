@@ -10,6 +10,7 @@ use crate::der::oid::ObjectIdentifier;
 use crate::der::{DerBuilder, DerReader, DerType};
 use crate::jose::JoseError;
 use crate::jwk::{Jwk, KeyPair};
+use crate::util;
 
 static OID_RSA_ENCRYPTION: Lazy<ObjectIdentifier> =
     Lazy::new(|| ObjectIdentifier::from_slice(&[1, 2, 840, 113549, 1, 1, 1]));
@@ -17,13 +18,19 @@ static OID_RSA_ENCRYPTION: Lazy<ObjectIdentifier> =
 #[derive(Debug, Clone)]
 pub struct RsaKeyPair {
     private_key: PKey<Private>,
+    key_len: u32,
     alg: Option<String>,
 }
 
 impl RsaKeyPair {
-    pub(crate) fn from_private_key(private_key: PKey<Private>) -> RsaKeyPair {
+    pub fn key_len(&self) -> u32 {
+        self.key_len
+    }
+
+    pub(crate) fn from_private_key(private_key: PKey<Private>, key_len: u32) -> RsaKeyPair {
         RsaKeyPair {
             private_key,
+            key_len,
             alg: None,
         }
     }
@@ -43,12 +50,74 @@ impl RsaKeyPair {
             }
 
             let rsa = Rsa::generate(bits)?;
+            let key_len = rsa.size();
             let private_key = PKey::from_rsa(rsa)?;
 
             Ok(RsaKeyPair {
                 private_key,
+                key_len,
                 alg: None,
             })
+        })()
+        .map_err(|err| JoseError::InvalidKeyFormat(err))
+    }
+    
+    /// Create a RSA key pair from a private key that is a DER encoded PKCS#8 PrivateKeyInfo or PKCS#1 RSAPrivateKey.
+    ///
+    /// # Arguments
+    /// * `input` - A private key that is a DER encoded PKCS#8 PrivateKeyInfo or PKCS#1 RSAPrivateKey.
+    pub fn from_der(input: impl AsRef<[u8]>) -> Result<Self, JoseError> {
+        (|| -> anyhow::Result<Self> {
+            let pkcs8;
+            let pkcs8_ref = match Self::detect_pkcs8(input.as_ref(), false) {
+                Some(_) => input.as_ref(),
+                None => {
+                    pkcs8 = Self::to_pkcs8(input.as_ref(), false);
+                    &pkcs8
+                }
+            };
+
+            let private_key = PKey::private_key_from_der(pkcs8_ref)?;
+            let rsa = private_key.rsa()?;
+
+            let keypair = Self::from_private_key(private_key, rsa.size());
+            Ok(keypair)
+        })()
+        .map_err(|err| JoseError::InvalidKeyFormat(err))
+    }
+
+    /// Create a RSA key pair from a private key of common or traditinal PEM format.
+    ///
+    /// Common PEM format is a DER and base64 encoded PKCS#8 PrivateKeyInfo
+    /// that surrounded by "-----BEGIN/END PRIVATE KEY----".
+    ///
+    /// Traditional PEM format is a DER and base64 encoded PKCS#1 RSAPrivateKey
+    /// that surrounded by "-----BEGIN/END RSA PRIVATE KEY----".
+    ///
+    /// # Arguments
+    /// * `input` - A private key of common or traditinal PEM format.
+    pub fn from_pem(input: impl AsRef<[u8]>) -> Result<Self, JoseError> {
+        (|| -> anyhow::Result<Self> {
+            let (alg, data) = util::parse_pem(input.as_ref())?;
+
+            let pkcs8;
+            let pkcs8_ref = match alg.as_str() {
+                "PRIVATE KEY" => match Self::detect_pkcs8(&data, false) {
+                    Some(_) => data.as_slice(),
+                    None => bail!("Invalid PEM contents."),
+                },
+                "RSA PRIVATE KEY" => {
+                    pkcs8 = Self::to_pkcs8(&data, false);
+                    pkcs8.as_slice()
+                }
+                alg => bail!("Inappropriate algorithm: {}", alg),
+            };
+
+            let private_key = PKey::private_key_from_der(&pkcs8_ref)?;
+            let rsa = private_key.rsa()?;
+
+            let keypair = RsaKeyPair::from_private_key(private_key, rsa.size());
+            Ok(keypair)
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
