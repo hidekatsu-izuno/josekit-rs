@@ -356,9 +356,9 @@ impl RsassaJwsAlgorithm {
 
     fn hash_algorithm(&self) -> HashAlgorithm {
         match self {
-            RsassaJwsAlgorithm::RS256 => HashAlgorithm::Sha256,
-            RsassaJwsAlgorithm::RS384 => HashAlgorithm::Sha384,
-            RsassaJwsAlgorithm::RS512 => HashAlgorithm::Sha512,
+            Self::RS256 => HashAlgorithm::Sha256,
+            Self::RS384 => HashAlgorithm::Sha384,
+            Self::RS512 => HashAlgorithm::Sha512,
         }
     }
 }

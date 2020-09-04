@@ -10,6 +10,7 @@ use serde_json::Value;
 use crate::jose::JoseError;
 use crate::jwk::Jwk;
 use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier};
+use crate::util::HashAlgorithm;
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum HmacJwsAlgorithm {
@@ -159,6 +160,14 @@ impl HmacJwsAlgorithm {
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
+    
+    fn hash_algorithm(&self) -> HashAlgorithm {
+        match self {
+            Self::HS256 => HashAlgorithm::Sha256,
+            Self::HS384 => HashAlgorithm::Sha384,
+            Self::HS512 => HashAlgorithm::Sha512,
+        }
+    }
 }
 
 impl JwsAlgorithm for HmacJwsAlgorithm {
@@ -215,11 +224,7 @@ impl JwsSigner for HmacJwsSigner {
     }
 
     fn signature_len(&self) -> usize {
-        match self.algorithm {
-            HmacJwsAlgorithm::HS256 => 32,
-            HmacJwsAlgorithm::HS384 => 48,
-            HmacJwsAlgorithm::HS512 => 64,
-        }
+        self.algorithm.hash_algorithm().signature_len()
     }
 
     fn key_id(&self) -> Option<&str> {
@@ -231,13 +236,9 @@ impl JwsSigner for HmacJwsSigner {
 
     fn sign(&self, message: &[u8]) -> Result<Vec<u8>, JoseError> {
         (|| -> anyhow::Result<Vec<u8>> {
-            let message_digest = match self.algorithm {
-                HmacJwsAlgorithm::HS256 => MessageDigest::sha256(),
-                HmacJwsAlgorithm::HS384 => MessageDigest::sha384(),
-                HmacJwsAlgorithm::HS512 => MessageDigest::sha512(),
-            };
+            let md = self.algorithm.hash_algorithm().message_digest();
 
-            let mut signer = Signer::new(message_digest, &self.private_key)?;
+            let mut signer = Signer::new(md, &self.private_key)?;
             signer.update(message)?;
             let signature = signer.sign_to_vec()?;
             Ok(signature)
@@ -292,13 +293,9 @@ impl JwsVerifier for HmacJwsVerifier {
 
     fn verify(&self, message: &[u8], signature: &[u8]) -> Result<(), JoseError> {
         (|| -> anyhow::Result<()> {
-            let message_digest = match self.algorithm {
-                HmacJwsAlgorithm::HS256 => MessageDigest::sha256(),
-                HmacJwsAlgorithm::HS384 => MessageDigest::sha384(),
-                HmacJwsAlgorithm::HS512 => MessageDigest::sha512(),
-            };
+            let md = self.algorithm.hash_algorithm().message_digest();
 
-            let mut signer = Signer::new(message_digest, &self.private_key)?;
+            let mut signer = Signer::new(md, &self.private_key)?;
             signer.update(message)?;
             let new_signature = signer.sign_to_vec()?;
             if new_signature.as_slice() != signature {

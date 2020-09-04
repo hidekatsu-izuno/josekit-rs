@@ -2,7 +2,6 @@ use std::fmt::Display;
 use std::ops::Deref;
 
 use anyhow::bail;
-use openssl::hash::MessageDigest;
 use openssl::pkey::{PKey, Private, Public};
 use openssl::sign::{Signer, Verifier};
 use serde_json::Value;
@@ -11,7 +10,7 @@ use crate::der::{DerBuilder, DerReader, DerType};
 use crate::jose::JoseError;
 use crate::jwk::{EcCurve, EcKeyPair, Jwk, KeyPair};
 use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier};
-use crate::util;
+use crate::util::{self, HashAlgorithm};
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum EcdsaJwsAlgorithm {
@@ -293,6 +292,15 @@ impl EcdsaJwsAlgorithm {
             Self::ES256K => EcCurve::Secp256K1,
         }
     }
+    
+    fn hash_algorithm(&self) -> HashAlgorithm {
+        match self {
+            Self::ES256 => HashAlgorithm::Sha256,
+            Self::ES384 => HashAlgorithm::Sha384,
+            Self::ES512 => HashAlgorithm::Sha512,
+            Self::ES256K => HashAlgorithm::Sha256,
+        }
+    }
 }
 
 impl JwsAlgorithm for EcdsaJwsAlgorithm {
@@ -367,14 +375,9 @@ impl JwsSigner for EcdsaJwsSigner {
 
     fn sign(&self, message: &[u8]) -> Result<Vec<u8>, JoseError> {
         (|| -> anyhow::Result<Vec<u8>> {
-            let message_digest = match self.algorithm {
-                EcdsaJwsAlgorithm::ES256 => MessageDigest::sha256(),
-                EcdsaJwsAlgorithm::ES384 => MessageDigest::sha384(),
-                EcdsaJwsAlgorithm::ES512 => MessageDigest::sha512(),
-                EcdsaJwsAlgorithm::ES256K => MessageDigest::sha256(),
-            };
+            let md = self.algorithm.hash_algorithm().message_digest();
 
-            let mut signer = Signer::new(message_digest, &self.private_key)?;
+            let mut signer = Signer::new(md, &self.private_key)?;
             signer.update(message)?;
             let signature = signer.sign_to_vec()?;
 
@@ -457,14 +460,9 @@ impl JwsVerifier for EcdsaJwsVerifier {
             der_builder.end();
             let der_signature = der_builder.build();
 
-            let message_digest = match self.algorithm {
-                EcdsaJwsAlgorithm::ES256 => MessageDigest::sha256(),
-                EcdsaJwsAlgorithm::ES384 => MessageDigest::sha384(),
-                EcdsaJwsAlgorithm::ES512 => MessageDigest::sha512(),
-                EcdsaJwsAlgorithm::ES256K => MessageDigest::sha256(),
-            };
+            let md = self.algorithm.hash_algorithm().message_digest();
 
-            let mut verifier = Verifier::new(message_digest, &self.public_key)?;
+            let mut verifier = Verifier::new(md, &self.public_key)?;
             verifier.update(message)?;
             verifier.verify(&der_signature)?;
             Ok(())

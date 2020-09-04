@@ -45,6 +45,14 @@ impl HashAlgorithm {
             Self::Sha512 => "SHA-512",
         }
     }
+    
+    pub fn signature_len(&self) -> usize {
+        match self {
+            Self::Sha256 => 32,
+            Self::Sha384 => 48,
+            Self::Sha512 => 64,
+        }
+    }
 
     pub fn message_digest(&self) -> MessageDigest {
         match self {

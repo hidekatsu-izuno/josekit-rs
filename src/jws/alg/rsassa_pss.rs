@@ -418,17 +418,17 @@ impl RsassaPssJwsAlgorithm {
 
     fn hash_algorithm(&self) -> HashAlgorithm {
         match self {
-            RsassaPssJwsAlgorithm::PS256 => HashAlgorithm::Sha256,
-            RsassaPssJwsAlgorithm::PS384 => HashAlgorithm::Sha384,
-            RsassaPssJwsAlgorithm::PS512 => HashAlgorithm::Sha512,
+            Self::PS256 => HashAlgorithm::Sha256,
+            Self::PS384 => HashAlgorithm::Sha384,
+            Self::PS512 => HashAlgorithm::Sha512,
         }
     }
 
     fn salt_len(&self) -> u8 {
         match self {
-            RsassaPssJwsAlgorithm::PS256 => 32,
-            RsassaPssJwsAlgorithm::PS384 => 48,
-            RsassaPssJwsAlgorithm::PS512 => 64,
+            Self::PS256 => 32,
+            Self::PS384 => 48,
+            Self::PS512 => 64,
         }
     }
 }
