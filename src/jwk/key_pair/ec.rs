@@ -123,32 +123,24 @@ impl EcKeyPair {
     /// * `input` - A private key that is a DER encoded PKCS#8 PrivateKeyInfo or ECPrivateKey.
     /// * `curve` - EC curve
     pub fn from_der(input: impl AsRef<[u8]>, curve: Option<EcCurve>) -> Result<Self, JoseError> {
-        (|| -> anyhow::Result<EcKeyPair> {
+        (|| -> anyhow::Result<Self> {
             let pkcs8;
-            let pkcs8_ref = match Self::detect_pkcs8(input.as_ref(), false) {
+            let (pkcs8_ref, curve) = match Self::detect_pkcs8(input.as_ref(), false) {
                 Some(val) => match curve {
-                    Some(val2) if val2 == val => input.as_ref(),
+                    Some(val2) if val2 == val => (input.as_ref(), val),
                     Some(val2) => bail!("The curve is mismatched: {}", val2),
-                    None => input.as_ref(),
+                    None => (input.as_ref(), val),
                 },
                 None => match curve {
                     Some(val) => {
                         pkcs8 = Self::to_pkcs8(input.as_ref(), false, val);
-                        &pkcs8
+                        (pkcs8.as_slice(), val)
                     },
                     None => bail!("A curve is required for raw format."), 
                 }
             };
 
             let private_key = PKey::private_key_from_der(pkcs8_ref)?;
-            let ec_key = private_key.ec_key()?;
-            let curve = match ec_key.group().curve_name() {
-                Some(Nid::X9_62_PRIME256V1) => EcCurve::P256,
-                Some(Nid::SECP384R1) => EcCurve::P384,
-                Some(Nid::SECP521R1) => EcCurve::P521,
-                Some(Nid::SECP256K1) => EcCurve::Secp256K1,
-                _ => unreachable!(),
-            };
 
             let keypair = Self::from_private_key(private_key, curve);
             Ok(keypair)
@@ -175,19 +167,19 @@ impl EcKeyPair {
         (|| -> anyhow::Result<Self> {
             let (alg, data) = util::parse_pem(input.as_ref())?;
             let pkcs8;
-            let pkcs8_ref = match alg.as_str() {
+            let (pkcs8_ref, curve) = match alg.as_str() {
                 "PRIVATE KEY" => match Self::detect_pkcs8(&data, false) {
                     Some(val) => match curve {
-                        Some(val2) if val2 == val => &data,
+                        Some(val2) if val2 == val => (data.as_slice(), val),
                         Some(val2) => bail!("The curve is mismatched: {}", val2),
-                        None => &data,
+                        None => (data.as_slice(), val),
                     },
                     None => bail!("PEM contents is expected PKCS#8 wrapped key."),
                 },
                 "EC PRIVATE KEY" => match curve {
                     Some(val) => {
                         pkcs8 = Self::to_pkcs8(&data, false, val);
-                        &pkcs8
+                        (pkcs8.as_slice(), val)
                     },
                     None => bail!("A curve is required for raw format."), 
                 }
@@ -195,14 +187,6 @@ impl EcKeyPair {
             };
 
             let private_key = PKey::private_key_from_der(pkcs8_ref)?;
-            let ec_key = private_key.ec_key()?;
-            let curve = match ec_key.group().curve_name() {
-                Some(Nid::X9_62_PRIME256V1) => EcCurve::P256,
-                Some(Nid::SECP384R1) => EcCurve::P384,
-                Some(Nid::SECP521R1) => EcCurve::P521,
-                Some(Nid::SECP256K1) => EcCurve::Secp256K1,
-                _ => unreachable!(),
-            };
 
             let keypair = EcKeyPair::from_private_key(private_key, curve);
             Ok(keypair)

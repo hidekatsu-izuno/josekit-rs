@@ -34,19 +34,9 @@ impl EddsaJwsAlgorithm {
     /// # Arguments
     /// * `input` - A private key that is a DER encoded PKCS#8 PrivateKeyInfo.
     pub fn keypair_from_der(&self, input: impl AsRef<[u8]>) -> Result<EdKeyPair, JoseError> {
-        (|| -> anyhow::Result<EdKeyPair> {
-            let curve = match EdKeyPair::detect_pkcs8(input.as_ref(), false) {
-                Some(val) => val,
-                None => bail!("The EdDSA private key must be wrapped by PKCS#8 format."),
-            };
-
-            let private_key = PKey::private_key_from_der(input.as_ref())?;
-
-            let mut keypair = EdKeyPair::from_private_key(private_key, curve);
-            keypair.set_algorithm(Some(self.name()));
-            Ok(keypair)
-        })()
-        .map_err(|err| JoseError::InvalidKeyFormat(err))
+        let mut keypair = EdKeyPair::from_der(input, None)?;
+        keypair.set_algorithm(Some(self.name()));
+        Ok(keypair)
     }
 
     /// Create a EdDSA key pair from a private key of common or traditinal PEM format.
@@ -60,46 +50,9 @@ impl EddsaJwsAlgorithm {
     /// # Arguments
     /// * `input` - A private key of common or traditinal PEM format.
     pub fn keypair_from_pem(&self, input: impl AsRef<[u8]>) -> Result<EdKeyPair, JoseError> {
-        (|| -> anyhow::Result<EdKeyPair> {
-            let (alg, data) = util::parse_pem(input.as_ref())?;
-            let (curve, private_key) = match alg.as_str() {
-                "PRIVATE KEY" => match EdKeyPair::detect_pkcs8(&data, false) {
-                    Some(val) => {
-                        let private_key = PKey::private_key_from_der(&data)?;
-                        (val, private_key)
-                    }
-                    None => bail!("The EdDSA private key must be wrapped by PKCS#8 format."),
-                },
-                "ED25519 PRIVATE KEY" => match EdKeyPair::detect_pkcs8(&data, false) {
-                    Some(val) => {
-                        if val == EdCurve::Ed25519 {
-                            let private_key = PKey::private_key_from_der(&data)?;
-                            (val, private_key)
-                        } else {
-                            bail!("The EdDSA curve is mismatched: {}", val.name());
-                        }
-                    }
-                    None => bail!("The EdDSA private key must be wrapped by PKCS#8 format."),
-                },
-                "ED448 PRIVATE KEY" => match EdKeyPair::detect_pkcs8(&data, false) {
-                    Some(val) => {
-                        if val == EdCurve::Ed448 {
-                            let private_key = PKey::private_key_from_der(&data)?;
-                            (val, private_key)
-                        } else {
-                            bail!("The EdDSA curve is mismatched: {}", val.name());
-                        }
-                    }
-                    None => bail!("The EdDSA private key must be wrapped by PKCS#8 format."),
-                },
-                alg => bail!("Inappropriate algorithm: {}", alg),
-            };
-
-            let mut keypair = EdKeyPair::from_private_key(private_key, curve);
-            keypair.set_algorithm(Some(self.name()));
-            Ok(keypair)
-        })()
-        .map_err(|err| JoseError::InvalidKeyFormat(err))
+        let mut keypair = EdKeyPair::from_pem(input.as_ref(), None)?;
+        keypair.set_algorithm(Some(self.name()));
+        Ok(keypair)
     }
 
     /// Return a signer from a private key that is a DER encoded PKCS#8 PrivateKeyInfo.

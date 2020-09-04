@@ -1,6 +1,7 @@
 use std::fmt::Display;
 use std::ops::Deref;
 
+use anyhow::bail;
 use once_cell::sync::Lazy;
 use openssl::pkey::{PKey, Private};
 use serde_json::Value;
@@ -9,6 +10,7 @@ use crate::der::oid::ObjectIdentifier;
 use crate::der::{DerBuilder, DerReader, DerType};
 use crate::jose::JoseError;
 use crate::jwk::{Jwk, KeyPair};
+use crate::util;
 
 static OID_ED25519: Lazy<ObjectIdentifier> =
     Lazy::new(|| ObjectIdentifier::from_slice(&[1, 3, 101, 112]));
@@ -84,6 +86,95 @@ impl EdKeyPair {
                 private_key,
                 alg: None,
             })
+        })()
+        .map_err(|err| JoseError::InvalidKeyFormat(err))
+    }
+    
+    /// Create a EdDSA key pair from a private key that is a DER encoded PKCS#8 PrivateKeyInfo.
+    ///
+    /// # Arguments
+    /// * `input` - A private key that is a DER encoded PKCS#8 PrivateKeyInfo.
+    /// * `curve` - EC curve
+    pub fn from_der(input: impl AsRef<[u8]>, curve: Option<EdCurve>) -> Result<Self, JoseError> {
+        (|| -> anyhow::Result<Self> {
+            let (pkcs8_ref, curve) = match Self::detect_pkcs8(input.as_ref(), false) {
+                Some(val) => match curve {
+                    Some(val2) if val2 == val => (input.as_ref(), val),
+                    Some(val2) => bail!("The curve is mismatched: {}", val2),
+                    None => (input.as_ref(), val),
+                },
+                None => bail!("The EdDSA private key must be wrapped by PKCS#8 format."),
+            };
+
+            let private_key = PKey::private_key_from_der(pkcs8_ref)?;
+
+            let keypair = Self::from_private_key(private_key, curve);
+            Ok(keypair)
+        })()
+        .map_err(|err| match err.downcast::<JoseError>() {
+            Ok(err) => err,
+            Err(err) => JoseError::InvalidKeyFormat(err),
+        })
+    }
+
+    /// Create a EdDSA key pair from a private key of common or traditinal PEM format.
+    ///
+    /// Common PEM format is a DER and base64 encoded PKCS#8 PrivateKeyInfo
+    /// that surrounded by "-----BEGIN/END PRIVATE KEY----".
+    ///
+    /// Traditional PEM format is a DER and base64 encoded PKCS#8 PrivateKeyInfo
+    /// that surrounded by "-----BEGIN/END ED25519/ED448 PRIVATE KEY----".
+    ///
+    /// # Arguments
+    /// * `input` - A private key of common or traditinal PEM format.
+    /// * `curve` - EC curve
+    pub fn from_pem(input: impl AsRef<[u8]>, curve: Option<EdCurve>) -> Result<Self, JoseError> {
+        (|| -> anyhow::Result<Self> {
+            let (alg, data) = util::parse_pem(input.as_ref())?;
+            let (pkcs8_ref, curve) = match alg.as_str() {
+                "PRIVATE KEY" => match EdKeyPair::detect_pkcs8(&data, false) {
+                    Some(val) => match curve {
+                        Some(val2) if val2 == val => (data.as_slice(), val),
+                        Some(val2) => bail!("The curve is mismatched: {}", val2),
+                        None => (data.as_slice(), val),
+                    },
+                    None => bail!("The EdDSA private key must be wrapped by PKCS#8 format."),
+                },
+                "ED25519 PRIVATE KEY" => match EdKeyPair::detect_pkcs8(&data, false) {
+                    Some(val) => {
+                        if val == EdCurve::Ed25519 {
+                            match curve {
+                                Some(val2) if val2 == val => (data.as_slice(), val),
+                                Some(val2) => bail!("The curve is mismatched: {}", val2),
+                                None => (data.as_slice(), val),
+                            }
+                        } else {
+                            bail!("The EdDSA curve is mismatched: {}", val.name());
+                        }
+                    }
+                    None => bail!("The EdDSA private key must be wrapped by PKCS#8 format."),
+                },
+                "ED448 PRIVATE KEY" => match EdKeyPair::detect_pkcs8(&data, false) {
+                    Some(val) => {
+                        if val == EdCurve::Ed448 {
+                            match curve {
+                                Some(val2) if val2 == val => (data.as_slice(), val),
+                                Some(val2) => bail!("The curve is mismatched: {}", val2),
+                                None => (data.as_slice(), val),
+                            }
+                        } else {
+                            bail!("The EdDSA curve is mismatched: {}", val.name());
+                        }
+                    }
+                    None => bail!("The EdDSA private key must be wrapped by PKCS#8 format."),
+                },
+                alg => bail!("Inappropriate algorithm: {}", alg),
+            };
+
+            let private_key = PKey::private_key_from_der(pkcs8_ref)?;
+
+            let keypair = EdKeyPair::from_private_key(private_key, curve);
+            Ok(keypair)
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
