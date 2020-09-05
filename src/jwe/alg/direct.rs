@@ -1,5 +1,5 @@
-use std::fmt::Display;
 use std::borrow::Cow;
+use std::fmt::Display;
 use std::ops::Deref;
 
 use anyhow::bail;
@@ -154,7 +154,7 @@ impl DirectJweEncrypter {
         match key_id {
             Some(val) => {
                 self.key_id = Some(val.into());
-            },
+            }
             None => {
                 self.key_id = None;
             }
@@ -216,7 +216,7 @@ impl DirectJweDecrypter {
         match key_id {
             Some(val) => {
                 self.key_id = Some(val.into());
-            },
+            }
             None => {
                 self.key_id = None;
             }
@@ -276,8 +276,8 @@ mod tests {
     use serde_json::json;
 
     use super::DirectJweAlgorithm;
-    use crate::jwe::JweHeader;
     use crate::jwe::enc::aes_cbc_hmac::AesCbcHmacJweEncryption;
+    use crate::jwe::JweHeader;
     use crate::jwk::Jwk;
 
     #[test]
@@ -286,13 +286,14 @@ mod tests {
         let jwk = {
             let mut jwk = Jwk::new("oct");
             jwk.set_key_use("enc");
-            jwk.set_parameter("k", Some(json!("MDEyMzQ1Njc4OUFCQ0RFRjAxMjM0NTY3ODlBQkNERUY=")))?;
+            jwk.set_parameter(
+                "k",
+                Some(json!("MDEyMzQ1Njc4OUFCQ0RFRjAxMjM0NTY3ODlBQkNERUY=")),
+            )?;
             jwk
         };
 
-        for alg in vec![
-            DirectJweAlgorithm::Dir,
-        ] {
+        for alg in vec![DirectJweAlgorithm::Dir] {
             let mut header = JweHeader::new();
             header.set_content_encryption(enc.name());
 
@@ -305,7 +306,7 @@ mod tests {
 
             assert_eq!(&src_key, &dst_key);
         }
-        
+
         Ok(())
     }
 }

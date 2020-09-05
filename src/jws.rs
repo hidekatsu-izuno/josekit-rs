@@ -1328,7 +1328,7 @@ impl JoseHeader for JwsHeader {
         })()
         .map_err(|err| JoseError::InvalidJwsFormat(err))
     }
-    
+
     fn box_clone(&self) -> Box<dyn JoseHeader> {
         Box::new(self.clone())
     }

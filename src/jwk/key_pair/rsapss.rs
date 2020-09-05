@@ -77,32 +77,62 @@ impl RsaPssKeyPair {
     ///
     /// # Arguments
     /// * `input` - A private key that is a DER encoded PKCS#8 PrivateKeyInfo or PKCS#1 RSAPrivateKey.
-    pub fn from_der(input: impl AsRef<[u8]>, hash: HashAlgorithm, mgf1_hash: HashAlgorithm, salt_len: u8) -> Result<Self, JoseError> {
+    /// * `hash` A hash algorithm for signing
+    /// * `mgf1_hash` A hash algorithm for MGF1
+    /// * `salt_len` A salt length
+    pub fn from_der(
+        input: impl AsRef<[u8]>,
+        hash: Option<HashAlgorithm>,
+        mgf1_hash: Option<HashAlgorithm>,
+        salt_len: Option<u8>,
+    ) -> Result<Self, JoseError> {
         (|| -> anyhow::Result<Self> {
             let pkcs8;
-            let pkcs8_ref = match Self::detect_pkcs8(input.as_ref(), false) {
-                Some((hash2, mgf1_hash2, salt_len2)) => {
-                    if hash2 != hash {
-                        bail!("The message digest parameter is mismatched: {}", hash2);
-                    } else if mgf1_hash2 != mgf1_hash {
-                        bail!("The mgf1 message digest parameter is mismatched: {}", mgf1_hash2);
-                    } else if salt_len2 != salt_len {
-                        bail!("The salt size is mismatched: {}", salt_len2);
-                    }
+            let (pkcs8_ref, hash, mgf1_hash, salt_len) =
+                match Self::detect_pkcs8(input.as_ref(), false) {
+                    Some((hash2, mgf1_hash2, salt_len2)) => {
+                        let hash = match hash {
+                            Some(val) if val == hash2 => hash2,
+                            Some(_) => bail!("The hash algorithm is mismatched: {}", hash2),
+                            None => hash2,
+                        };
 
-                    input.as_ref()
-                },
-                None => {
-                    pkcs8 = Self::to_pkcs8(
-                        input.as_ref(),
-                        false,
-                        hash,
-                        mgf1_hash,
-                        salt_len,
-                    );
-                    pkcs8.as_slice()
-                }
-            };
+                        let mgf1_hash = match mgf1_hash {
+                            Some(val) if val == mgf1_hash2 => mgf1_hash2,
+                            Some(_) => {
+                                bail!("The MGF1 hash algorithm is mismatched: {}", mgf1_hash2)
+                            }
+                            None => hash2,
+                        };
+
+                        let salt_len = match salt_len {
+                            Some(val) if val == salt_len2 => salt_len2,
+                            Some(_) => bail!("The salt length is mismatched: {}", salt_len2),
+                            None => salt_len2,
+                        };
+
+                        (input.as_ref(), hash, mgf1_hash, salt_len)
+                    }
+                    None => {
+                        let hash = match hash {
+                            Some(val) => val,
+                            None => bail!("The hash algorithm is required."),
+                        };
+
+                        let mgf1_hash = match mgf1_hash {
+                            Some(val) => val,
+                            None => bail!("The MGF1 hash algorithm is required."),
+                        };
+
+                        let salt_len = match salt_len {
+                            Some(val) => val,
+                            None => bail!("The salt length is required."),
+                        };
+
+                        pkcs8 = Self::to_pkcs8(input.as_ref(), false, hash, mgf1_hash, salt_len);
+                        (pkcs8.as_slice(), hash, mgf1_hash, salt_len)
+                    }
+                };
 
             let private_key = PKey::private_key_from_der(pkcs8_ref)?;
             let rsa = private_key.rsa()?;
@@ -130,35 +160,42 @@ impl RsaPssKeyPair {
     ///
     /// # Arguments
     /// * `input` - A private key of common or traditinal PEM format.
-    pub fn from_pem(input: impl AsRef<[u8]>, hash: HashAlgorithm, mgf1_hash: HashAlgorithm, salt_len: u8) -> Result<Self, JoseError> {
+    /// * `hash` A hash algorithm for signing
+    /// * `mgf1_hash` A hash algorithm for MGF1
+    /// * `salt_len` A salt length
+    pub fn from_pem(
+        input: impl AsRef<[u8]>,
+        hash: HashAlgorithm,
+        mgf1_hash: HashAlgorithm,
+        salt_len: u8,
+    ) -> Result<Self, JoseError> {
         (|| -> anyhow::Result<Self> {
             let (alg, data) = util::parse_pem(input.as_ref())?;
 
             let private_key = match alg.as_str() {
-                "PRIVATE KEY" | "RSA-PSS PRIVATE KEY" => {
-                    match Self::detect_pkcs8(&data, false) {
-                        Some((hash2, mgf1_hash2, salt_len2)) => {
-                            if hash2 != hash {
-                                bail!("The message digest parameter is mismatched: {}", hash2);
-                            } else if mgf1_hash2 != mgf1_hash {
-                                bail!("The mgf1 message digest parameter is mismatched: {}", mgf1_hash2);
-                            } else if salt_len2 != salt_len {
-                                bail!("The salt size is mismatched: {}", salt_len2);
-                            }
+                "PRIVATE KEY" | "RSA-PSS PRIVATE KEY" => match Self::detect_pkcs8(&data, false) {
+                    Some((hash2, mgf1_hash2, salt_len2)) => {
+                        if hash2 != hash {
+                            bail!("The message digest parameter is mismatched: {}", hash2);
+                        }
 
-                            PKey::private_key_from_der(&data)?
-                        },
-                        None => bail!("Invalid PEM contents."),
+                        if mgf1_hash2 != mgf1_hash {
+                            bail!(
+                                "The mgf1 message digest parameter is mismatched: {}",
+                                mgf1_hash2
+                            );
+                        }
+
+                        if salt_len2 != salt_len {
+                            bail!("The salt size is mismatched: {}", salt_len2);
+                        }
+
+                        PKey::private_key_from_der(&data)?
                     }
-                }
+                    None => bail!("Invalid PEM contents."),
+                },
                 "RSA PRIVATE KEY" => {
-                    let pkcs8 = Self::to_pkcs8(
-                        &data,
-                        false,
-                        hash,
-                        mgf1_hash,
-                        salt_len,
-                    );
+                    let pkcs8 = Self::to_pkcs8(&data, false, hash, mgf1_hash, salt_len);
                     PKey::private_key_from_der(&pkcs8)?
                 }
                 alg => bail!("Inappropriate algorithm: {}", alg),
@@ -168,6 +205,97 @@ impl RsaPssKeyPair {
             let key_len = rsa.size();
 
             Ok(RsaPssKeyPair {
+                private_key,
+                key_len,
+                hash,
+                mgf1_hash,
+                salt_len,
+                alg: None,
+            })
+        })()
+        .map_err(|err| JoseError::InvalidKeyFormat(err))
+    }
+
+    /// Create a RSA-PSS key pair from a private key that is formatted by a JWK of RSA type.
+    ///
+    /// # Arguments
+    /// * `jwk` - A private key that is formatted by a JWK of RSA type.
+    /// * `hash` A hash algorithm for signing
+    /// * `mgf1_hash` A hash algorithm for MGF1
+    /// * `salt_len` A salt length
+    pub fn from_jwk(
+        jwk: &Jwk,
+        hash: HashAlgorithm,
+        mgf1_hash: HashAlgorithm,
+        salt_len: u8,
+    ) -> Result<Self, JoseError> {
+        (|| -> anyhow::Result<Self> {
+            match jwk.key_type() {
+                val if val == "RSA" => {}
+                val => bail!("A parameter kty must be RSA: {}", val),
+            }
+            let n = match jwk.parameter("n") {
+                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
+                Some(_) => bail!("A parameter n must be a string."),
+                None => bail!("A parameter n is required."),
+            };
+            let e = match jwk.parameter("e") {
+                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
+                Some(_) => bail!("A parameter e must be a string."),
+                None => bail!("A parameter e is required."),
+            };
+            let d = match jwk.parameter("d") {
+                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
+                Some(_) => bail!("A parameter d must be a string."),
+                None => bail!("A parameter d is required."),
+            };
+            let p = match jwk.parameter("p") {
+                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
+                Some(_) => bail!("A parameter p must be a string."),
+                None => bail!("A parameter p is required."),
+            };
+            let q = match jwk.parameter("q") {
+                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
+                Some(_) => bail!("A parameter q must be a string."),
+                None => bail!("A parameter q is required."),
+            };
+            let dp = match jwk.parameter("dp") {
+                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
+                Some(_) => bail!("A parameter dp must be a string."),
+                None => bail!("A parameter dp is required."),
+            };
+            let dq = match jwk.parameter("dq") {
+                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
+                Some(_) => bail!("A parameter dq must be a string."),
+                None => bail!("A parameter dq is required."),
+            };
+            let qi = match jwk.parameter("qi") {
+                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
+                Some(_) => bail!("A parameter qi must be a string."),
+                None => bail!("A parameter qi is required."),
+            };
+
+            let mut builder = DerBuilder::new();
+            builder.begin(DerType::Sequence);
+            {
+                builder.append_integer_from_u8(0); // version
+                builder.append_integer_from_be_slice(&n, false); // n
+                builder.append_integer_from_be_slice(&e, false); // e
+                builder.append_integer_from_be_slice(&d, false); // d
+                builder.append_integer_from_be_slice(&p, false); // p
+                builder.append_integer_from_be_slice(&q, false); // q
+                builder.append_integer_from_be_slice(&dp, false); // d mod (p-1)
+                builder.append_integer_from_be_slice(&dq, false); // d mod (q-1)
+                builder.append_integer_from_be_slice(&qi, false); // (inverse of q) mod p
+            }
+            builder.end();
+
+            let pkcs8 = RsaPssKeyPair::to_pkcs8(&builder.build(), false, hash, mgf1_hash, salt_len);
+            let private_key = PKey::private_key_from_der(&pkcs8)?;
+            let rsa = private_key.rsa()?;
+            let key_len = rsa.size();
+
+            Ok(Self {
                 private_key,
                 key_len,
                 hash,

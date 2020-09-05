@@ -111,7 +111,7 @@ impl EcKeyPair {
     /// Create a EC key pair from a private key that is a DER encoded PKCS#8 PrivateKeyInfo or ECPrivateKey.
     ///
     /// # Arguments
-    /// 
+    ///
     /// * `input` - A private key that is a DER encoded PKCS#8 PrivateKeyInfo or ECPrivateKey.
     /// * `curve` - EC curve
     pub fn from_der(input: impl AsRef<[u8]>, curve: Option<EcCurve>) -> Result<Self, JoseError> {
@@ -127,9 +127,9 @@ impl EcKeyPair {
                     Some(val) => {
                         pkcs8 = Self::to_pkcs8(input.as_ref(), false, val);
                         (pkcs8.as_slice(), val)
-                    },
-                    None => bail!("A curve is required for raw format."), 
-                }
+                    }
+                    None => bail!("A curve is required for raw format."),
+                },
             };
 
             let private_key = PKey::private_key_from_der(pkcs8_ref)?;
@@ -149,7 +149,7 @@ impl EcKeyPair {
     /// Return a signer from a private key that is formatted by a JWK of EC type.
     ///
     /// # Arguments
-    /// 
+    ///
     /// * `jwk` - A private key that is formatted by a JWK of EC type.
     /// * `curve` - EC curve
     pub fn from_jwk(jwk: &Jwk, curve: Option<EcCurve>) -> Result<Self, JoseError> {
@@ -208,7 +208,7 @@ impl EcKeyPair {
     /// that surrounded by "-----BEGIN/END EC PRIVATE KEY----".
     ///
     /// # Arguments
-    /// 
+    ///
     /// * `input` - A private key of common or traditinal PEM format.
     /// * `curve` - EC curve
     pub fn from_pem(input: impl AsRef<[u8]>, curve: Option<EcCurve>) -> Result<Self, JoseError> {
@@ -228,9 +228,9 @@ impl EcKeyPair {
                     Some(val) => {
                         pkcs8 = Self::to_pkcs8(&data, false, val);
                         (pkcs8.as_slice(), val)
-                    },
-                    None => bail!("A curve is required for raw format."), 
-                }
+                    }
+                    None => bail!("A curve is required for raw format."),
+                },
                 alg => bail!("Inappropriate algorithm: {}", alg),
             };
 
@@ -442,9 +442,7 @@ mod tests {
 
     #[test]
     fn export_import_ec_jwt() -> Result<()> {
-        for curve in vec![
-            EcCurve::P256
-        ] {
+        for curve in vec![EcCurve::P256] {
             let keypair = EcKeyPair::generate(curve)?;
             let der_keypair = keypair.to_der_private_key();
             let jwk_keypair = keypair.to_jwk_keypair();

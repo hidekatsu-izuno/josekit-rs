@@ -286,7 +286,7 @@ impl EddsaJwsSigner {
         match key_id {
             Some(val) => {
                 self.key_id = Some(val.into());
-            },
+            }
             None => {
                 self.key_id = None;
             }
@@ -348,7 +348,7 @@ impl EddsaJwsVerifier {
         match key_id {
             Some(val) => {
                 self.key_id = Some(val.into());
-            },
+            }
             None => {
                 self.key_id = None;
             }

@@ -109,7 +109,7 @@ impl EcdsaJwsAlgorithm {
                 None => {}
                 Some(val) => bail!("A parameter alg must be {} but {}", self.name(), val),
             }
-            
+
             let keypair = EcKeyPair::from_jwk(jwk, Some(self.curve()))?;
             let private_key = keypair.into_private_key();
             let key_id = jwk.key_id().map(|val| val.to_string());
@@ -266,7 +266,7 @@ impl EcdsaJwsAlgorithm {
             Self::ES256K => EcCurve::Secp256K1,
         }
     }
-    
+
     fn hash_algorithm(&self) -> HashAlgorithm {
         match self {
             Self::ES256 => HashAlgorithm::Sha256,
@@ -318,7 +318,7 @@ impl EcdsaJwsSigner {
         match key_id {
             Some(val) => {
                 self.key_id = Some(val.into());
-            },
+            }
             None => {
                 self.key_id = None;
             }
@@ -403,7 +403,7 @@ impl EcdsaJwsVerifier {
         match key_id {
             Some(val) => {
                 self.key_id = Some(val.into());
-            },
+            }
             None => {
                 self.key_id = None;
             }

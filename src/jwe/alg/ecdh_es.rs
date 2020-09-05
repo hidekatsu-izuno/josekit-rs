@@ -1,5 +1,5 @@
-use std::fmt::Display;
 use std::borrow::Cow;
+use std::fmt::Display;
 use std::ops::Deref;
 
 use anyhow::bail;
@@ -13,7 +13,7 @@ use serde_json::{Map, Value};
 use crate::der::{DerBuilder, DerType};
 use crate::jose::{JoseError, JoseHeader};
 use crate::jwe::{JweAlgorithm, JweDecrypter, JweEncrypter, JweHeader};
-use crate::jwk::{Jwk, EcCurve, EcKeyPair, EcxCurve, EcxKeyPair};
+use crate::jwk::{EcCurve, EcKeyPair, EcxCurve, EcxKeyPair, Jwk};
 use crate::util;
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
@@ -81,7 +81,9 @@ impl EcdhEsJweAlgorithm {
                             val => bail!("EC key doesn't support the curve algorithm: {}", val),
                         };
                         let x = match jwk.parameter("x") {
-                            Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
+                            Some(Value::String(val)) => {
+                                base64::decode_config(val, base64::URL_SAFE_NO_PAD)?
+                            }
                             Some(_) => bail!("A parameter x must be a string."),
                             None => bail!("A parameter x is required."),
                         };
@@ -92,17 +94,17 @@ impl EcdhEsJweAlgorithm {
                             Some(_) => bail!("A parameter y must be a string."),
                             None => bail!("A parameter y is required."),
                         };
-    
+
                         let mut vec = Vec::with_capacity(1 + x.len() + y.len());
                         vec.push(0x04);
                         vec.extend_from_slice(&x);
                         vec.extend_from_slice(&y);
-    
+
                         let pkcs8 = EcKeyPair::to_pkcs8(&vec, true, curve);
                         let public_key = PKey::public_key_from_der(&pkcs8)?;
 
                         (public_key, EcdhEsKeyType::Ec(curve))
-                    },
+                    }
                     "OKP" => {
                         let curve = match val.as_str() {
                             "X25519" => EcxCurve::X25519,
@@ -110,7 +112,9 @@ impl EcdhEsJweAlgorithm {
                             val => bail!("OKP key doesn't support the curve algorithm: {}", val),
                         };
                         let x = match jwk.parameter("x") {
-                            Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
+                            Some(Value::String(val)) => {
+                                base64::decode_config(val, base64::URL_SAFE_NO_PAD)?
+                            }
                             Some(_) => bail!("A parameter x must be a string."),
                             None => bail!("A parameter x is required."),
                         };
@@ -119,7 +123,7 @@ impl EcdhEsJweAlgorithm {
                         let public_key = PKey::public_key_from_der(&pkcs8)?;
 
                         (public_key, EcdhEsKeyType::Ecx(curve))
-                    },
+                    }
                     _ => unreachable!(),
                 },
                 Some(_) => bail!("A parameter crv must be a string."),
@@ -167,11 +171,13 @@ impl EcdhEsJweAlgorithm {
                             val => bail!("EC key doesn't support the curve algorithm: {}", val),
                         };
                         let d = match jwk.parameter("d") {
-                            Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
+                            Some(Value::String(val)) => {
+                                base64::decode_config(val, base64::URL_SAFE_NO_PAD)?
+                            }
                             Some(_) => bail!("A parameter d must be a string."),
                             None => bail!("A parameter d is required."),
                         };
-    
+
                         let mut builder = DerBuilder::new();
                         builder.begin(DerType::Sequence);
                         {
@@ -179,12 +185,12 @@ impl EcdhEsJweAlgorithm {
                             builder.append_octed_string_from_slice(&d);
                         }
                         builder.end();
-    
+
                         let pkcs8 = EcKeyPair::to_pkcs8(&builder.build(), false, curve);
                         let private_key = PKey::private_key_from_der(&pkcs8)?;
-                        
+
                         (private_key, EcdhEsKeyType::Ec(curve))
-                    },
+                    }
                     "OKP" => {
                         let curve = match val.as_str() {
                             "X25519" => EcxCurve::X25519,
@@ -192,19 +198,21 @@ impl EcdhEsJweAlgorithm {
                             val => bail!("OKP key doesn't support the curve algorithm: {}", val),
                         };
                         let d = match jwk.parameter("d") {
-                            Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
+                            Some(Value::String(val)) => {
+                                base64::decode_config(val, base64::URL_SAFE_NO_PAD)?
+                            }
                             Some(_) => bail!("A parameter d must be a string."),
                             None => bail!("A parameter d is required."),
                         };
 
                         let mut builder = DerBuilder::new();
                         builder.append_octed_string_from_slice(&d);
-    
+
                         let pkcs8 = EcxKeyPair::to_pkcs8(&builder.build(), false, curve);
                         let private_key = PKey::private_key_from_der(&pkcs8)?;
 
                         (private_key, EcdhEsKeyType::Ecx(curve))
-                    },
+                    }
                     _ => unreachable!(),
                 },
                 Some(_) => bail!("A parameter crv must be a string."),
@@ -272,7 +280,7 @@ impl EcdhEsJweEncrypter {
         match key_id {
             Some(val) => {
                 self.key_id = Some(val.into());
-            },
+            }
             None => {
                 self.key_id = None;
             }
@@ -334,18 +342,18 @@ impl JweEncrypter for EcdhEsJweEncrypter {
                     match jwk.remove("x") {
                         Some(val) => {
                             map.insert("x".to_string(), val);
-                        },
+                        }
                         None => unreachable!(),
                     }
                     match jwk.remove("y") {
                         Some(val) => {
                             map.insert("y".to_string(), val);
-                        },
+                        }
                         None => unreachable!(),
                     }
 
                     keypair.into_private_key()
-                },
+                }
                 EcdhEsKeyType::Ecx(curve) => {
                     let keypair = EcxKeyPair::generate(curve)?;
                     let mut jwk: Map<String, Value> = keypair.to_jwk_public_key().into();
@@ -353,12 +361,12 @@ impl JweEncrypter for EcdhEsJweEncrypter {
                     match jwk.remove("x") {
                         Some(val) => {
                             map.insert("x".to_string(), val);
-                        },
+                        }
                         None => unreachable!(),
                     }
-                    
+
                     keypair.into_private_key()
-                },
+                }
             };
 
             header.set_claim("epk", Some(Value::Object(map)))?;
@@ -416,12 +424,14 @@ impl JweEncrypter for EcdhEsJweEncrypter {
 
                 let mut encrypted_key = vec![0; key.len() + 8];
                 match aes::wrap_key(&aes, None, &mut encrypted_key, &key) {
-                    Ok(len) => if len < encrypted_key.len() {
-                        encrypted_key.truncate(len);
-                    },
+                    Ok(len) => {
+                        if len < encrypted_key.len() {
+                            encrypted_key.truncate(len);
+                        }
+                    }
                     Err(_) => bail!("Failed to wrap key."),
                 }
-                
+
                 Ok((Cow::Owned(key), Some(encrypted_key)))
             }
         })()
@@ -457,7 +467,7 @@ impl EcdhEsJweDecrypter {
         match key_id {
             Some(val) => {
                 self.key_id = Some(val.into());
-            },
+            }
             None => {
                 self.key_id = None;
             }
@@ -640,9 +650,11 @@ impl JweDecrypter for EcdhEsJweDecrypter {
 
                 let mut key = vec![0; key_len];
                 match aes::unwrap_key(&aes, None, &mut key, &encrypted_key) {
-                    Ok(len) => if len < key.len() {
-                        key.truncate(len);
-                    },
+                    Ok(len) => {
+                        if len < key.len() {
+                            key.truncate(len);
+                        }
+                    }
                     Err(_) => bail!("Failed to unwrap key."),
                 };
 
@@ -665,7 +677,6 @@ impl Deref for EcdhEsJweDecrypter {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use anyhow::Result;
@@ -673,10 +684,10 @@ mod tests {
     use std::io::Read;
     use std::path::PathBuf;
 
-    use super::{ EcdhEsJweAlgorithm, EcdhEsKeyType };
-    use crate::jwe::JweHeader;
+    use super::{EcdhEsJweAlgorithm, EcdhEsKeyType};
     use crate::jwe::enc::aes_cbc_hmac::AesCbcHmacJweEncryption;
-    use crate::jwk::{Jwk, EcCurve, EcxCurve };
+    use crate::jwe::JweHeader;
+    use crate::jwk::{EcCurve, EcxCurve, Jwk};
 
     #[test]
     fn encrypt_and_decrypt_ecdh_es() -> Result<()> {
@@ -709,7 +720,7 @@ mod tests {
 
                 let mut private_key = Jwk::from_slice(&private_key)?;
                 private_key.set_key_use("enc");
-        
+
                 let public_key = load_file(match key {
                     EcdhEsKeyType::Ec(EcCurve::P256) => "jwk/EC_P-256_public.jwk",
                     EcdhEsKeyType::Ec(EcCurve::P384) => "jwk/EC_P-384_public.jwk",
@@ -723,17 +734,18 @@ mod tests {
 
                 let mut header = JweHeader::new();
                 header.set_content_encryption(enc.name());
-    
+
                 let encrypter = alg.encrypter_from_jwk(&public_key)?;
                 let (src_key, encrypted_key) = encrypter.encrypt(&mut header, enc.key_len())?;
-    
+
                 let decrypter = alg.decrypter_from_jwk(&private_key)?;
-                let dst_key = decrypter.decrypt(&header, encrypted_key.as_deref(), enc.key_len())?;
-    
-                assert_eq!(&src_key, &dst_key);    
+                let dst_key =
+                    decrypter.decrypt(&header, encrypted_key.as_deref(), enc.key_len())?;
+
+                assert_eq!(&src_key, &dst_key);
             }
         }
-        
+
         Ok(())
     }
 
@@ -748,11 +760,11 @@ mod tests {
         Ok(data)
     }
 
-    use openssl::nid::Nid;
-    use openssl::ec::{EcGroup, EcKey};
-    use openssl::pkey::PKey;
-    use openssl::derive::Deriver;
     use crate::util;
+    use openssl::derive::Deriver;
+    use openssl::ec::{EcGroup, EcKey};
+    use openssl::nid::Nid;
+    use openssl::pkey::PKey;
 
     #[test]
     fn test_ecdh() -> Result<()> {
@@ -783,4 +795,3 @@ mod tests {
         Ok(())
     }
 }
-

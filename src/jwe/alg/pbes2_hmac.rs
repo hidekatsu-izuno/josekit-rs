@@ -1,6 +1,6 @@
-use std::fmt::Display;
 use std::borrow::Cow;
 use std::convert::TryFrom;
+use std::fmt::Display;
 use std::ops::Deref;
 
 use anyhow::bail;
@@ -8,7 +8,7 @@ use openssl::aes::{self, AesKey};
 use openssl::hash::MessageDigest;
 use openssl::pkcs5;
 use openssl::rand;
-use serde_json::{Value, Number};
+use serde_json::{Number, Value};
 
 use crate::jose::{JoseError, JoseHeader};
 use crate::jwe::{JweAlgorithm, JweDecrypter, JweEncrypter, JweHeader};
@@ -153,7 +153,7 @@ impl Pbes2HmacJweEncrypter {
         match key_id {
             Some(val) => {
                 self.key_id = Some(val.into());
-            },
+            }
             None => {
                 self.key_id = None;
             }
@@ -200,7 +200,7 @@ impl JweEncrypter for Pbes2HmacJweEncrypter {
                     let p2c = 1000;
                     header.set_claim("p2c", Some(Value::Number(Number::from(p2c))))?;
                     p2c
-                },
+                }
             };
 
             let md = self.algorithm.md();
@@ -255,7 +255,7 @@ impl Pbes2HmacJweDecrypter {
         match key_id {
             Some(val) => {
                 self.key_id = Some(val.into());
-            },
+            }
             None => {
                 self.key_id = None;
             }
@@ -345,8 +345,8 @@ mod tests {
     use serde_json::json;
 
     use super::Pbes2HmacJweAlgorithm;
-    use crate::jwe::JweHeader;
     use crate::jwe::enc::aes_cbc_hmac::AesCbcHmacJweEncryption;
+    use crate::jwe::JweHeader;
     use crate::jwk::Jwk;
 
     #[test]
@@ -381,7 +381,7 @@ mod tests {
 
             assert_eq!(&src_key, &dst_key);
         }
-        
+
         Ok(())
     }
 }

@@ -81,7 +81,7 @@ impl EdKeyPair {
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
-    
+
     /// Create a EdDSA key pair from a private key that is a DER encoded PKCS#8 PrivateKeyInfo.
     ///
     /// # Arguments

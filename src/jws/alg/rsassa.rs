@@ -52,7 +52,7 @@ impl RsassaJwsAlgorithm {
     pub fn keypair_from_der(&self, input: impl AsRef<[u8]>) -> Result<RsaKeyPair, JoseError> {
         (|| -> anyhow::Result<RsaKeyPair> {
             let mut keypair = RsaKeyPair::from_der(input)?;
-            
+
             if keypair.key_len() * 8 < 2048 {
                 bail!("key length must be 2048 or more.");
             }
@@ -131,10 +131,6 @@ impl RsassaJwsAlgorithm {
     /// * `jwk` - A private key that is formatted by a JWK of RSA type.
     pub fn signer_from_jwk(&self, jwk: &Jwk) -> Result<RsassaJwsSigner, JoseError> {
         (|| -> anyhow::Result<RsassaJwsSigner> {
-            match jwk.key_type() {
-                val if val == "RSA" => {}
-                val => bail!("A parameter kty must be RSA: {}", val),
-            }
             match jwk.key_use() {
                 Some(val) if val == "sig" => {}
                 None => {}
@@ -148,70 +144,14 @@ impl RsassaJwsAlgorithm {
                 None => {}
                 Some(val) => bail!("A parameter alg must be {} but {}", self.name(), val),
             }
-            let n = match jwk.parameter("n") {
-                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
-                Some(_) => bail!("A parameter n must be a string."),
-                None => bail!("A parameter n is required."),
-            };
-            let e = match jwk.parameter("e") {
-                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
-                Some(_) => bail!("A parameter e must be a string."),
-                None => bail!("A parameter e is required."),
-            };
-            let d = match jwk.parameter("d") {
-                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
-                Some(_) => bail!("A parameter d must be a string."),
-                None => bail!("A parameter d is required."),
-            };
-            let p = match jwk.parameter("p") {
-                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
-                Some(_) => bail!("A parameter p must be a string."),
-                None => bail!("A parameter p is required."),
-            };
-            let q = match jwk.parameter("q") {
-                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
-                Some(_) => bail!("A parameter q must be a string."),
-                None => bail!("A parameter q is required."),
-            };
-            let dp = match jwk.parameter("dp") {
-                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
-                Some(_) => bail!("A parameter dp must be a string."),
-                None => bail!("A parameter dp is required."),
-            };
-            let dq = match jwk.parameter("dq") {
-                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
-                Some(_) => bail!("A parameter dq must be a string."),
-                None => bail!("A parameter dq is required."),
-            };
-            let qi = match jwk.parameter("qi") {
-                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
-                Some(_) => bail!("A parameter qi must be a string."),
-                None => bail!("A parameter qi is required."),
-            };
 
-            let mut builder = DerBuilder::new();
-            builder.begin(DerType::Sequence);
-            {
-                builder.append_integer_from_u8(0); // version
-                builder.append_integer_from_be_slice(&n, false); // n
-                builder.append_integer_from_be_slice(&e, false); // e
-                builder.append_integer_from_be_slice(&d, false); // d
-                builder.append_integer_from_be_slice(&p, false); // p
-                builder.append_integer_from_be_slice(&q, false); // q
-                builder.append_integer_from_be_slice(&dp, false); // d mod (p-1)
-                builder.append_integer_from_be_slice(&dq, false); // d mod (q-1)
-                builder.append_integer_from_be_slice(&qi, false); // (inverse of q) mod p
-            }
-            builder.end();
-
-            let pkcs8 = RsaKeyPair::to_pkcs8(&builder.build(), false);
-            let private_key = PKey::private_key_from_der(&pkcs8)?;
-            let key_id = jwk.key_id().map(|val| val.to_string());
-
-            let rsa = private_key.rsa()?;
-            if rsa.size() * 8 < 2048 {
+            let keypair = RsaKeyPair::from_jwk(jwk)?;
+            if keypair.key_len() * 8 < 2048 {
                 bail!("key length must be 2048 or more.");
             }
+
+            let private_key = keypair.into_private_key();
+            let key_id = jwk.key_id().map(|val| val.to_string());
 
             Ok(RsassaJwsSigner {
                 algorithm: self.clone(),
@@ -226,7 +166,10 @@ impl RsassaJwsAlgorithm {
     ///
     /// # Arguments
     /// * `input` - A public key that is a DER encoded SubjectPublicKeyInfo or PKCS#1 RSAPublicKey.
-    pub fn verifier_from_der(&self, input: impl AsRef<[u8]>) -> Result<RsassaJwsVerifier, JoseError> {
+    pub fn verifier_from_der(
+        &self,
+        input: impl AsRef<[u8]>,
+    ) -> Result<RsassaJwsVerifier, JoseError> {
         (|| -> anyhow::Result<RsassaJwsVerifier> {
             let pkcs8;
             let pkcs8_ref = match RsaKeyPair::detect_pkcs8(input.as_ref(), true) {
@@ -263,7 +206,10 @@ impl RsassaJwsAlgorithm {
     ///
     /// # Arguments
     /// * `input` - A public key of common or traditional PEM format.
-    pub fn verifier_from_pem(&self, input: impl AsRef<[u8]>) -> Result<RsassaJwsVerifier, JoseError> {
+    pub fn verifier_from_pem(
+        &self,
+        input: impl AsRef<[u8]>,
+    ) -> Result<RsassaJwsVerifier, JoseError> {
         (|| -> anyhow::Result<RsassaJwsVerifier> {
             let (alg, data) = util::parse_pem(input.as_ref())?;
 
@@ -403,7 +349,7 @@ impl RsassaJwsSigner {
         match key_id {
             Some(val) => {
                 self.key_id = Some(val.into());
-            },
+            }
             None => {
                 self.key_id = None;
             }
@@ -464,7 +410,7 @@ impl RsassaJwsVerifier {
         match key_id {
             Some(val) => {
                 self.key_id = Some(val.into());
-            },
+            }
             None => {
                 self.key_id = None;
             }

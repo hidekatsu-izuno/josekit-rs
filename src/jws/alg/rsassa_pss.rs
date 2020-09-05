@@ -54,12 +54,13 @@ impl RsassaPssJwsAlgorithm {
     /// * `input` - A private key that is a DER encoded PKCS#8 PrivateKeyInfo or PKCS#1 RSAPrivateKey.
     pub fn keypair_from_der(&self, input: impl AsRef<[u8]>) -> Result<RsaPssKeyPair, JoseError> {
         (|| -> anyhow::Result<RsaPssKeyPair> {
-            let mut keypair = RsaPssKeyPair::from_der(input,
-                self.hash_algorithm(),
-                self.hash_algorithm(),
-                self.salt_len(),
+            let mut keypair = RsaPssKeyPair::from_der(
+                input,
+                Some(self.hash_algorithm()),
+                Some(self.hash_algorithm()),
+                Some(self.salt_len()),
             )?;
-            
+
             if keypair.key_len() * 8 < 2048 {
                 bail!("key length must be 2048 or more.");
             }
@@ -89,7 +90,7 @@ impl RsassaPssJwsAlgorithm {
                 input.as_ref(),
                 self.hash_algorithm(),
                 self.hash_algorithm(),
-            self.salt_len(),
+                self.salt_len(),
             )?;
 
             if keypair.key_len() * 8 < 2048 {
@@ -109,7 +110,10 @@ impl RsassaPssJwsAlgorithm {
     ///
     /// # Arguments
     /// * `input` - A private key that is a DER encoded PKCS#8 PrivateKeyInfo or PKCS#1 RSAPrivateKey.
-    pub fn signer_from_der(&self, input: impl AsRef<[u8]>) -> Result<RsassaPssJwsSigner, JoseError> {
+    pub fn signer_from_der(
+        &self,
+        input: impl AsRef<[u8]>,
+    ) -> Result<RsassaPssJwsSigner, JoseError> {
         let keypair = self.keypair_from_der(input.as_ref())?;
         Ok(RsassaPssJwsSigner {
             algorithm: self.clone(),
@@ -128,7 +132,10 @@ impl RsassaPssJwsAlgorithm {
     ///
     /// # Arguments
     /// * `input` - A private key of common or traditinal PEM format.
-    pub fn signer_from_pem(&self, input: impl AsRef<[u8]>) -> Result<RsassaPssJwsSigner, JoseError> {
+    pub fn signer_from_pem(
+        &self,
+        input: impl AsRef<[u8]>,
+    ) -> Result<RsassaPssJwsSigner, JoseError> {
         let keypair = self.keypair_from_pem(input.as_ref())?;
         Ok(RsassaPssJwsSigner {
             algorithm: self.clone(),
@@ -143,10 +150,6 @@ impl RsassaPssJwsAlgorithm {
     /// * `jwk` - A private key that is formatted by a JWK of RSA type.
     pub fn signer_from_jwk(&self, jwk: &Jwk) -> Result<RsassaPssJwsSigner, JoseError> {
         (|| -> anyhow::Result<RsassaPssJwsSigner> {
-            match jwk.key_type() {
-                val if val == "RSA" => {}
-                val => bail!("A parameter kty must be RSA: {}", val),
-            }
             match jwk.key_use() {
                 Some(val) if val == "sig" => {}
                 None => {}
@@ -160,81 +163,24 @@ impl RsassaPssJwsAlgorithm {
                 None => {}
                 Some(val) => bail!("A parameter alg must be {} but {}", self.name(), val),
             }
-            let key_id = jwk.key_id();
 
-            let n = match jwk.parameter("n") {
-                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
-                Some(_) => bail!("A parameter n must be a string."),
-                None => bail!("A parameter n is required."),
-            };
-            let e = match jwk.parameter("e") {
-                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
-                Some(_) => bail!("A parameter e must be a string."),
-                None => bail!("A parameter e is required."),
-            };
-            let d = match jwk.parameter("d") {
-                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
-                Some(_) => bail!("A parameter d must be a string."),
-                None => bail!("A parameter d is required."),
-            };
-            let p = match jwk.parameter("p") {
-                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
-                Some(_) => bail!("A parameter p must be a string."),
-                None => bail!("A parameter p is required."),
-            };
-            let q = match jwk.parameter("q") {
-                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
-                Some(_) => bail!("A parameter q must be a string."),
-                None => bail!("A parameter q is required."),
-            };
-            let dp = match jwk.parameter("dp") {
-                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
-                Some(_) => bail!("A parameter dp must be a string."),
-                None => bail!("A parameter dp is required."),
-            };
-            let dq = match jwk.parameter("dq") {
-                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
-                Some(_) => bail!("A parameter dq must be a string."),
-                None => bail!("A parameter dq is required."),
-            };
-            let qi = match jwk.parameter("qi") {
-                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
-                Some(_) => bail!("A parameter qi must be a string."),
-                None => bail!("A parameter qi is required."),
-            };
-
-            let mut builder = DerBuilder::new();
-            builder.begin(DerType::Sequence);
-            {
-                builder.append_integer_from_u8(0); // version
-                builder.append_integer_from_be_slice(&n, false); // n
-                builder.append_integer_from_be_slice(&e, false); // e
-                builder.append_integer_from_be_slice(&d, false); // d
-                builder.append_integer_from_be_slice(&p, false); // p
-                builder.append_integer_from_be_slice(&q, false); // q
-                builder.append_integer_from_be_slice(&dp, false); // d mod (p-1)
-                builder.append_integer_from_be_slice(&dq, false); // d mod (q-1)
-                builder.append_integer_from_be_slice(&qi, false); // (inverse of q) mod p
-            }
-            builder.end();
-
-            let pkcs8 = RsaPssKeyPair::to_pkcs8(
-                &builder.build(),
-                false,
+            let keypair = RsaPssKeyPair::from_jwk(
+                jwk,
                 self.hash_algorithm(),
                 self.hash_algorithm(),
                 self.salt_len(),
-            );
-            let private_key = PKey::private_key_from_der(&pkcs8)?;
-            let rsa = private_key.rsa()?;
-            if rsa.size() * 8 < 2048 {
+            )?;
+            if keypair.key_len() * 8 < 2048 {
                 bail!("key length must be 2048 or more.");
             }
+
+            let private_key = keypair.into_private_key();
+            let key_id = jwk.key_id().map(|val| val.to_string());
 
             Ok(RsassaPssJwsSigner {
                 algorithm: self.clone(),
                 private_key,
-                key_id: key_id.map(|val| val.to_string()),
+                key_id,
             })
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
@@ -255,13 +201,16 @@ impl RsassaPssJwsAlgorithm {
                     if hash != self.hash_algorithm() {
                         bail!("The message digest parameter is mismatched: {}", hash);
                     } else if mgf1_hash != self.hash_algorithm() {
-                        bail!("The mgf1 message digest parameter is mismatched: {}", mgf1_hash);
+                        bail!(
+                            "The mgf1 message digest parameter is mismatched: {}",
+                            mgf1_hash
+                        );
                     } else if salt_len != self.salt_len() {
                         bail!("The salt size is mismatched: {}", salt_len);
                     }
-                    
+
                     input.as_ref()
-                },
+                }
                 None => {
                     pkcs8 = RsaPssKeyPair::to_pkcs8(
                         input.as_ref(),
@@ -313,13 +262,16 @@ impl RsassaPssJwsAlgorithm {
                             if hash != self.hash_algorithm() {
                                 bail!("The message digest parameter is mismatched: {}", hash);
                             } else if mgf1_hash != self.hash_algorithm() {
-                                bail!("The mgf1 message digest parameter is mismatched: {}", mgf1_hash);
+                                bail!(
+                                    "The mgf1 message digest parameter is mismatched: {}",
+                                    mgf1_hash
+                                );
                             } else if salt_len != self.salt_len() {
                                 bail!("The salt size is mismatched: {}", salt_len);
                             }
-                            
+
                             PKey::public_key_from_der(&data)?
-                        },
+                        }
                         None => bail!("Invalid PEM contents."),
                     }
                 }
@@ -473,7 +425,7 @@ impl RsassaPssJwsSigner {
         match key_id {
             Some(val) => {
                 self.key_id = Some(val.into());
-            },
+            }
             None => {
                 self.key_id = None;
             }
@@ -534,7 +486,7 @@ impl RsassaPssJwsVerifier {
         match key_id {
             Some(val) => {
                 self.key_id = Some(val.into());
-            },
+            }
             None => {
                 self.key_id = None;
             }

@@ -207,16 +207,16 @@ mod tests {
 
             let (encrypted_message, tag) = enc.encrypt(&key, Some(&iv), message, aad)?;
             let decrypted_message = enc.decrypt(
-                &key, 
-                Some(&iv), 
-                &encrypted_message, 
-                &aad[..], 
-                tag.as_deref()
+                &key,
+                Some(&iv),
+                &encrypted_message,
+                &aad[..],
+                tag.as_deref(),
             )?;
 
             assert_eq!(&message[..], &decrypted_message[..]);
         }
-        
+
         Ok(())
     }
 }

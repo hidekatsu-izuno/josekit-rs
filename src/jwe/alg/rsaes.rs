@@ -1,5 +1,5 @@
-use std::fmt::Display;
 use std::borrow::Cow;
+use std::fmt::Display;
 use std::ops::Deref;
 
 use anyhow::bail;
@@ -227,7 +227,7 @@ impl RsaesJweEncrypter {
         match key_id {
             Some(val) => {
                 self.key_id = Some(val.into());
-            },
+            }
             None => {
                 self.key_id = None;
             }
@@ -314,7 +314,7 @@ impl RsaesJweDecrypter {
         match key_id {
             Some(val) => {
                 self.key_id = Some(val.into());
-            },
+            }
             None => {
                 self.key_id = None;
             }
@@ -402,8 +402,8 @@ mod tests {
     use std::path::PathBuf;
 
     use super::RsaesJweAlgorithm;
-    use crate::jwe::JweHeader;
     use crate::jwe::enc::aes_cbc_hmac::AesCbcHmacJweEncryption;
+    use crate::jwe::JweHeader;
     use crate::jwk::Jwk;
 
     #[test]
@@ -419,10 +419,7 @@ mod tests {
         let mut public_key = Jwk::from_slice(&public_key)?;
         public_key.set_key_use("enc");
 
-        for alg in vec![
-            RsaesJweAlgorithm::Rsa1_5,
-            RsaesJweAlgorithm::RsaOaep,
-        ] {
+        for alg in vec![RsaesJweAlgorithm::Rsa1_5, RsaesJweAlgorithm::RsaOaep] {
             let mut header = JweHeader::new();
             header.set_content_encryption(enc.name());
 
@@ -434,7 +431,7 @@ mod tests {
 
             assert_eq!(&src_key, &dst_key);
         }
-        
+
         Ok(())
     }
 

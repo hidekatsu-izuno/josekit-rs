@@ -159,7 +159,7 @@ impl HmacJwsAlgorithm {
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
-    
+
     fn hash_algorithm(&self) -> HashAlgorithm {
         match self {
             Self::HS256 => HashAlgorithm::Sha256,
@@ -209,7 +209,7 @@ impl HmacJwsSigner {
         match key_id {
             Some(val) => {
                 self.key_id = Some(val.into());
-            },
+            }
             None => {
                 self.key_id = None;
             }
@@ -270,7 +270,7 @@ impl HmacJwsVerifier {
         match key_id {
             Some(val) => {
                 self.key_id = Some(val.into());
-            },
+            }
             None => {
                 self.key_id = None;
             }

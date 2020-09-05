@@ -1,5 +1,5 @@
-use std::fmt::Display;
 use std::borrow::Cow;
+use std::fmt::Display;
 use std::ops::Deref;
 
 use anyhow::bail;
@@ -160,7 +160,7 @@ impl AesGcmJweEncrypter {
         match key_id {
             Some(val) => {
                 self.key_id = Some(val.into());
-            },
+            }
             None => {
                 self.key_id = None;
             }
@@ -238,7 +238,7 @@ impl AesGcmJweDecrypter {
         match key_id {
             Some(val) => {
                 self.key_id = Some(val.into());
-            },
+            }
             None => {
                 self.key_id = None;
             }
@@ -321,8 +321,8 @@ mod tests {
     use serde_json::json;
 
     use super::AesGcmJweAlgorithm;
-    use crate::jwe::JweHeader;
     use crate::jwe::enc::aes_cbc_hmac::AesCbcHmacJweEncryption;
+    use crate::jwe::JweHeader;
     use crate::jwk::Jwk;
 
     #[test]
@@ -356,7 +356,7 @@ mod tests {
 
             assert_eq!(&src_key, &dst_key);
         }
-        
+
         Ok(())
     }
 }

@@ -172,19 +172,17 @@ impl Jwk {
                     }
                 }
                 Some(vec)
-            },
+            }
             _ => None,
         }
     }
 
     pub fn is_for_key_operation(&self, key_operation: &str) -> bool {
         match self.map.get("key_ops") {
-            Some(Value::Array(vals)) => {
-                vals.iter().any(|val| match val {
-                    Value::String(val2) if val2 == key_operation => true,
-                    _ => false
-                })
-            },
+            Some(Value::Array(vals)) => vals.iter().any(|val| match val {
+                Value::String(val2) if val2 == key_operation => true,
+                _ => false,
+            }),
             Some(_) => false,
             None => true,
         }
@@ -310,15 +308,17 @@ impl Jwk {
                 let mut vec = Vec::with_capacity(vals.len());
                 for val in vals {
                     match val {
-                        Value::String(val2) => match base64::decode_config(val2, base64::URL_SAFE_NO_PAD) {
-                            Ok(val3) => vec.push(val3),
-                            Err(_) => return None,
+                        Value::String(val2) => {
+                            match base64::decode_config(val2, base64::URL_SAFE_NO_PAD) {
+                                Ok(val3) => vec.push(val3),
+                                Err(_) => return None,
+                            }
                         }
                         _ => return None,
                     }
                 }
                 Some(vec)
-            },
+            }
             _ => None,
         }
     }
@@ -437,7 +437,6 @@ impl Into<Map<String, Value>> for Jwk {
         self.map
     }
 }
-
 
 impl Serialize for Jwk {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>

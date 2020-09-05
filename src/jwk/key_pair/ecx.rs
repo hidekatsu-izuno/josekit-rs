@@ -54,7 +54,6 @@ pub struct EcxKeyPair {
 }
 
 impl EcxKeyPair {
-
     pub(crate) fn into_private_key(self) -> PKey<Private> {
         self.private_key
     }
@@ -134,7 +133,9 @@ impl EcxKeyPair {
                         Some(val2) => bail!("The curve is mismatched: {}", val2),
                         None => (data.as_slice(), val),
                     },
-                    None => bail!("The Montgomery curve private key must be wrapped by PKCS#8 format."),
+                    None => {
+                        bail!("The Montgomery curve private key must be wrapped by PKCS#8 format.")
+                    }
                 },
                 "X25519 PRIVATE KEY" => match EcxKeyPair::detect_pkcs8(&data, false) {
                     Some(val) => {
@@ -148,7 +149,9 @@ impl EcxKeyPair {
                             bail!("The Montgomery curve is mismatched: {}", val.name());
                         }
                     }
-                    None => bail!("The Montgomery curve private key must be wrapped by PKCS#8 format."),
+                    None => {
+                        bail!("The Montgomery curve private key must be wrapped by PKCS#8 format.")
+                    }
                 },
                 "X448 PRIVATE KEY" => match EcxKeyPair::detect_pkcs8(&data, false) {
                     Some(val) => {
@@ -162,7 +165,9 @@ impl EcxKeyPair {
                             bail!("The Montgomery curve is unrecognized: {}", val.name());
                         }
                     }
-                    None => bail!("The Montgomery curve private key must be wrapped by PKCS#8 format."),
+                    None => {
+                        bail!("The Montgomery curve private key must be wrapped by PKCS#8 format.")
+                    }
                 },
                 alg => bail!("Inappropriate algorithm: {}", alg),
             };
@@ -177,7 +182,7 @@ impl EcxKeyPair {
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
-    
+
     /// Create a Montgomery curve key pair from a private key that is formatted by a JWK of OKP type.
     ///
     /// # Arguments

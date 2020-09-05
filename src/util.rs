@@ -3,21 +3,17 @@ use once_cell::sync::Lazy;
 use openssl::bn::BigNumRef;
 use openssl::hash::MessageDigest;
 use regex::bytes::{NoExpand, Regex};
-use std::time::SystemTime;
 use std::fmt::Display;
+use std::time::SystemTime;
 
-use std::ptr;
-use std::os::raw::c_int;
 use openssl::error::ErrorStack;
 use openssl::pkey::{PKey, Private};
 use openssl_sys::{
-    EVP_PKEY_CTX_new_id,
+    i2d_PrivateKey, EVP_PKEY_CTX_free, EVP_PKEY_CTX_new_id, EVP_PKEY_free, EVP_PKEY_keygen,
     EVP_PKEY_keygen_init,
-    EVP_PKEY_CTX_free,
-    EVP_PKEY_keygen,
-    EVP_PKEY_free,
-    i2d_PrivateKey
 };
+use std::os::raw::c_int;
+use std::ptr;
 
 use crate::jwk::Jwk;
 
@@ -45,7 +41,7 @@ impl HashAlgorithm {
             Self::Sha512 => "SHA-512",
         }
     }
-    
+
     pub fn signature_len(&self) -> usize {
         match self {
             Self::Sha256 => 32,
@@ -151,7 +147,7 @@ fn generate_der(nid: c_int) -> Result<PKey<Private>, ErrorStack> {
             val if val <= 0 => {
                 EVP_PKEY_free(pkey);
                 return Err(ErrorStack::get());
-            },
+            }
             val => val,
         };
 

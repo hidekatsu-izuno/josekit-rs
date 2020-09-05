@@ -49,7 +49,7 @@ impl RsaKeyPair {
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
-    
+
     /// Create a RSA key pair from a private key that is a DER encoded PKCS#8 PrivateKeyInfo or PKCS#1 RSAPrivateKey.
     ///
     /// # Arguments
@@ -69,7 +69,7 @@ impl RsaKeyPair {
             let rsa = private_key.rsa()?;
             let key_len = rsa.size();
 
-            Ok(RsaKeyPair {
+            Ok(Self {
                 private_key,
                 key_len,
                 alg: None,
@@ -109,7 +109,87 @@ impl RsaKeyPair {
             let rsa = private_key.rsa()?;
             let key_len = rsa.size();
 
-            Ok(RsaKeyPair {
+            Ok(Self {
+                private_key,
+                key_len,
+                alg: None,
+            })
+        })()
+        .map_err(|err| JoseError::InvalidKeyFormat(err))
+    }
+
+    /// Create a RSA key pair from a private key that is formatted by a JWK of RSA type.
+    ///
+    /// # Arguments
+    /// * `jwk` - A private key that is formatted by a JWK of RSA type.
+    pub fn from_jwk(jwk: &Jwk) -> Result<Self, JoseError> {
+        (|| -> anyhow::Result<Self> {
+            match jwk.key_type() {
+                val if val == "RSA" => {}
+                val => bail!("A parameter kty must be RSA: {}", val),
+            }
+            let n = match jwk.parameter("n") {
+                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
+                Some(_) => bail!("A parameter n must be a string."),
+                None => bail!("A parameter n is required."),
+            };
+            let e = match jwk.parameter("e") {
+                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
+                Some(_) => bail!("A parameter e must be a string."),
+                None => bail!("A parameter e is required."),
+            };
+            let d = match jwk.parameter("d") {
+                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
+                Some(_) => bail!("A parameter d must be a string."),
+                None => bail!("A parameter d is required."),
+            };
+            let p = match jwk.parameter("p") {
+                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
+                Some(_) => bail!("A parameter p must be a string."),
+                None => bail!("A parameter p is required."),
+            };
+            let q = match jwk.parameter("q") {
+                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
+                Some(_) => bail!("A parameter q must be a string."),
+                None => bail!("A parameter q is required."),
+            };
+            let dp = match jwk.parameter("dp") {
+                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
+                Some(_) => bail!("A parameter dp must be a string."),
+                None => bail!("A parameter dp is required."),
+            };
+            let dq = match jwk.parameter("dq") {
+                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
+                Some(_) => bail!("A parameter dq must be a string."),
+                None => bail!("A parameter dq is required."),
+            };
+            let qi = match jwk.parameter("qi") {
+                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
+                Some(_) => bail!("A parameter qi must be a string."),
+                None => bail!("A parameter qi is required."),
+            };
+
+            let mut builder = DerBuilder::new();
+            builder.begin(DerType::Sequence);
+            {
+                builder.append_integer_from_u8(0); // version
+                builder.append_integer_from_be_slice(&n, false); // n
+                builder.append_integer_from_be_slice(&e, false); // e
+                builder.append_integer_from_be_slice(&d, false); // d
+                builder.append_integer_from_be_slice(&p, false); // p
+                builder.append_integer_from_be_slice(&q, false); // q
+                builder.append_integer_from_be_slice(&dp, false); // d mod (p-1)
+                builder.append_integer_from_be_slice(&dq, false); // d mod (q-1)
+                builder.append_integer_from_be_slice(&qi, false); // (inverse of q) mod p
+            }
+            builder.end();
+
+            let pkcs8 = Self::to_pkcs8(&builder.build(), false);
+            let private_key = PKey::private_key_from_der(&pkcs8)?;
+            let rsa = private_key.rsa()?;
+            let key_len = rsa.size();
+
+            Ok(Self {
                 private_key,
                 key_len,
                 alg: None,
