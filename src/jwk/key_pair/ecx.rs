@@ -63,10 +63,10 @@ impl EcxKeyPair {
         self.curve
     }
 
-    /// Generate a ECX keypair
+    /// Generate a Montgomery curve keypair
     ///
     /// # Arguments
-    /// * `curve` - ECX curve algorithm
+    /// * `curve` - Montgomery curve curve algorithm
     pub fn generate(curve: EcxCurve) -> Result<EcxKeyPair, JoseError> {
         (|| -> anyhow::Result<EcxKeyPair> {
             let private_key = match curve {
@@ -83,11 +83,11 @@ impl EcxKeyPair {
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
-    /// Create a EdDSA key pair from a private key that is a DER encoded PKCS#8 PrivateKeyInfo.
+    /// Create a Montgomery curve key pair from a private key that is a DER encoded PKCS#8 PrivateKeyInfo.
     ///
     /// # Arguments
     /// * `input` - A private key that is a DER encoded PKCS#8 PrivateKeyInfo.
-    /// * `curve` - EC curve
+    /// * `curve` - Montgomery curve
     pub fn from_der(input: impl AsRef<[u8]>, curve: Option<EcxCurve>) -> Result<Self, JoseError> {
         (|| -> anyhow::Result<Self> {
             let (pkcs8_ref, curve) = match Self::detect_pkcs8(input.as_ref(), false) {
@@ -96,7 +96,7 @@ impl EcxKeyPair {
                     Some(val2) => bail!("The curve is mismatched: {}", val2),
                     None => (input.as_ref(), val),
                 },
-                None => bail!("The EdDSA private key must be wrapped by PKCS#8 format."),
+                None => bail!("The Montgomery curve private key must be wrapped by PKCS#8 format."),
             };
 
             let private_key = PKey::private_key_from_der(pkcs8_ref)?;
@@ -113,7 +113,7 @@ impl EcxKeyPair {
         })
     }
 
-    /// Create a EdDSA key pair from a private key of common or traditinal PEM format.
+    /// Create a Montgomery curve key pair from a private key of common or traditinal PEM format.
     ///
     /// Common PEM format is a DER and base64 encoded PKCS#8 PrivateKeyInfo
     /// that surrounded by "-----BEGIN/END PRIVATE KEY----".
@@ -123,7 +123,7 @@ impl EcxKeyPair {
     ///
     /// # Arguments
     /// * `input` - A private key of common or traditinal PEM format.
-    /// * `curve` - EC curve
+    /// * `curve` - Montgomery curve
     pub fn from_pem(input: impl AsRef<[u8]>, curve: Option<EcxCurve>) -> Result<Self, JoseError> {
         (|| -> anyhow::Result<Self> {
             let (alg, data) = util::parse_pem(input.as_ref())?;
@@ -134,7 +134,7 @@ impl EcxKeyPair {
                         Some(val2) => bail!("The curve is mismatched: {}", val2),
                         None => (data.as_slice(), val),
                     },
-                    None => bail!("The EdDSA private key must be wrapped by PKCS#8 format."),
+                    None => bail!("The Montgomery curve private key must be wrapped by PKCS#8 format."),
                 },
                 "X25519 PRIVATE KEY" => match EcxKeyPair::detect_pkcs8(&data, false) {
                     Some(val) => {
@@ -145,10 +145,10 @@ impl EcxKeyPair {
                                 None => (data.as_slice(), val),
                             }
                         } else {
-                            bail!("The Edwards curve is mismatched: {}", val.name());
+                            bail!("The Montgomery curve is mismatched: {}", val.name());
                         }
                     }
-                    None => bail!("The Edwards curve private key must be wrapped by PKCS#8 format."),
+                    None => bail!("The Montgomery curve private key must be wrapped by PKCS#8 format."),
                 },
                 "X448 PRIVATE KEY" => match EcxKeyPair::detect_pkcs8(&data, false) {
                     Some(val) => {
@@ -159,10 +159,10 @@ impl EcxKeyPair {
                                 None => (data.as_slice(), val),
                             }
                         } else {
-                            bail!("The Edwards curve is mismatched: {}", val.name());
+                            bail!("The Montgomery curve is unrecognized: {}", val.name());
                         }
                     }
-                    None => bail!("The Edwards curve private key must be wrapped by PKCS#8 format."),
+                    None => bail!("The Montgomery curve private key must be wrapped by PKCS#8 format."),
                 },
                 alg => bail!("Inappropriate algorithm: {}", alg),
             };
@@ -170,6 +170,51 @@ impl EcxKeyPair {
             let private_key = PKey::private_key_from_der(pkcs8_ref)?;
 
             Ok(EcxKeyPair {
+                private_key,
+                curve,
+                alg: None,
+            })
+        })()
+        .map_err(|err| JoseError::InvalidKeyFormat(err))
+    }
+    
+    /// Create a Montgomery curve key pair from a private key that is formatted by a JWK of OKP type.
+    ///
+    /// # Arguments
+    /// * `jwk` - A private key that is formatted by a JWK of OKP type.
+    /// * `curve` - Montgomery curve
+    pub fn from_jwk(jwk: &Jwk, curve: Option<EcxCurve>) -> Result<Self, JoseError> {
+        (|| -> anyhow::Result<Self> {
+            match jwk.key_type() {
+                val if val == "OKP" => {}
+                val => bail!("A parameter kty must be OKP: {}", val),
+            }
+            let curve = match jwk.parameter("crv") {
+                Some(Value::String(val)) => match curve {
+                    Some(val2) if val2.name() == val => val2,
+                    Some(val2) => bail!("The curve is mismatched: {}", val2),
+                    None => match val.as_str() {
+                        "X25519" => EcxCurve::X25519,
+                        "X448" => EcxCurve::X448,
+                        _ => bail!("A parameter crv is unrecognized: {}", val),
+                    },
+                },
+                Some(_) => bail!("A parameter crv must be a string."),
+                None => bail!("A parameter crv is required."),
+            };
+            let d = match jwk.parameter("d") {
+                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
+                Some(_) => bail!("A parameter d must be a string."),
+                None => bail!("A parameter d is required."),
+            };
+
+            let mut builder = DerBuilder::new();
+            builder.append_octed_string_from_slice(&d);
+
+            let pkcs8 = EcxKeyPair::to_pkcs8(&builder.build(), false, curve);
+            let private_key = PKey::private_key_from_der(&pkcs8)?;
+
+            Ok(Self {
                 private_key,
                 curve,
                 alg: None,

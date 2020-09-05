@@ -96,10 +96,6 @@ impl EcdsaJwsAlgorithm {
     /// * `jwk` - A private key that is formatted by a JWK of EC type.
     pub fn signer_from_jwk(&self, jwk: &Jwk) -> Result<EcdsaJwsSigner, JoseError> {
         (|| -> anyhow::Result<EcdsaJwsSigner> {
-            match jwk.key_type() {
-                val if val == "EC" => {}
-                val => bail!("A parameter kty must be EC: {}", val),
-            }
             match jwk.key_use() {
                 Some(val) if val == "sig" => {}
                 None => {}
@@ -113,31 +109,9 @@ impl EcdsaJwsAlgorithm {
                 None => {}
                 Some(val) => bail!("A parameter alg must be {} but {}", self.name(), val),
             }
-            let curve = self.curve();
-            match jwk.parameter("crv") {
-                Some(Value::String(val)) if val == curve.name() => {}
-                Some(Value::String(val)) => {
-                    bail!("A parameter crv must be {} but {}", curve.name(), val)
-                }
-                Some(_) => bail!("A parameter crv must be a string."),
-                None => bail!("A parameter crv is required."),
-            }
-            let d = match jwk.parameter("d") {
-                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
-                Some(_) => bail!("A parameter d must be a string."),
-                None => bail!("A parameter d is required."),
-            };
-
-            let mut builder = DerBuilder::new();
-            builder.begin(DerType::Sequence);
-            {
-                builder.append_integer_from_u8(1);
-                builder.append_octed_string_from_slice(&d);
-            }
-            builder.end();
-
-            let pkcs8 = EcKeyPair::to_pkcs8(&builder.build(), false, curve);
-            let private_key = PKey::private_key_from_der(&pkcs8)?;
+            
+            let keypair = EcKeyPair::from_jwk(jwk, Some(self.curve()))?;
+            let private_key = keypair.into_private_key();
             let key_id = jwk.key_id().map(|val| val.to_string());
 
             Ok(EcdsaJwsSigner {

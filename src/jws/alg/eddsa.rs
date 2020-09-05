@@ -6,7 +6,6 @@ use openssl::pkey::{PKey, Private, Public};
 use openssl::sign::{Signer, Verifier};
 use serde_json::Value;
 
-use crate::der::DerBuilder;
 use crate::jose::JoseError;
 use crate::jwk::{EdCurve, EdKeyPair, Jwk, KeyPair};
 use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier};
@@ -95,10 +94,6 @@ impl EddsaJwsAlgorithm {
     /// * `jwk` - A private key that is formatted by a JWK of OKP type.
     pub fn signer_from_jwk(&self, jwk: &Jwk) -> Result<EddsaJwsSigner, JoseError> {
         (|| -> anyhow::Result<EddsaJwsSigner> {
-            match jwk.key_type() {
-                val if val == "OKP" => {}
-                val => bail!("A parameter kty must be OKP: {}", val),
-            }
             match jwk.key_use() {
                 Some(val) if val == "sig" => {}
                 None => {}
@@ -112,24 +107,10 @@ impl EddsaJwsAlgorithm {
                 None => {}
                 Some(val) => bail!("A parameter alg must be {} but {}", self.name(), val),
             }
-            let curve = match jwk.parameter("crv") {
-                Some(Value::String(val)) if val == "Ed25519" => EdCurve::Ed25519,
-                Some(Value::String(val)) if val == "Ed448" => EdCurve::Ed448,
-                Some(Value::String(val)) => bail!("A parameter crv is invalid: {}", val),
-                Some(_) => bail!("A parameter crv must be a string."),
-                None => bail!("A parameter crv is required."),
-            };
-            let d = match jwk.parameter("d") {
-                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
-                Some(_) => bail!("A parameter d must be a string."),
-                None => bail!("A parameter d is required."),
-            };
 
-            let mut builder = DerBuilder::new();
-            builder.append_octed_string_from_slice(&d);
-
-            let pkcs8 = EdKeyPair::to_pkcs8(&builder.build(), false, curve);
-            let private_key = PKey::private_key_from_der(&pkcs8)?;
+            let keypair = EdKeyPair::from_jwk(jwk, None)?;
+            let curve = keypair.curve();
+            let private_key = keypair.into_private_key();
             let key_id = jwk.key_id().map(|val| val.to_string());
 
             Ok(EddsaJwsSigner {

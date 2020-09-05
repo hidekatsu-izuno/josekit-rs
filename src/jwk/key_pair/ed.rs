@@ -66,14 +66,14 @@ impl EdKeyPair {
     ///
     /// # Arguments
     /// * `curve` - EdDSA curve algorithm
-    pub fn generate(curve: EdCurve) -> Result<EdKeyPair, JoseError> {
-        (|| -> anyhow::Result<EdKeyPair> {
+    pub fn generate(curve: EdCurve) -> Result<Self, JoseError> {
+        (|| -> anyhow::Result<Self> {
             let private_key = match curve {
                 EdCurve::Ed25519 => PKey::generate_ed25519()?,
                 EdCurve::Ed448 => PKey::generate_ed448()?,
             };
 
-            Ok(EdKeyPair {
+            Ok(Self {
                 curve,
                 private_key,
                 alg: None,
@@ -100,7 +100,7 @@ impl EdKeyPair {
 
             let private_key = PKey::private_key_from_der(pkcs8_ref)?;
 
-            Ok(EdKeyPair {
+            Ok(Self {
                 private_key,
                 curve,
                 alg: None,
@@ -168,7 +168,52 @@ impl EdKeyPair {
 
             let private_key = PKey::private_key_from_der(pkcs8_ref)?;
 
-            Ok(EdKeyPair {
+            Ok(Self {
+                private_key,
+                curve,
+                alg: None,
+            })
+        })()
+        .map_err(|err| JoseError::InvalidKeyFormat(err))
+    }
+
+    /// Create a EdDSA key pair from a private key that is formatted by a JWK of OKP type.
+    ///
+    /// # Arguments
+    /// * `jwk` - A private key that is formatted by a JWK of OKP type.
+    /// * `curve` - EdDSA curve
+    pub fn from_jwk(jwk: &Jwk, curve: Option<EdCurve>) -> Result<Self, JoseError> {
+        (|| -> anyhow::Result<Self> {
+            match jwk.key_type() {
+                val if val == "OKP" => {}
+                val => bail!("A parameter kty must be OKP: {}", val),
+            }
+            let curve = match jwk.parameter("crv") {
+                Some(Value::String(val)) => match curve {
+                    Some(val2) if val2.name() == val => val2,
+                    Some(val2) => bail!("The curve is mismatched: {}", val2),
+                    None => match val.as_str() {
+                        "Ed25519" => EdCurve::Ed25519,
+                        "Ed448" => EdCurve::Ed448,
+                        _ => bail!("A parameter crv is unrecognized: {}", val),
+                    },
+                },
+                Some(_) => bail!("A parameter crv must be a string."),
+                None => bail!("A parameter crv is required."),
+            };
+            let d = match jwk.parameter("d") {
+                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
+                Some(_) => bail!("A parameter d must be a string."),
+                None => bail!("A parameter d is required."),
+            };
+
+            let mut builder = DerBuilder::new();
+            builder.append_octed_string_from_slice(&d);
+
+            let pkcs8 = EdKeyPair::to_pkcs8(&builder.build(), false, curve);
+            let private_key = PKey::private_key_from_der(&pkcs8)?;
+
+            Ok(Self {
                 private_key,
                 curve,
                 alg: None,
