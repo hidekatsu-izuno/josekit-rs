@@ -25,6 +25,26 @@ pub enum Pbes2HmacJweAlgorithm {
 }
 
 impl Pbes2HmacJweAlgorithm {
+    pub fn encrypter_from_slice(
+        &self,
+        input: impl AsRef<[u8]>,
+    ) -> Result<Pbes2HmacJweEncrypter, JoseError> {
+        (|| -> anyhow::Result<Pbes2HmacJweEncrypter> {
+            let private_key = input.as_ref().to_vec();
+
+            if private_key.len() == 0 {
+                bail!("The key size must not be empty.");
+            }
+
+            Ok(Pbes2HmacJweEncrypter {
+                algorithm: self.clone(),
+                private_key,
+                key_id: None,
+            })
+        })()
+        .map_err(|err| JoseError::InvalidKeyFormat(err))
+    }
+
     pub fn encrypter_from_jwk(&self, jwk: &Jwk) -> Result<Pbes2HmacJweEncrypter, JoseError> {
         (|| -> anyhow::Result<Pbes2HmacJweEncrypter> {
             match jwk.key_type() {
@@ -50,10 +70,36 @@ impl Pbes2HmacJweAlgorithm {
                 None => bail!("A parameter k is required."),
             };
 
+            if k.len() == 0 {
+                bail!("The key size must not be empty.");
+            }
+
+            let key_id = jwk.key_id().map(|val| val.to_string());
+
             Ok(Pbes2HmacJweEncrypter {
                 algorithm: self.clone(),
                 private_key: k,
-                key_id: jwk.key_id().map(|val| val.to_string()),
+                key_id,
+            })
+        })()
+        .map_err(|err| JoseError::InvalidKeyFormat(err))
+    }
+
+    pub fn decrypter_from_slice(
+        &self,
+        input: impl AsRef<[u8]>,
+    ) -> Result<Pbes2HmacJweDecrypter, JoseError> {
+        (|| -> anyhow::Result<Pbes2HmacJweDecrypter> {
+            let private_key = input.as_ref().to_vec();
+
+            if private_key.len() == 0 {
+                bail!("The key size must not be empty.");
+            }
+
+            Ok(Pbes2HmacJweDecrypter {
+                algorithm: self.clone(),
+                private_key,
+                key_id: None,
             })
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
@@ -84,6 +130,10 @@ impl Pbes2HmacJweAlgorithm {
                 Some(val) => bail!("A parameter k must be string type but {:?}", val),
                 None => bail!("A parameter k is required."),
             };
+
+            if k.len() == 0 {
+                bail!("The key size must not be empty.");
+            }
 
             let key_id = jwk.key_id().map(|val| val.to_string());
 

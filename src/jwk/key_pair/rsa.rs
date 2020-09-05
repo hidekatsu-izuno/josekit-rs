@@ -1,4 +1,4 @@
-use std::ops::Deref;
+use std::ops::{Deref, DerefMut};
 
 use anyhow::bail;
 use once_cell::sync::Lazy;
@@ -391,6 +391,12 @@ impl Deref for RsaKeyPair {
     type Target = dyn KeyPair;
 
     fn deref(&self) -> &Self::Target {
+        self
+    }
+}
+
+impl DerefMut for RsaKeyPair {
+    fn deref_mut(&mut self) -> &mut Self::Target {
         self
     }
 }

@@ -8,7 +8,7 @@ use serde_json::Value;
 
 use crate::der::{DerBuilder, DerType};
 use crate::jose::JoseError;
-use crate::jwk::{Jwk, KeyPair, RsaKeyPair};
+use crate::jwk::{Jwk, RsaKeyPair};
 use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier};
 use crate::util::{self, HashAlgorithm};
 

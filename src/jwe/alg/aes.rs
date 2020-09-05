@@ -22,6 +22,26 @@ pub enum AesJweAlgorithm {
 }
 
 impl AesJweAlgorithm {
+    pub fn encrypter_from_slice(
+        &self,
+        input: impl AsRef<[u8]>,
+    ) -> Result<AesJweEncrypter, JoseError> {
+        (|| -> anyhow::Result<AesJweEncrypter> {
+            let private_key = input.as_ref().to_vec();
+
+            if private_key.len() != self.key_len() {
+                bail!("The key size must be {}: {}", self.key_len(), private_key.len());
+            }
+
+            Ok(AesJweEncrypter {
+                algorithm: self.clone(),
+                private_key,
+                key_id: None,
+            })
+        })()
+        .map_err(|err| JoseError::InvalidKeyFormat(err))
+    }
+
     pub fn encrypter_from_jwk(&self, jwk: &Jwk) -> Result<AesJweEncrypter, JoseError> {
         (|| -> anyhow::Result<AesJweEncrypter> {
             match jwk.key_type() {
@@ -57,6 +77,26 @@ impl AesJweAlgorithm {
                 algorithm: self.clone(),
                 private_key: k,
                 key_id,
+            })
+        })()
+        .map_err(|err| JoseError::InvalidKeyFormat(err))
+    }
+    
+    pub fn decrypter_from_slice(
+        &self,
+        input: impl AsRef<[u8]>,
+    ) -> Result<AesJweDecrypter, JoseError> {
+        (|| -> anyhow::Result<AesJweDecrypter> {
+            let private_key = input.as_ref().to_vec();
+
+            if private_key.len() != self.key_len() {
+                bail!("The key size must be {}: {}", self.key_len(), private_key.len());
+            }
+
+            Ok(AesJweDecrypter {
+                algorithm: self.clone(),
+                private_key,
+                key_id: None,
             })
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))

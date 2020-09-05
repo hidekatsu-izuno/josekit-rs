@@ -3,7 +3,7 @@ use std::fmt::Display;
 use std::ops::Deref;
 
 use anyhow::bail;
-use openssl::pkey::{HasPublic, PKey, Private, Public};
+use openssl::pkey::{PKey, Private, Public};
 use openssl::rand;
 use openssl::rsa::Padding;
 use serde_json::Value;
@@ -12,6 +12,7 @@ use crate::der::{DerBuilder, DerType};
 use crate::jose::JoseError;
 use crate::jwe::{JweAlgorithm, JweDecrypter, JweEncrypter, JweHeader};
 use crate::jwk::{Jwk, RsaKeyPair};
+use crate::util;
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum RsaesJweAlgorithm {
@@ -29,6 +30,131 @@ pub enum RsaesJweAlgorithm {
 }
 
 impl RsaesJweAlgorithm {
+    /// Generate RSA key pair.
+    ///
+    /// # Arguments
+    /// * `bits` - RSA key length
+    pub fn generate_keypair(&self, bits: u32) -> Result<RsaKeyPair, JoseError> {
+        (|| -> anyhow::Result<RsaKeyPair> {
+            if bits < 2048 {
+                bail!("key length must be 2048 or more.");
+            }
+
+            let mut keypair = RsaKeyPair::generate(bits)?;
+            keypair.set_algorithm(Some(self.name()));
+            Ok(keypair)
+        })()
+        .map_err(|err| match err.downcast::<JoseError>() {
+            Ok(err) => err,
+            Err(err) => JoseError::InvalidKeyFormat(err),
+        })
+    }
+
+    /// Create a RSA key pair from a private key that is a DER encoded PKCS#8 PrivateKeyInfo or PKCS#1 RSAPrivateKey.
+    ///
+    /// # Arguments
+    /// * `input` - A private key that is a DER encoded PKCS#8 PrivateKeyInfo or PKCS#1 RSAPrivateKey.
+    pub fn keypair_from_der(&self, input: impl AsRef<[u8]>) -> Result<RsaKeyPair, JoseError> {
+        (|| -> anyhow::Result<RsaKeyPair> {
+            let mut keypair = RsaKeyPair::from_der(input)?;
+
+            if keypair.key_len() * 8 < 2048 {
+                bail!("key length must be 2048 or more.");
+            }
+
+            keypair.set_algorithm(Some(self.name()));
+            Ok(keypair)
+        })()
+        .map_err(|err| match err.downcast::<JoseError>() {
+            Ok(err) => err,
+            Err(err) => JoseError::InvalidKeyFormat(err),
+        })
+    }
+
+    /// Create a RSA key pair from a private key of common or traditinal PEM format.
+    ///
+    /// Common PEM format is a DER and base64 encoded PKCS#8 PrivateKeyInfo
+    /// that surrounded by "-----BEGIN/END PRIVATE KEY----".
+    ///
+    /// Traditional PEM format is a DER and base64 encoded PKCS#1 RSAPrivateKey
+    /// that surrounded by "-----BEGIN/END RSA PRIVATE KEY----".
+    ///
+    /// # Arguments
+    /// * `input` - A private key of common or traditinal PEM format.
+    pub fn keypair_from_pem(&self, input: impl AsRef<[u8]>) -> Result<RsaKeyPair, JoseError> {
+        (|| -> anyhow::Result<RsaKeyPair> {
+            let mut keypair = RsaKeyPair::from_pem(input.as_ref())?;
+
+            if keypair.key_len() * 8 < 2048 {
+                bail!("key length must be 2048 or more.");
+            }
+
+            keypair.set_algorithm(Some(self.name()));
+            Ok(keypair)
+        })()
+        .map_err(|err| match err.downcast::<JoseError>() {
+            Ok(err) => err,
+            Err(err) => JoseError::InvalidKeyFormat(err),
+        })
+    }
+
+    pub fn encrypter_from_der(&self, input: impl AsRef<[u8]>) -> Result<RsaesJweEncrypter, JoseError> {
+        (|| -> anyhow::Result<RsaesJweEncrypter> {
+            let pkcs8;
+            let pkcs8_ref = match RsaKeyPair::detect_pkcs8(input.as_ref(), true) {
+                Some(_) => input.as_ref(),
+                None => {
+                    pkcs8 = RsaKeyPair::to_pkcs8(input.as_ref(), true);
+                    &pkcs8
+                }
+            };
+
+            let public_key = PKey::public_key_from_der(pkcs8_ref)?;
+
+            let rsa = public_key.rsa()?;
+            if rsa.size() * 8 < 2048 {
+                bail!("key length must be 2048 or more.");
+            }
+
+            Ok(RsaesJweEncrypter {
+                algorithm: self.clone(),
+                public_key,
+                key_id: None,
+            })
+        })()
+        .map_err(|err| JoseError::InvalidKeyFormat(err))
+    }
+
+    pub fn encrypter_from_pem(&self, input: impl AsRef<[u8]>) -> Result<RsaesJweEncrypter, JoseError> {
+        (|| -> anyhow::Result<RsaesJweEncrypter> {
+            let (alg, data) = util::parse_pem(input.as_ref())?;
+
+            let public_key = match alg.as_str() {
+                "PUBLIC KEY" => match RsaKeyPair::detect_pkcs8(&data, true) {
+                    Some(_) => PKey::public_key_from_der(&data)?,
+                    None => bail!("Invalid PEM contents."),
+                },
+                "RSA PUBLIC KEY" => {
+                    let pkcs8 = RsaKeyPair::to_pkcs8(&data, true);
+                    PKey::public_key_from_der(&pkcs8)?
+                }
+                alg => bail!("Inappropriate algorithm: {}", alg),
+            };
+
+            let rsa = public_key.rsa()?;
+            if rsa.size() * 8 < 2048 {
+                bail!("key length must be 2048 or more.");
+            }
+
+            Ok(RsaesJweEncrypter {
+                algorithm: self.clone(),
+                public_key,
+                key_id: None,
+            })
+        })()
+        .map_err(|err| JoseError::InvalidKeyFormat(err))
+    }
+
     pub fn encrypter_from_jwk(&self, jwk: &Jwk) -> Result<RsaesJweEncrypter, JoseError> {
         (|| -> anyhow::Result<RsaesJweEncrypter> {
             match jwk.key_type() {
@@ -70,9 +196,13 @@ impl RsaesJweAlgorithm {
 
             let pkcs8 = RsaKeyPair::to_pkcs8(&builder.build(), true);
             let public_key = PKey::public_key_from_der(&pkcs8)?;
-            let key_id = jwk.key_id().map(|val| val.to_string());
 
-            self.check_key(&public_key)?;
+            let rsa = public_key.rsa()?;
+            if rsa.size() * 8 < 2048 {
+                bail!("key length must be 2048 or more.");
+            }
+
+            let key_id = jwk.key_id().map(|val| val.to_string());
 
             Ok(RsaesJweEncrypter {
                 algorithm: self.clone(),
@@ -83,12 +213,26 @@ impl RsaesJweAlgorithm {
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
+    pub fn decrypter_from_der(&self, input: impl AsRef<[u8]>) -> Result<RsaesJweDecrypter, JoseError> {
+        let keypair = self.keypair_from_der(input.as_ref())?;
+        Ok(RsaesJweDecrypter {
+            algorithm: self.clone(),
+            private_key: keypair.into_private_key(),
+            key_id: None,
+        })
+    }
+
+    pub fn decrypter_from_pem(&self, input: impl AsRef<[u8]>) -> Result<RsaesJweDecrypter, JoseError> {
+        let keypair = self.keypair_from_pem(input.as_ref())?;
+        Ok(RsaesJweDecrypter {
+            algorithm: self.clone(),
+            private_key: keypair.into_private_key(),
+            key_id: None,
+        })
+    }
+
     pub fn decrypter_from_jwk(&self, jwk: &Jwk) -> Result<RsaesJweDecrypter, JoseError> {
         (|| -> anyhow::Result<RsaesJweDecrypter> {
-            match jwk.key_type() {
-                val if val == "RSA" => {}
-                val => bail!("A parameter kty must be RSA: {}", val),
-            }
             match jwk.key_use() {
                 Some(val) if val == "enc" => {}
                 None => {}
@@ -102,67 +246,14 @@ impl RsaesJweAlgorithm {
                 None => {}
                 Some(val) => bail!("A parameter alg must be {} but {}", self.name(), val),
             }
-            let n = match jwk.parameter("n") {
-                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
-                Some(_) => bail!("A parameter n must be a string."),
-                None => bail!("A parameter n is required."),
-            };
-            let e = match jwk.parameter("e") {
-                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
-                Some(_) => bail!("A parameter e must be a string."),
-                None => bail!("A parameter e is required."),
-            };
-            let d = match jwk.parameter("d") {
-                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
-                Some(_) => bail!("A parameter d must be a string."),
-                None => bail!("A parameter d is required."),
-            };
-            let p = match jwk.parameter("p") {
-                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
-                Some(_) => bail!("A parameter p must be a string."),
-                None => bail!("A parameter p is required."),
-            };
-            let q = match jwk.parameter("q") {
-                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
-                Some(_) => bail!("A parameter q must be a string."),
-                None => bail!("A parameter q is required."),
-            };
-            let dp = match jwk.parameter("dp") {
-                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
-                Some(_) => bail!("A parameter dp must be a string."),
-                None => bail!("A parameter dp is required."),
-            };
-            let dq = match jwk.parameter("dq") {
-                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
-                Some(_) => bail!("A parameter dq must be a string."),
-                None => bail!("A parameter dq is required."),
-            };
-            let qi = match jwk.parameter("qi") {
-                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
-                Some(_) => bail!("A parameter qi must be a string."),
-                None => bail!("A parameter qi is required."),
-            };
 
-            let mut builder = DerBuilder::new();
-            builder.begin(DerType::Sequence);
-            {
-                builder.append_integer_from_u8(0); // version
-                builder.append_integer_from_be_slice(&n, false); // n
-                builder.append_integer_from_be_slice(&e, false); // e
-                builder.append_integer_from_be_slice(&d, false); // d
-                builder.append_integer_from_be_slice(&p, false); // p
-                builder.append_integer_from_be_slice(&q, false); // q
-                builder.append_integer_from_be_slice(&dp, false); // d mod (p-1)
-                builder.append_integer_from_be_slice(&dq, false); // d mod (q-1)
-                builder.append_integer_from_be_slice(&qi, false); // (inverse of q) mod p
+            let keypair = RsaKeyPair::from_jwk(&jwk)?;
+            if keypair.key_len() * 8 < 2048 {
+                bail!("key length must be 2048 or more.");
             }
-            builder.end();
 
-            let pkcs8 = RsaKeyPair::to_pkcs8(&builder.build(), false);
-            let private_key = PKey::private_key_from_der(&pkcs8)?;
+            let private_key = keypair.into_private_key();
             let key_id = jwk.key_id().map(|val| val.to_string());
-
-            self.check_key(&private_key)?;
 
             Ok(RsaesJweDecrypter {
                 algorithm: self.clone(),
@@ -171,16 +262,6 @@ impl RsaesJweAlgorithm {
             })
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
-    }
-
-    fn check_key<T: HasPublic>(&self, pkey: &PKey<T>) -> anyhow::Result<()> {
-        let rsa = pkey.rsa()?;
-
-        if rsa.size() * 8 < 2048 {
-            bail!("key length must be 2048 or more.");
-        }
-
-        Ok(())
     }
 }
 
