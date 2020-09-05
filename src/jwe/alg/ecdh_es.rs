@@ -10,7 +10,6 @@ use openssl::pkey::{PKey, Private, Public};
 use openssl::rand;
 use serde_json::{Map, Value};
 
-use crate::der::{DerBuilder, DerType};
 use crate::jose::{JoseError, JoseHeader};
 use crate::jwe::{JweAlgorithm, JweDecrypter, JweEncrypter, JweHeader};
 use crate::jwk::{EcCurve, EcKeyPair, EcxCurve, EcxKeyPair, Jwk};
@@ -170,24 +169,8 @@ impl EcdhEsJweAlgorithm {
                             "secp256k1" => EcCurve::Secp256K1,
                             val => bail!("EC key doesn't support the curve algorithm: {}", val),
                         };
-                        let d = match jwk.parameter("d") {
-                            Some(Value::String(val)) => {
-                                base64::decode_config(val, base64::URL_SAFE_NO_PAD)?
-                            }
-                            Some(_) => bail!("A parameter d must be a string."),
-                            None => bail!("A parameter d is required."),
-                        };
-
-                        let mut builder = DerBuilder::new();
-                        builder.begin(DerType::Sequence);
-                        {
-                            builder.append_integer_from_u8(1);
-                            builder.append_octed_string_from_slice(&d);
-                        }
-                        builder.end();
-
-                        let pkcs8 = EcKeyPair::to_pkcs8(&builder.build(), false, curve);
-                        let private_key = PKey::private_key_from_der(&pkcs8)?;
+                        let keypair = EcKeyPair::from_jwk(&jwk, Some(curve))?;
+                        let private_key = keypair.into_private_key();
 
                         (private_key, EcdhEsKeyType::Ec(curve))
                     }
@@ -197,19 +180,8 @@ impl EcdhEsJweAlgorithm {
                             "X448" => EcxCurve::X448,
                             val => bail!("OKP key doesn't support the curve algorithm: {}", val),
                         };
-                        let d = match jwk.parameter("d") {
-                            Some(Value::String(val)) => {
-                                base64::decode_config(val, base64::URL_SAFE_NO_PAD)?
-                            }
-                            Some(_) => bail!("A parameter d must be a string."),
-                            None => bail!("A parameter d is required."),
-                        };
-
-                        let mut builder = DerBuilder::new();
-                        builder.append_octed_string_from_slice(&d);
-
-                        let pkcs8 = EcxKeyPair::to_pkcs8(&builder.build(), false, curve);
-                        let private_key = PKey::private_key_from_der(&pkcs8)?;
+                        let keypair = EcxKeyPair::from_jwk(&jwk, Some(curve))?;
+                        let private_key = keypair.into_private_key();
 
                         (private_key, EcdhEsKeyType::Ecx(curve))
                     }
@@ -424,10 +396,8 @@ impl JweEncrypter for EcdhEsJweEncrypter {
 
                 let mut encrypted_key = vec![0; key.len() + 8];
                 match aes::wrap_key(&aes, None, &mut encrypted_key, &key) {
-                    Ok(len) => {
-                        if len < encrypted_key.len() {
-                            encrypted_key.truncate(len);
-                        }
+                    Ok(len) => if len < encrypted_key.len() {
+                        encrypted_key.truncate(len);
                     }
                     Err(_) => bail!("Failed to wrap key."),
                 }
@@ -761,6 +731,7 @@ mod tests {
     }
 
     use crate::util;
+    use crate::jwk::EcKeyPair;
     use openssl::derive::Deriver;
     use openssl::ec::{EcGroup, EcKey};
     use openssl::nid::Nid;
@@ -768,9 +739,15 @@ mod tests {
 
     #[test]
     fn test_ecdh() -> Result<()> {
-        let ec_group_1 = EcGroup::from_curve_name(Nid::X9_62_PRIME256V1)?;
-        let ec_key_1 = EcKey::generate(&ec_group_1)?;
-        let private_key_1 = PKey::from_ec_key(ec_key_1)?;
+        let private_key_1 = EcKeyPair::from_jwk(
+            &Jwk::from_slice(load_file("jwk/EC_P-256_private.jwk")?.as_slice())?,
+            None
+        )?.into_private_key();
+
+        //let ec_group_1 = EcGroup::from_curve_name(Nid::X9_62_PRIME256V1)?;
+        //let ec_key_1 = EcKey::generate(&ec_group_1)?;
+        //let private_key_1 = PKey::from_ec_key(ec_key_1)?;
+
         //let private_key_1 = util::generate_x25519()?;
         let public_key_1_der = private_key_1.public_key_to_der()?;
         let public_key_1 = PKey::public_key_from_der(&public_key_1_der)?;
