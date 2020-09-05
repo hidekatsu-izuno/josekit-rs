@@ -27,14 +27,6 @@ impl RsaKeyPair {
         self.key_len
     }
 
-    pub(crate) fn from_private_key(private_key: PKey<Private>, key_len: u32) -> RsaKeyPair {
-        RsaKeyPair {
-            private_key,
-            key_len,
-            alg: None,
-        }
-    }
-
     pub(crate) fn into_private_key(self) -> PKey<Private> {
         self.private_key
     }
@@ -75,9 +67,13 @@ impl RsaKeyPair {
 
             let private_key = PKey::private_key_from_der(pkcs8_ref)?;
             let rsa = private_key.rsa()?;
+            let key_len = rsa.size();
 
-            let keypair = Self::from_private_key(private_key, rsa.size());
-            Ok(keypair)
+            Ok(RsaKeyPair {
+                private_key,
+                key_len,
+                alg: None,
+            })
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
@@ -111,9 +107,13 @@ impl RsaKeyPair {
 
             let private_key = PKey::private_key_from_der(&pkcs8_ref)?;
             let rsa = private_key.rsa()?;
+            let key_len = rsa.size();
 
-            let keypair = RsaKeyPair::from_private_key(private_key, rsa.size());
-            Ok(keypair)
+            Ok(RsaKeyPair {
+                private_key,
+                key_len,
+                alg: None,
+            })
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }

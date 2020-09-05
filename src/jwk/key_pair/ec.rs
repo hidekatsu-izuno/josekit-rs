@@ -88,14 +88,6 @@ pub struct EcKeyPair {
 }
 
 impl EcKeyPair {
-    pub(crate) fn from_private_key(private_key: PKey<Private>, curve: EcCurve) -> EcKeyPair {
-        EcKeyPair {
-            private_key,
-            curve,
-            alg: None,
-        }
-    }
-
     pub(crate) fn into_private_key(self) -> PKey<Private> {
         self.private_key
     }
@@ -142,8 +134,11 @@ impl EcKeyPair {
 
             let private_key = PKey::private_key_from_der(pkcs8_ref)?;
 
-            let keypair = Self::from_private_key(private_key, curve);
-            Ok(keypair)
+            Ok(EcKeyPair {
+                private_key,
+                curve,
+                alg: None,
+            })
         })()
         .map_err(|err| match err.downcast::<JoseError>() {
             Ok(err) => err,
@@ -188,8 +183,11 @@ impl EcKeyPair {
 
             let private_key = PKey::private_key_from_der(pkcs8_ref)?;
 
-            let keypair = EcKeyPair::from_private_key(private_key, curve);
-            Ok(keypair)
+            Ok(EcKeyPair {
+                private_key,
+                curve,
+                alg: None,
+            })
         })()
         .map_err(|err| match err.downcast::<JoseError>() {
             Ok(err) => err,
@@ -395,6 +393,7 @@ mod tests {
             EcCurve::P256
         ] {
             let keypair = EcKeyPair::generate(curve)?;
+            let der_keypair = keypair.to_der_private_key();
             let jwk_keypair = keypair.to_jwk_keypair();
         }
 

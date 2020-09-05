@@ -13,27 +13,27 @@ use serde_json::{Map, Value};
 use crate::der::{DerBuilder, DerType};
 use crate::jose::{JoseError, JoseHeader};
 use crate::jwe::{JweAlgorithm, JweDecrypter, JweEncrypter, JweHeader};
-use crate::jwk::{Jwk, EcCurve, EcKeyPair, XCurve, XKeyPair};
+use crate::jwk::{Jwk, EcCurve, EcKeyPair, EcxCurve, EcxKeyPair};
 use crate::util;
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 enum EcdhEsKeyType {
     Ec(EcCurve),
-    X(XCurve),
+    Ecx(EcxCurve),
 }
 
 impl EcdhEsKeyType {
     fn key_type(&self) -> &str {
         match self {
             Self::Ec(_) => "EC",
-            Self::X(_) => "OKP",
+            Self::Ecx(_) => "OKP",
         }
     }
 
     fn curve_name(&self) -> &str {
         match self {
             Self::Ec(val) => val.name(),
-            Self::X(val) => val.name(),
+            Self::Ecx(val) => val.name(),
         }
     }
 }
@@ -105,8 +105,8 @@ impl EcdhEsJweAlgorithm {
                     },
                     "OKP" => {
                         let curve = match val.as_str() {
-                            "X25519" => XCurve::X25519,
-                            "X448" => XCurve::X448,
+                            "X25519" => EcxCurve::X25519,
+                            "X448" => EcxCurve::X448,
                             val => bail!("OKP key doesn't support the curve algorithm: {}", val),
                         };
                         let x = match jwk.parameter("x") {
@@ -115,10 +115,10 @@ impl EcdhEsJweAlgorithm {
                             None => bail!("A parameter x is required."),
                         };
 
-                        let pkcs8 = XKeyPair::to_pkcs8(&x, true, curve);
+                        let pkcs8 = EcxKeyPair::to_pkcs8(&x, true, curve);
                         let public_key = PKey::public_key_from_der(&pkcs8)?;
 
-                        (public_key, EcdhEsKeyType::X(curve))
+                        (public_key, EcdhEsKeyType::Ecx(curve))
                     },
                     _ => unreachable!(),
                 },
@@ -187,8 +187,8 @@ impl EcdhEsJweAlgorithm {
                     },
                     "OKP" => {
                         let curve = match val.as_str() {
-                            "X25519" => XCurve::X25519,
-                            "X448" => XCurve::X448,
+                            "X25519" => EcxCurve::X25519,
+                            "X448" => EcxCurve::X448,
                             val => bail!("OKP key doesn't support the curve algorithm: {}", val),
                         };
                         let d = match jwk.parameter("d") {
@@ -200,10 +200,10 @@ impl EcdhEsJweAlgorithm {
                         let mut builder = DerBuilder::new();
                         builder.append_octed_string_from_slice(&d);
     
-                        let pkcs8 = XKeyPair::to_pkcs8(&builder.build(), false, curve);
+                        let pkcs8 = EcxKeyPair::to_pkcs8(&builder.build(), false, curve);
                         let private_key = PKey::private_key_from_der(&pkcs8)?;
 
-                        (private_key, EcdhEsKeyType::X(curve))
+                        (private_key, EcdhEsKeyType::Ecx(curve))
                     },
                     _ => unreachable!(),
                 },
@@ -346,8 +346,8 @@ impl JweEncrypter for EcdhEsJweEncrypter {
 
                     keypair.into_private_key()
                 },
-                EcdhEsKeyType::X(curve) => {
-                    let keypair = XKeyPair::generate(curve)?;
+                EcdhEsKeyType::Ecx(curve) => {
+                    let keypair = EcxKeyPair::generate(curve)?;
                     let mut jwk: Map<String, Value> = keypair.to_jwk_public_key().into();
 
                     match jwk.remove("x") {
@@ -565,7 +565,7 @@ impl JweDecrypter for EcdhEsJweDecrypter {
                             let pkcs8 = EcKeyPair::to_pkcs8(&vec, true, *curve);
                             PKey::public_key_from_der(&pkcs8)?
                         }
-                        EcdhEsKeyType::X(curve) => {
+                        EcdhEsKeyType::Ecx(curve) => {
                             let x = match map.get("x") {
                                 Some(Value::String(val)) => {
                                     base64::decode_config(val, base64::URL_SAFE_NO_PAD)?
@@ -576,7 +576,7 @@ impl JweDecrypter for EcdhEsJweDecrypter {
                                 None => bail!("The x parameter in epk header claim is required."),
                             };
 
-                            let pkcs8 = XKeyPair::to_pkcs8(&x, true, *curve);
+                            let pkcs8 = EcxKeyPair::to_pkcs8(&x, true, *curve);
                             PKey::public_key_from_der(&pkcs8)?
                         }
                     }
@@ -676,7 +676,7 @@ mod tests {
     use super::{ EcdhEsJweAlgorithm, EcdhEsKeyType };
     use crate::jwe::JweHeader;
     use crate::jwe::enc::aes_cbc_hmac::AesCbcHmacJweEncryption;
-    use crate::jwk::{Jwk, EcCurve, XCurve };
+    use crate::jwk::{Jwk, EcCurve, EcxCurve };
 
     #[test]
     fn encrypt_and_decrypt_ecdh_es() -> Result<()> {
@@ -693,8 +693,8 @@ mod tests {
                 EcdhEsKeyType::Ec(EcCurve::P384),
                 EcdhEsKeyType::Ec(EcCurve::P521),
                 EcdhEsKeyType::Ec(EcCurve::Secp256K1),
-                EcdhEsKeyType::X(XCurve::X25519),
-                EcdhEsKeyType::X(XCurve::X448),
+                EcdhEsKeyType::Ecx(EcxCurve::X25519),
+                EcdhEsKeyType::Ecx(EcxCurve::X448),
             ] {
                 println!("{}:{:?}", alg, key);
 
@@ -703,8 +703,8 @@ mod tests {
                     EcdhEsKeyType::Ec(EcCurve::P384) => "jwk/EC_P-384_private.jwk",
                     EcdhEsKeyType::Ec(EcCurve::P521) => "jwk/EC_P-521_private.jwk",
                     EcdhEsKeyType::Ec(EcCurve::Secp256K1) => "jwk/EC_secp256k1_private.jwk",
-                    EcdhEsKeyType::X(XCurve::X25519) => "jwk/OKP_X25519_private.jwk",
-                    EcdhEsKeyType::X(XCurve::X448) => "jwk/OKP_X448_private.jwk",
+                    EcdhEsKeyType::Ecx(EcxCurve::X25519) => "jwk/OKP_X25519_private.jwk",
+                    EcdhEsKeyType::Ecx(EcxCurve::X448) => "jwk/OKP_X448_private.jwk",
                 })?;
 
                 let mut private_key = Jwk::from_slice(&private_key)?;
@@ -715,8 +715,8 @@ mod tests {
                     EcdhEsKeyType::Ec(EcCurve::P384) => "jwk/EC_P-384_public.jwk",
                     EcdhEsKeyType::Ec(EcCurve::P521) => "jwk/EC_P-521_public.jwk",
                     EcdhEsKeyType::Ec(EcCurve::Secp256K1) => "jwk/EC_secp256k1_public.jwk",
-                    EcdhEsKeyType::X(XCurve::X25519) => "jwk/OKP_X25519_public.jwk",
-                    EcdhEsKeyType::X(XCurve::X448) => "jwk/OKP_X448_public.jwk",
+                    EcdhEsKeyType::Ecx(EcxCurve::X25519) => "jwk/OKP_X25519_public.jwk",
+                    EcdhEsKeyType::Ecx(EcxCurve::X448) => "jwk/OKP_X448_public.jwk",
                 })?;
                 let mut public_key = Jwk::from_slice(&public_key)?;
                 public_key.set_key_use("enc");
@@ -756,11 +756,17 @@ mod tests {
 
     #[test]
     fn test_ecdh() -> Result<()> {
-        let private_key_1 = util::generate_x25519()?;
+        let ec_group_1 = EcGroup::from_curve_name(Nid::X9_62_PRIME256V1)?;
+        let ec_key_1 = EcKey::generate(&ec_group_1)?;
+        let private_key_1 = PKey::from_ec_key(ec_key_1)?;
+        //let private_key_1 = util::generate_x25519()?;
         let public_key_1_der = private_key_1.public_key_to_der()?;
         let public_key_1 = PKey::public_key_from_der(&public_key_1_der)?;
 
-        let private_key_2 = util::generate_x25519()?;
+        let ec_group_2 = EcGroup::from_curve_name(Nid::X9_62_PRIME256V1)?;
+        let ec_key_2 = EcKey::generate(&ec_group_2)?;
+        let private_key_2 = PKey::from_ec_key(ec_key_2)?;
+        //let private_key_2 = util::generate_x25519()?;
         let public_key_2_der = private_key_2.public_key_to_der()?;
         let public_key_2 = PKey::public_key_from_der(&public_key_2_der)?;
 

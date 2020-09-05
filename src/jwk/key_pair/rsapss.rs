@@ -108,15 +108,14 @@ impl RsaPssKeyPair {
             let rsa = private_key.rsa()?;
             let key_len = rsa.size();
 
-            let keypair = RsaPssKeyPair {
+            Ok(RsaPssKeyPair {
                 private_key,
                 key_len,
                 hash,
                 mgf1_hash,
                 salt_len,
                 alg: None,
-            };
-            Ok(keypair)
+            })
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
@@ -168,15 +167,14 @@ impl RsaPssKeyPair {
             let rsa = private_key.rsa()?;
             let key_len = rsa.size();
 
-            let keypair = RsaPssKeyPair {
+            Ok(RsaPssKeyPair {
                 private_key,
                 key_len,
                 hash,
                 mgf1_hash,
                 salt_len,
                 alg: None,
-            };
-            Ok(keypair)
+            })
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }

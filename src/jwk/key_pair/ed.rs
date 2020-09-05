@@ -54,14 +54,6 @@ pub struct EdKeyPair {
 }
 
 impl EdKeyPair {
-    pub(crate) fn from_private_key(private_key: PKey<Private>, curve: EdCurve) -> EdKeyPair {
-        EdKeyPair {
-            private_key,
-            curve,
-            alg: None,
-        }
-    }
-
     pub(crate) fn into_private_key(self) -> PKey<Private> {
         self.private_key
     }
@@ -108,8 +100,11 @@ impl EdKeyPair {
 
             let private_key = PKey::private_key_from_der(pkcs8_ref)?;
 
-            let keypair = Self::from_private_key(private_key, curve);
-            Ok(keypair)
+            Ok(EdKeyPair {
+                private_key,
+                curve,
+                alg: None,
+            })
         })()
         .map_err(|err| match err.downcast::<JoseError>() {
             Ok(err) => err,
@@ -173,8 +168,11 @@ impl EdKeyPair {
 
             let private_key = PKey::private_key_from_der(pkcs8_ref)?;
 
-            let keypair = EdKeyPair::from_private_key(private_key, curve);
-            Ok(keypair)
+            Ok(EdKeyPair {
+                private_key,
+                curve,
+                alg: None,
+            })
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }

@@ -1,6 +1,7 @@
 use std::fmt::Display;
 use std::ops::Deref;
 
+use anyhow::bail;
 use once_cell::sync::Lazy;
 use openssl::pkey::{PKey, Private};
 use serde_json::Value;
@@ -18,12 +19,12 @@ static OID_X448: Lazy<ObjectIdentifier> =
     Lazy::new(|| ObjectIdentifier::from_slice(&[1, 3, 101, 111]));
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
-pub enum XCurve {
+pub enum EcxCurve {
     X25519,
     X448,
 }
 
-impl XCurve {
+impl EcxCurve {
     pub fn name(&self) -> &str {
         match self {
             Self::X25519 => "X25519",
@@ -39,51 +40,138 @@ impl XCurve {
     }
 }
 
-impl Display for XCurve {
+impl Display for EcxCurve {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
         fmt.write_str(self.name())
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct XKeyPair {
+pub struct EcxKeyPair {
     private_key: PKey<Private>,
-    curve: XCurve,
+    curve: EcxCurve,
     alg: Option<String>,
 }
 
-impl XKeyPair {
-    #[allow(dead_code)]
-    pub(crate) fn from_private_key(private_key: PKey<Private>, curve: XCurve) -> XKeyPair {
-        XKeyPair {
-            private_key,
-            curve,
-            alg: None,
-        }
-    }
+impl EcxKeyPair {
 
     pub(crate) fn into_private_key(self) -> PKey<Private> {
         self.private_key
     }
 
-    pub fn curve(&self) -> XCurve {
+    pub fn curve(&self) -> EcxCurve {
         self.curve
     }
 
-    /// Generate a Ed keypair
+    /// Generate a ECX keypair
     ///
     /// # Arguments
-    /// * `curve` - X curve algorithm
-    pub fn generate(curve: XCurve) -> Result<XKeyPair, JoseError> {
-        (|| -> anyhow::Result<XKeyPair> {
+    /// * `curve` - ECX curve algorithm
+    pub fn generate(curve: EcxCurve) -> Result<EcxKeyPair, JoseError> {
+        (|| -> anyhow::Result<EcxKeyPair> {
             let private_key = match curve {
-                XCurve::X25519 => util::generate_x25519()?,
-                XCurve::X448 => util::generate_x448()?,
+                EcxCurve::X25519 => util::generate_x25519()?,
+                EcxCurve::X448 => util::generate_x448()?,
             };
 
-            Ok(XKeyPair {
+            Ok(EcxKeyPair {
                 curve,
                 private_key,
+                alg: None,
+            })
+        })()
+        .map_err(|err| JoseError::InvalidKeyFormat(err))
+    }
+
+    /// Create a EdDSA key pair from a private key that is a DER encoded PKCS#8 PrivateKeyInfo.
+    ///
+    /// # Arguments
+    /// * `input` - A private key that is a DER encoded PKCS#8 PrivateKeyInfo.
+    /// * `curve` - EC curve
+    pub fn from_der(input: impl AsRef<[u8]>, curve: Option<EcxCurve>) -> Result<Self, JoseError> {
+        (|| -> anyhow::Result<Self> {
+            let (pkcs8_ref, curve) = match Self::detect_pkcs8(input.as_ref(), false) {
+                Some(val) => match curve {
+                    Some(val2) if val2 == val => (input.as_ref(), val),
+                    Some(val2) => bail!("The curve is mismatched: {}", val2),
+                    None => (input.as_ref(), val),
+                },
+                None => bail!("The EdDSA private key must be wrapped by PKCS#8 format."),
+            };
+
+            let private_key = PKey::private_key_from_der(pkcs8_ref)?;
+
+            Ok(EcxKeyPair {
+                private_key,
+                curve,
+                alg: None,
+            })
+        })()
+        .map_err(|err| match err.downcast::<JoseError>() {
+            Ok(err) => err,
+            Err(err) => JoseError::InvalidKeyFormat(err),
+        })
+    }
+
+    /// Create a EdDSA key pair from a private key of common or traditinal PEM format.
+    ///
+    /// Common PEM format is a DER and base64 encoded PKCS#8 PrivateKeyInfo
+    /// that surrounded by "-----BEGIN/END PRIVATE KEY----".
+    ///
+    /// Traditional PEM format is a DER and base64 encoded PKCS#8 PrivateKeyInfo
+    /// that surrounded by "-----BEGIN/END ED25519/ED448 PRIVATE KEY----".
+    ///
+    /// # Arguments
+    /// * `input` - A private key of common or traditinal PEM format.
+    /// * `curve` - EC curve
+    pub fn from_pem(input: impl AsRef<[u8]>, curve: Option<EcxCurve>) -> Result<Self, JoseError> {
+        (|| -> anyhow::Result<Self> {
+            let (alg, data) = util::parse_pem(input.as_ref())?;
+            let (pkcs8_ref, curve) = match alg.as_str() {
+                "PRIVATE KEY" => match EcxKeyPair::detect_pkcs8(&data, false) {
+                    Some(val) => match curve {
+                        Some(val2) if val2 == val => (data.as_slice(), val),
+                        Some(val2) => bail!("The curve is mismatched: {}", val2),
+                        None => (data.as_slice(), val),
+                    },
+                    None => bail!("The EdDSA private key must be wrapped by PKCS#8 format."),
+                },
+                "X25519 PRIVATE KEY" => match EcxKeyPair::detect_pkcs8(&data, false) {
+                    Some(val) => {
+                        if val == EcxCurve::X25519 {
+                            match curve {
+                                Some(val2) if val2 == val => (data.as_slice(), val),
+                                Some(val2) => bail!("The curve is mismatched: {}", val2),
+                                None => (data.as_slice(), val),
+                            }
+                        } else {
+                            bail!("The Edwards curve is mismatched: {}", val.name());
+                        }
+                    }
+                    None => bail!("The Edwards curve private key must be wrapped by PKCS#8 format."),
+                },
+                "X448 PRIVATE KEY" => match EcxKeyPair::detect_pkcs8(&data, false) {
+                    Some(val) => {
+                        if val == EcxCurve::X448 {
+                            match curve {
+                                Some(val2) if val2 == val => (data.as_slice(), val),
+                                Some(val2) => bail!("The curve is mismatched: {}", val2),
+                                None => (data.as_slice(), val),
+                            }
+                        } else {
+                            bail!("The Edwards curve is mismatched: {}", val.name());
+                        }
+                    }
+                    None => bail!("The Edwards curve private key must be wrapped by PKCS#8 format."),
+                },
+                alg => bail!("Inappropriate algorithm: {}", alg),
+            };
+
+            let private_key = PKey::private_key_from_der(pkcs8_ref)?;
+
+            Ok(EcxKeyPair {
+                private_key,
+                curve,
                 alg: None,
             })
         })()
@@ -94,8 +182,8 @@ impl XKeyPair {
         let der = self.private_key.private_key_to_der().unwrap();
         let der = base64::encode_config(&der, base64::STANDARD);
         let alg = match self.curve {
-            XCurve::X25519 => "X25519 PRIVATE KEY",
-            XCurve::X448 => "X448 PRIVATE KEY",
+            EcxCurve::X25519 => "X25519 PRIVATE KEY",
+            EcxCurve::X448 => "X448 PRIVATE KEY",
         };
 
         let mut result = String::new();
@@ -221,8 +309,7 @@ impl XKeyPair {
         jwk
     }
 
-    #[allow(dead_code)]
-    pub(crate) fn detect_pkcs8(input: &[u8], is_public: bool) -> Option<XCurve> {
+    pub(crate) fn detect_pkcs8(input: &[u8], is_public: bool) -> Option<EcxCurve> {
         let curve;
         let mut reader = DerReader::from_reader(input);
 
@@ -255,8 +342,8 @@ impl XKeyPair {
             {
                 curve = match reader.next() {
                     Ok(Some(DerType::ObjectIdentifier)) => match reader.to_object_identifier() {
-                        Ok(val) if val == *OID_X25519 => XCurve::X25519,
-                        Ok(val) if val == *OID_X448 => XCurve::X448,
+                        Ok(val) if val == *OID_X25519 => EcxCurve::X25519,
+                        Ok(val) if val == *OID_X448 => EcxCurve::X448,
                         _ => return None,
                     },
                     _ => return None,
@@ -267,7 +354,7 @@ impl XKeyPair {
         Some(curve)
     }
 
-    pub(crate) fn to_pkcs8(input: &[u8], is_public: bool, curve: XCurve) -> Vec<u8> {
+    pub(crate) fn to_pkcs8(input: &[u8], is_public: bool, curve: EcxCurve) -> Vec<u8> {
         let mut builder = DerBuilder::new();
         builder.begin(DerType::Sequence);
         {
@@ -293,7 +380,7 @@ impl XKeyPair {
     }
 }
 
-impl KeyPair for XKeyPair {
+impl KeyPair for EcxKeyPair {
     fn set_algorithm(&mut self, value: Option<&str>) {
         self.alg = value.map(|val| val.to_string());
     }
@@ -338,7 +425,7 @@ impl KeyPair for XKeyPair {
     }
 }
 
-impl Deref for XKeyPair {
+impl Deref for EcxKeyPair {
     type Target = dyn KeyPair;
 
     fn deref(&self) -> &Self::Target {

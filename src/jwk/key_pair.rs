@@ -2,7 +2,7 @@ pub mod rsa;
 pub mod rsapss;
 pub mod ec;
 pub mod ed;
-pub mod x;
+pub mod ecx;
 
 use std::fmt::Debug;
 

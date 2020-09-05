@@ -11,5 +11,5 @@ pub use crate::jwk::key_pair::ec::EcCurve;
 pub use crate::jwk::key_pair::ec::EcKeyPair;
 pub use crate::jwk::key_pair::ed::EdCurve;
 pub use crate::jwk::key_pair::ed::EdKeyPair;
-pub use crate::jwk::key_pair::x::XCurve;
-pub use crate::jwk::key_pair::x::XKeyPair;
+pub use crate::jwk::key_pair::ecx::EcxCurve;
+pub use crate::jwk::key_pair::ecx::EcxKeyPair;
