@@ -7,7 +7,7 @@ use openssl::sign::{Signer, Verifier};
 use serde_json::Value;
 
 use crate::jose::JoseError;
-use crate::jwk::{EdCurve, EdKeyPair, Jwk, KeyPair};
+use crate::jwk::{EdCurve, EdKeyPair, Jwk};
 use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier};
 use crate::util;
 
