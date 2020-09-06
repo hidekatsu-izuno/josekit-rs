@@ -54,6 +54,10 @@ pub struct EcxKeyPair {
 }
 
 impl EcxKeyPair {
+    pub fn set_algorithm(&mut self, value: Option<&str>) {
+        self.alg = value.map(|val| val.to_string());
+    }
+
     pub(crate) fn into_private_key(self) -> PKey<Private> {
         self.private_key
     }
@@ -431,10 +435,6 @@ impl EcxKeyPair {
 }
 
 impl KeyPair for EcxKeyPair {
-    fn set_algorithm(&mut self, value: Option<&str>) {
-        self.alg = value.map(|val| val.to_string());
-    }
-
     fn algorithm(&self) -> Option<&str> {
         match &self.alg {
             Some(val) => Some(val.as_str()),

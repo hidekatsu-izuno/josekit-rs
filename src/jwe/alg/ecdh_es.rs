@@ -16,7 +16,7 @@ use crate::jwk::{EcCurve, EcKeyPair, EcxCurve, EcxKeyPair, Jwk};
 use crate::util;
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
-enum EcdhEsKeyType {
+pub enum EcdhEsKeyType {
     Ec(EcCurve),
     Ecx(EcxCurve),
 }
@@ -37,6 +37,16 @@ impl EcdhEsKeyType {
     }
 }
 
+impl Display for EcdhEsKeyType {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+        fmt.write_str(self.key_type())?;
+        fmt.write_str("(")?;
+        fmt.write_str(self.curve_name())?;
+        fmt.write_str(")")?;
+        Ok(())
+    }
+}
+
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum EcdhEsJweAlgorithm {
     /// Elliptic Curve Diffie-Hellman Ephemeral Static key agreement using Concat KDF
@@ -50,6 +60,46 @@ pub enum EcdhEsJweAlgorithm {
 }
 
 impl EcdhEsJweAlgorithm {
+    /// Generate EC key pair for ECDH.
+    pub fn generate_ec_keypair(&self, curve: EcCurve) -> Result<EcKeyPair, JoseError> {
+        let mut keypair = EcKeyPair::generate(curve)?;
+        keypair.set_algorithm(Some(self.name()));
+        Ok(keypair)
+    }
+
+    /// Generate ECx key pair for ECDH.
+    pub fn generate_ecx_keypair(&self, curve: EcxCurve) -> Result<EcxKeyPair, JoseError> {
+        let mut keypair = EcxKeyPair::generate(curve)?;
+        keypair.set_algorithm(Some(self.name()));
+        Ok(keypair)
+    }
+
+    /// Create a EC key pair for ECDH from a private key that is a DER encoded PKCS#8 PrivateKeyInfo or ECPrivateKey.
+    ///
+    /// # Arguments
+    /// * `input` - A private key that is a DER encoded PKCS#8 PrivateKeyInfo or ECPrivateKey.
+    pub fn keypair_from_der(&self, input: impl AsRef<[u8]>, curve: Option<EcCurve>) -> Result<EcKeyPair, JoseError> {
+        let mut keypair = EcKeyPair::from_der(input, curve)?;
+        keypair.set_algorithm(Some(self.name()));
+        Ok(keypair)
+    }
+
+    /// Create a EC key pair for ECDH from a private key of common or traditinal PEM format.
+    ///
+    /// Common PEM format is a DER and base64 encoded PKCS#8 PrivateKeyInfo
+    /// that surrounded by "-----BEGIN/END PRIVATE KEY----".
+    ///
+    /// Traditional PEM format is a DER and base64 encoded ECPrivateKey
+    /// that surrounded by "-----BEGIN/END EC PRIVATE KEY----".
+    ///
+    /// # Arguments
+    /// * `input` - A private key of common or traditinal PEM format.
+    pub fn keypair_from_pem(&self, input: impl AsRef<[u8]>, curve: Option<EcCurve>) -> Result<EcKeyPair, JoseError> {
+        let mut keypair = EcKeyPair::from_pem(input.as_ref(), curve)?;
+        keypair.set_algorithm(Some(self.name()));
+        Ok(keypair)
+    }
+
     pub fn encrypter_from_jwk(&self, jwk: &Jwk) -> Result<EcdhEsJweEncrypter, JoseError> {
         (|| -> anyhow::Result<EcdhEsJweEncrypter> {
             let key_type = match jwk.key_type() {
@@ -194,8 +244,8 @@ impl EcdhEsJweAlgorithm {
 
             Ok(EcdhEsJweDecrypter {
                 algorithm: self.clone(),
-                key_type,
                 private_key,
+                key_type,
                 key_id,
             })
         })()
@@ -427,8 +477,8 @@ impl Deref for EcdhEsJweEncrypter {
 #[derive(Debug, Clone)]
 pub struct EcdhEsJweDecrypter {
     algorithm: EcdhEsJweAlgorithm,
-    key_type: EcdhEsKeyType,
     private_key: PKey<Private>,
+    key_type: EcdhEsKeyType,
     key_id: Option<String>,
 }
 
@@ -670,34 +720,34 @@ mod tests {
             EcdhEsJweAlgorithm::EcdhEsA256Kw,
         ] {
             for key in vec![
-                EcdhEsKeyType::Ec(EcCurve::P256),
-                EcdhEsKeyType::Ec(EcCurve::P384),
-                EcdhEsKeyType::Ec(EcCurve::P521),
-                EcdhEsKeyType::Ec(EcCurve::Secp256K1),
+                //EcdhEsKeyType::Ec(EcCurve::P256),
+                //EcdhEsKeyType::Ec(EcCurve::P384),
+                //EcdhEsKeyType::Ec(EcCurve::P521),
+                //EcdhEsKeyType::Ec(EcCurve::Secp256K1),
                 EcdhEsKeyType::Ecx(EcxCurve::X25519),
                 EcdhEsKeyType::Ecx(EcxCurve::X448),
             ] {
                 println!("{}:{:?}", alg, key);
 
                 let private_key = load_file(match key {
-                    EcdhEsKeyType::Ec(EcCurve::P256) => "jwk/EC_P-256_private.jwk",
-                    EcdhEsKeyType::Ec(EcCurve::P384) => "jwk/EC_P-384_private.jwk",
-                    EcdhEsKeyType::Ec(EcCurve::P521) => "jwk/EC_P-521_private.jwk",
-                    EcdhEsKeyType::Ec(EcCurve::Secp256K1) => "jwk/EC_secp256k1_private.jwk",
-                    EcdhEsKeyType::Ecx(EcxCurve::X25519) => "jwk/OKP_X25519_private.jwk",
-                    EcdhEsKeyType::Ecx(EcxCurve::X448) => "jwk/OKP_X448_private.jwk",
+                    EcdhEsKeyType::Ec(EcCurve::P256) => "der/EC_P-256_pkcs8_private.der",
+                    EcdhEsKeyType::Ec(EcCurve::P384) => "der/EC_P-384_pkcs8_private.der",
+                    EcdhEsKeyType::Ec(EcCurve::P521) => "der/EC_P-521_pkcs8_private.der",
+                    EcdhEsKeyType::Ec(EcCurve::Secp256K1) => "der/EC_secp256k1_pkcs8_private.der",
+                    EcdhEsKeyType::Ecx(EcxCurve::X25519) => "der/X25519_private.der",
+                    EcdhEsKeyType::Ecx(EcxCurve::X448) => "der/X448_private.der",
                 })?;
 
                 let mut private_key = Jwk::from_slice(&private_key)?;
                 private_key.set_key_use("enc");
 
                 let public_key = load_file(match key {
-                    EcdhEsKeyType::Ec(EcCurve::P256) => "jwk/EC_P-256_public.jwk",
-                    EcdhEsKeyType::Ec(EcCurve::P384) => "jwk/EC_P-384_public.jwk",
-                    EcdhEsKeyType::Ec(EcCurve::P521) => "jwk/EC_P-521_public.jwk",
-                    EcdhEsKeyType::Ec(EcCurve::Secp256K1) => "jwk/EC_secp256k1_public.jwk",
-                    EcdhEsKeyType::Ecx(EcxCurve::X25519) => "jwk/OKP_X25519_public.jwk",
-                    EcdhEsKeyType::Ecx(EcxCurve::X448) => "jwk/OKP_X448_public.jwk",
+                    EcdhEsKeyType::Ec(EcCurve::P256) => "der/EC_P-256_public.der",
+                    EcdhEsKeyType::Ec(EcCurve::P384) => "der/EC_P-384_public.der",
+                    EcdhEsKeyType::Ec(EcCurve::P521) => "der/EC_P-521_public.der",
+                    EcdhEsKeyType::Ec(EcCurve::Secp256K1) => "der/EC_secp256k1_public.der",
+                    EcdhEsKeyType::Ecx(EcxCurve::X25519) => "der/X25519_public.der",
+                    EcdhEsKeyType::Ecx(EcxCurve::X448) => "der/X448_public.der",
                 })?;
                 let mut public_key = Jwk::from_slice(&public_key)?;
                 public_key.set_key_use("enc");
@@ -739,23 +789,23 @@ mod tests {
 
     #[test]
     fn test_ecdh() -> Result<()> {
-        let private_key_1 = EcKeyPair::from_jwk(
-            &Jwk::from_slice(load_file("jwk/EC_P-256_private.jwk")?.as_slice())?,
-            None
-        )?.into_private_key();
+        //let private_key_1 = EcKeyPair::from_jwk(
+        //    &Jwk::from_slice(load_file("jwk/EC_P-256_private.jwk")?.as_slice())?,
+        //    None
+        //)?.into_private_key();
 
         //let ec_group_1 = EcGroup::from_curve_name(Nid::X9_62_PRIME256V1)?;
         //let ec_key_1 = EcKey::generate(&ec_group_1)?;
         //let private_key_1 = PKey::from_ec_key(ec_key_1)?;
 
-        //let private_key_1 = util::generate_x25519()?;
+        let private_key_1 = util::generate_x448()?;
         let public_key_1_der = private_key_1.public_key_to_der()?;
         let public_key_1 = PKey::public_key_from_der(&public_key_1_der)?;
 
-        let ec_group_2 = EcGroup::from_curve_name(Nid::X9_62_PRIME256V1)?;
-        let ec_key_2 = EcKey::generate(&ec_group_2)?;
-        let private_key_2 = PKey::from_ec_key(ec_key_2)?;
-        //let private_key_2 = util::generate_x25519()?;
+        //let ec_group_2 = EcGroup::from_curve_name(Nid::X9_62_PRIME256V1)?;
+        //let ec_key_2 = EcKey::generate(&ec_group_2)?;
+        //let private_key_2 = PKey::from_ec_key(ec_key_2)?;
+        let private_key_2 = util::generate_x448()?;
         let public_key_2_der = private_key_2.public_key_to_der()?;
         let public_key_2 = PKey::public_key_from_der(&public_key_2_der)?;
 

@@ -67,9 +67,9 @@ openssl genpkey -algorithm RSA-PSS -pkeyopt rsa_keygen_bits:2048 -pkeyopt rsa_ps
 openssl genpkey -algorithm RSA-PSS -pkeyopt rsa_keygen_bits:2048 -pkeyopt rsa_pss_keygen_md:sha512  -pkeyopt rsa_pss_keygen_mgf1_md:sha512 -pkeyopt rsa_pss_keygen_saltlen:64 -out rsapss_2048_sha512_pkcs8_private.pem
 
 ### Generate RSA-PSS PKCS#8 PEM public key from RSA PKCS#8 PEM private key
-openssl pkey -in rsapss_2048_sha256_pkcs8_private.pem -pubout -outform PEM -out rsapss_2048_sha256_pkcs8_public.pem
-openssl pkey -in rsapss_2048_sha384_pkcs8_private.pem -pubout -outform PEM -out rsapss_2048_sha384_pkcs8_public.pem
-openssl pkey -in rsapss_2048_sha512_pkcs8_private.pem -pubout -outform PEM -out rsapss_2048_sha512_pkcs8_public.pem
+openssl pkey -in rsapss_2048_sha256_pkcs8_private.pem -pubout -outform PEM -out rsapss_2048_sha256_spki_public.pem
+openssl pkey -in rsapss_2048_sha384_pkcs8_private.pem -pubout -outform PEM -out rsapss_2048_sha384_spki_public.pem
+openssl pkey -in rsapss_2048_sha512_pkcs8_private.pem -pubout -outform PEM -out rsapss_2048_sha512_spki_public.pem
 
 ### Convert RSA-PSS private key from PKCS#8 PEM to PKCS#8 DER
 openssl pkcs8 -nocrypt -in rsapss_2048_sha256_pkcs8_private.pem -topk8 -outform DER -out rsapss_2048_sha256_pkcs8_private.der
@@ -77,9 +77,9 @@ openssl pkcs8 -nocrypt -in rsapss_2048_sha384_pkcs8_private.pem -topk8 -outform 
 openssl pkcs8 -nocrypt -in rsapss_2048_sha512_pkcs8_private.pem -topk8 -outform DER -out rsapss_2048_sha512_pkcs8_private.der
 
 ### Generate RSA-PSS PKCS#8 DER public key from RSA-PSS PKCS#8 PEM private key
-openssl pkey -in rsapss_2048_sha256_pkcs8_private.pem -pubout -outform DER -out rsapss_2048_sha256_pkcs8_public.der
-openssl pkey -in rsapss_2048_sha384_pkcs8_private.pem -pubout -outform DER -out rsapss_2048_sha384_pkcs8_public.der
-openssl pkey -in rsapss_2048_sha512_pkcs8_private.pem -pubout -outform DER -out rsapss_2048_sha512_pkcs8_public.der
+openssl pkey -in rsapss_2048_sha256_pkcs8_private.pem -pubout -outform DER -out rsapss_2048_sha256_spki_public.der
+openssl pkey -in rsapss_2048_sha384_pkcs8_private.pem -pubout -outform DER -out rsapss_2048_sha384_spki_public.der
+openssl pkey -in rsapss_2048_sha512_pkcs8_private.pem -pubout -outform DER -out rsapss_2048_sha512_spki_public.der
 
 ### Convert RSA-PSS private key from PKCS#8 DER to PKCS#8 PEM
 openssl pkey -inform DER -in rsapss_2048_sha256_private.der -out rsapss_2048_sha256_private.pem
@@ -100,20 +100,43 @@ openssl genpkey -algorithm ED25519 -out ED25519_pkcs8_private.pem
 openssl genpkey -algorithm ED448 -out ED448_pkcs8_private.pem
 
 ### Generate EdDSA PKCS#8 PEM public key from EdDSA PKCS#8 PEM private key
-openssl pkey -in ED25519_pkcs8_private.pem -pubout -outform PEM -out ED25519_pkcs8_public.pem
-openssl pkey -in ED448_pkcs8_private.pem -pubout -outform PEM -out ED448_pkcs8_public.pem
+openssl pkey -in ED25519_pkcs8_private.pem -pubout -outform PEM -out ED25519_spki_public.pem
+openssl pkey -in ED448_pkcs8_private.pem -pubout -outform PEM -out ED448_spki_public.pem
 
 ### Convert EdDSA private key from PKCS#8 PEM to PKCS#8 DER
 openssl pkcs8 -nocrypt -in ED25519_pkcs8_private.pem -topk8 -outform DER -out ED25519_pkcs8_private.der
 openssl pkcs8 -nocrypt -in ED448_pkcs8_private.pem -topk8 -outform DER -out ED448_pkcs8_private.der
 
 ### Generate EdDSA PKCS#8 DER public key from EdDSA PKCS#8 PEM private key
-openssl pkey -in ED25519_pkcs8_private.pem -pubout -outform DER -out ED25519_pkcs8_public.der
-openssl pkey -in ED448_pkcs8_private.pem -pubout -outform DER -out ED448_pkcs8_public.der
+openssl pkey -in ED25519_pkcs8_private.pem -pubout -outform DER -out ED25519_spki_public.der
+openssl pkey -in ED448_pkcs8_private.pem -pubout -outform DER -out ED448_spki_public.der
 
 ### Convert EdDSA private key from PKCS#8 PEM to PKCS#8 Traditional PEM
 openssl pkcs8 -nocrypt -in ED25519_pkcs8_private.pem -traditional -out ED25519_pkcs8_private_traditional.pem
 openssl pkcs8 -nocrypt -in ED448_pkcs8_private.pem -traditional -out ED448_pkcs8_private_traditional.pem
+
+## ECx keypair
+
+### Create ECx PKCS#8 PEM private key
+openssl genpkey -algorithm X25519 -out X25519_pkcs8_private.pem
+openssl genpkey -algorithm X448 -out X448_pkcs8_private.pem
+
+### Generate ECx PKCS#8 PEM public key from ECx PKCS#8 PEM private key
+openssl pkey -in X25519_pkcs8_private.pem -pubout -outform PEM -out X25519_spki_public.pem
+openssl pkey -in X448_pkcs8_private.pem -pubout -outform PEM -out X448_spki_public.pem
+
+### Convert ECx private key from PKCS#8 PEM to PKCS#8 DER
+openssl pkcs8 -nocrypt -in X25519_pkcs8_private.pem -topk8 -outform DER -out X25519_pkcs8_private.der
+openssl pkcs8 -nocrypt -in X448_pkcs8_private.pem -topk8 -outform DER -out X448_pkcs8_private.der
+
+### Generate ECx PKCS#8 DER public key from ECx PKCS#8 PEM private key
+openssl pkey -in X25519_pkcs8_private.pem -pubout -outform DER -out X25519_spki_public.der
+openssl pkey -in X448_pkcs8_private.pem -pubout -outform DER -out X448_spki_public.der
+
+### Convert ECx private key from PKCS#8 PEM to PKCS#8 Traditional PEM
+openssl pkcs8 -nocrypt -in X25519_pkcs8_private.pem -traditional -out X25519_pkcs8_private_traditional.pem
+openssl pkcs8 -nocrypt -in X448_pkcs8_private.pem -traditional -out X448_pkcs8_private_traditional.pem
+
 
 PrivateKeyInfo ::= SEQUENCE {
     version             INTEGER,

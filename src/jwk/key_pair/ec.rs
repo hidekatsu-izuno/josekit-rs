@@ -88,6 +88,10 @@ pub struct EcKeyPair {
 }
 
 impl EcKeyPair {
+    pub fn set_algorithm(&mut self, value: Option<&str>) {
+        self.alg = value.map(|val| val.to_string());
+    }
+
     pub(crate) fn into_private_key(self) -> PKey<Private> {
         self.private_key
     }
@@ -382,10 +386,6 @@ impl EcKeyPair {
 }
 
 impl KeyPair for EcKeyPair {
-    fn set_algorithm(&mut self, value: Option<&str>) {
-        self.alg = value.map(|val| val.to_string());
-    }
-
     fn algorithm(&self) -> Option<&str> {
         match &self.alg {
             Some(val) => Some(val.as_str()),
