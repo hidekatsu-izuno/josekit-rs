@@ -81,8 +81,8 @@ impl RsaPssKeyPair {
         salt_len: Option<u8>,
     ) -> Result<Self, JoseError> {
         (|| -> anyhow::Result<Self> {
-            let pkcs8;
-            let (pkcs8_ref, hash, mgf1_hash, salt_len) =
+            let pkcs8_der_vec;
+            let (pkcs8_der, hash, mgf1_hash, salt_len) =
                 match Self::detect_pkcs8(input.as_ref(), false) {
                     Some((hash2, mgf1_hash2, salt_len2)) => {
                         let hash = match hash {
@@ -123,12 +123,12 @@ impl RsaPssKeyPair {
                             None => bail!("The salt length is required."),
                         };
 
-                        pkcs8 = Self::to_pkcs8(input.as_ref(), false, hash, mgf1_hash, salt_len);
-                        (pkcs8.as_slice(), hash, mgf1_hash, salt_len)
+                        pkcs8_der_vec = Self::to_pkcs8(input.as_ref(), false, hash, mgf1_hash, salt_len);
+                        (pkcs8_der_vec.as_slice(), hash, mgf1_hash, salt_len)
                     }
                 };
 
-            let private_key = PKey::private_key_from_der(pkcs8_ref)?;
+            let private_key = PKey::private_key_from_der(pkcs8_der)?;
             let rsa = private_key.rsa()?;
             let key_len = rsa.size();
 

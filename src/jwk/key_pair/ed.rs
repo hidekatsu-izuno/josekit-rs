@@ -93,7 +93,7 @@ impl EdKeyPair {
     /// * `curve` - EC curve
     pub fn from_der(input: impl AsRef<[u8]>, curve: Option<EdCurve>) -> Result<Self, JoseError> {
         (|| -> anyhow::Result<Self> {
-            let (pkcs8_ref, curve) = match Self::detect_pkcs8(input.as_ref(), false) {
+            let (pkcs8_der, curve) = match Self::detect_pkcs8(input.as_ref(), false) {
                 Some(val) => match curve {
                     Some(val2) if val2 == val => (input.as_ref(), val),
                     Some(val2) => bail!("The curve is mismatched: {}", val2),
@@ -102,7 +102,7 @@ impl EdKeyPair {
                 None => bail!("The EdDSA private key must be wrapped by PKCS#8 format."),
             };
 
-            let private_key = PKey::private_key_from_der(pkcs8_ref)?;
+            let private_key = PKey::private_key_from_der(pkcs8_der)?;
 
             Ok(Self {
                 private_key,
@@ -130,7 +130,7 @@ impl EdKeyPair {
     pub fn from_pem(input: impl AsRef<[u8]>, curve: Option<EdCurve>) -> Result<Self, JoseError> {
         (|| -> anyhow::Result<Self> {
             let (alg, data) = util::parse_pem(input.as_ref())?;
-            let (pkcs8_ref, curve) = match alg.as_str() {
+            let (pkcs8_der, curve) = match alg.as_str() {
                 "PRIVATE KEY" => match EdKeyPair::detect_pkcs8(&data, false) {
                     Some(val) => match curve {
                         Some(val2) if val2 == val => (data.as_slice(), val),
@@ -170,7 +170,7 @@ impl EdKeyPair {
                 alg => bail!("Inappropriate algorithm: {}", alg),
             };
 
-            let private_key = PKey::private_key_from_der(pkcs8_ref)?;
+            let private_key = PKey::private_key_from_der(pkcs8_der)?;
 
             Ok(Self {
                 private_key,

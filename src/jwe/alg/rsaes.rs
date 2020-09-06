@@ -100,16 +100,16 @@ impl RsaesJweAlgorithm {
 
     pub fn encrypter_from_der(&self, input: impl AsRef<[u8]>) -> Result<RsaesJweEncrypter, JoseError> {
         (|| -> anyhow::Result<RsaesJweEncrypter> {
-            let pkcs8;
-            let pkcs8_ref = match RsaKeyPair::detect_pkcs8(input.as_ref(), true) {
+            let spki_der_vec;
+            let spki_der = match RsaKeyPair::detect_pkcs8(input.as_ref(), true) {
                 Some(_) => input.as_ref(),
                 None => {
-                    pkcs8 = RsaKeyPair::to_pkcs8(input.as_ref(), true);
-                    &pkcs8
+                    spki_der_vec = RsaKeyPair::to_pkcs8(input.as_ref(), true);
+                    spki_der_vec.as_slice()
                 }
             };
 
-            let public_key = PKey::public_key_from_der(pkcs8_ref)?;
+            let public_key = PKey::public_key_from_der(spki_der)?;
 
             let rsa = public_key.rsa()?;
             if rsa.size() * 8 < 2048 {

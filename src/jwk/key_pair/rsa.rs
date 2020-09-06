@@ -58,16 +58,16 @@ impl RsaKeyPair {
     /// * `input` - A private key that is a DER encoded PKCS#8 PrivateKeyInfo or PKCS#1 RSAPrivateKey.
     pub fn from_der(input: impl AsRef<[u8]>) -> Result<Self, JoseError> {
         (|| -> anyhow::Result<Self> {
-            let pkcs8;
-            let pkcs8_ref = match Self::detect_pkcs8(input.as_ref(), false) {
+            let pkcs8_der_vec;
+            let pkcs8_der = match Self::detect_pkcs8(input.as_ref(), false) {
                 Some(_) => input.as_ref(),
                 None => {
-                    pkcs8 = Self::to_pkcs8(input.as_ref(), false);
-                    pkcs8.as_slice()
+                    pkcs8_der_vec = Self::to_pkcs8(input.as_ref(), false);
+                    pkcs8_der_vec.as_slice()
                 }
             };
 
-            let private_key = PKey::private_key_from_der(pkcs8_ref)?;
+            let private_key = PKey::private_key_from_der(pkcs8_der)?;
             let rsa = private_key.rsa()?;
             let key_len = rsa.size();
 
@@ -94,20 +94,20 @@ impl RsaKeyPair {
         (|| -> anyhow::Result<Self> {
             let (alg, data) = util::parse_pem(input.as_ref())?;
 
-            let pkcs8;
-            let pkcs8_ref = match alg.as_str() {
+            let pkcs8_der_vec;
+            let pkcs8_der = match alg.as_str() {
                 "PRIVATE KEY" => match Self::detect_pkcs8(&data, false) {
                     Some(_) => data.as_slice(),
                     None => bail!("Invalid PEM contents."),
                 },
                 "RSA PRIVATE KEY" => {
-                    pkcs8 = Self::to_pkcs8(&data, false);
-                    pkcs8.as_slice()
+                    pkcs8_der_vec = Self::to_pkcs8(&data, false);
+                    pkcs8_der_vec.as_slice()
                 }
                 alg => bail!("Inappropriate algorithm: {}", alg),
             };
 
-            let private_key = PKey::private_key_from_der(&pkcs8_ref)?;
+            let private_key = PKey::private_key_from_der(&pkcs8_der)?;
             let rsa = private_key.rsa()?;
             let key_len = rsa.size();
 

@@ -132,13 +132,13 @@ impl EcdsaJwsAlgorithm {
         input: impl AsRef<[u8]>,
     ) -> Result<EcdsaJwsVerifier, JoseError> {
         (|| -> anyhow::Result<EcdsaJwsVerifier> {
-            let pkcs8_ref = match EcKeyPair::detect_pkcs8(input.as_ref(), true) {
+            let spki_der = match EcKeyPair::detect_pkcs8(input.as_ref(), true) {
                 Some(curve) if curve == self.curve() => input.as_ref(),
                 Some(curve) => bail!("The curve is mismatched: {}", curve),
                 None => bail!("The ECDSA public key must be wrapped by SubjectPublicKeyInfo format."),
             };
 
-            let public_key = PKey::public_key_from_der(pkcs8_ref)?;
+            let public_key = PKey::public_key_from_der(spki_der)?;
 
             Ok(EcdsaJwsVerifier {
                 algorithm: self.clone(),

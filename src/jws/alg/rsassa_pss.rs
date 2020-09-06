@@ -195,8 +195,8 @@ impl RsassaPssJwsAlgorithm {
         input: impl AsRef<[u8]>,
     ) -> Result<RsassaPssJwsVerifier, JoseError> {
         (|| -> anyhow::Result<RsassaPssJwsVerifier> {
-            let pkcs8;
-            let pkcs8_ref = match RsaPssKeyPair::detect_pkcs8(input.as_ref(), true) {
+            let spki_der_vec;
+            let spki_der = match RsaPssKeyPair::detect_pkcs8(input.as_ref(), true) {
                 Some((hash, mgf1_hash, salt_len)) => {
                     if hash != self.hash_algorithm() {
                         bail!("The message digest parameter is mismatched: {}", hash);
@@ -212,18 +212,18 @@ impl RsassaPssJwsAlgorithm {
                     input.as_ref()
                 }
                 None => {
-                    pkcs8 = RsaPssKeyPair::to_pkcs8(
+                    spki_der_vec = RsaPssKeyPair::to_pkcs8(
                         input.as_ref(),
                         true,
                         self.hash_algorithm(),
                         self.hash_algorithm(),
                         self.salt_len(),
                     );
-                    &pkcs8
+                    spki_der_vec.as_slice()
                 }
             };
 
-            let public_key = PKey::public_key_from_der(pkcs8_ref)?;
+            let public_key = PKey::public_key_from_der(spki_der)?;
 
             let rsa = public_key.rsa()?;
             if rsa.size() * 8 < 2048 {

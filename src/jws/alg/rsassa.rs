@@ -171,16 +171,16 @@ impl RsassaJwsAlgorithm {
         input: impl AsRef<[u8]>,
     ) -> Result<RsassaJwsVerifier, JoseError> {
         (|| -> anyhow::Result<RsassaJwsVerifier> {
-            let pkcs8;
-            let pkcs8_ref = match RsaKeyPair::detect_pkcs8(input.as_ref(), true) {
+            let spki_der_vec;
+            let spki_der = match RsaKeyPair::detect_pkcs8(input.as_ref(), true) {
                 Some(_) => input.as_ref(),
                 None => {
-                    pkcs8 = RsaKeyPair::to_pkcs8(input.as_ref(), true);
-                    &pkcs8
+                    spki_der_vec = RsaKeyPair::to_pkcs8(input.as_ref(), true);
+                    spki_der_vec.as_slice()
                 }
             };
 
-            let public_key = PKey::public_key_from_der(pkcs8_ref)?;
+            let public_key = PKey::public_key_from_der(spki_der)?;
 
             let rsa = public_key.rsa()?;
             if rsa.size() * 8 < 2048 {
@@ -213,17 +213,20 @@ impl RsassaJwsAlgorithm {
         (|| -> anyhow::Result<RsassaJwsVerifier> {
             let (alg, data) = util::parse_pem(input.as_ref())?;
 
-            let public_key = match alg.as_str() {
+            let spki_der_vec;
+            let spki_der = match alg.as_str() {
                 "PUBLIC KEY" => match RsaKeyPair::detect_pkcs8(&data, true) {
-                    Some(_) => PKey::public_key_from_der(&data)?,
+                    Some(_) => &data,
                     None => bail!("Invalid PEM contents."),
                 },
                 "RSA PUBLIC KEY" => {
-                    let pkcs8 = RsaKeyPair::to_pkcs8(&data, true);
-                    PKey::public_key_from_der(&pkcs8)?
+                    spki_der_vec = RsaKeyPair::to_pkcs8(&data, true);
+                    spki_der_vec.as_slice()
                 }
                 alg => bail!("Inappropriate algorithm: {}", alg),
             };
+
+            let public_key = PKey::public_key_from_der(spki_der)?;
 
             let rsa = public_key.rsa()?;
             if rsa.size() * 8 < 2048 {

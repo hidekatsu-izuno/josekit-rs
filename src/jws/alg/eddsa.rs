@@ -132,10 +132,12 @@ impl EddsaJwsAlgorithm {
         input: impl AsRef<[u8]>,
     ) -> Result<EddsaJwsVerifier, JoseError> {
         (|| -> anyhow::Result<EddsaJwsVerifier> {
-            let public_key = match EdKeyPair::detect_pkcs8(input.as_ref(), true) {
-                Some(_) => PKey::public_key_from_der(input.as_ref())?,
+            let spki_der = match EdKeyPair::detect_pkcs8(input.as_ref(), true) {
+                Some(_) => input.as_ref(),
                 None => bail!("The EdDSA public key must be wrapped by PKCS#8 format."),
             };
+
+            let public_key = PKey::public_key_from_der(spki_der)?;
 
             Ok(EddsaJwsVerifier {
                 algorithm: self.clone(),
@@ -159,13 +161,15 @@ impl EddsaJwsAlgorithm {
     ) -> Result<EddsaJwsVerifier, JoseError> {
         (|| -> anyhow::Result<EddsaJwsVerifier> {
             let (alg, data) = util::parse_pem(input.as_ref())?;
-            let public_key = match alg.as_str() {
+            let spki_der = match alg.as_str() {
                 "PUBLIC KEY" => match EdKeyPair::detect_pkcs8(&data, true) {
-                    Some(_) => PKey::public_key_from_der(&data)?,
+                    Some(_) => data.as_slice(),
                     None => bail!("The EdDSA public key must be wrapped by SubjectPublicKeyInfo format."),
                 },
                 alg => bail!("Unacceptable algorithm: {}", alg),
             };
+
+            let public_key = PKey::public_key_from_der(spki_der)?;
 
             Ok(EddsaJwsVerifier {
                 algorithm: self.clone(),

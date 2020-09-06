@@ -10,7 +10,7 @@ use openssl::pkey::{PKey, Private, Public};
 use openssl::rand;
 use serde_json::{Map, Value};
 
-use crate::der::{DerBuilder, DerReader, DerType};
+use crate::der::{DerReader, DerType};
 use crate::der::oid::{
     OID_ID_EC_PUBLIC_KEY,
     OID_PRIME256V1,
@@ -157,9 +157,14 @@ impl EcdhEsJweAlgorithm {
 
     pub fn encrypter_from_pem(&self, input: impl AsRef<[u8]>) -> Result<EcdhEsJweEncrypter, JoseError> {
         (|| -> anyhow::Result<EcdhEsJweEncrypter> {
-            let (spki, key_type) = match Self::detect_pkcs8(input.as_ref(), true) {
-                Some(val) => (input.as_ref(), val),
-                None => bail!("The public key must be wrapped by SubjectPublicKeyInfo."),
+            let (alg, data) = util::parse_pem(input.as_ref())?;
+
+            let (spki, key_type) = match alg.as_str() {
+                "PUBLIC KEY" => match Self::detect_pkcs8(&data, true) {
+                    Some(val) => (data.as_slice(), val),
+                    None => bail!("PEM contents is expected SubjectPublicKeyInfo wrapped key."),
+                }
+                alg => bail!("Inappropriate algorithm: {}", alg),
             };
 
             let public_key = PKey::public_key_from_der(spki)?;
@@ -704,7 +709,7 @@ impl JweDecrypter for EcdhEsJweDecrypter {
                             if val != self.key_type.curve_name() {
                                 bail!("The crv parameter in epk header claim is invalid: {}", val);
                             }
-                        }
+                        },
                         Some(_) => bail!("The crv parameter in epk header claim must be a string."),
                         None => bail!("The crv parameter in epk header claim is required."),
                     }
