@@ -256,7 +256,7 @@ impl RsassaPssJwsAlgorithm {
         (|| -> anyhow::Result<RsassaPssJwsVerifier> {
             let (alg, data) = util::parse_pem(input.as_ref())?;
             let public_key = match alg.as_str() {
-                "PUBLIC KEY" | "RSA-PSS PUBLIC KEY" => {
+                "PUBLIC KEY" => {
                     match RsaPssKeyPair::detect_pkcs8(&data, true) {
                         Some((hash, mgf1_hash, salt_len)) => {
                             if hash != self.hash_algorithm() {

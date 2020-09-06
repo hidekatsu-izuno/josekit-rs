@@ -123,23 +123,19 @@ impl EcdsaJwsAlgorithm {
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
-    /// Return a verifier from a public key that is a DER encoded SubjectPublicKeyInfo or ECPoint.
+    /// Return a verifier from a public key that is a DER encoded SubjectPublicKeyInfo.
     ///
     /// # Arguments
-    /// * `input` - A public key that is a DER encoded SubjectPublicKeyInfo or ECPoint.
+    /// * `input` - A public key that is a DER encoded SubjectPublicKeyInfo.
     pub fn verifier_from_der(
         &self,
         input: impl AsRef<[u8]>,
     ) -> Result<EcdsaJwsVerifier, JoseError> {
         (|| -> anyhow::Result<EcdsaJwsVerifier> {
-            let pkcs8;
             let pkcs8_ref = match EcKeyPair::detect_pkcs8(input.as_ref(), true) {
                 Some(curve) if curve == self.curve() => input.as_ref(),
                 Some(curve) => bail!("The curve is mismatched: {}", curve),
-                None => {
-                    pkcs8 = EcKeyPair::to_pkcs8(input.as_ref(), true, self.curve());
-                    &pkcs8
-                }
+                None => bail!("The ECDSA public key must be wrapped by SubjectPublicKeyInfo format."),
             };
 
             let public_key = PKey::public_key_from_der(pkcs8_ref)?;
@@ -153,13 +149,10 @@ impl EcdsaJwsAlgorithm {
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
-    /// Return a verifier from a key of common or traditional PEM format.
+    /// Return a verifier from a key of common PEM format.
     ///
     /// Common PEM format is a DER and base64 encoded SubjectPublicKeyInfo
     /// that surrounded by "-----BEGIN/END PUBLIC KEY----".
-    ///
-    /// Traditional PEM format is a DER and base64 ECParameters
-    /// that surrounded by "-----BEGIN/END EC PUBLIC KEY----".
     ///
     /// # Arguments
     /// * `input` - A public key of common or traditional PEM format.
@@ -170,22 +163,17 @@ impl EcdsaJwsAlgorithm {
         (|| -> anyhow::Result<EcdsaJwsVerifier> {
             let (alg, data) = util::parse_pem(input.as_ref())?;
 
-            let pkcs8;
-            let pkcs8_ref = match alg.as_str() {
+            let spki = match alg.as_str() {
                 "PUBLIC KEY" => {
                     if let None = EcKeyPair::detect_pkcs8(&data, true) {
-                        bail!("PEM contents is expected PKCS#8 wrapped key.");
+                        bail!("PEM contents is expected SubjectPublicKeyInfo wrapped key.");
                     }
                     &data
-                }
-                "EC PUBLIC KEY" => {
-                    pkcs8 = EcKeyPair::to_pkcs8(&data, true, self.curve());
-                    &pkcs8
                 }
                 alg => bail!("Inappropriate algorithm: {}", alg),
             };
 
-            let public_key = PKey::public_key_from_der(pkcs8_ref)?;
+            let public_key = PKey::public_key_from_der(spki)?;
 
             Ok(EcdsaJwsVerifier {
                 algorithm: self.clone(),

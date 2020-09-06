@@ -41,7 +41,9 @@ cargo build --release
 |EdDSA |EdDSA signature algorithms                    |Ed25519, Ed448|
 |none  |No digital signature or MAC performed         |              |
 
-## Supported key formats for RSA/RSA-PSS/ECDSA/EdDSA sigining
+## Supported key formats for RSASSA/RSASSA-PSS/ECDSA/EdDSA
+
+### Private Key
 
 <table>
 <thead>
@@ -52,9 +54,9 @@ cargo build --release
     <th colspan="2">DER</th>
 </tr>
 <tr>
-    <th>PKCS#8/PSKI</th>
+    <th>PKCS#8</th>
     <th>Traditional</th>
-    <th>PKCS#8/PSKI</th>
+    <th>PKCS#8</th>
     <th>Raw</th>
 </tr>
 </thead>
@@ -88,6 +90,59 @@ cargo build --release
     <td>OK</td>
     <td>OK</td>
     <td>OK</td>
+    <td>OK</td>
+    <td>-</td>
+</tr>
+</tbody>
+</table>
+
+### Public Key
+
+<table>
+<thead>
+<tr>
+    <th rowspan="2">Algorithm</th>
+    <th rowspan="2">JWK</th>
+    <th colspan="2">PEM</th>
+    <th colspan="2">DER</th>
+</tr>
+<tr>
+    <th>SPKI</th>
+    <th>Traditional</th>
+    <th>SPKI</th>
+    <th>Raw</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+    <td>RSASSA</td>
+    <td>OK</td>
+    <td>OK</td>
+    <td>OK</td>
+    <td>OK</td>
+    <td>OK</td>
+</tr>
+<tr>
+    <td>RSASSA-PSS</td>
+    <td>OK</td>
+    <td>OK</td>
+    <td>OK</td>
+    <td>OK</td>
+    <td>OK</td>
+</tr>
+<tr>
+    <td>ECDSA</td>
+    <td>OK</td>
+    <td>OK</td>
+    <td>-</td>
+    <td>OK</td>
+    <td>-</td>
+</tr>
+<tr>
+    <td>EdDSA</td>
+    <td>OK</td>
+    <td>OK</td>
+    <td>-</td>
     <td>OK</td>
     <td>-</td>
 </tr>

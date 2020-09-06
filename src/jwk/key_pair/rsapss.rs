@@ -1,31 +1,21 @@
 use std::ops::Deref;
 
 use anyhow::bail;
-use once_cell::sync::Lazy;
 use openssl::pkey::{PKey, Private};
 use openssl::rsa::Rsa;
 use serde_json::Value;
 
-use crate::der::oid::ObjectIdentifier;
+use crate::der::oid::{
+    OID_RSASSA_PSS,
+    OID_SHA256,
+    OID_SHA384,
+    OID_SHA512,
+    OID_MGF1,
+};
 use crate::der::{DerBuilder, DerClass, DerReader, DerType};
 use crate::jose::JoseError;
 use crate::jwk::{Jwk, KeyPair};
 use crate::util::{self, HashAlgorithm};
-
-static OID_RSASSA_PSS: Lazy<ObjectIdentifier> =
-    Lazy::new(|| ObjectIdentifier::from_slice(&[1, 2, 840, 113549, 1, 1, 10]));
-
-static OID_SHA256: Lazy<ObjectIdentifier> =
-    Lazy::new(|| ObjectIdentifier::from_slice(&[2, 16, 840, 1, 101, 3, 4, 2, 1]));
-
-static OID_SHA384: Lazy<ObjectIdentifier> =
-    Lazy::new(|| ObjectIdentifier::from_slice(&[2, 16, 840, 1, 101, 3, 4, 2, 2]));
-
-static OID_SHA512: Lazy<ObjectIdentifier> =
-    Lazy::new(|| ObjectIdentifier::from_slice(&[2, 16, 840, 1, 101, 3, 4, 2, 3]));
-
-static OID_MGF1: Lazy<ObjectIdentifier> =
-    Lazy::new(|| ObjectIdentifier::from_slice(&[1, 2, 840, 113549, 1, 1, 8]));
 
 #[derive(Debug, Clone)]
 pub struct RsaPssKeyPair {

@@ -1,19 +1,17 @@
 use std::ops::Deref;
 
 use anyhow::bail;
-use once_cell::sync::Lazy;
 use openssl::pkey::{PKey, Private};
 use openssl::rsa::Rsa;
 use serde_json::Value;
 
-use crate::der::oid::ObjectIdentifier;
 use crate::der::{DerBuilder, DerReader, DerType};
+use crate::der::oid::{
+    OID_RSA_ENCRYPTION,
+};
 use crate::jose::JoseError;
 use crate::jwk::{Jwk, KeyPair};
 use crate::util;
-
-static OID_RSA_ENCRYPTION: Lazy<ObjectIdentifier> =
-    Lazy::new(|| ObjectIdentifier::from_slice(&[1, 2, 840, 113549, 1, 1, 1]));
 
 #[derive(Debug, Clone)]
 pub struct RsaKeyPair {
@@ -318,6 +316,7 @@ impl RsaKeyPair {
 
         Some(())
     }
+
 
     pub(crate) fn to_pkcs8(input: &[u8], is_public: bool) -> Vec<u8> {
         let mut builder = DerBuilder::new();

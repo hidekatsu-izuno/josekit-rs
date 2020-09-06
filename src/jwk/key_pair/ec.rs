@@ -2,32 +2,24 @@ use std::fmt::Display;
 use std::ops::Deref;
 
 use anyhow::bail;
-use once_cell::sync::Lazy;
 use openssl::bn::{BigNum, BigNumContext};
 use openssl::ec::{EcGroup, EcKey};
 use openssl::nid::Nid;
 use openssl::pkey::{PKey, Private};
 use serde_json::Value;
 
-use crate::der::{oid::ObjectIdentifier, DerBuilder, DerReader, DerType};
+use crate::der::{DerBuilder, DerReader, DerType};
+use crate::der::oid::{
+    ObjectIdentifier,
+    OID_ID_EC_PUBLIC_KEY,
+    OID_PRIME256V1,
+    OID_SECP384R1,
+    OID_SECP521R1,
+    OID_SECP256K1,
+};
 use crate::jose::JoseError;
 use crate::jwk::{Jwk, KeyPair};
 use crate::util;
-
-static OID_ID_EC_PUBLIC_KEY: Lazy<ObjectIdentifier> =
-    Lazy::new(|| ObjectIdentifier::from_slice(&[1, 2, 840, 10045, 2, 1]));
-
-static OID_PRIME256V1: Lazy<ObjectIdentifier> =
-    Lazy::new(|| ObjectIdentifier::from_slice(&[1, 2, 840, 10045, 3, 1, 7]));
-
-static OID_SECP384R1: Lazy<ObjectIdentifier> =
-    Lazy::new(|| ObjectIdentifier::from_slice(&[1, 3, 132, 0, 34]));
-
-static OID_SECP521R1: Lazy<ObjectIdentifier> =
-    Lazy::new(|| ObjectIdentifier::from_slice(&[1, 3, 132, 0, 35]));
-
-static OID_SECP256K1: Lazy<ObjectIdentifier> =
-    Lazy::new(|| ObjectIdentifier::from_slice(&[1, 3, 132, 0, 10]));
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum EcCurve {
@@ -357,6 +349,7 @@ impl EcKeyPair {
 
         Some(curve)
     }
+
 
     pub(crate) fn to_pkcs8(input: &[u8], is_public: bool, curve: EcCurve) -> Vec<u8> {
         let mut builder = DerBuilder::new();

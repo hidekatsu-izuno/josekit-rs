@@ -10,13 +10,23 @@ use openssl::pkey::{PKey, Private, Public};
 use openssl::rand;
 use serde_json::{Map, Value};
 
+use crate::der::{DerBuilder, DerReader, DerType};
+use crate::der::oid::{
+    OID_ID_EC_PUBLIC_KEY,
+    OID_PRIME256V1,
+    OID_SECP384R1,
+    OID_SECP521R1,
+    OID_SECP256K1,
+    OID_X25519,
+    OID_X448,
+};
 use crate::jose::{JoseError, JoseHeader};
 use crate::jwe::{JweAlgorithm, JweDecrypter, JweEncrypter, JweHeader};
 use crate::jwk::{EcCurve, EcKeyPair, EcxCurve, EcxKeyPair, Jwk};
 use crate::util;
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
-pub enum EcdhEsKeyType {
+enum EcdhEsKeyType {
     Ec(EcCurve),
     Ecx(EcxCurve),
 }
@@ -78,8 +88,18 @@ impl EcdhEsJweAlgorithm {
     ///
     /// # Arguments
     /// * `input` - A private key that is a DER encoded PKCS#8 PrivateKeyInfo or ECPrivateKey.
-    pub fn keypair_from_der(&self, input: impl AsRef<[u8]>, curve: Option<EcCurve>) -> Result<EcKeyPair, JoseError> {
-        let mut keypair = EcKeyPair::from_der(input, curve)?;
+    pub fn keypair_from_ec_der(&self, input: impl AsRef<[u8]>) -> Result<EcKeyPair, JoseError> {
+        let mut keypair = EcKeyPair::from_der(input, None)?;
+        keypair.set_algorithm(Some(self.name()));
+        Ok(keypair)
+    }
+    
+    /// Create a ECx key pair for ECDH from a private key that is a DER encoded PKCS#8 PrivateKeyInfo.
+    ///
+    /// # Arguments
+    /// * `input` - A private key that is a DER encoded PKCS#8 PrivateKeyInfo.
+    pub fn keypair_from_ecx_der(&self, input: impl AsRef<[u8]>) -> Result<EcxKeyPair, JoseError> {
+        let mut keypair = EcxKeyPair::from_der(input, None)?;
         keypair.set_algorithm(Some(self.name()));
         Ok(keypair)
     }
@@ -94,10 +114,64 @@ impl EcdhEsJweAlgorithm {
     ///
     /// # Arguments
     /// * `input` - A private key of common or traditinal PEM format.
-    pub fn keypair_from_pem(&self, input: impl AsRef<[u8]>, curve: Option<EcCurve>) -> Result<EcKeyPair, JoseError> {
-        let mut keypair = EcKeyPair::from_pem(input.as_ref(), curve)?;
+    pub fn keypair_from_ec_pem(&self, input: impl AsRef<[u8]>) -> Result<EcKeyPair, JoseError> {
+        let mut keypair = EcKeyPair::from_pem(input.as_ref(), None)?;
         keypair.set_algorithm(Some(self.name()));
         Ok(keypair)
+    }
+
+    /// Create a ECx key pair for ECDH from a private key of common or traditinal PEM format.
+    ///
+    /// Common PEM format is a DER and base64 encoded PKCS#8 PrivateKeyInfo
+    /// that surrounded by "-----BEGIN/END PRIVATE KEY----".
+    ///
+    /// Traditional PEM format is a DER and base64 encoded ECPrivateKey
+    /// that surrounded by "-----BEGIN/END X25519/X448 PRIVATE KEY----".
+    ///
+    /// # Arguments
+    /// * `input` - A private key of common or traditinal PEM format.
+    pub fn keypair_from_ecx_pem(&self, input: impl AsRef<[u8]>) -> Result<EcxKeyPair, JoseError> {
+        let mut keypair = EcxKeyPair::from_pem(input.as_ref(), None)?;
+        keypair.set_algorithm(Some(self.name()));
+        Ok(keypair)
+    }
+
+    pub fn encrypter_from_der(&self, input: impl AsRef<[u8]>) -> Result<EcdhEsJweEncrypter, JoseError> {
+        (|| -> anyhow::Result<EcdhEsJweEncrypter> {
+            let (spki, key_type) = match Self::detect_pkcs8(input.as_ref(), true) {
+                Some(val) => (input.as_ref(), val),
+                None => bail!("The public key must be wrapped by SubjectPublicKeyInfo."),
+            };
+
+            let public_key = PKey::public_key_from_der(spki)?;
+
+            Ok(EcdhEsJweEncrypter {
+                algorithm: self.clone(),
+                public_key,
+                key_type,
+                key_id: None,
+            })
+        })()
+        .map_err(|err| JoseError::InvalidKeyFormat(err))
+    }
+
+    pub fn encrypter_from_pem(&self, input: impl AsRef<[u8]>) -> Result<EcdhEsJweEncrypter, JoseError> {
+        (|| -> anyhow::Result<EcdhEsJweEncrypter> {
+            let (spki, key_type) = match Self::detect_pkcs8(input.as_ref(), true) {
+                Some(val) => (input.as_ref(), val),
+                None => bail!("The public key must be wrapped by SubjectPublicKeyInfo."),
+            };
+
+            let public_key = PKey::public_key_from_der(spki)?;
+
+            Ok(EcdhEsJweEncrypter {
+                algorithm: self.clone(),
+                public_key,
+                key_type,
+                key_id: None,
+            })
+        })()
+        .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
     pub fn encrypter_from_jwk(&self, jwk: &Jwk) -> Result<EcdhEsJweEncrypter, JoseError> {
@@ -257,6 +331,75 @@ impl EcdhEsJweAlgorithm {
             Self::EcdhEs => true,
             _ => false,
         }
+    }
+
+    fn detect_pkcs8(input: &[u8], is_public: bool) -> Option<EcdhEsKeyType> {
+        let mut reader = DerReader::from_reader(input);
+
+        match reader.next() {
+            Ok(Some(DerType::Sequence)) => {}
+            _ => return None,
+        }
+
+        {
+            if !is_public {
+                // Version
+                match reader.next() {
+                    Ok(Some(DerType::Integer)) => match reader.to_u8() {
+                        Ok(val) => {
+                            if val != 0 {
+                                return None;
+                            }
+                        }
+                        _ => return None,
+                    },
+                    _ => return None,
+                }
+            }
+
+            match reader.next() {
+                Ok(Some(DerType::Sequence)) => {}
+                _ => return None,
+            }
+
+            {
+                match reader.next() {
+                    Ok(Some(DerType::ObjectIdentifier)) => match reader.to_object_identifier() {
+                        Ok(val) => {
+                            if val == *OID_X25519 {
+                                return Some(EcdhEsKeyType::Ecx(EcxCurve::X25519));
+                            } else if val == *OID_X448 {
+                                return Some(EcdhEsKeyType::Ecx(EcxCurve::X448));
+                            } else if val != *OID_ID_EC_PUBLIC_KEY {
+                                return None;
+                            }
+                        }
+                        _ => return None,
+                    },
+                    _ => return None,
+                }
+
+                match reader.next() {
+                    Ok(Some(DerType::ObjectIdentifier)) => match reader.to_object_identifier() {
+                        Ok(val) => {
+                            if val == *OID_PRIME256V1 {
+                                return Some(EcdhEsKeyType::Ec(EcCurve::P256));
+                            } else if val == *OID_SECP384R1 {
+                                return Some(EcdhEsKeyType::Ec(EcCurve::P384));
+                            } else if val == *OID_SECP521R1 {
+                                return Some(EcdhEsKeyType::Ec(EcCurve::P521));
+                            } else if val == *OID_SECP256K1 {
+                                return Some(EcdhEsKeyType::Ec(EcCurve::Secp256K1));
+                            }
+                        },
+                        _ => return None,
+                    },
+                    _ => return None,
+                }
+            }
+        }
+
+        None
     }
 }
 

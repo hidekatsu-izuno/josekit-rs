@@ -1,3 +1,44 @@
+use once_cell::sync::Lazy;
+
+pub(crate) static OID_RSA_ENCRYPTION: Lazy<ObjectIdentifier> =
+    Lazy::new(|| ObjectIdentifier::from_slice(&[1, 2, 840, 113549, 1, 1, 1]));
+
+pub(crate) static OID_RSASSA_PSS: Lazy<ObjectIdentifier> =
+    Lazy::new(|| ObjectIdentifier::from_slice(&[1, 2, 840, 113549, 1, 1, 10]));
+
+pub(crate) static OID_SHA256: Lazy<ObjectIdentifier> =
+    Lazy::new(|| ObjectIdentifier::from_slice(&[2, 16, 840, 1, 101, 3, 4, 2, 1]));
+
+pub(crate) static OID_SHA384: Lazy<ObjectIdentifier> =
+    Lazy::new(|| ObjectIdentifier::from_slice(&[2, 16, 840, 1, 101, 3, 4, 2, 2]));
+
+pub(crate) static OID_SHA512: Lazy<ObjectIdentifier> =
+    Lazy::new(|| ObjectIdentifier::from_slice(&[2, 16, 840, 1, 101, 3, 4, 2, 3]));
+
+pub(crate) static OID_MGF1: Lazy<ObjectIdentifier> =
+    Lazy::new(|| ObjectIdentifier::from_slice(&[1, 2, 840, 113549, 1, 1, 8]));
+
+pub(crate) static OID_ID_EC_PUBLIC_KEY: Lazy<ObjectIdentifier> =
+Lazy::new(|| ObjectIdentifier::from_slice(&[1, 2, 840, 10045, 2, 1]));
+
+pub(crate) static OID_PRIME256V1: Lazy<ObjectIdentifier> =
+Lazy::new(|| ObjectIdentifier::from_slice(&[1, 2, 840, 10045, 3, 1, 7]));
+
+pub(crate) static OID_SECP384R1: Lazy<ObjectIdentifier> =
+Lazy::new(|| ObjectIdentifier::from_slice(&[1, 3, 132, 0, 34]));
+
+pub(crate) static OID_SECP521R1: Lazy<ObjectIdentifier> =
+Lazy::new(|| ObjectIdentifier::from_slice(&[1, 3, 132, 0, 35]));
+
+pub(crate) static OID_SECP256K1: Lazy<ObjectIdentifier> =
+Lazy::new(|| ObjectIdentifier::from_slice(&[1, 3, 132, 0, 10]));
+
+pub(crate) static OID_X25519: Lazy<ObjectIdentifier> =
+    Lazy::new(|| ObjectIdentifier::from_slice(&[1, 3, 101, 110]));
+
+pub(crate) static OID_X448: Lazy<ObjectIdentifier> =
+    Lazy::new(|| ObjectIdentifier::from_slice(&[1, 3, 101, 111]));
+
 #[derive(Debug, Eq, PartialEq)]
 pub struct ObjectIdentifier {
     values: Vec<u64>,

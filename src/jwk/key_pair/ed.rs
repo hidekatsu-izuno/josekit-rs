@@ -214,7 +214,7 @@ impl EdKeyPair {
             let mut builder = DerBuilder::new();
             builder.append_octed_string_from_slice(&d);
 
-            let pkcs8 = EdKeyPair::to_pkcs8(&builder.build(), false, curve);
+            let pkcs8 = Self::to_pkcs8(&builder.build(), false, curve);
             let private_key = PKey::private_key_from_der(&pkcs8)?;
 
             Ok(Self {
@@ -412,6 +412,7 @@ impl EdKeyPair {
 
         Some(curve)
     }
+
 
     pub(crate) fn to_pkcs8(input: &[u8], is_public: bool, curve: EdCurve) -> Vec<u8> {
         let mut builder = DerBuilder::new();

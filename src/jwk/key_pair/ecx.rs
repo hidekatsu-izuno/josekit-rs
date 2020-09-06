@@ -2,21 +2,18 @@ use std::fmt::Display;
 use std::ops::Deref;
 
 use anyhow::bail;
-use once_cell::sync::Lazy;
 use openssl::pkey::{PKey, Private};
 use serde_json::Value;
 
-use crate::der::oid::ObjectIdentifier;
 use crate::der::{DerBuilder, DerReader, DerType};
+use crate::der::oid::{
+    ObjectIdentifier,
+    OID_X25519,
+    OID_X448,
+};
 use crate::jose::JoseError;
 use crate::jwk::{Jwk, KeyPair};
 use crate::util;
-
-static OID_X25519: Lazy<ObjectIdentifier> =
-    Lazy::new(|| ObjectIdentifier::from_slice(&[1, 3, 101, 110]));
-
-static OID_X448: Lazy<ObjectIdentifier> =
-    Lazy::new(|| ObjectIdentifier::from_slice(&[1, 3, 101, 111]));
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum EcxCurve {
@@ -220,7 +217,7 @@ impl EcxKeyPair {
             let mut builder = DerBuilder::new();
             builder.append_octed_string_from_slice(&d);
 
-            let pkcs8 = EcxKeyPair::to_pkcs8(&builder.build(), false, curve);
+            let pkcs8 = Self::to_pkcs8(&builder.build(), false, curve);
             let private_key = PKey::private_key_from_der(&pkcs8)?;
 
             Ok(Self {

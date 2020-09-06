@@ -146,13 +146,10 @@ impl EddsaJwsAlgorithm {
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
-    /// Return a verifier from a key of common or traditional PEM format.
+    /// Return a verifier from a key of common PEM format.
     ///
     /// Common PEM format is a DER and base64 encoded SubjectPublicKeyInfo
     /// that surrounded by "-----BEGIN/END PUBLIC KEY----".
-    ///
-    /// Traditional PEM format is a DER and base64 SubjectPublicKeyInfo
-    /// that surrounded by "-----BEGIN/END ED25519/ED448 PUBLIC KEY----".
     ///
     /// # Arguments
     /// * `input` - A key of common or traditional PEM format.
@@ -165,27 +162,7 @@ impl EddsaJwsAlgorithm {
             let public_key = match alg.as_str() {
                 "PUBLIC KEY" => match EdKeyPair::detect_pkcs8(&data, true) {
                     Some(_) => PKey::public_key_from_der(&data)?,
-                    None => bail!("The EdDSA public key must be wrapped by PKCS#8 format."),
-                },
-                "ED25519 PUBLIC KEY" => match EdKeyPair::detect_pkcs8(&data, true) {
-                    Some(val) => {
-                        if val == EdCurve::Ed25519 {
-                            PKey::public_key_from_der(&data)?
-                        } else {
-                            bail!("The EdDSA curve is mismatched: {}", val.name());
-                        }
-                    }
-                    None => bail!("The EdDSA public key must be wrapped by PKCS#8 format."),
-                },
-                "ED448 PUBLIC KEY" => match EdKeyPair::detect_pkcs8(&data, true) {
-                    Some(val) => {
-                        if val == EdCurve::Ed448 {
-                            PKey::public_key_from_der(&data)?
-                        } else {
-                            bail!("The EdDSA curve is mismatched: {}", val.name());
-                        }
-                    }
-                    None => bail!("The EdDSA public key must be wrapped by PKCS#8 format."),
+                    None => bail!("The EdDSA public key must be wrapped by SubjectPublicKeyInfo format."),
                 },
                 alg => bail!("Unacceptable algorithm: {}", alg),
             };
