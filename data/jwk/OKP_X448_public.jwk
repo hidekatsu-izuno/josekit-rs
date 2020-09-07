@@ -1,5 +1,5 @@
 {
-    "kty":"OKP",
-    "crv":"X448",
-    "x":"WsJRnG7fc041XvN5M1bwS3p12tN4DeJzpRxTvQJEPX4xE_3L73lsXeYfoqSkAPuFWRe7G525iXI"
+    "kty": "OKP",
+    "crv": "X448",
+    "x": "WsJRnG7fc041XvN5M1bwS3p12tN4DeJzpRxTvQJEPX4xE_3L73lsXeYfoqSkAPuFWRe7G525iXI"
 }
