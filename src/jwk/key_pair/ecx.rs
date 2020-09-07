@@ -488,7 +488,7 @@ mod tests {
 
     #[test]
     fn test_ec_jwt() -> Result<()> {
-        for curve in vec![EcxCurve::X25519] {
+        for curve in vec![EcxCurve::X25519, EcxCurve::X448] {
             let keypair = EcxKeyPair::generate(curve)?;
             let der_keypair = keypair.to_der_private_key();
             let jwk_keypair = keypair.to_jwk_keypair();

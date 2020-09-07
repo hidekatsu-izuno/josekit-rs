@@ -175,20 +175,31 @@ impl EcKeyPair {
                 None => bail!("A parameter d is required."),
             };
             let x = match jwk.parameter("x") {
-                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
+                Some(Value::String(val)) => {
+                    let x = base64::decode_config(val, base64::URL_SAFE_NO_PAD)?;
+                    Some(x)
+                }
                 Some(_) => bail!("A parameter x must be a string."),
-                None => bail!("A parameter x is required."),
+                None => None,
             };
             let y = match jwk.parameter("y") {
-                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
+                Some(Value::String(val)) => {
+                    let y = base64::decode_config(val, base64::URL_SAFE_NO_PAD)?;
+                    Some(y)
+                },
                 Some(_) => bail!("A parameter y must be a string."),
-                None => bail!("A parameter y is required."),
+                None => None,
             };
 
-            let mut public_key = Vec::with_capacity(1 + x.len() + y.len());
-            public_key.push(0x04);
-            public_key.extend_from_slice(&x);
-            public_key.extend_from_slice(&y);
+            let public_key = if let (Some(x), Some(y)) = (x, y) {
+                let mut public_key = Vec::with_capacity(1 + x.len() + y.len());
+                public_key.push(0x04);
+                public_key.extend_from_slice(&x);
+                public_key.extend_from_slice(&y);
+                Some(public_key)
+            } else {
+                None
+            };
 
             let mut builder = DerBuilder::new();
             builder.begin(DerType::Sequence);
@@ -200,11 +211,14 @@ impl EcKeyPair {
                     builder.append_object_identifier(curve.oid());
                 }
                 builder.end();
-                builder.begin(DerType::Other(DerClass::ContextSpecific, 1));
-                {
-                    builder.append_bit_string_from_slice(&public_key, 0);
+
+                if let Some(public_key) = public_key {
+                    builder.begin(DerType::Other(DerClass::ContextSpecific, 1));
+                    {
+                        builder.append_bit_string_from_slice(&public_key, 0);
+                    }
+                    builder.end();
                 }
-                builder.end();
             }
             builder.end();
 
