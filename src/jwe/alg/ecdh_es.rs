@@ -397,6 +397,7 @@ impl EcdhEsJweAlgorithm {
     }
 
     fn detect_pkcs8(input: &[u8], is_public: bool) -> Option<EcdhEsKeyType> {
+        let key_type;
         let mut reader = DerReader::from_reader(input);
 
         match reader.next() {
@@ -442,19 +443,12 @@ impl EcdhEsJweAlgorithm {
                     _ => return None,
                 }
 
-                match reader.next() {
+                key_type = match reader.next() {
                     Ok(Some(DerType::ObjectIdentifier)) => match reader.to_object_identifier() {
-                        Ok(val) => {
-                            if val == *OID_PRIME256V1 {
-                                return Some(EcdhEsKeyType::Ec(EcCurve::P256));
-                            } else if val == *OID_SECP384R1 {
-                                return Some(EcdhEsKeyType::Ec(EcCurve::P384));
-                            } else if val == *OID_SECP521R1 {
-                                return Some(EcdhEsKeyType::Ec(EcCurve::P521));
-                            } else if val == *OID_SECP256K1 {
-                                return Some(EcdhEsKeyType::Ec(EcCurve::Secp256K1));
-                            }
-                        },
+                        Ok(val) if val == *OID_PRIME256V1 => EcdhEsKeyType::Ec(EcCurve::P256),
+                        Ok(val) if val == *OID_SECP384R1 => EcdhEsKeyType::Ec(EcCurve::P384),
+                        Ok(val) if val == *OID_SECP521R1 => EcdhEsKeyType::Ec(EcCurve::P521),
+                        Ok(val) if val == *OID_SECP256K1 => EcdhEsKeyType::Ec(EcCurve::Secp256K1),
                         _ => return None,
                     },
                     _ => return None,
@@ -462,7 +456,7 @@ impl EcdhEsJweAlgorithm {
             }
         }
 
-        None
+        Some(key_type)
     }
 }
 

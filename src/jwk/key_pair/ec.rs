@@ -210,6 +210,7 @@ impl EcKeyPair {
     pub fn from_pem(input: impl AsRef<[u8]>, curve: Option<EcCurve>) -> Result<Self, JoseError> {
         (|| -> anyhow::Result<Self> {
             let (alg, data) = util::parse_pem(input.as_ref())?;
+            
             let pkcs8_der_vec;
             let (pkcs8_der, curve) = match alg.as_str() {
                 "PRIVATE KEY" => {
