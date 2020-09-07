@@ -269,6 +269,64 @@ impl EcdhEsJweAlgorithm {
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
+    pub fn decrypter_from_der(&self, input: impl AsRef<[u8]>) -> Result<EcdhEsJweDecrypter, JoseError> {
+        (|| -> anyhow::Result<EcdhEsJweDecrypter> {
+            let pkcs8_der_vec;
+            let (pkcs8_der, key_type) = match Self::detect_pkcs8(input.as_ref(), false) {
+                Some(val) => (input.as_ref(), val),
+                None => match EcKeyPair::detect_ec_curve(input.as_ref()) {
+                    Some(val) => {
+                        pkcs8_der_vec = EcKeyPair::to_pkcs8(input.as_ref(), false, val);
+                        (pkcs8_der_vec.as_slice(), EcdhEsKeyType::Ec(val))
+                    },
+                    None => bail!("A curve name cannot be determined."),
+                }
+            };
+
+            let private_key = PKey::private_key_from_der(pkcs8_der)?;
+
+            Ok(EcdhEsJweDecrypter {
+                algorithm: self.clone(),
+                private_key,
+                key_type,
+                key_id: None,
+            })
+        })()
+        .map_err(|err| JoseError::InvalidKeyFormat(err))
+    }
+
+    pub fn decrypter_from_pem(&self, input: impl AsRef<[u8]>) -> Result<EcdhEsJweDecrypter, JoseError> {
+        (|| -> anyhow::Result<EcdhEsJweDecrypter> {
+            let (alg, data) = util::parse_pem(input.as_ref())?;
+
+            let pkcs8_der_vec;
+            let (pkcs8_der, key_type) = match alg.as_str() {
+                "PRIVATE KEY" => match Self::detect_pkcs8(data.as_slice(), false) {
+                    Some(val) => (data.as_slice(), val),
+                    None => bail!("PEM contents is expected PKCS#8 wrapped key.")
+                },
+                "EC PRIVATE KEY" => match EcKeyPair::detect_ec_curve(data.as_slice()) {
+                    Some(val) => {
+                        pkcs8_der_vec = EcKeyPair::to_pkcs8(data.as_slice(), false, val);
+                        (pkcs8_der_vec.as_slice(), EcdhEsKeyType::Ec(val))
+                    },
+                    None => bail!("A curve name cannot be determined."),
+                },
+                alg => bail!("Inappropriate algorithm: {}", alg),
+            };
+
+            let private_key = PKey::private_key_from_der(pkcs8_der)?;
+
+            Ok(EcdhEsJweDecrypter {
+                algorithm: self.clone(),
+                private_key,
+                key_type,
+                key_id: None,
+            })
+        })()
+        .map_err(|err| JoseError::InvalidKeyFormat(err))
+    }
+
     pub fn decrypter_from_jwk(&self, jwk: &Jwk) -> Result<EcdhEsJweDecrypter, JoseError> {
         (|| -> anyhow::Result<EcdhEsJweDecrypter> {
             let key_type = match jwk.key_type() {

@@ -8,7 +8,7 @@ use openssl::nid::Nid;
 use openssl::pkey::{PKey, Private};
 use serde_json::Value;
 
-use crate::der::{DerBuilder, DerReader, DerType};
+use crate::der::{DerBuilder, DerReader, DerType, DerClass};
 use crate::der::oid::{
     ObjectIdentifier,
     OID_ID_EC_PUBLIC_KEY,
@@ -212,20 +212,31 @@ impl EcKeyPair {
             let (alg, data) = util::parse_pem(input.as_ref())?;
             let pkcs8_der_vec;
             let (pkcs8_der, curve) = match alg.as_str() {
-                "PRIVATE KEY" => match Self::detect_pkcs8(&data, false) {
-                    Some(val) => match curve {
-                        Some(val2) if val2 == val => (data.as_slice(), val),
-                        Some(val2) => bail!("The curve is mismatched: {}", val2),
-                        None => (data.as_slice(), val),
-                    },
-                    None => bail!("PEM contents is expected PKCS#8 wrapped key."),
+                "PRIVATE KEY" => {
+                    let curve = match Self::detect_pkcs8(&data, false) {
+                        Some(val) => match curve {
+                            Some(val2) if val2 == val => val2,
+                            Some(val2) => bail!("The curve is mismatched: {}", val2),
+                            None => val,
+                        },
+                        None => bail!("PEM contents is expected PKCS#8 wrapped key."),
+                    };
+                    (data.as_slice(), curve)
                 },
-                "EC PRIVATE KEY" => match curve {
-                    Some(val) => {
-                        pkcs8_der_vec = Self::to_pkcs8(&data, false, val);
-                        (pkcs8_der_vec.as_slice(), val)
-                    }
-                    None => bail!("A curve is required for raw format."),
+                "EC PRIVATE KEY" => {
+                    let curve = match Self::detect_ec_curve(data.as_slice()) {
+                        Some(val) => match curve {
+                            Some(val2) if val2 == val => val,
+                            Some(val2) => bail!("The curve is mismatched: {}", val2),
+                            None => val,
+                        },
+                        None => match curve {
+                            Some(val) => val,
+                            None => bail!("A curve name cannot be determined."),
+                        }
+                    };
+                    pkcs8_der_vec = Self::to_pkcs8(&data, false, curve);
+                    (pkcs8_der_vec.as_slice(), curve)
                 },
                 alg => bail!("Inappropriate algorithm: {}", alg),
             };
@@ -305,11 +316,7 @@ impl EcKeyPair {
                 // Version
                 match reader.next() {
                     Ok(Some(DerType::Integer)) => match reader.to_u8() {
-                        Ok(val) => {
-                            if val != 0 {
-                                return None;
-                            }
-                        }
+                        Ok(val) if val == 0 => {},
                         _ => return None,
                     },
                     _ => return None,
@@ -350,6 +357,52 @@ impl EcKeyPair {
         Some(curve)
     }
 
+    pub(crate) fn detect_ec_curve(input: &[u8]) -> Option<EcCurve> {
+        let curve;
+        let mut reader = DerReader::from_reader(input);
+
+        match reader.next() {
+            Ok(Some(DerType::Sequence)) => {},
+            _ => return None,
+        }
+
+        {
+            // Version
+            match reader.next() {
+                Ok(Some(DerType::Integer)) => match reader.to_u8() {
+                    Ok(val) if val == 1 => {},
+                    _ => return None,
+                },
+                _ => return None,
+            }
+
+            // Private Key
+            match reader.next() {
+                Ok(Some(DerType::OctetString)) => {},
+                _ => return None,
+            }
+
+            // ECParameters
+            match reader.next() {
+                Ok(Some(DerType::Other(DerClass::ContextSpecific, 0))) => {}
+                _ => return None,
+            }
+
+            // NamedCurve
+            curve = match reader.next() {
+                Ok(Some(DerType::ObjectIdentifier)) => match reader.to_object_identifier() {
+                    Ok(val) if val == *OID_PRIME256V1 => EcCurve::P256,
+                    Ok(val) if val == *OID_SECP384R1 => EcCurve::P384,
+                    Ok(val) if val == *OID_SECP521R1 => EcCurve::P521,
+                    Ok(val) if val == *OID_SECP256K1 => EcCurve::Secp256K1,
+                    _ => return None,
+                },
+                _ => return None,
+            }
+        }
+
+        Some(curve)
+    }
 
     pub(crate) fn to_pkcs8(input: &[u8], is_public: bool, curve: EcCurve) -> Vec<u8> {
         let mut builder = DerBuilder::new();
