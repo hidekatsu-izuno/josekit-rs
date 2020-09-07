@@ -174,12 +174,37 @@ impl EcKeyPair {
                 Some(_) => bail!("A parameter d must be a string."),
                 None => bail!("A parameter d is required."),
             };
+            let x = match jwk.parameter("x") {
+                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
+                Some(_) => bail!("A parameter x must be a string."),
+                None => bail!("A parameter x is required."),
+            };
+            let y = match jwk.parameter("y") {
+                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
+                Some(_) => bail!("A parameter y must be a string."),
+                None => bail!("A parameter y is required."),
+            };
+
+            let mut public_key = Vec::with_capacity(1 + x.len() + y.len());
+            public_key.push(0x04);
+            public_key.extend_from_slice(&x);
+            public_key.extend_from_slice(&y);
 
             let mut builder = DerBuilder::new();
             builder.begin(DerType::Sequence);
             {
                 builder.append_integer_from_u8(1);
                 builder.append_octed_string_from_slice(&d);
+                builder.begin(DerType::Other(DerClass::ContextSpecific, 0));
+                {
+                    builder.append_object_identifier(curve.oid());
+                }
+                builder.end();
+                builder.begin(DerType::Other(DerClass::ContextSpecific, 1));
+                {
+                    builder.append_bit_string_from_slice(&public_key, 0);
+                }
+                builder.end();
             }
             builder.end();
 
@@ -389,16 +414,18 @@ impl EcKeyPair {
                 _ => return None,
             }
 
-            // NamedCurve
-            curve = match reader.next() {
-                Ok(Some(DerType::ObjectIdentifier)) => match reader.to_object_identifier() {
-                    Ok(val) if val == *OID_PRIME256V1 => EcCurve::P256,
-                    Ok(val) if val == *OID_SECP384R1 => EcCurve::P384,
-                    Ok(val) if val == *OID_SECP521R1 => EcCurve::P521,
-                    Ok(val) if val == *OID_SECP256K1 => EcCurve::Secp256K1,
+            {
+                // NamedCurve
+                curve = match reader.next() {
+                    Ok(Some(DerType::ObjectIdentifier)) => match reader.to_object_identifier() {
+                        Ok(val) if val == *OID_PRIME256V1 => EcCurve::P256,
+                        Ok(val) if val == *OID_SECP384R1 => EcCurve::P384,
+                        Ok(val) if val == *OID_SECP521R1 => EcCurve::P521,
+                        Ok(val) if val == *OID_SECP256K1 => EcCurve::Secp256K1,
+                        _ => return None,
+                    },
                     _ => return None,
-                },
-                _ => return None,
+                }
             }
         }
 
@@ -488,11 +515,15 @@ mod tests {
     use crate::jwk::{EcCurve, EcKeyPair};
 
     #[test]
-    fn export_import_ec_jwt() -> Result<()> {
+    fn test_ec_jwt() -> Result<()> {
         for curve in vec![EcCurve::P256] {
             let keypair = EcKeyPair::generate(curve)?;
             let der_keypair = keypair.to_der_private_key();
             let jwk_keypair = keypair.to_jwk_keypair();
+
+            let keypair = EcKeyPair::from_jwk(&jwk_keypair, Some(curve))?;
+
+            assert_eq!(der_keypair, keypair.to_der_private_key());
         }
 
         Ok(())

@@ -479,35 +479,25 @@ impl Deref for EcxKeyPair {
         self
     }
 }
-/*
+
 #[cfg(test)]
 mod tests {
     use anyhow::Result;
-    use std::fs::File;
-    use std::io::Write;
-    use std::path::PathBuf;
 
-    use super::{XKeyPair, XCurve};
+    use crate::jwk::{EcxCurve, EcxKeyPair};
 
     #[test]
-    fn test_write_jwk() -> Result<()> {
-        let keypair = XKeyPair::generate(XCurve::X448)?;
-        let jwk = keypair.to_jwk_keypair().to_string();
+    fn test_ec_jwt() -> Result<()> {
+        for curve in vec![EcxCurve::X25519] {
+            let keypair = EcxKeyPair::generate(curve)?;
+            let der_keypair = keypair.to_der_private_key();
+            let jwk_keypair = keypair.to_jwk_keypair();
 
-        write_file("jwk/OKP_X448_private.jwk", &jwk)?;
+            let keypair = EcxKeyPair::from_jwk(&jwk_keypair, Some(curve))?;
 
-        Ok(())
-    }
-
-    fn write_file(path: &str, input: impl AsRef<[u8]>) -> Result<()> {
-        let mut pb = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        pb.push("data");
-        pb.push(path);
-
-        let mut file = File::create(pb)?;
-        file.write_all(input.as_ref())?;
+            assert_eq!(der_keypair, keypair.to_der_private_key());
+        }
 
         Ok(())
     }
 }
-*/
