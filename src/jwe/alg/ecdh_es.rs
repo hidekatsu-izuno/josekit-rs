@@ -858,7 +858,7 @@ impl JweDecrypter for EcdhEsJweDecrypter {
             if self.algorithm.is_direct() {
                 Ok(Cow::Owned(shared_key))
             } else {
-                let aes = match AesKey::new_encrypt(&shared_key) {
+                let aes = match AesKey::new_decrypt(&shared_key) {
                     Ok(val) => val,
                     Err(_) => bail!("Failed to set encrypt key."),
                 };
@@ -870,10 +870,8 @@ impl JweDecrypter for EcdhEsJweDecrypter {
 
                 let mut key = vec![0; key_len];
                 match aes::unwrap_key(&aes, None, &mut key, &encrypted_key) {
-                    Ok(len) => {
-                        if len < key.len() {
-                            key.truncate(len);
-                        }
+                    Ok(len) => if len < key.len() {
+                        key.truncate(len);
                     }
                     Err(_) => bail!("Failed to unwrap key."),
                 };
@@ -910,7 +908,7 @@ mod tests {
     use crate::jwk::{EcCurve, EcxCurve, Jwk};
 
     #[test]
-    fn encrypt_and_decrypt_ecdh_es() -> Result<()> {
+    fn encrypt_and_decrypt_ecdh_es_with_pkcs8_der() -> Result<()> {
         let enc = AesCbcHmacJweEncryption::A128CbcHS256;
 
         for alg in vec![
@@ -920,45 +918,91 @@ mod tests {
             EcdhEsJweAlgorithm::EcdhEsA256Kw,
         ] {
             for key in vec![
-                //EcdhEsKeyType::Ec(EcCurve::P256),
-                //EcdhEsKeyType::Ec(EcCurve::P384),
-                //EcdhEsKeyType::Ec(EcCurve::P521),
-                //EcdhEsKeyType::Ec(EcCurve::Secp256K1),
+                EcdhEsKeyType::Ec(EcCurve::P256),
+                EcdhEsKeyType::Ec(EcCurve::P384),
+                EcdhEsKeyType::Ec(EcCurve::P521),
+                EcdhEsKeyType::Ec(EcCurve::Secp256K1),
                 EcdhEsKeyType::Ecx(EcxCurve::X25519),
                 EcdhEsKeyType::Ecx(EcxCurve::X448),
             ] {
-                println!("{}:{:?}", alg, key);
-
                 let private_key = load_file(match key {
                     EcdhEsKeyType::Ec(EcCurve::P256) => "der/EC_P-256_pkcs8_private.der",
                     EcdhEsKeyType::Ec(EcCurve::P384) => "der/EC_P-384_pkcs8_private.der",
                     EcdhEsKeyType::Ec(EcCurve::P521) => "der/EC_P-521_pkcs8_private.der",
                     EcdhEsKeyType::Ec(EcCurve::Secp256K1) => "der/EC_secp256k1_pkcs8_private.der",
-                    EcdhEsKeyType::Ecx(EcxCurve::X25519) => "der/X25519_private.der",
-                    EcdhEsKeyType::Ecx(EcxCurve::X448) => "der/X448_private.der",
+                    EcdhEsKeyType::Ecx(EcxCurve::X25519) => "der/X25519_pkcs8_private.der",
+                    EcdhEsKeyType::Ecx(EcxCurve::X448) => "der/X448_pkcs8_private.der",
                 })?;
-
-                let mut private_key = Jwk::from_slice(&private_key)?;
-                private_key.set_key_use("enc");
 
                 let public_key = load_file(match key {
-                    EcdhEsKeyType::Ec(EcCurve::P256) => "der/EC_P-256_public.der",
-                    EcdhEsKeyType::Ec(EcCurve::P384) => "der/EC_P-384_public.der",
-                    EcdhEsKeyType::Ec(EcCurve::P521) => "der/EC_P-521_public.der",
-                    EcdhEsKeyType::Ec(EcCurve::Secp256K1) => "der/EC_secp256k1_public.der",
-                    EcdhEsKeyType::Ecx(EcxCurve::X25519) => "der/X25519_public.der",
-                    EcdhEsKeyType::Ecx(EcxCurve::X448) => "der/X448_public.der",
+                    EcdhEsKeyType::Ec(EcCurve::P256) => "der/EC_P-256_spki_public.der",
+                    EcdhEsKeyType::Ec(EcCurve::P384) => "der/EC_P-384_spki_public.der",
+                    EcdhEsKeyType::Ec(EcCurve::P521) => "der/EC_P-521_spki_public.der",
+                    EcdhEsKeyType::Ec(EcCurve::Secp256K1) => "der/EC_secp256k1_spki_public.der",
+                    EcdhEsKeyType::Ecx(EcxCurve::X25519) => "der/X25519_spki_public.der",
+                    EcdhEsKeyType::Ecx(EcxCurve::X448) => "der/X448_spki_public.der",
                 })?;
-                let mut public_key = Jwk::from_slice(&public_key)?;
-                public_key.set_key_use("enc");
 
                 let mut header = JweHeader::new();
                 header.set_content_encryption(enc.name());
 
-                let encrypter = alg.encrypter_from_jwk(&public_key)?;
+                let encrypter = alg.encrypter_from_der(&public_key)?;
                 let (src_key, encrypted_key) = encrypter.encrypt(&mut header, enc.key_len())?;
 
-                let decrypter = alg.decrypter_from_jwk(&private_key)?;
+                let decrypter = alg.decrypter_from_der(&private_key)?;
+                let dst_key =
+                    decrypter.decrypt(&header, encrypted_key.as_deref(), enc.key_len())?;
+
+                assert_eq!(&src_key, &dst_key);
+            }
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn encrypt_and_decrypt_ecdh_es_with_pkcs8_pem() -> Result<()> {
+        let enc = AesCbcHmacJweEncryption::A128CbcHS256;
+
+        for alg in vec![
+            EcdhEsJweAlgorithm::EcdhEs,
+            EcdhEsJweAlgorithm::EcdhEsA128Kw,
+            EcdhEsJweAlgorithm::EcdhEsA192Kw,
+            EcdhEsJweAlgorithm::EcdhEsA256Kw,
+        ] {
+            for key in vec![
+                EcdhEsKeyType::Ec(EcCurve::P256),
+                EcdhEsKeyType::Ec(EcCurve::P384),
+                EcdhEsKeyType::Ec(EcCurve::P521),
+                EcdhEsKeyType::Ec(EcCurve::Secp256K1),
+                EcdhEsKeyType::Ecx(EcxCurve::X25519),
+                EcdhEsKeyType::Ecx(EcxCurve::X448),
+            ] {
+                let private_key = load_file(match key {
+                    EcdhEsKeyType::Ec(EcCurve::P256) => "pem/EC_P-256_private.pem",
+                    EcdhEsKeyType::Ec(EcCurve::P384) => "pem/EC_P-384_private.pem",
+                    EcdhEsKeyType::Ec(EcCurve::P521) => "pem/EC_P-521_private.pem",
+                    EcdhEsKeyType::Ec(EcCurve::Secp256K1) => "pem/EC_secp256k1_private.pem",
+                    EcdhEsKeyType::Ecx(EcxCurve::X25519) => "pem/X25519_private.pem",
+                    EcdhEsKeyType::Ecx(EcxCurve::X448) => "pem/X448_private.pem",
+                })?;
+
+                let public_key = load_file(match key {
+                    EcdhEsKeyType::Ec(EcCurve::P256) => "pem/EC_P-256_public.pem",
+                    EcdhEsKeyType::Ec(EcCurve::P384) => "pem/EC_P-384_public.pem",
+                    EcdhEsKeyType::Ec(EcCurve::P521) => "pem/EC_P-521_public.pem",
+                    EcdhEsKeyType::Ec(EcCurve::Secp256K1) => "pem/EC_secp256k1_public.pem",
+                    EcdhEsKeyType::Ecx(EcxCurve::X25519) => "pem/X25519_public.pem",
+                    EcdhEsKeyType::Ecx(EcxCurve::X448) => "pem/X448_public.pem",
+                })?;
+
+                let mut header = JweHeader::new();
+                header.set_content_encryption(enc.name());
+
+                let encrypter = alg.encrypter_from_pem(&public_key)?;
+                let (src_key, encrypted_key) = encrypter.encrypt(&mut header, enc.key_len())?;
+
+                let decrypter = alg.decrypter_from_pem(&private_key)?;
                 let dst_key =
                     decrypter.decrypt(&header, encrypted_key.as_deref(), enc.key_len())?;
 
