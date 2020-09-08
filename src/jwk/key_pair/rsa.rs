@@ -5,10 +5,8 @@ use openssl::pkey::{PKey, Private};
 use openssl::rsa::Rsa;
 use serde_json::Value;
 
+use crate::der::oid::OID_RSA_ENCRYPTION;
 use crate::der::{DerBuilder, DerReader, DerType};
-use crate::der::oid::{
-    OID_RSA_ENCRYPTION,
-};
 use crate::jose::JoseError;
 use crate::jwk::{Jwk, KeyPair};
 use crate::util;
@@ -317,7 +315,6 @@ impl RsaKeyPair {
         Some(())
     }
 
-
     pub(crate) fn to_pkcs8(input: &[u8], is_public: bool) -> Vec<u8> {
         let mut builder = DerBuilder::new();
         builder.begin(DerType::Sequence);
@@ -398,7 +395,7 @@ impl Deref for RsaKeyPair {
 mod tests {
     use anyhow::Result;
 
-    use crate::jwk::{RsaKeyPair};
+    use crate::jwk::RsaKeyPair;
 
     #[test]
     fn test_rsa_jwt() -> Result<()> {

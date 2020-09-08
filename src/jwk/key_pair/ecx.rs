@@ -5,12 +5,8 @@ use anyhow::bail;
 use openssl::pkey::{PKey, Private};
 use serde_json::Value;
 
+use crate::der::oid::{ObjectIdentifier, OID_X25519, OID_X448};
 use crate::der::{DerBuilder, DerReader, DerType};
-use crate::der::oid::{
-    ObjectIdentifier,
-    OID_X25519,
-    OID_X448,
-};
 use crate::jose::JoseError;
 use crate::jwk::{Jwk, KeyPair};
 use crate::util;

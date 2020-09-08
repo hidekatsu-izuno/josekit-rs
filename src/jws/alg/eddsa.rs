@@ -164,7 +164,9 @@ impl EddsaJwsAlgorithm {
             let spki_der = match alg.as_str() {
                 "PUBLIC KEY" => match EdKeyPair::detect_pkcs8(&data, true) {
                     Some(_) => data.as_slice(),
-                    None => bail!("The EdDSA public key must be wrapped by SubjectPublicKeyInfo format."),
+                    None => bail!(
+                        "The EdDSA public key must be wrapped by SubjectPublicKeyInfo format."
+                    ),
                 },
                 alg => bail!("Unacceptable algorithm: {}", alg),
             };

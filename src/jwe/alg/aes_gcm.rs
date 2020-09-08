@@ -30,7 +30,11 @@ impl AesGcmJweAlgorithm {
             let private_key = input.as_ref().to_vec();
 
             if private_key.len() != self.key_len() {
-                bail!("The key size must be {}: {}", self.key_len(), private_key.len());
+                bail!(
+                    "The key size must be {}: {}",
+                    self.key_len(),
+                    private_key.len()
+                );
             }
 
             Ok(AesGcmJweEncrypter {
@@ -90,7 +94,11 @@ impl AesGcmJweAlgorithm {
             let private_key = input.as_ref().to_vec();
 
             if private_key.len() != self.key_len() {
-                bail!("The key size must be {}: {}", self.key_len(), private_key.len());
+                bail!(
+                    "The key size must be {}: {}",
+                    self.key_len(),
+                    private_key.len()
+                );
             }
 
             Ok(AesGcmJweDecrypter {

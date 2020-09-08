@@ -10,16 +10,11 @@ use openssl::pkey::{PKey, Private, Public};
 use openssl::rand;
 use serde_json::{Map, Value};
 
-use crate::der::{DerReader, DerType};
 use crate::der::oid::{
-    OID_ID_EC_PUBLIC_KEY,
-    OID_PRIME256V1,
-    OID_SECP384R1,
-    OID_SECP521R1,
-    OID_SECP256K1,
-    OID_X25519,
+    OID_ID_EC_PUBLIC_KEY, OID_PRIME256V1, OID_SECP256K1, OID_SECP384R1, OID_SECP521R1, OID_X25519,
     OID_X448,
 };
+use crate::der::{DerReader, DerType};
 use crate::jose::{JoseError, JoseHeader};
 use crate::jwe::{JweAlgorithm, JweDecrypter, JweEncrypter, JweHeader};
 use crate::jwk::{EcCurve, EcKeyPair, EcxCurve, EcxKeyPair, Jwk};
@@ -93,7 +88,7 @@ impl EcdhEsJweAlgorithm {
         keypair.set_algorithm(Some(self.name()));
         Ok(keypair)
     }
-    
+
     /// Create a ECx key pair for ECDH from a private key that is a DER encoded PKCS#8 PrivateKeyInfo.
     ///
     /// # Arguments
@@ -136,7 +131,10 @@ impl EcdhEsJweAlgorithm {
         Ok(keypair)
     }
 
-    pub fn encrypter_from_der(&self, input: impl AsRef<[u8]>) -> Result<EcdhEsJweEncrypter, JoseError> {
+    pub fn encrypter_from_der(
+        &self,
+        input: impl AsRef<[u8]>,
+    ) -> Result<EcdhEsJweEncrypter, JoseError> {
         (|| -> anyhow::Result<EcdhEsJweEncrypter> {
             let (spki, key_type) = match Self::detect_pkcs8(input.as_ref(), true) {
                 Some(val) => (input.as_ref(), val),
@@ -155,7 +153,10 @@ impl EcdhEsJweAlgorithm {
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
-    pub fn encrypter_from_pem(&self, input: impl AsRef<[u8]>) -> Result<EcdhEsJweEncrypter, JoseError> {
+    pub fn encrypter_from_pem(
+        &self,
+        input: impl AsRef<[u8]>,
+    ) -> Result<EcdhEsJweEncrypter, JoseError> {
         (|| -> anyhow::Result<EcdhEsJweEncrypter> {
             let (alg, data) = util::parse_pem(input.as_ref())?;
 
@@ -163,7 +164,7 @@ impl EcdhEsJweAlgorithm {
                 "PUBLIC KEY" => match Self::detect_pkcs8(&data, true) {
                     Some(val) => (data.as_slice(), val),
                     None => bail!("PEM contents is expected SubjectPublicKeyInfo wrapped key."),
-                }
+                },
                 alg => bail!("Inappropriate algorithm: {}", alg),
             };
 
@@ -269,7 +270,10 @@ impl EcdhEsJweAlgorithm {
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
-    pub fn decrypter_from_der(&self, input: impl AsRef<[u8]>) -> Result<EcdhEsJweDecrypter, JoseError> {
+    pub fn decrypter_from_der(
+        &self,
+        input: impl AsRef<[u8]>,
+    ) -> Result<EcdhEsJweDecrypter, JoseError> {
         (|| -> anyhow::Result<EcdhEsJweDecrypter> {
             let pkcs8_der_vec;
             let (pkcs8_der, key_type) = match Self::detect_pkcs8(input.as_ref(), false) {
@@ -278,9 +282,9 @@ impl EcdhEsJweAlgorithm {
                     Some(val) => {
                         pkcs8_der_vec = EcKeyPair::to_pkcs8(input.as_ref(), false, val);
                         (pkcs8_der_vec.as_slice(), EcdhEsKeyType::Ec(val))
-                    },
+                    }
                     None => bail!("A curve name cannot be determined."),
-                }
+                },
             };
 
             let private_key = PKey::private_key_from_der(pkcs8_der)?;
@@ -295,7 +299,10 @@ impl EcdhEsJweAlgorithm {
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
-    pub fn decrypter_from_pem(&self, input: impl AsRef<[u8]>) -> Result<EcdhEsJweDecrypter, JoseError> {
+    pub fn decrypter_from_pem(
+        &self,
+        input: impl AsRef<[u8]>,
+    ) -> Result<EcdhEsJweDecrypter, JoseError> {
         (|| -> anyhow::Result<EcdhEsJweDecrypter> {
             let (alg, data) = util::parse_pem(input.as_ref())?;
 
@@ -303,22 +310,22 @@ impl EcdhEsJweAlgorithm {
             let (pkcs8_der, key_type) = match alg.as_str() {
                 "PRIVATE KEY" => match Self::detect_pkcs8(data.as_slice(), false) {
                     Some(val) => (data.as_slice(), val),
-                    None => bail!("PEM contents is expected PKCS#8 wrapped key.")
+                    None => bail!("PEM contents is expected PKCS#8 wrapped key."),
                 },
                 "EC PRIVATE KEY" => match EcKeyPair::detect_ec_curve(data.as_slice()) {
                     Some(val) => {
                         pkcs8_der_vec = EcKeyPair::to_pkcs8(data.as_slice(), false, val);
                         (pkcs8_der_vec.as_slice(), EcdhEsKeyType::Ec(val))
-                    },
+                    }
                     None => bail!("A curve name cannot be determined."),
                 },
                 "X25519 PRIVATE KEY" => match Self::detect_pkcs8(data.as_slice(), false) {
-                    Some(val@EcdhEsKeyType::Ecx(EcxCurve::X25519)) => (data.as_slice(), val),
+                    Some(val @ EcdhEsKeyType::Ecx(EcxCurve::X25519)) => (data.as_slice(), val),
                     Some(val) => bail!("The curve name is mismatched: {}", val),
                     None => bail!("PEM contents is expected PKCS#8 wrapped key."),
                 },
                 "X448 PRIVATE KEY" => match Self::detect_pkcs8(data.as_slice(), false) {
-                    Some(val@EcdhEsKeyType::Ecx(EcxCurve::X448)) => (data.as_slice(), val),
+                    Some(val @ EcdhEsKeyType::Ecx(EcxCurve::X448)) => (data.as_slice(), val),
                     Some(val) => bail!("The curve name is mismatched: {}", val),
                     None => bail!("PEM contents is expected PKCS#8 wrapped key."),
                 },
@@ -656,8 +663,10 @@ impl JweEncrypter for EcdhEsJweEncrypter {
 
                 let mut encrypted_key = vec![0; key.len() + 8];
                 match aes::wrap_key(&aes, None, &mut encrypted_key, &key) {
-                    Ok(len) => if len < encrypted_key.len() {
-                        encrypted_key.truncate(len);
+                    Ok(len) => {
+                        if len < encrypted_key.len() {
+                            encrypted_key.truncate(len);
+                        }
                     }
                     Err(_) => bail!("Failed to wrap key."),
                 }
@@ -771,7 +780,7 @@ impl JweDecrypter for EcdhEsJweDecrypter {
                             if val != self.key_type.curve_name() {
                                 bail!("The crv parameter in epk header claim is invalid: {}", val);
                             }
-                        },
+                        }
                         Some(_) => bail!("The crv parameter in epk header claim must be a string."),
                         None => bail!("The crv parameter in epk header claim is required."),
                     }
@@ -880,8 +889,10 @@ impl JweDecrypter for EcdhEsJweDecrypter {
 
                 let mut key = vec![0; key_len];
                 match aes::unwrap_key(&aes, None, &mut key, &encrypted_key) {
-                    Ok(len) => if len < key.len() {
-                        key.truncate(len);
+                    Ok(len) => {
+                        if len < key.len() {
+                            key.truncate(len);
+                        }
                     }
                     Err(_) => bail!("Failed to unwrap key."),
                 };
@@ -1045,7 +1056,9 @@ mod tests {
                     EcdhEsKeyType::Ec(EcCurve::P256) => "pem/EC_P-256_traditional_private.pem",
                     EcdhEsKeyType::Ec(EcCurve::P384) => "pem/EC_P-384_traditional_private.pem",
                     EcdhEsKeyType::Ec(EcCurve::P521) => "pem/EC_P-521_traditional_private.pem",
-                    EcdhEsKeyType::Ec(EcCurve::Secp256K1) => "pem/EC_secp256k1_traditional_private.pem",
+                    EcdhEsKeyType::Ec(EcCurve::Secp256K1) => {
+                        "pem/EC_secp256k1_traditional_private.pem"
+                    }
                     EcdhEsKeyType::Ecx(EcxCurve::X25519) => "pem/X25519_traditional_private.pem",
                     EcdhEsKeyType::Ecx(EcxCurve::X448) => "pem/X448_traditional_private.pem",
                 })?;

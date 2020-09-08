@@ -413,7 +413,6 @@ impl EdKeyPair {
         Some(curve)
     }
 
-
     pub(crate) fn to_pkcs8(input: &[u8], is_public: bool, curve: EdCurve) -> Vec<u8> {
         let mut builder = DerBuilder::new();
         builder.begin(DerType::Sequence);

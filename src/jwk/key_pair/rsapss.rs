@@ -5,13 +5,7 @@ use openssl::pkey::{PKey, Private};
 use openssl::rsa::Rsa;
 use serde_json::Value;
 
-use crate::der::oid::{
-    OID_RSASSA_PSS,
-    OID_SHA256,
-    OID_SHA384,
-    OID_SHA512,
-    OID_MGF1,
-};
+use crate::der::oid::{OID_MGF1, OID_RSASSA_PSS, OID_SHA256, OID_SHA384, OID_SHA512};
 use crate::der::{DerBuilder, DerClass, DerReader, DerType};
 use crate::jose::JoseError;
 use crate::jwk::{Jwk, KeyPair};
@@ -123,7 +117,8 @@ impl RsaPssKeyPair {
                             None => bail!("The salt length is required."),
                         };
 
-                        pkcs8_der_vec = Self::to_pkcs8(input.as_ref(), false, hash, mgf1_hash, salt_len);
+                        pkcs8_der_vec =
+                            Self::to_pkcs8(input.as_ref(), false, hash, mgf1_hash, salt_len);
                         (pkcs8_der_vec.as_slice(), hash, mgf1_hash, salt_len)
                     }
                 };
@@ -686,7 +681,11 @@ mod tests {
     #[test]
     fn test_rsa_jwt() -> Result<()> {
         for bits in vec![1024, 2048, 4096] {
-            for hash in vec![HashAlgorithm::Sha256, HashAlgorithm::Sha384, HashAlgorithm::Sha512] {
+            for hash in vec![
+                HashAlgorithm::Sha256,
+                HashAlgorithm::Sha384,
+                HashAlgorithm::Sha512,
+            ] {
                 let keypair1 = RsaPssKeyPair::generate(bits, hash, hash, 20)?;
                 let der_private1 = keypair1.to_der_private_key();
                 let der_public1 = keypair1.to_der_public_key();

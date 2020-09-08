@@ -30,7 +30,11 @@ impl AesJweAlgorithm {
             let private_key = input.as_ref().to_vec();
 
             if private_key.len() != self.key_len() {
-                bail!("The key size must be {}: {}", self.key_len(), private_key.len());
+                bail!(
+                    "The key size must be {}: {}",
+                    self.key_len(),
+                    private_key.len()
+                );
             }
 
             Ok(AesJweEncrypter {
@@ -81,7 +85,7 @@ impl AesJweAlgorithm {
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
-    
+
     pub fn decrypter_from_slice(
         &self,
         input: impl AsRef<[u8]>,
@@ -90,7 +94,11 @@ impl AesJweAlgorithm {
             let private_key = input.as_ref().to_vec();
 
             if private_key.len() != self.key_len() {
-                bail!("The key size must be {}: {}", self.key_len(), private_key.len());
+                bail!(
+                    "The key size must be {}: {}",
+                    self.key_len(),
+                    private_key.len()
+                );
             }
 
             Ok(AesJweDecrypter {

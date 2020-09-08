@@ -256,25 +256,23 @@ impl RsassaPssJwsAlgorithm {
         (|| -> anyhow::Result<RsassaPssJwsVerifier> {
             let (alg, data) = util::parse_pem(input.as_ref())?;
             let public_key = match alg.as_str() {
-                "PUBLIC KEY" => {
-                    match RsaPssKeyPair::detect_pkcs8(&data, true) {
-                        Some((hash, mgf1_hash, salt_len)) => {
-                            if hash != self.hash_algorithm() {
-                                bail!("The message digest parameter is mismatched: {}", hash);
-                            } else if mgf1_hash != self.hash_algorithm() {
-                                bail!(
-                                    "The mgf1 message digest parameter is mismatched: {}",
-                                    mgf1_hash
-                                );
-                            } else if salt_len != self.salt_len() {
-                                bail!("The salt size is mismatched: {}", salt_len);
-                            }
-
-                            PKey::public_key_from_der(&data)?
+                "PUBLIC KEY" => match RsaPssKeyPair::detect_pkcs8(&data, true) {
+                    Some((hash, mgf1_hash, salt_len)) => {
+                        if hash != self.hash_algorithm() {
+                            bail!("The message digest parameter is mismatched: {}", hash);
+                        } else if mgf1_hash != self.hash_algorithm() {
+                            bail!(
+                                "The mgf1 message digest parameter is mismatched: {}",
+                                mgf1_hash
+                            );
+                        } else if salt_len != self.salt_len() {
+                            bail!("The salt size is mismatched: {}", salt_len);
                         }
-                        None => bail!("Invalid PEM contents."),
+
+                        PKey::public_key_from_der(&data)?
                     }
-                }
+                    None => bail!("Invalid PEM contents."),
+                },
                 "RSA PUBLIC KEY" => {
                     let pkcs8 = RsaPssKeyPair::to_pkcs8(
                         &data,

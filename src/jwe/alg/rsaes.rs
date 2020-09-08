@@ -98,7 +98,10 @@ impl RsaesJweAlgorithm {
         })
     }
 
-    pub fn encrypter_from_der(&self, input: impl AsRef<[u8]>) -> Result<RsaesJweEncrypter, JoseError> {
+    pub fn encrypter_from_der(
+        &self,
+        input: impl AsRef<[u8]>,
+    ) -> Result<RsaesJweEncrypter, JoseError> {
         (|| -> anyhow::Result<RsaesJweEncrypter> {
             let spki_der_vec;
             let spki_der = match RsaKeyPair::detect_pkcs8(input.as_ref(), true) {
@@ -125,7 +128,10 @@ impl RsaesJweAlgorithm {
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
-    pub fn encrypter_from_pem(&self, input: impl AsRef<[u8]>) -> Result<RsaesJweEncrypter, JoseError> {
+    pub fn encrypter_from_pem(
+        &self,
+        input: impl AsRef<[u8]>,
+    ) -> Result<RsaesJweEncrypter, JoseError> {
         (|| -> anyhow::Result<RsaesJweEncrypter> {
             let (alg, data) = util::parse_pem(input.as_ref())?;
 
@@ -213,7 +219,10 @@ impl RsaesJweAlgorithm {
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
-    pub fn decrypter_from_der(&self, input: impl AsRef<[u8]>) -> Result<RsaesJweDecrypter, JoseError> {
+    pub fn decrypter_from_der(
+        &self,
+        input: impl AsRef<[u8]>,
+    ) -> Result<RsaesJweDecrypter, JoseError> {
         let keypair = self.keypair_from_der(input.as_ref())?;
         Ok(RsaesJweDecrypter {
             algorithm: self.clone(),
@@ -222,7 +231,10 @@ impl RsaesJweAlgorithm {
         })
     }
 
-    pub fn decrypter_from_pem(&self, input: impl AsRef<[u8]>) -> Result<RsaesJweDecrypter, JoseError> {
+    pub fn decrypter_from_pem(
+        &self,
+        input: impl AsRef<[u8]>,
+    ) -> Result<RsaesJweDecrypter, JoseError> {
         let keypair = self.keypair_from_pem(input.as_ref())?;
         Ok(RsaesJweDecrypter {
             algorithm: self.clone(),

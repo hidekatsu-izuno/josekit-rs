@@ -8,15 +8,11 @@ use openssl::nid::Nid;
 use openssl::pkey::{PKey, Private};
 use serde_json::Value;
 
-use crate::der::{DerBuilder, DerReader, DerType, DerClass};
 use crate::der::oid::{
-    ObjectIdentifier,
-    OID_ID_EC_PUBLIC_KEY,
-    OID_PRIME256V1,
-    OID_SECP384R1,
+    ObjectIdentifier, OID_ID_EC_PUBLIC_KEY, OID_PRIME256V1, OID_SECP256K1, OID_SECP384R1,
     OID_SECP521R1,
-    OID_SECP256K1,
 };
+use crate::der::{DerBuilder, DerClass, DerReader, DerType};
 use crate::jose::JoseError;
 use crate::jwk::{Jwk, KeyPair};
 use crate::util;
@@ -186,7 +182,7 @@ impl EcKeyPair {
                 Some(Value::String(val)) => {
                     let y = base64::decode_config(val, base64::URL_SAFE_NO_PAD)?;
                     Some(y)
-                },
+                }
                 Some(_) => bail!("A parameter y must be a string."),
                 None => None,
             };
@@ -249,7 +245,7 @@ impl EcKeyPair {
     pub fn from_pem(input: impl AsRef<[u8]>, curve: Option<EcCurve>) -> Result<Self, JoseError> {
         (|| -> anyhow::Result<Self> {
             let (alg, data) = util::parse_pem(input.as_ref())?;
-            
+
             let pkcs8_der_vec;
             let (pkcs8_der, curve) = match alg.as_str() {
                 "PRIVATE KEY" => {
@@ -262,7 +258,7 @@ impl EcKeyPair {
                         None => bail!("PEM contents is expected PKCS#8 wrapped key."),
                     };
                     (data.as_slice(), curve)
-                },
+                }
                 "EC PRIVATE KEY" => {
                     let curve = match Self::detect_ec_curve(data.as_slice()) {
                         Some(val) => match curve {
@@ -273,11 +269,11 @@ impl EcKeyPair {
                         None => match curve {
                             Some(val) => val,
                             None => bail!("A curve name cannot be determined."),
-                        }
+                        },
                     };
                     pkcs8_der_vec = Self::to_pkcs8(&data, false, curve);
                     (pkcs8_der_vec.as_slice(), curve)
-                },
+                }
                 alg => bail!("Inappropriate algorithm: {}", alg),
             };
 
@@ -356,7 +352,7 @@ impl EcKeyPair {
                 // Version
                 match reader.next() {
                     Ok(Some(DerType::Integer)) => match reader.to_u8() {
-                        Ok(val) if val == 0 => {},
+                        Ok(val) if val == 0 => {}
                         _ => return None,
                     },
                     _ => return None,
@@ -402,7 +398,7 @@ impl EcKeyPair {
         let mut reader = DerReader::from_reader(input);
 
         match reader.next() {
-            Ok(Some(DerType::Sequence)) => {},
+            Ok(Some(DerType::Sequence)) => {}
             _ => return None,
         }
 
@@ -410,7 +406,7 @@ impl EcKeyPair {
             // Version
             match reader.next() {
                 Ok(Some(DerType::Integer)) => match reader.to_u8() {
-                    Ok(val) if val == 1 => {},
+                    Ok(val) if val == 1 => {}
                     _ => return None,
                 },
                 _ => return None,
@@ -418,7 +414,7 @@ impl EcKeyPair {
 
             // Private Key
             match reader.next() {
-                Ok(Some(DerType::OctetString)) => {},
+                Ok(Some(DerType::OctetString)) => {}
                 _ => return None,
             }
 
@@ -530,7 +526,12 @@ mod tests {
 
     #[test]
     fn test_ec_jwt() -> Result<()> {
-        for curve in vec![EcCurve::P256, EcCurve::P384, EcCurve::P521, EcCurve::Secp256K1] {
+        for curve in vec![
+            EcCurve::P256,
+            EcCurve::P384,
+            EcCurve::P521,
+            EcCurve::Secp256K1,
+        ] {
             let keypair1 = EcKeyPair::generate(curve)?;
             let der_private1 = keypair1.to_der_private_key();
             let der_public1 = keypair1.to_der_public_key();
