@@ -1086,8 +1086,6 @@ mod tests {
             EcdhEsJweAlgorithm::EcdhEsA192Kw,
             EcdhEsJweAlgorithm::EcdhEsA256Kw,
         ] {
-            println!("alg: {}", alg);
-
             for key in vec![
                 EcdhEsKeyType::Ec(EcCurve::P256),
                 EcdhEsKeyType::Ec(EcCurve::P384),
@@ -1096,6 +1094,8 @@ mod tests {
                 EcdhEsKeyType::Ecx(EcxCurve::X25519),
                 EcdhEsKeyType::Ecx(EcxCurve::X448),
             ] {
+                println!("alg, key: {}, {}", alg, key);
+
                 let private_key = load_file(match key {
                     EcdhEsKeyType::Ec(EcCurve::P256) => "jwk/EC_P-256_private.jwk",
                     EcdhEsKeyType::Ec(EcCurve::P384) => "jwk/EC_P-384_private.jwk",

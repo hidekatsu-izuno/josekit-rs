@@ -393,3 +393,30 @@ impl Deref for RsaKeyPair {
         self
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use anyhow::Result;
+
+    use crate::jwk::{RsaKeyPair};
+
+    #[test]
+    fn test_rsa_jwt() -> Result<()> {
+        for bits in vec![1024, 2048, 4096] {
+            let keypair1 = RsaKeyPair::generate(bits)?;
+            let der_private1 = keypair1.to_der_private_key();
+            let der_public1 = keypair1.to_der_public_key();
+
+            let jwk_keypair1 = keypair1.to_jwk_keypair();
+
+            let keypair2 = RsaKeyPair::from_jwk(&jwk_keypair1)?;
+            let der_private2 = keypair2.to_der_private_key();
+            let der_public2 = keypair2.to_der_public_key();
+
+            assert_eq!(der_private1, der_private2);
+            assert_eq!(der_public1, der_public2);
+        }
+
+        Ok(())
+    }
+}

@@ -487,15 +487,20 @@ mod tests {
     use crate::jwk::{EcxCurve, EcxKeyPair};
 
     #[test]
-    fn test_ec_jwt() -> Result<()> {
+    fn test_ecx_jwt() -> Result<()> {
         for curve in vec![EcxCurve::X25519, EcxCurve::X448] {
-            let keypair = EcxKeyPair::generate(curve)?;
-            let der_keypair = keypair.to_der_private_key();
-            let jwk_keypair = keypair.to_jwk_keypair();
+            let keypair1 = EcxKeyPair::generate(curve)?;
+            let der_private1 = keypair1.to_der_private_key();
+            let der_public1 = keypair1.to_der_public_key();
 
-            let keypair = EcxKeyPair::from_jwk(&jwk_keypair, Some(curve))?;
+            let jwk_keypair1 = keypair1.to_jwk_keypair();
 
-            assert_eq!(der_keypair, keypair.to_der_private_key());
+            let keypair2 = EcxKeyPair::from_jwk(&jwk_keypair1, Some(curve))?;
+            let der_private2 = keypair2.to_der_private_key();
+            let der_public2 = keypair2.to_der_public_key();
+
+            assert_eq!(der_private1, der_private2);
+            assert_eq!(der_public1, der_public2);
         }
 
         Ok(())
