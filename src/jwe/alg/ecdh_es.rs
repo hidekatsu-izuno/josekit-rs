@@ -251,8 +251,6 @@ impl EcdhEsJweAlgorithm {
                         let pkcs8 = EcxKeyPair::to_pkcs8(&x, true, curve);
                         let public_key = PKey::public_key_from_der(&pkcs8)?;
 
-                        println!("encrypt:public_key {:x?}", public_key.public_key_to_der()?);
-
                         (public_key, EcdhEsKeyType::Ecx(curve))
                     }
                     _ => unreachable!(),
@@ -616,8 +614,6 @@ impl JweEncrypter for EcdhEsJweEncrypter {
             deriver.set_peer(&self.public_key)?;
             let derived_key = deriver.derive_to_vec()?;
 
-            println!("{:x?}", &derived_key);
-
             // concat KDF
             let alg = if self.algorithm.is_direct() {
                 header.content_encryption().unwrap()
@@ -841,8 +837,6 @@ impl JweDecrypter for EcdhEsJweDecrypter {
             let mut deriver = Deriver::new(&self.private_key)?;
             deriver.set_peer(&public_key)?;
             let derived_key = deriver.derive_to_vec()?;
-
-            println!("{:x?}", &derived_key);
 
             // concat KDF
             let alg = if self.algorithm.is_direct() {
@@ -1114,8 +1108,6 @@ mod tests {
                 EcdhEsKeyType::Ecx(EcxCurve::X25519),
                 EcdhEsKeyType::Ecx(EcxCurve::X448),
             ] {
-                println!("alg, key: {}, {}", alg, key);
-
                 let private_key = load_file(match key {
                     EcdhEsKeyType::Ec(EcCurve::P256) => "jwk/EC_P-256_private.jwk",
                     EcdhEsKeyType::Ec(EcCurve::P384) => "jwk/EC_P-384_private.jwk",
