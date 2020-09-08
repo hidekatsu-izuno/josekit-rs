@@ -251,6 +251,8 @@ impl EcdhEsJweAlgorithm {
                         let pkcs8 = EcxKeyPair::to_pkcs8(&x, true, curve);
                         let public_key = PKey::public_key_from_der(&pkcs8)?;
 
+                        println!("encrypt:public_key {:x?}", public_key.public_key_to_der()?);
+
                         (public_key, EcdhEsKeyType::Ecx(curve))
                     }
                     _ => unreachable!(),
@@ -614,6 +616,8 @@ impl JweEncrypter for EcdhEsJweEncrypter {
             deriver.set_peer(&self.public_key)?;
             let derived_key = deriver.derive_to_vec()?;
 
+            println!("{:x?}", &derived_key);
+
             // concat KDF
             let alg = if self.algorithm.is_direct() {
                 header.content_encryption().unwrap()
@@ -838,6 +842,8 @@ impl JweDecrypter for EcdhEsJweDecrypter {
             deriver.set_peer(&public_key)?;
             let derived_key = deriver.derive_to_vec()?;
 
+            println!("{:x?}", &derived_key);
+
             // concat KDF
             let alg = if self.algorithm.is_direct() {
                 header.content_encryption().unwrap()
@@ -925,6 +931,7 @@ mod tests {
 
     use super::{EcdhEsJweAlgorithm, EcdhEsKeyType};
     use crate::jwe::enc::aes_cbc_hmac::AesCbcHmacJweEncryption;
+    use crate::jwe::enc::aes_gcm::AesGcmJweEncryption;
     use crate::jwe::JweHeader;
     use crate::jwk::{EcCurve, EcxCurve, Jwk};
 
@@ -1036,7 +1043,7 @@ mod tests {
 
     #[test]
     fn encrypt_and_decrypt_ecdh_es_with_traditional_pem() -> Result<()> {
-        let enc = AesCbcHmacJweEncryption::A128CbcHS256;
+        let enc = AesGcmJweEncryption::A128Gcm;
 
         for alg in vec![
             EcdhEsJweAlgorithm::EcdhEs,

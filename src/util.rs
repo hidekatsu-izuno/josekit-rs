@@ -157,6 +157,7 @@ fn generate_der(nid: c_int) -> Result<PKey<Private>, ErrorStack> {
             return Err(ErrorStack::get());
         }
 
+        EVP_PKEY_free(pkey);
         der
     };
 

@@ -479,11 +479,14 @@ impl Deref for EcxKeyPair {
 #[cfg(test)]
 mod tests {
     use anyhow::Result;
+    use std::fs::File;
+    use std::io::Read;
+    use std::path::PathBuf;
 
     use crate::jwk::{EcxCurve, EcxKeyPair};
 
     #[test]
-    fn test_ecx_jwt() -> Result<()> {
+    fn test_generate_ecx() -> Result<()> {
         for curve in vec![EcxCurve::X25519, EcxCurve::X448] {
             let keypair1 = EcxKeyPair::generate(curve)?;
             let der_private1 = keypair1.to_der_private_key();
@@ -500,5 +503,48 @@ mod tests {
         }
 
         Ok(())
+    }
+
+    
+    #[test]
+    fn test_ecx_keypair() -> Result<()> {
+        for curve in vec![EcxCurve::X25519, EcxCurve::X448] {
+            let private_key = load_file(match curve {
+                EcxCurve::X25519 => "der/X25519_pkcs8_private.der",
+                EcxCurve::X448 => "der/X448_pkcs8_private.der",
+            })?;
+
+            let public_key = load_file(match curve {
+                EcxCurve::X25519 => "der/X25519_spki_public.der",
+                EcxCurve::X448 => "der/X448_spki_public.der",
+            })?;
+
+            let keypair1 = EcxKeyPair::from_der(private_key, Some(curve))?;
+            let der_private1 = keypair1.to_der_private_key();
+            let der_public1 = keypair1.to_der_public_key();
+
+            let jwk_keypair1 = keypair1.to_jwk_keypair();
+
+            let keypair2 = EcxKeyPair::from_jwk(&jwk_keypair1, Some(curve))?;
+            let der_private2 = keypair2.to_der_private_key();
+            let der_public2 = keypair2.to_der_public_key();
+
+            assert_eq!(der_private1, der_private2);
+            assert_eq!(der_public1, der_public2);
+            assert_eq!(der_public1, public_key);
+        }
+
+        Ok(())
+    }
+    
+    fn load_file(path: &str) -> Result<Vec<u8>> {
+        let mut pb = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        pb.push("data");
+        pb.push(path);
+
+        let mut file = File::open(&pb)?;
+        let mut data = Vec::new();
+        file.read_to_end(&mut data)?;
+        Ok(data)
     }
 }
