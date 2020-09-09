@@ -147,6 +147,34 @@ impl JwtContext {
         Ok(jwt)
     }
 
+    /// Return the Jose header decoded from JWT.
+    ///
+    /// # Arguments
+    ///
+    /// * `input` - a JWT string representation.
+    pub fn decode_header(&self, input: &str) -> Result<Box<dyn JoseHeader>, JoseError> {
+        (|| -> anyhow::Result<Box<dyn JoseHeader>> {
+            let parts: Vec<&str> = input.split('.').collect();
+            if parts.len() == 3 { // JWS
+                let header = base64::decode_config(parts[0], base64::URL_SAFE_NO_PAD)?;
+                let header: Map<String, Value> = serde_json::from_slice(&header)?;
+                let header = JwsHeader::from_map(header)?;
+                Ok(Box::new(header))
+            } else if parts.len() == 5 { // JWE
+                let header = base64::decode_config(parts[0], base64::URL_SAFE_NO_PAD)?;
+                let header: Map<String, Value> = serde_json::from_slice(&header)?;
+                let header = JweHeader::from_map(header)?;
+                Ok(Box::new(header))
+            } else {
+                bail!("The input cannot be recognized as a JWT.");
+            }
+        })()
+        .map_err(|err| match err.downcast::<JoseError>() {
+            Ok(err) => err,
+            Err(err) => JoseError::InvalidJwtFormat(err),
+        })
+    }
+
     /// Return the JWT object decoded with the "none" algorithm.
     ///
     /// # Arguments
@@ -406,6 +434,15 @@ pub fn encode_with_encrypter(
     encrypter: &dyn JweEncrypter,
 ) -> Result<String, JoseError> {
     DEFAULT_CONTEXT.encode_with_encrypter(payload, header, encrypter)
+}
+
+/// Return the Jose header decoded from JWT.
+///
+/// # Arguments
+///
+/// * `input` - a JWT string representation.
+pub fn decode_header(input: &str) -> Result<Box<dyn JoseHeader>, JoseError> {
+    DEFAULT_CONTEXT.decode_header(input)
 }
 
 /// Return the JWT object decoded with the "none" algorithm.
@@ -1176,6 +1213,16 @@ mod tests {
         assert!(
             matches!(payload.claim("payload_claim"), Some(val) if val == &json!("payload_claim"))
         );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_decode_header() -> Result<()> {
+        let data = load_file("jwt/RS256.jwt")?;
+        let data = String::from_utf8(data)?;
+        let header = jwt::decode_header(&data)?;
+        assert!(matches!(header.algorithm(), Some("RS256")));
 
         Ok(())
     }

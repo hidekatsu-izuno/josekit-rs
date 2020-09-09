@@ -1332,6 +1332,10 @@ impl JoseHeader for JwsHeader {
     fn box_clone(&self) -> Box<dyn JoseHeader> {
         Box::new(self.clone())
     }
+    
+    fn into_map(self) -> Map<String, Value> {
+        self.claims
+    }
 }
 
 impl AsRef<Map<String, Value>> for JwsHeader {
@@ -1342,7 +1346,7 @@ impl AsRef<Map<String, Value>> for JwsHeader {
 
 impl Into<Map<String, Value>> for JwsHeader {
     fn into(self) -> Map<String, Value> {
-        self.claims
+        self.into_map()
     }
 }
 

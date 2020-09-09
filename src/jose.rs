@@ -35,6 +35,8 @@ pub trait JoseHeader: Display + Send + Sync {
     fn set_claim(&mut self, key: &str, value: Option<Value>) -> Result<(), JoseError>;
 
     fn box_clone(&self) -> Box<dyn JoseHeader>;
+
+    fn into_map(self) -> Map<String, Value>;
 }
 
 impl Clone for Box<dyn JoseHeader> {
