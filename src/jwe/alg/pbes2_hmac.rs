@@ -7,12 +7,12 @@ use anyhow::bail;
 use openssl::aes::{self, AesKey};
 use openssl::hash::MessageDigest;
 use openssl::pkcs5;
-use openssl::rand;
 use serde_json::{Number, Value};
 
 use crate::jose::{JoseError, JoseHeader};
 use crate::jwe::{JweAlgorithm, JweDecrypter, JweEncrypter, JweHeader};
 use crate::jwk::Jwk;
+use crate::util;
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum Pbes2HmacJweAlgorithm {
@@ -233,8 +233,7 @@ impl JweEncrypter for Pbes2HmacJweEncrypter {
                 Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
                 Some(_) => bail!("The p2s header claim must be string."),
                 None => {
-                    let mut p2s = vec![0, 8];
-                    rand::rand_bytes(&mut p2s)?;
+                    let p2s = util::rand_bytes(8);
                     let p2s_b64 = base64::encode_config(&p2s, base64::URL_SAFE_NO_PAD);
                     header.set_claim("p2s", Some(Value::String(p2s_b64)))?;
                     p2s
@@ -262,9 +261,7 @@ impl JweEncrypter for Pbes2HmacJweEncrypter {
                 Err(_) => bail!("Failed to set encrypt key."),
             };
 
-            let mut key = vec![0; key_len];
-            rand::rand_bytes(&mut key)?;
-
+            let key = util::rand_bytes(key_len);
             let mut encrypted_key = vec![0; key_len + 8];
             let len = match aes::wrap_key(&aes, None, &mut encrypted_key, &key) {
                 Ok(val) => val,
@@ -391,13 +388,13 @@ impl Deref for Pbes2HmacJweDecrypter {
 mod tests {
     use anyhow::Result;
     use base64;
-    use openssl::rand;
     use serde_json::json;
 
     use super::Pbes2HmacJweAlgorithm;
     use crate::jwe::enc::aes_cbc_hmac::AesCbcHmacJweEncryption;
     use crate::jwe::JweHeader;
     use crate::jwk::Jwk;
+    use crate::util;
 
     #[test]
     fn encrypt_and_decrypt_pbes2_hmac() -> Result<()> {
@@ -412,8 +409,7 @@ mod tests {
             header.set_content_encryption(enc.name());
 
             let jwk = {
-                let mut key = vec![0; 25];
-                rand::rand_bytes(&mut key)?;
+                let key = util::rand_bytes(25);
                 let key = base64::encode_config(&key, base64::URL_SAFE_NO_PAD);
 
                 let mut jwk = Jwk::new("oct");

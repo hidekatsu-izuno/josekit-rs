@@ -2,13 +2,11 @@
 
 JOSE (Javascript Object Signing and Encryption: JWT, JWS, JWE, JWA, JWK) library for Rust.
 
-Notice: This package doesn't support JWE yet.
-
 ## Install
 
 ```toml
 [dependencies]
-josekit = "0.3.0"
+josekit = "0.4.0"
 ```
 
 This library depends on OpenSSL DLL. Read more about [Crate openssl](https://docs.rs/openssl/). 
@@ -21,27 +19,91 @@ cd josekit-rs
 cargo build --release
 ```
 
-## Supported signature algorithms
+## Supported signing algorithms
 
-|Name  |Description                                   |Curve         |
-|------|----------------------------------------------|--------------|
-|HS256 |HMAC using SHA-256                            |              |
-|HS384 |HMAC using SHA-384                            |              |
-|HS512 |HMAC using SHA-512                            |              |
-|RS256 |RSASSA-PKCS1-v1_5 using SHA-256               |              |
-|RS384 |RSASSA-PKCS1-v1_5 using SHA-384               |              |
-|RS512 |RSASSA-PKCS1-v1_5 using SHA-512               |              |
-|PS256 |RSASSA-PSS using SHA-256 and MGF1 with SHA-256|              |
-|PS384 |RSASSA-PSS using SHA-384 and MGF1 with SHA-384|              |
-|PS512 |RSASSA-PSS using SHA-512 and MGF1 with SHA-512|              |
-|ES256 |ECDSA using P-256 and SHA-256                 |              |
-|ES384 |ECDSA using P-384 and SHA-384                 |              |
-|ES512 |ECDSA using P-521 and SHA-512                 |              |
-|ES256K|ECDSA using secp256k1 curve and SHA-256       |              |
-|EdDSA |EdDSA signature algorithms                    |Ed25519, Ed448|
-|none  |No digital signature or MAC performed         |              |
+<table>
+<thead>
+    <tr>
+        <th>Name</th>
+        <th>Description</th>
+        <th>Key Type</th>
+    </tr>
+</thead>
+<tbody>
+    <tr>
+        <td>HS256</td>
+        <td>HMAC using SHA-256</td>
+        <td>oct (size: 256 bits or more)</td>
+    </tr>
+    <tr>
+        <td>HS384</td>
+        <td>HMAC using SHA-384</td>
+        <td>oct (size: 384 bits or more)</td>
+    </tr>
+    <tr>
+        <td>HS512</td>
+        <td>HMAC using SHA-512</td>
+        <td>oct (size: 512 bits or more)</td>
+    </tr>
+    <tr>
+        <td>RS256</td>
+        <td>RSASSA-PKCS1-v1_5 using SHA-256</td>
+        <td rowspan="6">RSA (size: 1024 bits or more)</td>
+    </tr>
+    <tr>
+        <td>RS384</td>
+        <td>RSASSA-PKCS1-v1_5 using SHA-384</td>
+    </tr>
+    <tr>
+        <td>RS512</td>
+        <td>RSASSA-PKCS1-v1_5 using SHA-512</td>
+    </tr>
+    <tr>
+        <td>PS256</td>
+        <td>RSASSA-PSS using SHA-256 and MGF1 with SHA-256</td>
+    </tr>
+    <tr>
+        <td>PS384</td>
+        <td>RSASSA-PSS using SHA-384 and MGF1 with SHA-384</td>
+    </tr>
+    <tr>
+        <td>PS512</td>
+        <td>RSASSA-PSS using SHA-512 and MGF1 with SHA-512</td>
+    </tr>
+    <tr>
+        <td>ES256</td>
+        <td>ECDSA using P-256 and SHA-256</td>
+        <td>EC (curve: P-256)</td>
+    </tr>
+    <tr>
+        <td>ES384</td>
+        <td>ECDSA using P-384 and SHA-384</td>
+        <td>EC (curve: P-384)</td>
+    </tr>
+    <tr>
+        <td>ES512</td>
+        <td>ECDSA using P-521 and SHA-512</td>
+        <td>EC (curve: P-521)</td>
+    </tr>
+    <tr>
+        <td>ES256K</td>
+        <td>ECDSA using secp256k1 curve and SHA-256</td>
+        <td>EC (curve: secp256k1)</td>
+    </tr>
+    <tr>
+        <td>EdDSA</td>
+        <td>EdDSA signature algorithms</td>
+        <td>OKP (curve: Ed25519 or Ed448)</td>
+    </tr>
+    <tr>
+        <td>none</td>
+        <td>No digital signature or MAC performed</td>
+        <td>-</td>
+    </tr>
+</tbody>
+</table>
 
-## Supported key formats for RSASSA/RSASSA-PSS/ECDSA/EdDSA
+## Supported key formats for asymmetric signing
 
 ### Private Key
 
@@ -148,6 +210,113 @@ cargo build --release
 </tr>
 </tbody>
 </table>
+
+## Supported encryption algorithms
+
+<table>
+<thead>
+    <tr>
+        <th>Name</th>
+        <th>Description</th>
+        <th>Key Type</th>
+    </tr>
+</thead>
+<tbody>
+    <tr>
+        <td>Dir</td>
+        <td>Direct use of a shared symmetric key as the CEK</td>
+        <td>oct (size: enc type depended)</td>
+    </tr>
+    <tr>
+        <td>ECDH-ES</td>
+        <td>Elliptic Curve Diffie-Hellman Ephemeral Static key agreement using Concat KDF</td>
+        <td rowspan="4">EC (curve: P-256, P-384, P-521 or secp256k1)<br />
+            OKP (curve: X25519 or X448)</td>
+    </tr>
+    <tr>
+        <td>ECDH-ES+A128KW</td>
+        <td>ECDH-ES using Concat KDF and CEK wrapped with "A128KW"</td>
+    </tr>
+    <tr>
+        <td>ECDH-ES+A192KW</td>
+        <td>ECDH-ES using Concat KDF and CEK wrapped with "A192KW"</td>
+    </tr>
+    <tr>
+        <td>ECDH-ES+A256KW</td>
+        <td>ECDH-ES using Concat KDF and CEK wrapped with "A256KW"</td>
+    </tr>
+    <tr>
+        <td>A128KW</td>
+        <td>AES Key Wrap with default initial value using 128-bit key</td>
+        <td>oct (size: 128 bits)</td>
+    </tr>
+    <tr>
+        <td>A192KW</td>
+        <td>AES Key Wrap with default initial value using 192-bit key</td>
+        <td>oct (size: 192 bits)</td>
+    </tr>
+    <tr>
+        <td>A256KW</td>
+        <td>AES Key Wrap with default initial value using 256-bit key</td>
+        <td>oct (size: 256 bits)</td>
+    </tr>
+    <tr>
+        <td>A128GCMKW</td>
+        <td>Key wrapping with AES GCM using 128-bit key</td>
+        <td>oct (size: 128 bits)</td>
+    </tr>
+    <tr>
+        <td>A192GCMKW</td>
+        <td>Key wrapping with AES GCM using 192-bit key</td>
+        <td>oct (size: 192 bits)</td>
+    </tr>
+    <tr>
+        <td>A256GCMKW</td>
+        <td>Key wrapping with AES GCM using 256-bit key</td>
+        <td>oct (size: 256 bits)</td>
+    </tr>
+    <tr>
+        <td>PBES2-HS256+A128KW</td>
+        <td>PBES2 with HMAC SHA-256 and "A128KW" wrapping</td>
+        <td>oct (size: 128 bits)</td>
+    </tr>
+    <tr>
+        <td>PBES2-HS384+A192KW</td>
+        <td>PBES2 with HMAC SHA-384 and "A192KW" wrapping</td>
+        <td>oct (size: 192 bits)</td>
+    </tr>
+    <tr>
+        <td>PBES2-HS512+A256KW</td>
+        <td>PBES2 with HMAC SHA-512 and "A256KW" wrapping</td>
+        <td>oct (size: 256 bits)</td>
+    </tr>
+    <tr>
+        <td>RSA1_5</td>
+        <td>RSAES-PKCS1-v1_5</td>
+        <td rowspan="2">RSA (size: 1024 bits or more)</td>
+    </tr>
+    <tr>
+        <td>RSA-OAEP</td>
+        <td>RSAES OAEP using default parameters</td>
+    </tr>
+<!--
+    <tr>
+        <td>RSA-OAEP-256</td>
+        <td>RSAES OAEP using SHA-256 and MGF1 with SHA-256</td>
+    </tr>
+    <tr>
+        <td>RSA-OAEP-384</td>
+        <td>RSAES OAEP using SHA-384 and MGF1 with SHA-384</td>
+    </tr>
+    <tr>
+        <td>RSA-OAEP-512</td>
+        <td>RSAES OAEP using SHA-512 and MGF1 with SHA-512</td>
+    </tr>
+-->
+</tbody>
+</table>
+
+RSA-OAEP-256, RSA-OAEP-384 and RSA-OAEP-512 are not supported yet.
 
 ## Usage
 
@@ -395,7 +564,7 @@ validator.validate(&payload)?;
 
 ## ToDo
 
-- Support JWE
+- Test JWE
 
 ## License
 

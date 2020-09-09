@@ -1108,6 +1108,7 @@ mod tests {
         RS256, RS384, RS512,
     };
     use crate::jwt::{self, JwtPayload, JwtPayloadValidator};
+    use crate::util;
 
     #[test]
     fn test_new_header() -> Result<()> {
@@ -1197,15 +1198,15 @@ mod tests {
     #[test]
     fn test_jwt_with_hmac() -> Result<()> {
         for alg in &[HS256, HS384, HS512] {
-            let private_key = b"quety12389";
+            let private_key = util::rand_bytes(64);
 
             let mut src_header = JwsHeader::new();
             src_header.set_token_type("JWT");
             let src_payload = JwtPayload::new();
-            let signer = alg.signer_from_slice(private_key)?;
+            let signer = alg.signer_from_slice(&private_key)?;
             let jwt_string = jwt::encode_with_signer(&src_payload, &src_header, &signer)?;
 
-            let verifier = alg.verifier_from_slice(private_key)?;
+            let verifier = alg.verifier_from_slice(&private_key)?;
             let (dst_payload, dst_header) = jwt::decode_with_verifier(&jwt_string, &verifier)?;
 
             src_header.set_claim("alg", Some(json!(alg.name())))?;

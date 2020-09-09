@@ -125,9 +125,9 @@ impl Deref for AesGcmJweEncryption {
 #[cfg(test)]
 mod tests {
     use anyhow::Result;
-    use openssl::rand;
 
     use super::AesGcmJweEncryption;
+    use crate::util;
 
     #[test]
     fn encrypt_and_decrypt_aes_gcm() -> Result<()> {
@@ -139,11 +139,8 @@ mod tests {
             AesGcmJweEncryption::A192Gcm,
             AesGcmJweEncryption::A256Gcm,
         ] {
-            let mut key = vec![0; enc.key_len()];
-            rand::rand_bytes(&mut key)?;
-
-            let mut iv = vec![0; enc.iv_len()];
-            rand::rand_bytes(&mut iv)?;
+            let key = util::rand_bytes(enc.key_len());
+            let iv = util::rand_bytes(enc.iv_len());
 
             let (encrypted_message, tag) = enc.encrypt(&key, Some(&iv), message, aad)?;
             let decrypted_message = enc.decrypt(

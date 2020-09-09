@@ -4,12 +4,12 @@ use std::ops::Deref;
 
 use anyhow::bail;
 use openssl::aes::{self, AesKey};
-use openssl::rand;
 use serde_json::Value;
 
 use crate::jose::JoseError;
 use crate::jwe::{JweAlgorithm, JweDecrypter, JweEncrypter, JweHeader};
 use crate::jwk::Jwk;
+use crate::util;
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum AesJweAlgorithm {
@@ -231,9 +231,7 @@ impl JweEncrypter for AesJweEncrypter {
                 Err(_) => bail!("Failed to set encrypt key."),
             };
 
-            let mut key = vec![0; key_len];
-            rand::rand_bytes(&mut key)?;
-
+            let key = util::rand_bytes(key_len);
             let mut encrypted_key = vec![0; key_len + 8];
             let len = match aes::wrap_key(&aes, None, &mut encrypted_key, &key) {
                 Ok(val) => val,
@@ -342,13 +340,13 @@ impl Deref for AesJweDecrypter {
 mod tests {
     use anyhow::Result;
     use base64;
-    use openssl::rand;
     use serde_json::json;
 
     use super::AesJweAlgorithm;
     use crate::jwe::enc::aes_cbc_hmac::AesCbcHmacJweEncryption;
     use crate::jwe::JweHeader;
     use crate::jwk::Jwk;
+    use crate::util;
 
     #[test]
     fn encrypt_and_decrypt_aes() -> Result<()> {
@@ -363,8 +361,7 @@ mod tests {
             header.set_content_encryption(enc.name());
 
             let jwk = {
-                let mut key = vec![0; alg.key_len()];
-                rand::rand_bytes(&mut key)?;
+                let key = util::rand_bytes(alg.key_len());
                 let key = base64::encode_config(&key, base64::URL_SAFE_NO_PAD);
 
                 let mut jwk = Jwk::new("oct");

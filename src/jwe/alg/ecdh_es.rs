@@ -7,7 +7,6 @@ use openssl::aes::{self, AesKey};
 use openssl::derive::Deriver;
 use openssl::hash::{Hasher, MessageDigest};
 use openssl::pkey::{PKey, Private, Public};
-use openssl::rand;
 use serde_json::{Map, Value};
 
 use crate::der::oid::{
@@ -658,9 +657,7 @@ impl JweEncrypter for EcdhEsJweEncrypter {
                     Err(_) => bail!("Failed to set encrypt key."),
                 };
 
-                let mut key = vec![0; key_len];
-                rand::rand_bytes(&mut key)?;
-
+                let key = util::rand_bytes(key_len);
                 let mut encrypted_key = vec![0; key.len() + 8];
                 match aes::wrap_key(&aes, None, &mut encrypted_key, &key) {
                     Ok(len) => {

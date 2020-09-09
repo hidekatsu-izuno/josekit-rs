@@ -12,7 +12,6 @@ use std::ops::{Deref, DerefMut};
 
 use anyhow::bail;
 use once_cell::sync::Lazy;
-use openssl::rand;
 use serde_json::{Map, Value};
 
 use crate::jose::{JoseError, JoseHeader};
@@ -255,10 +254,9 @@ impl JweContext {
                 payload
             };
 
-            let mut iv_vec;
+            let iv_vec;
             let iv = if cencryption.iv_len() > 0 {
-                iv_vec = vec![0; cencryption.iv_len()];
-                rand::rand_bytes(&mut iv_vec)?;
+                iv_vec = util::rand_bytes(cencryption.iv_len());
                 Some(iv_vec.as_slice())
             } else {
                 None
@@ -419,10 +417,9 @@ impl JweContext {
             }
             let protected = serde_json::to_vec(protected.claims_set())?;
 
-            let mut iv_vec;
+            let iv_vec;
             let iv = if cencryption.iv_len() > 0 {
-                iv_vec = vec![0; cencryption.iv_len()];
-                rand::rand_bytes(&mut iv_vec)?;
+                iv_vec = util::rand_bytes(cencryption.iv_len());
                 Some(iv_vec.as_slice())
             } else {
                 None

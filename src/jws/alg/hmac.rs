@@ -107,7 +107,12 @@ impl HmacJwsAlgorithm {
         input: impl AsRef<[u8]>,
     ) -> Result<HmacJwsVerifier, JoseError> {
         (|| -> anyhow::Result<HmacJwsVerifier> {
-            let private_key = PKey::hmac(input.as_ref())?;
+            let input = input.as_ref();
+            if input.len() < self.hash_algorithm().output_len() {
+                bail!("Secret key size must be larger than or equal to the hash output size.");
+            }
+
+            let private_key = PKey::hmac(input)?;
 
             Ok(HmacJwsVerifier {
                 algorithm: self.clone(),
@@ -223,7 +228,7 @@ impl JwsSigner for HmacJwsSigner {
     }
 
     fn signature_len(&self) -> usize {
-        self.algorithm.hash_algorithm().signature_len()
+        self.algorithm.hash_algorithm().output_len()
     }
 
     fn key_id(&self) -> Option<&str> {
@@ -326,6 +331,7 @@ mod tests {
     use std::fs::File;
     use std::io::Read;
     use std::path::PathBuf;
+    use crate::util;
 
     #[test]
     fn sign_and_verify_hmac_generated_jwk() -> Result<()> {
@@ -371,7 +377,7 @@ mod tests {
 
     #[test]
     fn sign_and_verify_hmac_bytes() -> Result<()> {
-        let private_key = b"ABCDE12345";
+        let private_key = util::rand_bytes(64);
         let input = b"abcde12345";
 
         for alg in &[
@@ -379,10 +385,10 @@ mod tests {
             HmacJwsAlgorithm::HS384,
             HmacJwsAlgorithm::HS512,
         ] {
-            let signer = alg.signer_from_slice(private_key)?;
+            let signer = alg.signer_from_slice(&private_key)?;
             let signature = signer.sign(input)?;
 
-            let verifier = alg.verifier_from_slice(private_key)?;
+            let verifier = alg.verifier_from_slice(&private_key)?;
             verifier.verify(input, &signature)?;
         }
 

@@ -2,6 +2,7 @@ use anyhow::bail;
 use once_cell::sync::Lazy;
 use openssl::bn::BigNumRef;
 use openssl::hash::MessageDigest;
+use openssl::rand;
 use regex::bytes::{NoExpand, Regex};
 use std::fmt::Display;
 use std::time::SystemTime;
@@ -42,7 +43,7 @@ impl HashAlgorithm {
         }
     }
 
-    pub fn signature_len(&self) -> usize {
+    pub fn output_len(&self) -> usize {
         match self {
             Self::Sha256 => 32,
             Self::Sha384 => 48,
@@ -63,6 +64,12 @@ impl Display for HashAlgorithm {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
         fmt.write_str(self.name())
     }
+}
+
+pub fn rand_bytes(len: usize) -> Vec<u8> {
+    let mut vec = vec![0; len];
+    rand::rand_bytes(&mut vec).unwrap();
+    vec
 }
 
 pub fn ceiling(len: usize, div: usize) -> usize {
