@@ -5,14 +5,13 @@ use std::ops::Deref;
 
 use anyhow::bail;
 use openssl::aes::{self, AesKey};
-use openssl::hash::MessageDigest;
 use openssl::pkcs5;
 use serde_json::{Number, Value};
 
 use crate::jose::{JoseError, JoseHeader};
 use crate::jwe::{JweAlgorithm, JweDecrypter, JweEncrypter, JweHeader};
 use crate::jwk::Jwk;
-use crate::util;
+use crate::util::{self, HashAlgorithm};
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum Pbes2HmacJweAlgorithm {
@@ -146,11 +145,11 @@ impl Pbes2HmacJweAlgorithm {
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
-    fn md(&self) -> MessageDigest {
+    fn hash_algorithm(&self) -> HashAlgorithm {
         match self {
-            Self::Pbes2HS256A128Kw => MessageDigest::sha256(),
-            Self::Pbes2HS384A192Kw => MessageDigest::sha384(),
-            Self::Pbes2HS512A256Kw => MessageDigest::sha512(),
+            Self::Pbes2HS256A128Kw => HashAlgorithm::Sha256,
+            Self::Pbes2HS384A192Kw => HashAlgorithm::Sha384,
+            Self::Pbes2HS512A256Kw => HashAlgorithm::Sha512,
         }
     }
 
@@ -252,7 +251,7 @@ impl JweEncrypter for Pbes2HmacJweEncrypter {
                 }
             };
 
-            let md = self.algorithm.md();
+            let md = self.algorithm.hash_algorithm().message_digest();
             let mut derived_key = vec![0; self.algorithm.derived_key_len()];
             pkcs5::pbkdf2_hmac(&self.private_key, &p2s, p2c, md, &mut derived_key)?;
 
@@ -348,7 +347,7 @@ impl JweDecrypter for Pbes2HmacJweDecrypter {
                 None => bail!("The p2c header claim is required."),
             };
 
-            let md = self.algorithm.md();
+            let md = self.algorithm.hash_algorithm().message_digest();
             let mut derived_key = vec![0; self.algorithm.derived_key_len()];
             pkcs5::pbkdf2_hmac(&self.private_key, &p2s, p2c, md, &mut derived_key)?;
 

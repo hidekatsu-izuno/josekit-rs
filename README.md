@@ -332,7 +332,7 @@ RSA-OAEP-256, RSA-OAEP-384 and RSA-OAEP-512 are not supported yet.
 ### Signing a JWT by HMAC
 
 HMAC is used to verify the integrity of a message by common secret key.
-Three types of HMAC algorithms are available: HS256, HS384, and HS512.
+Three algorithms are available for HMAC: HS256, HS384, and HS512.
 
 You can use any bytes as the key. But the key length must be larger than
 or equal to the output hash size.
@@ -361,16 +361,16 @@ let (payload, header) = jwt::decode_with_verifier(&jwt, &verifier)?;
 ### Signing a JWT by RSASSA
 
 RSASSA is used to verify the integrity of a message by two keys: public and private.
-Three types of RSASSA algorithms are available: RS256, RS384, and RS512.
+Three algorithms are available for RSASSA: RS256, RS384, and RS512.
 
 You can generate the keys by executing openssl command.
 
 ```sh
 # Generate a new private key. Keygen bits must be 2048 or more.
-openssl openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out RSA_private.pem
+openssl openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out private.pem
 
 # Generate a public key from the private key.
-openssl pkey -in RSA_private.pem -pubout -outform PEM -out RSA_public.pem
+openssl pkey -in private.pem -pubout -out public.pem
 ```
 
 ```rust
@@ -384,12 +384,12 @@ let mut payload = JwtPayload::new();
 payload.set_subject("subject");
 
 // Signing JWT
-let private_key = load_from_file("rsa_private.pem")?;
+let private_key = load_from_file("private.pem")?;
 let signer = RS256.signer_from_pem(&private_key)?;
 let jwt = jwt::encode_with_signer(&payload, &header, &signer)?;
 
 // Verifing JWT
-let public_key = load_from_file("rsa_public.pem")?;
+let public_key = load_from_file("public.pem")?;
 let verifier = RS256.verifier_from_pem(&public_key)?;
 let (payload, header) = jwt::decode_with_verifier(&jwt, &verifier)?;
 ```
@@ -400,23 +400,23 @@ RSASSA-PSS is used to verify the integrity of a message by two keys: public and 
 
 The raw key format of RSASSA-PSS is the same as RSASSA. So you should use a PKCS#8 wrapped key. It contains some optional attributes.
 
-Three types of RSASSA-PSS algorithms are available: PS256, PS384, and PS512.
+Three algorithms are available for RSASSA-PSS: PS256, PS384, and PS512.
 You can generate the keys by executing openssl command.
 
 ```sh
 # Generate a new private key
 
 # for PS256
-openssl genpkey -algorithm RSA-PSS -pkeyopt rsa_keygen_bits:2048 -pkeyopt rsa_pss_keygen_md:sha256 -pkeyopt rsa_pss_keygen_mgf1_md:sha256 -pkeyopt rsa_pss_keygen_saltlen:32 -out RSA-PSS_private.pem
+openssl genpkey -algorithm RSA-PSS -pkeyopt rsa_keygen_bits:2048 -pkeyopt rsa_pss_keygen_md:sha256 -pkeyopt rsa_pss_keygen_mgf1_md:sha256 -pkeyopt rsa_pss_keygen_saltlen:32 -out private.pem
 
 # for PS384
-openssl genpkey -algorithm RSA-PSS -pkeyopt rsa_keygen_bits:2048 -pkeyopt rsa_pss_keygen_md:sha384 -pkeyopt rsa_pss_keygen_mgf1_md:sha384 -pkeyopt rsa_pss_keygen_saltlen:48 -out RSA-PSS_private.pem
+openssl genpkey -algorithm RSA-PSS -pkeyopt rsa_keygen_bits:2048 -pkeyopt rsa_pss_keygen_md:sha384 -pkeyopt rsa_pss_keygen_mgf1_md:sha384 -pkeyopt rsa_pss_keygen_saltlen:48 -out private.pem
 
 # for PS512
-openssl genpkey -algorithm RSA-PSS -pkeyopt rsa_keygen_bits:2048 -pkeyopt rsa_pss_keygen_md:sha512 -pkeyopt rsa_pss_keygen_mgf1_md:sha512 -pkeyopt rsa_pss_keygen_saltlen:64 -out RSA-PSS_private.pem
+openssl genpkey -algorithm RSA-PSS -pkeyopt rsa_keygen_bits:2048 -pkeyopt rsa_pss_keygen_md:sha512 -pkeyopt rsa_pss_keygen_mgf1_md:sha512 -pkeyopt rsa_pss_keygen_saltlen:64 -out private.pem
 
 # Generate a public key from the private key.
-openssl pkey -in RSA-PSS_private.pem -pubout -outform PEM -out RSA-PSS_public.pem
+openssl pkey -in private.pem -pubout -out public.pem
 ```
 
 ```rust
@@ -430,12 +430,12 @@ let mut payload = JwtPayload::new();
 payload.set_subject("subject");
 
 // Signing JWT
-let private_key = load_from_file("rsapss_private.pem")?;
+let private_key = load_from_file("private.pem")?;
 let signer = PS256.signer_from_pem(&private_key)?;
 let jwt = jwt::encode_with_signer(&payload, &header, &signer)?;
 
 // Verifing JWT
-let public_key = load_from_file("rsapss_public.pem")?;
+let public_key = load_from_file("public.pem")?;
 let verifier = PS256.verifier_from_pem(&public_key)?;
 let (payload, header) = jwt::decode_with_verifier(&jwt, &verifier)?;
 ```
@@ -443,7 +443,7 @@ let (payload, header) = jwt::decode_with_verifier(&jwt, &verifier)?;
 ### Signing a JWT by ECDSA
 
 ECDSA is used to verify the integrity of a message by two keys: public and private.
-Four types of ECDSA algorithms are available: ES256, ES384, ES512 and ES256K.
+Four algorithms are available for ECDSA: ES256, ES384, ES512 and ES256K.
 
 You can generate the keys by executing openssl command.
 
@@ -451,19 +451,19 @@ You can generate the keys by executing openssl command.
 # Generate a new private key
 
 # for ES256
-openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-256 -outform PEM -out ECDSA_private.pem
+openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-256 -out private.pem
 
 # for ES384
-openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-384 -outform PEM -out ECDSA_private.pem
+openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-384 -out private.pem
 
 # for ES512
-openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-521 -outform PEM -out ECDSA_private.pem
+openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-521 -out private.pem
 
 # for ES256K
-openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:secp256k1 -outform PEM -out ECDSA_private.pem
+openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:secp256k1 -out private.pem
 
 # Generate a public key from the private key.
-openssl pkey -in ECDSA_private.pem -pubout -outform PEM -out ECDSA_public.pem
+openssl pkey -in private.pem -pubout -out public.pem
 ```
 
 ```rust
@@ -477,12 +477,12 @@ let mut payload = JwtPayload::new();
 payload.set_subject("subject");
 
 // Signing JWT
-let private_key = load_from_file("ECDSA_private.pem")?;
+let private_key = load_from_file("private.pem")?;
 let signer = ES256.signer_from_pem(&private_key)?;
 let jwt = jwt::encode_with_signer(&payload, &header, &signer)?;
 
 // Verifing JWT
-let public_key = load_from_file("ECDSA_public.pem")?;
+let public_key = load_from_file("public.pem")?;
 let verifier = ES256.verifier_from_pem(&public_key)?;
 let (payload, header) = jwt::decode_with_verifier(&jwt, &verifier)?;
 ```
@@ -490,7 +490,7 @@ let (payload, header) = jwt::decode_with_verifier(&jwt, &verifier)?;
 ### Signing a JWT by EdDSA
 
 EdDSA is used to verify the integrity of a message by two keys: public and private.
-Types of EdDSA algorithms is only "EdDSA".
+A algorithm is only available "EdDSA" for EdDSA.
 But it has two curve types: Ed25519, Ed448.
 
 You can generate the keys by executing openssl command.
@@ -499,13 +499,13 @@ You can generate the keys by executing openssl command.
 # Generate a new private key
 
 # for Ed25519
-openssl genpkey -algorithm ED25519 -out Ed25519_private.pem
+openssl genpkey -algorithm ED25519 -out private.pem
 
 # for Ed448
-openssl genpkey -algorithm ED448 -out Ed448_private.pem
+openssl genpkey -algorithm ED448 -out private.pem
 
 # Generate a public key from the private key.
-openssl pkey -in Ed25519_private.pem -pubout -outform PEM -out Ed25519_public.pem
+openssl pkey -in private.pem -pubout -out public.pem
 ```
 
 ```rust
@@ -519,22 +519,22 @@ let mut payload = JwtPayload::new();
 payload.set_subject("subject");
 
 // Signing JWT
-let private_key = load_from_file("Ed25519_private.pem")?;
+let private_key = load_from_file("private.pem")?;
 let signer = EdDSA.signer_from_pem(&private_key)?;
 let jwt = jwt::encode_with_signer(&payload, &header, &signer)?;
 
 // Verifing JWT
-let public_key = load_from_file("Ed25519_public.pem")?;
+let public_key = load_from_file("public.pem")?;
 let verifier = EdDSA.verifier_from_pem(&public_key)?;
 let (payload, header) = jwt::decode_with_verifier(&jwt, &verifier)?;
 ```
 
 ### Encrypting a JWT by a Direct method
 
-"Direct" is used to encrypt a message by CEK (content encryption key).
+A "Direct" method is used to encrypt a message by CEK (content encryption key).
+The algorithm name is "dir" only.
 
-You can use any bytes as the key. But the length of key must be 
-the same as the length of the CEK.
+You can use any bytes as the key. But the length must be the same as the length of the CEK.
 
 ```rust
 use josekit::jwe::{ JweHeader, Dir };
@@ -560,9 +560,190 @@ let (payload, header) = jwt::decode_with_decrypter(&jwt, &decrypter)?;
 
 ### Encrypting a JWT by ECDH-ES
 
-### Encrypting a JWT by AES, AES-GCM or PBES2+SHA-2+AES
+ECDH-ES is used to encrypt a message a message by random bytes as CEK (content encryption key)
+and the CEK is delivered safely by two keys: public and private.
+Four algorithms are available for ECDH-ES: ECDH-ES, ECDH-ES+A128KW, ECDH-ES+A192KW and ECDH-ES+A256KW.
+
+The types of key are available both EC and ECX.
+The EC key has four curve types: P-256, P-384, P-521 and secp256k1.
+The ECX key has two curve types: X25519 and X448.
+
+You can generate the keys by executing openssl command.
+
+```sh
+# Generate a new private key
+
+# for P-256 EC key
+openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-256 -out private.pem
+
+# for P-384 EC key
+openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-384 -out private.pem
+
+# for P-521 EC key
+openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-521 -out private.pem
+
+# for secp256k1 EC key
+openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:secp256k1 -out private.pem
+
+# for X25519 ECX key
+openssl genpkey -algorithm X25519 -out private.pem
+
+# for X448 ECX key
+openssl genpkey -algorithm X448 -out private.pem
+
+# Generate a public key from the private key.
+openssl pkey -in private.pem -pubout -out public.pem
+```
+
+```rust
+use josekit::jwe::{ JweHeader, EcdhEs };
+use josekit::jwt::{ self, JwtPayload };
+
+let mut header = JweHeader::new();
+header.set_token_type("JWT");
+header.set_content_encryption("A128CBC-HS256");
+
+let mut payload = JwtPayload::new();
+payload.set_subject("subject");
+
+// Encrypting JWT
+let public_key = load_from_file("EC_public.pem")?;
+let encrypter = EcdhEs.encrypter_from_pem(&public_key)?;
+let jwt = jwt::encode_with_encrypter(&payload, &header, &encrypter)?;
+
+// Decrypting JWT
+let private_key = load_from_file("EC_private.pem")?;
+let decrypter = EcdhEs.decrypter_from_pem(&private_key)?
+let (payload, header) = jwt::decode_with_decrypter(&jwt, &decrypter)?;
+```
+
+### Encrypting a JWT by AESKW
+
+AES is used to encrypt a message by random bytes as CEK (content encryption key)
+and the CEK is wrapping by common secret key.
+Three algorithms are available for AES: A128KW, A192KW and A256KW.
+
+You can use any bytes as the key. But the length must be AES key size.
+
+```rust
+use josekit::jwe::{ JweHeader, A128Kw };
+use josekit::jwt::{ self, JwtPayload };
+
+let mut header = JweHeader::new();
+header.set_token_type("JWT");
+header.set_content_encryption("A128CBC-HS256");
+
+let mut payload = JwtPayload::new();
+payload.set_subject("subject");
+
+let common_secret_key = load_from_file("secret")?;
+
+// Encrypting JWT
+let encrypter = A128Kw.encrypter_from_bytes(&common_secret_key)?;
+let jwt = jwt::encode_with_encrypter(&payload, &header, &encrypter)?;
+
+// Decrypting JWT
+let decrypter = A128Kw.decrypter_from_bytes(&common_secret_key)?
+let (payload, header) = jwt::decode_with_decrypter(&jwt, &decrypter)?;
+```
+
+### Encrypting a JWT by AES-GCM
+
+AES-GCM is used to encrypt a message by random bytes as CEK (content encryption key)
+and the CEK is wrapping by common secret key.
+Three algorithms are available for AES-GCM: A128GCMKW, A192GCMKW and A256GCMKW.
+
+You can use any bytes as the key. But the length must be AES key size.
+
+```rust
+use josekit::jwe::{ JweHeader, A128GcmKw };
+use josekit::jwt::{ self, JwtPayload };
+
+let mut header = JweHeader::new();
+header.set_token_type("JWT");
+header.set_content_encryption("A128CBC-HS256");
+
+let mut payload = JwtPayload::new();
+payload.set_subject("subject");
+
+let common_secret_key = load_from_file("secret")?;
+
+// Encrypting JWT
+let encrypter = A128GcmKw.encrypter_from_bytes(&common_secret_key)?;
+let jwt = jwt::encode_with_encrypter(&payload, &header, &encrypter)?;
+
+// Decrypting JWT
+let decrypter = A128GcmKw.decrypter_from_bytes(&common_secret_key)?
+let (payload, header) = jwt::decode_with_decrypter(&jwt, &decrypter)?;
+```
+
+### Encrypting a JWT by PBES2-HMAC+AESKW
+
+PBES2-HMAC+AES is used to encrypt a message by random bytes as CEK (content encryption key)
+and the CEK is wrapping by common secret key.
+Three algorithms are available for AES-GCM: PBES2-HS256+A128KW, PBES2-HS384+A192KW and PBES2-HS512+A256KW.
+
+You can use any bytes as the key. But the length must be AES key size.
+
+```rust
+use josekit::jwe::{ JweHeader, A128GcmKw };
+use josekit::jwt::{ self, JwtPayload };
+
+let mut header = JweHeader::new();
+header.set_token_type("JWT");
+header.set_content_encryption("A128CBC-HS256");
+
+let mut payload = JwtPayload::new();
+payload.set_subject("subject");
+
+let common_secret_key = load_from_file("secret")?;
+
+// Encrypting JWT
+let encrypter = Pbes2HS256A128Kw.encrypter_from_bytes(&common_secret_key)?;
+let jwt = jwt::encode_with_encrypter(&payload, &header, &encrypter)?;
+
+// Decrypting JWT
+let decrypter = Pbes2HS256A128Kw.decrypter_from_bytes(&common_secret_key)?
+let (payload, header) = jwt::decode_with_decrypter(&jwt, &decrypter)?;
+```
 
 ### Encrypting a JWT by RSAES
+
+RSAES is used to encrypt a message a message by random bytes as CEK (content encryption key)
+and the CEK is delivered safely by two keys: public and private.
+Two algorithms are available for now: RSA1_5, RSA-OAEP.
+
+You can generate the keys by executing openssl command.
+
+```sh
+# Generate a new private key. Keygen bits must be 2048 or more.
+openssl openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out private.pem
+
+# Generate a public key from the private key.
+openssl pkey -in private.pem -pubout -out public.pem
+```
+
+```rust
+use josekit::jwe::{ JweHeader, RsaOaep };
+use josekit::jwt::{ self, JwtPayload };
+
+let mut header = JweHeader::new();
+header.set_token_type("JWT");
+header.set_content_encryption("A128CBC-HS256");
+
+let mut payload = JwtPayload::new();
+payload.set_subject("subject");
+
+// Encrypting JWT
+let public_key = load_from_file("public.pem")?;
+let encrypter = RsaOaep.encrypter_from_pem(&public_key)?;
+let jwt = jwt::encode_with_encrypter(&payload, &header, &encrypter)?;
+
+// Decrypting JWT
+let private_key = load_from_file("private.pem")?;
+let decrypter = RsaOaep.decrypter_from_pem(&private_key)?
+let (payload, header) = jwt::decode_with_decrypter(&jwt, &decrypter)?;
+```
 
 ### Unsecured JWT
 
@@ -606,7 +787,7 @@ validator.validate(&payload)?;
 
 ## ToDo
 
-- More test JWE
+- Supports RSA-OAEP-256, RSA-OAEP-384 and RSA-OAEP-512.
 
 ## License
 
