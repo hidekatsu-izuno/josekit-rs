@@ -43,12 +43,24 @@ impl Display for EcxCurve {
 pub struct EcxKeyPair {
     private_key: PKey<Private>,
     curve: EcxCurve,
-    alg: Option<String>,
+    algorithm: Option<String>,
+    key_id: Option<String>,
 }
 
 impl EcxKeyPair {
     pub fn set_algorithm(&mut self, value: Option<&str>) {
-        self.alg = value.map(|val| val.to_string());
+        self.algorithm = value.map(|val| val.to_string());
+    }
+    
+    pub fn set_key_id(&mut self, key_id: Option<impl Into<String>>) {
+        match key_id {
+            Some(val) => {
+                self.key_id = Some(val.into());
+            }
+            None => {
+                self.key_id = None;
+            }
+        }
     }
 
     pub(crate) fn into_private_key(self) -> PKey<Private> {
@@ -73,7 +85,8 @@ impl EcxKeyPair {
             Ok(EcxKeyPair {
                 curve,
                 private_key,
-                alg: None,
+                algorithm: None,
+                key_id: None
             })
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
@@ -100,7 +113,8 @@ impl EcxKeyPair {
             Ok(EcxKeyPair {
                 private_key,
                 curve,
-                alg: None,
+                algorithm: None,
+                key_id: None
             })
         })()
         .map_err(|err| match err.downcast::<JoseError>() {
@@ -174,7 +188,8 @@ impl EcxKeyPair {
             Ok(EcxKeyPair {
                 private_key,
                 curve,
-                alg: None,
+                algorithm: None,
+                key_id: None
             })
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
@@ -215,11 +230,14 @@ impl EcxKeyPair {
 
             let pkcs8 = Self::to_pkcs8(&builder.build(), false, curve);
             let private_key = PKey::private_key_from_der(&pkcs8)?;
+            let algorithm = jwk.algorithm().map(|val| val.to_string());
+            let key_id = jwk.key_id().map(|val| val.to_string());
 
             Ok(Self {
                 private_key,
                 curve,
-                alg: None,
+                algorithm,
+                key_id,
             })
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
@@ -250,8 +268,11 @@ impl EcxKeyPair {
 
     fn to_jwk(&self, private: bool, public: bool) -> Jwk {
         let mut jwk = Jwk::new("OKP");
-        if let Some(val) = &self.alg {
+        if let Some(val) = &self.algorithm {
             jwk.set_algorithm(val);
+        }
+        if let Some(val) = &self.key_id {
+            jwk.set_key_id(val);
         }
         jwk.set_parameter("crv", Some(Value::String(self.curve.name().to_string())))
             .unwrap();
@@ -429,7 +450,14 @@ impl EcxKeyPair {
 
 impl KeyPair for EcxKeyPair {
     fn algorithm(&self) -> Option<&str> {
-        match &self.alg {
+        match &self.algorithm {
+            Some(val) => Some(val.as_str()),
+            None => None,
+        }
+    }
+    
+    fn key_id(&self) -> Option<&str> {
+        match &self.key_id {
             Some(val) => Some(val.as_str()),
             None => None,
         }

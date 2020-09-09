@@ -50,12 +50,24 @@ impl Display for EdCurve {
 pub struct EdKeyPair {
     private_key: PKey<Private>,
     curve: EdCurve,
-    alg: Option<String>,
+    algorithm: Option<String>,
+    key_id: Option<String>,
 }
 
 impl EdKeyPair {
     pub fn set_algorithm(&mut self, value: Option<&str>) {
-        self.alg = value.map(|val| val.to_string());
+        self.algorithm = value.map(|val| val.to_string());
+    }
+    
+    pub fn set_key_id(&mut self, key_id: Option<impl Into<String>>) {
+        match key_id {
+            Some(val) => {
+                self.key_id = Some(val.into());
+            }
+            None => {
+                self.key_id = None;
+            }
+        }
     }
 
     pub(crate) fn into_private_key(self) -> PKey<Private> {
@@ -80,7 +92,8 @@ impl EdKeyPair {
             Ok(Self {
                 curve,
                 private_key,
-                alg: None,
+                algorithm: None,
+                key_id: None,
             })
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
@@ -107,7 +120,8 @@ impl EdKeyPair {
             Ok(Self {
                 private_key,
                 curve,
-                alg: None,
+                algorithm: None,
+                key_id: None,
             })
         })()
         .map_err(|err| match err.downcast::<JoseError>() {
@@ -175,7 +189,8 @@ impl EdKeyPair {
             Ok(Self {
                 private_key,
                 curve,
-                alg: None,
+                algorithm: None,
+                key_id: None,
             })
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
@@ -216,11 +231,14 @@ impl EdKeyPair {
 
             let pkcs8 = Self::to_pkcs8(&builder.build(), false, curve);
             let private_key = PKey::private_key_from_der(&pkcs8)?;
+            let algorithm = jwk.algorithm().map(|val| val.to_string());
+            let key_id = jwk.key_id().map(|val| val.to_string());
 
             Ok(Self {
                 private_key,
                 curve,
-                alg: None,
+                algorithm,
+                key_id,
             })
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
@@ -262,8 +280,11 @@ impl EdKeyPair {
             }
             key_ops
         });
-        if let Some(val) = &self.alg {
+        if let Some(val) = &self.algorithm {
             jwk.set_algorithm(val);
+        }
+        if let Some(val) = &self.key_id {
+            jwk.set_key_id(val);
         }
         jwk.set_parameter("crv", Some(Value::String(self.curve.name().to_string())))
             .unwrap();
@@ -441,7 +462,14 @@ impl EdKeyPair {
 
 impl KeyPair for EdKeyPair {
     fn algorithm(&self) -> Option<&str> {
-        match &self.alg {
+        match &self.algorithm {
+            Some(val) => Some(val.as_str()),
+            None => None,
+        }
+    }
+        
+    fn key_id(&self) -> Option<&str> {
+        match &self.key_id {
             Some(val) => Some(val.as_str()),
             None => None,
         }

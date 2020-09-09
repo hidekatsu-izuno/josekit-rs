@@ -15,7 +15,8 @@ use crate::util;
 pub struct RsaKeyPair {
     private_key: PKey<Private>,
     key_len: u32,
-    alg: Option<String>,
+    algorithm: Option<String>,
+    key_id: Option<String>,
 }
 
 impl RsaKeyPair {
@@ -24,7 +25,18 @@ impl RsaKeyPair {
     }
 
     pub fn set_algorithm(&mut self, value: Option<&str>) {
-        self.alg = value.map(|val| val.to_string());
+        self.algorithm = value.map(|val| val.to_string());
+    }
+
+    pub fn set_key_id(&mut self, key_id: Option<impl Into<String>>) {
+        match key_id {
+            Some(val) => {
+                self.key_id = Some(val.into());
+            }
+            None => {
+                self.key_id = None;
+            }
+        }
     }
 
     pub(crate) fn into_private_key(self) -> PKey<Private> {
@@ -44,7 +56,8 @@ impl RsaKeyPair {
             Ok(RsaKeyPair {
                 private_key,
                 key_len,
-                alg: None,
+                algorithm: None,
+                key_id: None,
             })
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
@@ -72,7 +85,8 @@ impl RsaKeyPair {
             Ok(Self {
                 private_key,
                 key_len,
-                alg: None,
+                algorithm: None,
+                key_id: None,
             })
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
@@ -112,7 +126,8 @@ impl RsaKeyPair {
             Ok(Self {
                 private_key,
                 key_len,
-                alg: None,
+                algorithm: None,
+                key_id: None,
             })
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
@@ -188,11 +203,14 @@ impl RsaKeyPair {
             let private_key = PKey::private_key_from_der(&pkcs8)?;
             let rsa = private_key.rsa()?;
             let key_len = rsa.size();
+            let algorithm = jwk.algorithm().map(|val| val.to_string());
+            let key_id = jwk.key_id().map(|val| val.to_string());
 
             Ok(Self {
                 private_key,
                 key_len,
-                alg: None,
+                algorithm,
+                key_id,
             })
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
@@ -222,10 +240,12 @@ impl RsaKeyPair {
         let rsa = self.private_key.rsa().unwrap();
 
         let mut jwk = Jwk::new("RSA");
-        if let Some(val) = &self.alg {
+        if let Some(val) = &self.algorithm {
             jwk.set_algorithm(val);
         }
-
+        if let Some(val) = &self.key_id {
+            jwk.set_key_id(val);
+        }
         let n = rsa.n().to_vec();
         let n = base64::encode_config(n, base64::URL_SAFE_NO_PAD);
         jwk.set_parameter("n", Some(Value::String(n))).unwrap();
@@ -344,12 +364,19 @@ impl RsaKeyPair {
 
 impl KeyPair for RsaKeyPair {
     fn algorithm(&self) -> Option<&str> {
-        match &self.alg {
+        match &self.algorithm {
             Some(val) => Some(val.as_str()),
             None => None,
         }
     }
-
+    
+    fn key_id(&self) -> Option<&str> {
+        match &self.key_id {
+            Some(val) => Some(val.as_str()),
+            None => None,
+        }
+    }
+    
     fn to_der_private_key(&self) -> Vec<u8> {
         Self::to_pkcs8(&self.to_raw_private_key(), false)
     }

@@ -1393,7 +1393,7 @@ impl Clone for Box<dyn JwsAlgorithm> {
 }
 
 pub trait JwsSigner: Debug + Send + Sync {
-    /// Return the source algrithm instance.
+    /// Return the source algorithm instance.
     fn algorithm(&self) -> &dyn JwsAlgorithm;
 
     /// Return the signature length of JWS.

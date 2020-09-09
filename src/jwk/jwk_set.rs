@@ -140,6 +140,12 @@ impl AsRef<Map<String, Value>> for JwkSet {
     }
 }
 
+impl Into<Map<String, Value>> for JwkSet {
+    fn into(self) -> Map<String, Value> {
+        self.params
+    }
+}
+
 impl Serialize for JwkSet {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where

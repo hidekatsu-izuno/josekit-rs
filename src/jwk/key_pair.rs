@@ -9,7 +9,11 @@ use std::fmt::Debug;
 use crate::jwk::Jwk;
 
 pub trait KeyPair: Debug + Send + Sync {
+    /// Return the applicatable algorithm.
     fn algorithm(&self) -> Option<&str>;
+
+    /// Return the applicatable key ID.
+    fn key_id(&self) -> Option<&str>;
 
     fn to_der_private_key(&self) -> Vec<u8>;
     fn to_der_public_key(&self) -> Vec<u8>;

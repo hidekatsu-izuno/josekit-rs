@@ -72,12 +72,24 @@ impl Display for EcCurve {
 pub struct EcKeyPair {
     private_key: PKey<Private>,
     curve: EcCurve,
-    alg: Option<String>,
+    algorithm: Option<String>,
+    key_id: Option<String>,
 }
 
 impl EcKeyPair {
     pub fn set_algorithm(&mut self, value: Option<&str>) {
-        self.alg = value.map(|val| val.to_string());
+        self.algorithm = value.map(|val| val.to_string());
+    }
+
+    pub fn set_key_id(&mut self, key_id: Option<impl Into<String>>) {
+        match key_id {
+            Some(val) => {
+                self.key_id = Some(val.into());
+            }
+            None => {
+                self.key_id = None;
+            }
+        }
     }
 
     pub(crate) fn into_private_key(self) -> PKey<Private> {
@@ -94,7 +106,8 @@ impl EcKeyPair {
             Ok(EcKeyPair {
                 curve,
                 private_key,
-                alg: None,
+                algorithm: None,
+                key_id: None,
             })
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
@@ -129,7 +142,8 @@ impl EcKeyPair {
             Ok(EcKeyPair {
                 private_key,
                 curve,
-                alg: None,
+                algorithm: None,
+                key_id: None,
             })
         })()
         .map_err(|err| match err.downcast::<JoseError>() {
@@ -220,11 +234,14 @@ impl EcKeyPair {
 
             let pkcs8 = EcKeyPair::to_pkcs8(&builder.build(), false, curve);
             let private_key = PKey::private_key_from_der(&pkcs8)?;
+            let algorithm = jwk.algorithm().map(|val| val.to_string());
+            let key_id = jwk.key_id().map(|val| val.to_string());
 
             Ok(EcKeyPair {
                 private_key,
                 curve,
-                alg: None,
+                algorithm,
+                key_id,
             })
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
@@ -282,7 +299,8 @@ impl EcKeyPair {
             Ok(EcKeyPair {
                 private_key,
                 curve,
-                alg: None,
+                algorithm: None,
+                key_id: None,
             })
         })()
         .map_err(|err| match err.downcast::<JoseError>() {
@@ -305,8 +323,11 @@ impl EcKeyPair {
         let ec_key = self.private_key.ec_key().unwrap();
 
         let mut jwk = Jwk::new("EC");
-        if let Some(val) = &self.alg {
+        if let Some(val) = &self.algorithm {
             jwk.set_algorithm(val);
+        }
+        if let Some(val) = &self.key_id {
+            jwk.set_key_id(val);
         }
         jwk.set_parameter("crv", Some(Value::String(self.curve.to_string())))
             .unwrap();
@@ -471,7 +492,14 @@ impl EcKeyPair {
 
 impl KeyPair for EcKeyPair {
     fn algorithm(&self) -> Option<&str> {
-        match &self.alg {
+        match &self.algorithm {
+            Some(val) => Some(val.as_str()),
+            None => None,
+        }
+    }
+
+    fn key_id(&self) -> Option<&str> {
+        match &self.key_id {
             Some(val) => Some(val.as_str()),
             None => None,
         }
