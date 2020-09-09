@@ -93,121 +93,13 @@ cargo build --release
     <tr>
         <td>EdDSA</td>
         <td>EdDSA signature algorithms</td>
-        <td>OKP (curve: Ed25519 or Ed448)</td>
+        <td>ED (curve: Ed25519 or Ed448)</td>
     </tr>
     <tr>
         <td>none</td>
         <td>No digital signature or MAC performed</td>
         <td>-</td>
     </tr>
-</tbody>
-</table>
-
-## Supported key formats for asymmetric signing
-
-### Private Key
-
-<table>
-<thead>
-<tr>
-    <th rowspan="2">Algorithm</th>
-    <th rowspan="2">JWK</th>
-    <th colspan="2">PEM</th>
-    <th colspan="2">DER</th>
-</tr>
-<tr>
-    <th>PKCS#8</th>
-    <th>Traditional</th>
-    <th>PKCS#8</th>
-    <th>Raw</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-    <td>RSASSA</td>
-    <td>OK</td>
-    <td>OK</td>
-    <td>OK</td>
-    <td>OK</td>
-    <td>OK</td>
-</tr>
-<tr>
-    <td>RSASSA-PSS</td>
-    <td>OK</td>
-    <td>OK</td>
-    <td>OK</td>
-    <td>OK</td>
-    <td>-</td>
-</tr>
-<tr>
-    <td>ECDSA</td>
-    <td>OK</td>
-    <td>OK</td>
-    <td>OK</td>
-    <td>OK</td>
-    <td>OK</td>
-</tr>
-<tr>
-    <td>EdDSA</td>
-    <td>OK</td>
-    <td>OK</td>
-    <td>OK</td>
-    <td>OK</td>
-    <td>-</td>
-</tr>
-</tbody>
-</table>
-
-### Public Key
-
-<table>
-<thead>
-<tr>
-    <th rowspan="2">Algorithm</th>
-    <th rowspan="2">JWK</th>
-    <th colspan="2">PEM</th>
-    <th colspan="2">DER</th>
-</tr>
-<tr>
-    <th>SPKI</th>
-    <th>Traditional</th>
-    <th>SPKI</th>
-    <th>Raw</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-    <td>RSASSA</td>
-    <td>OK</td>
-    <td>OK</td>
-    <td>OK</td>
-    <td>OK</td>
-    <td>OK</td>
-</tr>
-<tr>
-    <td>RSASSA-PSS</td>
-    <td>OK</td>
-    <td>OK</td>
-    <td>OK</td>
-    <td>OK</td>
-    <td>OK</td>
-</tr>
-<tr>
-    <td>ECDSA</td>
-    <td>OK</td>
-    <td>OK</td>
-    <td>-</td>
-    <td>OK</td>
-    <td>-</td>
-</tr>
-<tr>
-    <td>EdDSA</td>
-    <td>OK</td>
-    <td>OK</td>
-    <td>-</td>
-    <td>OK</td>
-    <td>-</td>
-</tr>
 </tbody>
 </table>
 
@@ -223,7 +115,7 @@ cargo build --release
 </thead>
 <tbody>
     <tr>
-        <td>Dir</td>
+        <td>dir</td>
         <td>Direct use of a shared symmetric key as the CEK</td>
         <td>oct (size: the CEK depended. See below)
             <ul>
@@ -240,7 +132,7 @@ cargo build --release
         <td>ECDH-ES</td>
         <td>Elliptic Curve Diffie-Hellman Ephemeral Static key agreement using Concat KDF</td>
         <td rowspan="4">EC (curve: P-256, P-384, P-521 or secp256k1)<br />
-            OKP (curve: X25519 or X448)</td>
+            ECX (curve: X25519 or X448)</td>
     </tr>
     <tr>
         <td>ECDH-ES+A128KW</td>
@@ -326,6 +218,131 @@ cargo build --release
 </table>
 
 RSA-OAEP-256, RSA-OAEP-384 and RSA-OAEP-512 are not supported yet.
+
+
+## Supported key formats
+
+### Private Key
+
+<table>
+<thead>
+<tr>
+    <th rowspan="2">Algorithm</th>
+    <th rowspan="2">JWK</th>
+    <th colspan="2">PEM</th>
+    <th colspan="2">DER</th>
+</tr>
+<tr>
+    <th>PKCS#8</th>
+    <th>Traditional</th>
+    <th>PKCS#8</th>
+    <th>Raw</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+    <td>RSA</td>
+    <td>OK</td>
+    <td>OK</td>
+    <td>OK</td>
+    <td>OK</td>
+    <td>OK</td>
+</tr>
+<tr>
+    <td>RSA-PSS</td>
+    <td>OK</td>
+    <td>OK</td>
+    <td>OK</td>
+    <td>OK</td>
+    <td>-</td>
+</tr>
+<tr>
+    <td>EC</td>
+    <td>OK</td>
+    <td>OK</td>
+    <td>OK</td>
+    <td>OK</td>
+    <td>OK</td>
+</tr>
+<tr>
+    <td>ED</td>
+    <td>OK</td>
+    <td>OK</td>
+    <td>OK</td>
+    <td>OK</td>
+    <td>-</td>
+</tr>
+<tr>
+    <td>ECX</td>
+    <td>OK</td>
+    <td>OK</td>
+    <td>OK</td>
+    <td>OK</td>
+    <td>-</td>
+</tr>
+</tbody>
+</table>
+
+### Public Key
+
+<table>
+<thead>
+<tr>
+    <th rowspan="2">Algorithm</th>
+    <th rowspan="2">JWK</th>
+    <th colspan="2">PEM</th>
+    <th colspan="2">DER</th>
+</tr>
+<tr>
+    <th>SPKI</th>
+    <th>Traditional</th>
+    <th>SPKI</th>
+    <th>Raw</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+    <td>RSA</td>
+    <td>OK</td>
+    <td>OK</td>
+    <td>OK</td>
+    <td>OK</td>
+    <td>OK</td>
+</tr>
+<tr>
+    <td>RSA-PSS</td>
+    <td>OK</td>
+    <td>OK</td>
+    <td>OK</td>
+    <td>OK</td>
+    <td>OK</td>
+</tr>
+<tr>
+    <td>EC</td>
+    <td>OK</td>
+    <td>OK</td>
+    <td>-</td>
+    <td>OK</td>
+    <td>-</td>
+</tr>
+<tr>
+    <td>ED</td>
+    <td>OK</td>
+    <td>OK</td>
+    <td>-</td>
+    <td>OK</td>
+    <td>-</td>
+</tr>
+<tr>
+    <td>ECX</td>
+    <td>OK</td>
+    <td>OK</td>
+    <td>-</td>
+    <td>OK</td>
+    <td>-</td>
+</tr>
+</tbody>
+</table>
 
 ## Usage
 
