@@ -22,7 +22,7 @@ pub enum AesGcmJweAlgorithm {
 }
 
 impl AesGcmJweAlgorithm {
-    pub fn encrypter_from_slice(
+    pub fn encrypter_from_bytes(
         &self,
         input: impl AsRef<[u8]>,
     ) -> Result<AesGcmJweEncrypter, JoseError> {
@@ -86,7 +86,7 @@ impl AesGcmJweAlgorithm {
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
-    pub fn decrypter_from_slice(
+    pub fn decrypter_from_bytes(
         &self,
         input: impl AsRef<[u8]>,
     ) -> Result<AesGcmJweDecrypter, JoseError> {

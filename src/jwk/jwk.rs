@@ -101,7 +101,7 @@ impl Jwk {
         })
     }
 
-    pub fn from_slice(input: impl AsRef<[u8]>) -> Result<Self, JoseError> {
+    pub fn from_bytes(input: impl AsRef<[u8]>) -> Result<Self, JoseError> {
         (|| -> anyhow::Result<Self> {
             let map: Map<String, Value> = serde_json::from_slice(input.as_ref())?;
             Ok(Self::from_map(map)?)

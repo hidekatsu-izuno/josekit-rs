@@ -99,11 +99,11 @@ impl DerBuilder {
         self.append(DerType::ObjectIdentifier, &vec);
     }
 
-    pub fn append_octed_string_from_slice(&mut self, contents: &[u8]) {
+    pub fn append_octed_string_from_bytes(&mut self, contents: &[u8]) {
         self.append(DerType::OctetString, contents);
     }
 
-    pub fn append_bit_string_from_slice(&mut self, contents: &[u8], trailing_len: u8) {
+    pub fn append_bit_string_from_bytes(&mut self, contents: &[u8], trailing_len: u8) {
         if trailing_len >= 8 {
             unreachable!();
         }
@@ -219,7 +219,7 @@ mod tests {
             }
             builder.end();
         }
-        builder.append_bit_string_from_slice(&vec![1; 270], 0);
+        builder.append_bit_string_from_bytes(&vec![1; 270], 0);
         builder.end();
         assert_eq!(
             builder.build(),

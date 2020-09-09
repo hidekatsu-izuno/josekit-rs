@@ -1126,11 +1126,11 @@ mod tests {
                 let mut header = JweHeader::new();
                 header.set_content_encryption(enc.name());
 
-                let public_key = Jwk::from_slice(&public_key)?;
+                let public_key = Jwk::from_bytes(&public_key)?;
                 let encrypter = alg.encrypter_from_jwk(&public_key)?;
                 let (src_key, encrypted_key) = encrypter.encrypt(&mut header, enc.key_len())?;
 
-                let private_key = Jwk::from_slice(&private_key)?;
+                let private_key = Jwk::from_bytes(&private_key)?;
                 let decrypter = alg.decrypter_from_jwk(&private_key)?;
                 let dst_key =
                     decrypter.decrypt(&header, encrypted_key.as_deref(), enc.key_len())?;

@@ -44,13 +44,20 @@ impl HmacJwsAlgorithm {
     ///
     /// # Arguments
     /// * `data` - A secret key.
-    pub fn signer_from_slice(&self, input: impl AsRef<[u8]>) -> Result<HmacJwsSigner, JoseError> {
+    pub fn signer_from_bytes(&self, input: impl AsRef<[u8]>) -> Result<HmacJwsSigner, JoseError> {
         (|| -> anyhow::Result<HmacJwsSigner> {
-            let pkey = PKey::hmac(input.as_ref())?;
+            let input = input.as_ref();
+
+            let min_key_len = self.hash_algorithm().output_len();
+            if input.len() < min_key_len {
+                bail!("Secret key size must be larger than or equal to {}: {}", min_key_len, input.len());
+            }
+
+            let private_key = PKey::hmac(input)?;
 
             Ok(HmacJwsSigner {
                 algorithm: self.clone(),
-                private_key: pkey,
+                private_key,
                 key_id: None,
             })
         })()
@@ -86,6 +93,11 @@ impl HmacJwsAlgorithm {
                 None => bail!("A parameter k is required."),
             };
 
+            let min_key_len = self.hash_algorithm().output_len();
+            if k.len() < min_key_len {
+                bail!("Secret key size must be larger than or equal to {}: {}", min_key_len, k.len());
+            }
+
             let private_key = PKey::hmac(&k)?;
             let key_id = jwk.key_id().map(|val| val.to_string());
 
@@ -102,14 +114,16 @@ impl HmacJwsAlgorithm {
     ///
     /// # Arguments
     /// * `input` - A secret key.
-    pub fn verifier_from_slice(
+    pub fn verifier_from_bytes(
         &self,
         input: impl AsRef<[u8]>,
     ) -> Result<HmacJwsVerifier, JoseError> {
         (|| -> anyhow::Result<HmacJwsVerifier> {
             let input = input.as_ref();
-            if input.len() < self.hash_algorithm().output_len() {
-                bail!("Secret key size must be larger than or equal to the hash output size.");
+
+            let min_key_len = self.hash_algorithm().output_len();
+            if input.len() < min_key_len {
+                bail!("Secret key size must be larger than or equal to {}: {}", min_key_len, input.len());
             }
 
             let private_key = PKey::hmac(input)?;
@@ -152,6 +166,11 @@ impl HmacJwsAlgorithm {
                 Some(val) => bail!("A parameter k must be string type but {:?}", val),
                 None => bail!("A parameter k is required."),
             };
+            
+            let min_key_len = self.hash_algorithm().output_len();
+            if k.len() < min_key_len {
+                bail!("Secret key size must be larger than or equal to {}: {}", min_key_len, k.len());
+            }
 
             let private_key = PKey::hmac(&k)?;
             let key_id = jwk.key_id().map(|val| val.to_string());
@@ -335,6 +354,7 @@ mod tests {
 
     #[test]
     fn sign_and_verify_hmac_generated_jwk() -> Result<()> {
+        let private_key = util::rand_bytes(64);
         let input = b"12345abcde";
 
         for alg in &[
@@ -342,7 +362,7 @@ mod tests {
             HmacJwsAlgorithm::HS384,
             HmacJwsAlgorithm::HS512,
         ] {
-            let private_key = alg.to_jwk(input);
+            let private_key = alg.to_jwk(&private_key);
 
             let signer = alg.signer_from_jwk(&private_key)?;
             let signature = signer.sign(input)?;
@@ -363,7 +383,7 @@ mod tests {
             HmacJwsAlgorithm::HS384,
             HmacJwsAlgorithm::HS512,
         ] {
-            let private_key = Jwk::from_slice(load_file("jwk/oct_private.jwk")?)?;
+            let private_key = Jwk::from_bytes(load_file("jwk/oct_private.jwk")?)?;
 
             let signer = alg.signer_from_jwk(&private_key)?;
             let signature = signer.sign(input)?;
@@ -385,10 +405,10 @@ mod tests {
             HmacJwsAlgorithm::HS384,
             HmacJwsAlgorithm::HS512,
         ] {
-            let signer = alg.signer_from_slice(&private_key)?;
+            let signer = alg.signer_from_bytes(&private_key)?;
             let signature = signer.sign(input)?;
 
-            let verifier = alg.verifier_from_slice(&private_key)?;
+            let verifier = alg.verifier_from_bytes(&private_key)?;
             verifier.verify(input, &signature)?;
         }
 

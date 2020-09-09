@@ -225,7 +225,16 @@ cargo build --release
     <tr>
         <td>Dir</td>
         <td>Direct use of a shared symmetric key as the CEK</td>
-        <td>oct (size: enc type depended)</td>
+        <td>oct (size: the CEK depended. See below)
+            <ul>
+                <li>A128CBC-HS256: 32 bytes</li>
+                <li>A192CBC-HS384: 40 bytes</li>
+                <li>A256CBC-HS512: 48 bytes</li>
+                <li>A128GCM: 16 bytes</li>
+                <li>A192GCM: 24 bytes</li>
+                <li>A256GCM: 32 bytes</li>
+            </ul>
+        </td>
     </tr>
     <tr>
         <td>ECDH-ES</td>
@@ -324,7 +333,9 @@ RSA-OAEP-256, RSA-OAEP-384 and RSA-OAEP-512 are not supported yet.
 
 HMAC is used to verify the integrity of a message by common secret key.
 Three types of HMAC algorithms are available: HS256, HS384, and HS512.
-You can use any text as the key.
+
+You can use any bytes as the key. But the key length must be larger than
+or equal to the output hash size.
 
 ```rust
 use josekit::jws::{ JwsHeader, HS256 };
@@ -336,14 +347,14 @@ header.set_token_type("JWT");
 let mut payload = JwtPayload::new();
 payload.set_subject("subject");
 
-let common_secret_key = b"secret";
+let common_secret_key = load_from_file("secret")?;
 
 // Signing JWT
-let signer = HS256.signer_from_bytes(private_key)?;
+let signer = HS256.signer_from_bytes(&common_secret_key)?;
 let jwt = jwt::encode_with_signer(&payload, &header, &signer)?;
 
 // Verifing JWT
-let verifier = HS256.signer_from_bytes(private_key)?
+let verifier = HS256.signer_from_bytes(&common_secret_key)?
 let (payload, header) = jwt::decode_with_verifier(&jwt, &verifier)?;
 ```
 
@@ -518,9 +529,40 @@ let verifier = EdDSA.verifier_from_pem(&public_key)?;
 let (payload, header) = jwt::decode_with_verifier(&jwt, &verifier)?;
 ```
 
-### Encrypted JWT
+### Encrypting a JWT by a Direct method
 
-Not support yet.
+"Direct" is used to encrypt a message by CEK (content encryption key).
+
+You can use any bytes as the key. But the length of key must be 
+the same as the length of the CEK.
+
+```rust
+use josekit::jwe::{ JweHeader, Dir };
+use josekit::jwt::{ self, JwtPayload };
+
+let mut header = JweHeader::new();
+header.set_token_type("JWT");
+header.set_content_encryption("A128CBC-HS256");
+
+let mut payload = JwtPayload::new();
+payload.set_subject("subject");
+
+let content_encryption_key = load_from_file("secret")?;
+
+// Encrypting JWT
+let encrypter = Dir.encrypter_from_bytes(&content_encryption_key)?;
+let jwt = jwt::encode_with_encrypter(&payload, &header, &encrypter)?;
+
+// Decrypting JWT
+let decrypter = Dir.decrypter_from_bytes(&content_encryption_key)?
+let (payload, header) = jwt::decode_with_decrypter(&jwt, &decrypter)?;
+```
+
+### Encrypting a JWT by ECDH-ES
+
+### Encrypting a JWT by AES, AES-GCM or PBES2+SHA-2+AES
+
+### Encrypting a JWT by RSAES
 
 ### Unsecured JWT
 
@@ -564,7 +606,7 @@ validator.validate(&payload)?;
 
 ## ToDo
 
-- Test JWE
+- More test JWE
 
 ## License
 

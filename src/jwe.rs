@@ -1049,7 +1049,7 @@ impl JweHeader {
     /// # Arguments
     ///
     /// * `value` - The json style header claims
-    pub fn from_slice(value: &[u8]) -> Result<Self, JoseError> {
+    pub fn from_bytes(value: &[u8]) -> Result<Self, JoseError> {
         (|| -> anyhow::Result<Self> {
             let claims: Map<String, Value> = serde_json::from_slice(value)?;
             Ok(Self::from_map(claims)?)
@@ -1776,13 +1776,13 @@ mod tests {
                 "A256GCM" => b"01234567890123456789012345678901".as_ref(),
                 _ => unreachable!(),
             };
-            let encrypter = alg.encrypter_from_slice(key)?;
+            let encrypter = alg.encrypter_from_bytes(key)?;
 
             let jwe = jwe::serialize_compact(src_payload, &src_header, &encrypter)?;
 
             println!("JWE: {}", jwe);
 
-            let decrypter = alg.decrypter_from_slice(key)?;
+            let decrypter = alg.decrypter_from_bytes(key)?;
             let (dst_payload, dst_header) = jwe::deserialize_compact(&jwe, &decrypter)?;
 
             src_header.set_claim("alg", Some(Value::String(alg.name().to_string())))?;

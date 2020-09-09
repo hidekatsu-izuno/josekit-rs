@@ -331,9 +331,9 @@ impl RsaKeyPair {
             builder.end();
 
             if is_public {
-                builder.append_bit_string_from_slice(input, 0);
+                builder.append_bit_string_from_bytes(input, 0);
             } else {
-                builder.append_octed_string_from_slice(input);
+                builder.append_octed_string_from_bytes(input);
             }
         }
         builder.end();

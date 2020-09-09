@@ -584,10 +584,10 @@ mod tests {
             let private_key = load_file("jwk/RSA_private.jwk")?;
             let public_key = load_file("jwk/RSA_public.jwk")?;
 
-            let signer = alg.signer_from_jwk(&Jwk::from_slice(&private_key)?)?;
+            let signer = alg.signer_from_jwk(&Jwk::from_bytes(&private_key)?)?;
             let signature = signer.sign(input)?;
 
-            let verifier = alg.verifier_from_jwk(&Jwk::from_slice(&public_key)?)?;
+            let verifier = alg.verifier_from_jwk(&Jwk::from_bytes(&public_key)?)?;
             verifier.verify(input, &signature)?;
         }
 

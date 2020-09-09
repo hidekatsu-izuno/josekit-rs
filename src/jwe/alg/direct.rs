@@ -16,7 +16,7 @@ pub enum DirectJweAlgorithm {
 }
 
 impl DirectJweAlgorithm {
-    pub fn encrypter_from_slice(
+    pub fn encrypter_from_bytes(
         &self,
         input: impl AsRef<[u8]>,
     ) -> Result<DirectJweEncrypter, JoseError> {
@@ -65,7 +65,7 @@ impl DirectJweAlgorithm {
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
-    pub fn decrypter_from_slice(
+    pub fn decrypter_from_bytes(
         &self,
         input: impl AsRef<[u8]>,
     ) -> Result<DirectJweDecrypter, JoseError> {

@@ -201,7 +201,7 @@ impl EcKeyPair {
             builder.begin(DerType::Sequence);
             {
                 builder.append_integer_from_u8(1);
-                builder.append_octed_string_from_slice(&d);
+                builder.append_octed_string_from_bytes(&d);
                 builder.begin(DerType::Other(DerClass::ContextSpecific, 0));
                 {
                     builder.append_object_identifier(curve.oid());
@@ -211,7 +211,7 @@ impl EcKeyPair {
                 if let Some(public_key) = public_key {
                     builder.begin(DerType::Other(DerClass::ContextSpecific, 1));
                     {
-                        builder.append_bit_string_from_slice(&public_key, 0);
+                        builder.append_bit_string_from_bytes(&public_key, 0);
                     }
                     builder.end();
                 }
@@ -458,9 +458,9 @@ impl EcKeyPair {
             builder.end();
 
             if is_public {
-                builder.append_bit_string_from_slice(input, 0);
+                builder.append_bit_string_from_bytes(input, 0);
             } else {
-                builder.append_octed_string_from_slice(input);
+                builder.append_octed_string_from_bytes(input);
             }
         }
         builder.end();

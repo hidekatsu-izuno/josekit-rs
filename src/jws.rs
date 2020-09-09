@@ -816,7 +816,7 @@ impl JwsHeader {
     /// # Arguments
     ///
     /// * `value` - The json style header claims
-    pub fn from_slice(value: &[u8]) -> Result<Self, JoseError> {
+    pub fn from_bytes(value: &[u8]) -> Result<Self, JoseError> {
         (|| -> anyhow::Result<Self> {
             let claims: Map<String, Value> = serde_json::from_slice(value)?;
             Ok(Self::from_map(claims)?)

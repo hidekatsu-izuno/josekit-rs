@@ -505,11 +505,11 @@ mod tests {
         let enc = AesCbcHmacJweEncryption::A128CbcHS256;
 
         let private_key = load_file("jwk/RSA_private.jwk")?;
-        let mut private_key = Jwk::from_slice(&private_key)?;
+        let mut private_key = Jwk::from_bytes(&private_key)?;
         private_key.set_key_use("enc");
 
         let public_key = load_file("jwk/RSA_public.jwk")?;
-        let mut public_key = Jwk::from_slice(&public_key)?;
+        let mut public_key = Jwk::from_bytes(&public_key)?;
         public_key.set_key_use("enc");
 
         for alg in vec![RsaesJweAlgorithm::Rsa1_5, RsaesJweAlgorithm::RsaOaep] {

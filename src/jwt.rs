@@ -1250,10 +1250,10 @@ mod tests {
             let mut src_header = JwsHeader::new();
             src_header.set_token_type("JWT");
             let src_payload = JwtPayload::new();
-            let signer = alg.signer_from_slice(&private_key)?;
+            let signer = alg.signer_from_bytes(&private_key)?;
             let jwt_string = jwt::encode_with_signer(&src_payload, &src_header, &signer)?;
 
-            let verifier = alg.verifier_from_slice(&private_key)?;
+            let verifier = alg.verifier_from_bytes(&private_key)?;
             let (dst_payload, dst_header) = jwt::decode_with_verifier(&jwt_string, &verifier)?;
 
             src_header.set_claim("alg", Some(json!(alg.name())))?;
@@ -1433,7 +1433,7 @@ mod tests {
 
     #[test]
     fn test_external_jwt_verify_with_hmac() -> Result<()> {
-        let jwk = Jwk::from_slice(&load_file("jwk/oct_private.jwk")?)?;
+        let jwk = Jwk::from_bytes(&load_file("jwk/oct_private.jwk")?)?;
 
         for alg in &[HS256, HS384, HS512] {
             let verifier = alg.verifier_from_jwk(&jwk)?;
@@ -1457,7 +1457,7 @@ mod tests {
 
     #[test]
     fn test_external_jwt_verify_with_rsa() -> Result<()> {
-        let jwk = Jwk::from_slice(&load_file("jwk/RSA_public.jwk")?)?;
+        let jwk = Jwk::from_bytes(&load_file("jwk/RSA_public.jwk")?)?;
 
         for alg in &[RS256, RS384, RS512] {
             let verifier = alg.verifier_from_jwk(&jwk)?;
@@ -1481,7 +1481,7 @@ mod tests {
 
     #[test]
     fn test_external_jwt_verify_with_rsapss() -> Result<()> {
-        let jwk = Jwk::from_slice(&load_file("jwk/RSA_public.jwk")?)?;
+        let jwk = Jwk::from_bytes(&load_file("jwk/RSA_public.jwk")?)?;
 
         for alg in &[PS256, PS384, PS512] {
             let verifier = alg.verifier_from_jwk(&jwk)?;
@@ -1506,7 +1506,7 @@ mod tests {
     #[test]
     fn test_external_jwt_verify_with_ecdsa() -> Result<()> {
         for alg in &[ES256, ES384, ES512, ES256K] {
-            let jwk = Jwk::from_slice(&load_file(match alg {
+            let jwk = Jwk::from_bytes(&load_file(match alg {
                 ES256 => "jwk/EC_P-256_public.jwk",
                 ES384 => "jwk/EC_P-384_public.jwk",
                 ES512 => "jwk/EC_P-521_public.jwk",
@@ -1534,7 +1534,7 @@ mod tests {
     #[test]
     fn test_external_jwt_verify_with_eddsa() -> Result<()> {
         for alg in &[EdDSA] {
-            let jwk = Jwk::from_slice(&load_file(match alg {
+            let jwk = Jwk::from_bytes(&load_file(match alg {
                 EdDSA => "jwk/OKP_Ed25519_public.jwk",
             })?)?;
             let verifier = alg.verifier_from_jwk(&jwk)?;

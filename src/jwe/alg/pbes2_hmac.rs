@@ -25,7 +25,7 @@ pub enum Pbes2HmacJweAlgorithm {
 }
 
 impl Pbes2HmacJweAlgorithm {
-    pub fn encrypter_from_slice(
+    pub fn encrypter_from_bytes(
         &self,
         input: impl AsRef<[u8]>,
     ) -> Result<Pbes2HmacJweEncrypter, JoseError> {
@@ -85,7 +85,7 @@ impl Pbes2HmacJweAlgorithm {
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
-    pub fn decrypter_from_slice(
+    pub fn decrypter_from_bytes(
         &self,
         input: impl AsRef<[u8]>,
     ) -> Result<Pbes2HmacJweDecrypter, JoseError> {
