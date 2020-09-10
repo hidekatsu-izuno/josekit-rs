@@ -179,17 +179,15 @@ cargo build --release
     <tr>
         <td>PBES2-HS256+A128KW</td>
         <td>PBES2 with HMAC SHA-256 and "A128KW" wrapping</td>
-        <td>oct (size: 128 bits)</td>
+        <td rowspan="3">oct (size: 1 or more)</td>
     </tr>
     <tr>
         <td>PBES2-HS384+A192KW</td>
         <td>PBES2 with HMAC SHA-384 and "A192KW" wrapping</td>
-        <td>oct (size: 192 bits)</td>
     </tr>
     <tr>
         <td>PBES2-HS512+A256KW</td>
         <td>PBES2 with HMAC SHA-512 and "A256KW" wrapping</td>
-        <td>oct (size: 256 bits)</td>
     </tr>
     <tr>
         <td>RSA1_5</td>

@@ -268,12 +268,7 @@ impl EcxKeyPair {
 
     fn to_jwk(&self, private: bool, public: bool) -> Jwk {
         let mut jwk = Jwk::new("OKP");
-        if let Some(val) = &self.algorithm {
-            jwk.set_algorithm(val);
-        }
-        if let Some(val) = &self.key_id {
-            jwk.set_key_id(val);
-        }
+        jwk.set_key_use("enc");
         jwk.set_parameter("crv", Some(Value::String(self.curve.name().to_string())))
             .unwrap();
 

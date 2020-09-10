@@ -38,6 +38,8 @@ impl Pbes2HmacJweAlgorithm {
             Ok(Pbes2HmacJweEncrypter {
                 algorithm: self.clone(),
                 private_key,
+                salt_len: 8,
+                iter_count: 1000,
                 key_id: None,
             })
         })()
@@ -78,6 +80,8 @@ impl Pbes2HmacJweAlgorithm {
             Ok(Pbes2HmacJweEncrypter {
                 algorithm: self.clone(),
                 private_key: k,
+                salt_len: 8,
+                iter_count: 1000,
                 key_id,
             })
         })()
@@ -194,10 +198,26 @@ impl Deref for Pbes2HmacJweAlgorithm {
 pub struct Pbes2HmacJweEncrypter {
     algorithm: Pbes2HmacJweAlgorithm,
     private_key: Vec<u8>,
+    salt_len: usize,
+    iter_count: usize,
     key_id: Option<String>,
 }
 
 impl Pbes2HmacJweEncrypter {
+    pub fn set_salt_len(&mut self, salt_len: usize) {
+        if salt_len < 8 {
+            panic!("salt_len must be 8 or more: {}", salt_len);
+        }
+        self.salt_len = salt_len;
+    }
+
+    pub fn set_iter_count(&mut self, iter_count: usize) {
+        if iter_count < 1000 {
+            panic!("iter_count must be 1000 or more: {}", iter_count);
+        }
+        self.iter_count = iter_count;
+    }
+
     pub fn set_key_id(&mut self, key_id: Option<impl Into<String>>) {
         match key_id {
             Some(val) => {
@@ -229,10 +249,16 @@ impl JweEncrypter for Pbes2HmacJweEncrypter {
     ) -> Result<(Cow<[u8]>, Option<Vec<u8>>), JoseError> {
         (|| -> anyhow::Result<(Cow<[u8]>, Option<Vec<u8>>)> {
             let p2s = match header.claim("p2s") {
-                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
+                Some(Value::String(val)) => {
+                    let p2s = base64::decode_config(val, base64::URL_SAFE_NO_PAD)?;
+                    if p2s.len() < 8 {
+                        bail!("The decoded value of p2s header claim must be 8 or more.");
+                    }
+                    p2s
+                },
                 Some(_) => bail!("The p2s header claim must be string."),
                 None => {
-                    let p2s = util::rand_bytes(8);
+                    let p2s = util::rand_bytes(self.salt_len);
                     let p2s_b64 = base64::encode_config(&p2s, base64::URL_SAFE_NO_PAD);
                     header.set_claim("p2s", Some(Value::String(p2s_b64)))?;
                     p2s
@@ -245,7 +271,7 @@ impl JweEncrypter for Pbes2HmacJweEncrypter {
                 },
                 Some(_) => bail!("The apv header claim must be string."),
                 None => {
-                    let p2c = 1000;
+                    let p2c = self.iter_count;
                     header.set_claim("p2c", Some(Value::Number(Number::from(p2c))))?;
                     p2c
                 }
@@ -408,7 +434,7 @@ mod tests {
             header.set_content_encryption(enc.name());
 
             let jwk = {
-                let key = util::rand_bytes(25);
+                let key = util::rand_bytes(8);
                 let key = base64::encode_config(&key, base64::URL_SAFE_NO_PAD);
 
                 let mut jwk = Jwk::new("oct");

@@ -847,20 +847,30 @@ impl JweDecrypter for EcdhEsJweDecrypter {
                 EcdhEsJweAlgorithm::EcdhEsA192Kw => 192 / 8,
                 EcdhEsJweAlgorithm::EcdhEsA256Kw => 256 / 8,
             };
-            let md = MessageDigest::sha256();
+            let shared_key_bits = ((shared_key_len * 8) as u32).to_be_bytes();
+
             let mut shared_key = Vec::new();
-            for i in 0..util::ceiling(shared_key_len, md.size()) {
+            let md = MessageDigest::sha256();
+            let count = util::ceiling(shared_key_len, md.size());
+            for i in 0..count {
                 let mut hasher = Hasher::new(md)?;
                 hasher.update(&((i + 1) as u32).to_be_bytes())?;
                 hasher.update(&derived_key)?;
+                hasher.update(&(alg.len() as u32).to_be_bytes())?;
                 hasher.update(alg.as_bytes())?;
                 if let Some(val) = &apu {
+                    hasher.update(&(val.len() as u32).to_be_bytes())?;
                     hasher.update(val.as_slice())?;
+                } else {
+                    hasher.update(&(0 as u32).to_be_bytes())?;
                 }
                 if let Some(val) = &apv {
+                    hasher.update(&(val.len() as u32).to_be_bytes())?;
                     hasher.update(val.as_slice())?;
+                } else {
+                    hasher.update(&(0 as u32).to_be_bytes())?;
                 }
-                hasher.update(&((shared_key_len * 8) as u32).to_be_bytes())?;
+                hasher.update(&shared_key_bits)?;
 
                 let digest = hasher.finish()?;
                 shared_key.extend(digest.to_vec());

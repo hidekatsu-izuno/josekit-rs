@@ -383,7 +383,7 @@ mod tests {
             HmacJwsAlgorithm::HS384,
             HmacJwsAlgorithm::HS512,
         ] {
-            let private_key = Jwk::from_bytes(load_file("jwk/oct_private.jwk")?)?;
+            let private_key = Jwk::from_bytes(load_file("jwk/oct_512bit_private.jwk")?)?;
 
             let signer = alg.signer_from_jwk(&private_key)?;
             let signature = signer.sign(input)?;

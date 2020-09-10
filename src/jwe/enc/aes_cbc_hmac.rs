@@ -49,13 +49,15 @@ impl AesCbcHmacJweEncryption {
         .map_err(|err| JoseError::InvalidKeyFormat(err))?;
 
         let signature = (|| -> anyhow::Result<Vec<u8>> {
+            let aad_bits = ((aad.len() * 8) as u64).to_be_bytes();
+
             let mut signer = Signer::new(message_digest, &pkey)?;
             signer.update(aad)?;
             if let Some(val) = iv {
                 signer.update(val)?;
             }
             signer.update(ciphertext)?;
-            signer.update(&aad.len().to_be_bytes())?;
+            signer.update(&aad_bits)?;
             let mut signature = signer.sign_to_vec()?;
             signature.truncate(tlen);
             Ok(signature)
@@ -151,7 +153,7 @@ impl JweContentEncryption for AesCbcHmacJweEncryption {
                 None => bail!("A tag value is required."),
             };
 
-            let calc_tag = self.calcurate_tag(aad, iv, &message, mac_key)?;
+            let calc_tag = self.calcurate_tag(aad, iv, &encrypted_message, mac_key)?;
             if calc_tag.as_slice() != tag {
                 bail!("The tag doesn't match.");
             }

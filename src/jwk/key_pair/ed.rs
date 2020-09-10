@@ -270,16 +270,6 @@ impl EdKeyPair {
     fn to_jwk(&self, private: bool, public: bool) -> Jwk {
         let mut jwk = Jwk::new("OKP");
         jwk.set_key_use("sig");
-        jwk.set_key_operations({
-            let mut key_ops = Vec::new();
-            if private {
-                key_ops.push("sign");
-            }
-            if public {
-                key_ops.push("verify");
-            }
-            key_ops
-        });
         if let Some(val) = &self.algorithm {
             jwk.set_algorithm(val);
         }

@@ -608,7 +608,7 @@ impl JweContext {
             }
 
             let key = decrypter.decrypt(&merged, encrypted_key, cencryption.key_len())?;
-            let content = cencryption.decrypt(&key, iv, &ciphertext, &header, tag)?;
+            let content = cencryption.decrypt(&key, iv, &ciphertext, header_b64.as_bytes(), tag)?;
             let content = match compression {
                 Some(val) => val.decompress(&content)?,
                 None => content,
@@ -1761,8 +1761,6 @@ mod tests {
     #[test]
     fn test_jwe_compact_serialization() -> Result<()> {
         for enc in &["A128CBC-HS256", "A256GCM"] {
-            println!("enc: {}", enc);
-
             let mut src_header = JweHeader::new();
             src_header.set_content_encryption(*enc);
             src_header.set_token_type("JWT");
@@ -1779,8 +1777,6 @@ mod tests {
             let encrypter = alg.encrypter_from_bytes(key)?;
 
             let jwe = jwe::serialize_compact(src_payload, &src_header, &encrypter)?;
-
-            println!("JWE: {}", jwe);
 
             let decrypter = alg.decrypter_from_bytes(key)?;
             let (dst_payload, dst_header) = jwe::deserialize_compact(&jwe, &decrypter)?;
