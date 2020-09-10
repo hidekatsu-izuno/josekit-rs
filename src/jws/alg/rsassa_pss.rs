@@ -8,9 +8,10 @@ use serde_json::Value;
 
 use crate::der::{DerBuilder, DerType};
 use crate::jose::JoseError;
+use crate::jwa::HashAlgorithm;
 use crate::jwk::{Jwk, RsaPssKeyPair};
 use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier};
-use crate::util::{self, HashAlgorithm};
+use crate::util;
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum RsassaPssJwsAlgorithm {

@@ -155,12 +155,14 @@ impl JwtContext {
     pub fn decode_header(&self, input: &str) -> Result<Box<dyn JoseHeader>, JoseError> {
         (|| -> anyhow::Result<Box<dyn JoseHeader>> {
             let parts: Vec<&str> = input.split('.').collect();
-            if parts.len() == 3 { // JWS
+            if parts.len() == 3 {
+                // JWS
                 let header = base64::decode_config(parts[0], base64::URL_SAFE_NO_PAD)?;
                 let header: Map<String, Value> = serde_json::from_slice(&header)?;
                 let header = JwsHeader::from_map(header)?;
                 Ok(Box::new(header))
-            } else if parts.len() == 5 { // JWE
+            } else if parts.len() == 5 {
+                // JWE
                 let header = base64::decode_config(parts[0], base64::URL_SAFE_NO_PAD)?;
                 let header: Map<String, Value> = serde_json::from_slice(&header)?;
                 let header = JweHeader::from_map(header)?;
@@ -1141,15 +1143,15 @@ mod tests {
     use std::path::PathBuf;
     use std::time::{Duration, SystemTime};
 
+    use crate::jwe::{
+        A128GcmKw, A128Kw, A192GcmKw, A192Kw, A256GcmKw, A256Kw, Dir, EcdhEs, EcdhEsA128Kw,
+        EcdhEsA192Kw, EcdhEsA256Kw, Pbes2HS256A128Kw, Pbes2HS384A192Kw, Pbes2HS512A256Kw, Rsa1_5,
+        RsaOaep,
+    };
     use crate::jwk::Jwk;
     use crate::jws::{
         EdDSA, JwsHeader, ES256, ES256K, ES384, ES512, HS256, HS384, HS512, PS256, PS384, PS512,
         RS256, RS384, RS512,
-    };
-    use crate::jwe::{
-        Dir, EcdhEs, EcdhEsA128Kw, EcdhEsA192Kw, EcdhEsA256Kw, A128Kw, A192Kw, A256Kw,
-        A128GcmKw, A192GcmKw, A256GcmKw, Pbes2HS256A128Kw, Pbes2HS384A192Kw, Pbes2HS512A256Kw,
-        Rsa1_5, RsaOaep
     };
     use crate::jwt::{self, JwtPayload, JwtPayloadValidator};
     use crate::util;
@@ -1576,7 +1578,8 @@ mod tests {
                 })?;
                 let jwk = Jwk::from_bytes(&jwk)?;
                 let decrypter = alg.decrypter_from_jwk(&jwk)?;
-                let jwt_string = String::from_utf8(load_file(&format!("jwt/{}_{}.jwt", alg.name(), enc))?)?;
+                let jwt_string =
+                    String::from_utf8(load_file(&format!("jwt/{}_{}.jwt", alg.name(), enc))?)?;
                 let (payload, header) = jwt::decode_with_decrypter(&jwt_string, &decrypter)?;
 
                 assert_eq!(header.algorithm(), Some(decrypter.algorithm().name()));
@@ -1595,7 +1598,7 @@ mod tests {
 
         Ok(())
     }
-    
+
     #[test]
     fn test_external_jwt_decrypt_with_ecdh_es() -> Result<()> {
         for alg in vec![EcdhEs, EcdhEsA128Kw, EcdhEsA192Kw, EcdhEsA256Kw] {
@@ -1613,7 +1616,12 @@ mod tests {
 
                     let jwk = Jwk::from_bytes(&jwk)?;
                     let decrypter = alg.decrypter_from_jwk(&jwk)?;
-                    let jwt_string = String::from_utf8(load_file(&format!("jwt/{}_{}_{}.jwt", alg.name(), curve, enc))?)?;
+                    let jwt_string = String::from_utf8(load_file(&format!(
+                        "jwt/{}_{}_{}.jwt",
+                        alg.name(),
+                        curve,
+                        enc
+                    ))?)?;
                     let (payload, header) = jwt::decode_with_decrypter(&jwt_string, &decrypter)?;
 
                     assert_eq!(header.algorithm(), Some(decrypter.algorithm().name()));
@@ -1647,7 +1655,8 @@ mod tests {
                 })?;
                 let jwk = Jwk::from_bytes(&jwk)?;
                 let decrypter = alg.decrypter_from_jwk(&jwk)?;
-                let jwt_string = String::from_utf8(load_file(&format!("jwt/{}_{}.jwt", alg.name(), enc))?)?;
+                let jwt_string =
+                    String::from_utf8(load_file(&format!("jwt/{}_{}.jwt", alg.name(), enc))?)?;
                 let (payload, header) = jwt::decode_with_decrypter(&jwt_string, &decrypter)?;
 
                 assert_eq!(header.algorithm(), Some(decrypter.algorithm().name()));
@@ -1667,7 +1676,6 @@ mod tests {
         Ok(())
     }
 
-    
     #[test]
     fn test_external_jwt_decrypt_with_aesgcmkw() -> Result<()> {
         for alg in vec![A128GcmKw, A192GcmKw, A256GcmKw] {
@@ -1681,7 +1689,8 @@ mod tests {
                 })?;
                 let jwk = Jwk::from_bytes(&jwk)?;
                 let decrypter = alg.decrypter_from_jwk(&jwk)?;
-                let jwt_string = String::from_utf8(load_file(&format!("jwt/{}_{}.jwt", alg.name(), enc))?)?;
+                let jwt_string =
+                    String::from_utf8(load_file(&format!("jwt/{}_{}.jwt", alg.name(), enc))?)?;
                 let (payload, header) = jwt::decode_with_decrypter(&jwt_string, &decrypter)?;
 
                 assert_eq!(header.algorithm(), Some(decrypter.algorithm().name()));
@@ -1714,7 +1723,8 @@ mod tests {
                 })?;
                 let jwk = Jwk::from_bytes(&jwk)?;
                 let decrypter = alg.decrypter_from_jwk(&jwk)?;
-                let jwt_string = String::from_utf8(load_file(&format!("jwt/{}_{}.jwt", alg.name(), enc))?)?;
+                let jwt_string =
+                    String::from_utf8(load_file(&format!("jwt/{}_{}.jwt", alg.name(), enc))?)?;
                 let (payload, header) = jwt::decode_with_decrypter(&jwt_string, &decrypter)?;
 
                 assert_eq!(header.algorithm(), Some(decrypter.algorithm().name()));
@@ -1733,7 +1743,7 @@ mod tests {
 
         Ok(())
     }
-    
+
     #[test]
     fn test_external_jwt_decrypt_with_rsaes() -> Result<()> {
         for alg in vec![Rsa1_5, RsaOaep] {
@@ -1744,7 +1754,8 @@ mod tests {
 
                 let jwk = Jwk::from_bytes(&jwk)?;
                 let decrypter = alg.decrypter_from_jwk(&jwk)?;
-                let jwt_string = String::from_utf8(load_file(&format!("jwt/{}_{}.jwt", alg.name(), enc))?)?;
+                let jwt_string =
+                    String::from_utf8(load_file(&format!("jwt/{}_{}.jwt", alg.name(), enc))?)?;
                 let (payload, header) = jwt::decode_with_decrypter(&jwt_string, &decrypter)?;
 
                 assert_eq!(header.algorithm(), Some(decrypter.algorithm().name()));

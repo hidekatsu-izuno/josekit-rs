@@ -7,9 +7,9 @@ use openssl::sign::Signer;
 use serde_json::Value;
 
 use crate::jose::JoseError;
+use crate::jwa::HashAlgorithm;
 use crate::jwk::Jwk;
 use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier};
-use crate::util::HashAlgorithm;
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum HmacJwsAlgorithm {
@@ -50,7 +50,11 @@ impl HmacJwsAlgorithm {
 
             let min_key_len = self.hash_algorithm().output_len();
             if input.len() < min_key_len {
-                bail!("Secret key size must be larger than or equal to {}: {}", min_key_len, input.len());
+                bail!(
+                    "Secret key size must be larger than or equal to {}: {}",
+                    min_key_len,
+                    input.len()
+                );
             }
 
             let private_key = PKey::hmac(input)?;
@@ -95,7 +99,11 @@ impl HmacJwsAlgorithm {
 
             let min_key_len = self.hash_algorithm().output_len();
             if k.len() < min_key_len {
-                bail!("Secret key size must be larger than or equal to {}: {}", min_key_len, k.len());
+                bail!(
+                    "Secret key size must be larger than or equal to {}: {}",
+                    min_key_len,
+                    k.len()
+                );
             }
 
             let private_key = PKey::hmac(&k)?;
@@ -123,7 +131,11 @@ impl HmacJwsAlgorithm {
 
             let min_key_len = self.hash_algorithm().output_len();
             if input.len() < min_key_len {
-                bail!("Secret key size must be larger than or equal to {}: {}", min_key_len, input.len());
+                bail!(
+                    "Secret key size must be larger than or equal to {}: {}",
+                    min_key_len,
+                    input.len()
+                );
             }
 
             let private_key = PKey::hmac(input)?;
@@ -166,10 +178,14 @@ impl HmacJwsAlgorithm {
                 Some(val) => bail!("A parameter k must be string type but {:?}", val),
                 None => bail!("A parameter k is required."),
             };
-            
+
             let min_key_len = self.hash_algorithm().output_len();
             if k.len() < min_key_len {
-                bail!("Secret key size must be larger than or equal to {}: {}", min_key_len, k.len());
+                bail!(
+                    "Secret key size must be larger than or equal to {}: {}",
+                    min_key_len,
+                    k.len()
+                );
             }
 
             let private_key = PKey::hmac(&k)?;
@@ -346,11 +362,11 @@ impl Deref for HmacJwsVerifier {
 mod tests {
     use super::*;
 
+    use crate::util;
     use anyhow::Result;
     use std::fs::File;
     use std::io::Read;
     use std::path::PathBuf;
-    use crate::util;
 
     #[test]
     fn sign_and_verify_hmac_generated_jwk() -> Result<()> {

@@ -9,9 +9,10 @@ use openssl::pkcs5;
 use serde_json::{Number, Value};
 
 use crate::jose::{JoseError, JoseHeader};
+use crate::jwa::HashAlgorithm;
 use crate::jwe::{JweAlgorithm, JweDecrypter, JweEncrypter, JweHeader};
 use crate::jwk::Jwk;
-use crate::util::{self, HashAlgorithm};
+use crate::util;
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum Pbes2HmacJweAlgorithm {
@@ -255,7 +256,7 @@ impl JweEncrypter for Pbes2HmacJweEncrypter {
                         bail!("The decoded value of p2s header claim must be 8 or more.");
                     }
                     p2s
-                },
+                }
                 Some(_) => bail!("The p2s header claim must be string."),
                 None => {
                     let p2s = util::rand_bytes(self.salt_len);
@@ -294,9 +295,11 @@ impl JweEncrypter for Pbes2HmacJweEncrypter {
             let key = util::rand_bytes(key_len);
             let mut encrypted_key = vec![0; key_len + 8];
             match aes::wrap_key(&aes, None, &mut encrypted_key, &key) {
-                Ok(val) => if val < encrypted_key.len() {
-                    encrypted_key.truncate(val);
-                },
+                Ok(val) => {
+                    if val < encrypted_key.len() {
+                        encrypted_key.truncate(val);
+                    }
+                }
                 Err(_) => bail!("Failed to wrap a key."),
             }
 
@@ -399,9 +402,11 @@ impl JweDecrypter for Pbes2HmacJweDecrypter {
 
             let mut key = vec![0; key_len];
             match aes::unwrap_key(&aes, None, &mut key, &encrypted_key) {
-                Ok(val) => if val < key.len() {
-                    key.truncate(val);
-                },
+                Ok(val) => {
+                    if val < key.len() {
+                        key.truncate(val);
+                    }
+                }
                 Err(_) => bail!("Failed to unwrap a key."),
             }
 

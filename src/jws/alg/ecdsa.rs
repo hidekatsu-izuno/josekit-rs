@@ -8,9 +8,10 @@ use serde_json::Value;
 
 use crate::der::{DerBuilder, DerReader, DerType};
 use crate::jose::JoseError;
+use crate::jwa::HashAlgorithm;
 use crate::jwk::{EcCurve, EcKeyPair, Jwk};
 use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier};
-use crate::util::{self, HashAlgorithm};
+use crate::util;
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum EcdsaJwsAlgorithm {

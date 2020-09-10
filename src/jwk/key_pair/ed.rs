@@ -58,7 +58,7 @@ impl EdKeyPair {
     pub fn set_algorithm(&mut self, value: Option<&str>) {
         self.algorithm = value.map(|val| val.to_string());
     }
-    
+
     pub fn set_key_id(&mut self, key_id: Option<impl Into<String>>) {
         match key_id {
             Some(val) => {
@@ -457,7 +457,7 @@ impl KeyPair for EdKeyPair {
             None => None,
         }
     }
-        
+
     fn key_id(&self) -> Option<&str> {
         match &self.key_id {
             Some(val) => Some(val.as_str()),

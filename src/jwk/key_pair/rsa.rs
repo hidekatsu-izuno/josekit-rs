@@ -369,14 +369,14 @@ impl KeyPair for RsaKeyPair {
             None => None,
         }
     }
-    
+
     fn key_id(&self) -> Option<&str> {
         match &self.key_id {
             Some(val) => Some(val.as_str()),
             None => None,
         }
     }
-    
+
     fn to_der_private_key(&self) -> Vec<u8> {
         Self::to_pkcs8(&self.to_raw_private_key(), false)
     }

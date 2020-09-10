@@ -1,6 +1,6 @@
-pub mod alg;
-pub mod enc;
-pub mod zip;
+mod alg;
+mod enc;
+mod zip;
 
 use std::borrow::Cow;
 use std::cmp::Eq;

@@ -51,7 +51,7 @@ impl EcxKeyPair {
     pub fn set_algorithm(&mut self, value: Option<&str>) {
         self.algorithm = value.map(|val| val.to_string());
     }
-    
+
     pub fn set_key_id(&mut self, key_id: Option<impl Into<String>>) {
         match key_id {
             Some(val) => {
@@ -86,7 +86,7 @@ impl EcxKeyPair {
                 curve,
                 private_key,
                 algorithm: None,
-                key_id: None
+                key_id: None,
             })
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
@@ -114,7 +114,7 @@ impl EcxKeyPair {
                 private_key,
                 curve,
                 algorithm: None,
-                key_id: None
+                key_id: None,
             })
         })()
         .map_err(|err| match err.downcast::<JoseError>() {
@@ -189,7 +189,7 @@ impl EcxKeyPair {
                 private_key,
                 curve,
                 algorithm: None,
-                key_id: None
+                key_id: None,
             })
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
@@ -450,7 +450,7 @@ impl KeyPair for EcxKeyPair {
             None => None,
         }
     }
-    
+
     fn key_id(&self) -> Option<&str> {
         match &self.key_id {
             Some(val) => Some(val.as_str()),
@@ -528,7 +528,6 @@ mod tests {
         Ok(())
     }
 
-    
     #[test]
     fn test_ecx_keypair() -> Result<()> {
         for curve in vec![EcxCurve::X25519, EcxCurve::X448] {
@@ -559,7 +558,7 @@ mod tests {
 
         Ok(())
     }
-    
+
     fn load_file(path: &str) -> Result<Vec<u8>> {
         let mut pb = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         pb.push("data");

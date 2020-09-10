@@ -404,7 +404,7 @@ impl EcdhEsJweAlgorithm {
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
-    
+
     fn key_len(&self) -> usize {
         match self {
             Self::EcdhEsA128Kw => 16,
@@ -476,18 +476,27 @@ impl EcdhEsJweAlgorithm {
 
         Some(key_type)
     }
-    
-    fn concat_kdf(&self, alg: &str, shared_key_len: usize, derived_key: &[u8], apu: Option<&[u8]>, apv: Option<&[u8]>) -> anyhow::Result<Vec<u8>> {
+
+    fn concat_kdf(
+        &self,
+        alg: &str,
+        shared_key_len: usize,
+        derived_key: &[u8],
+        apu: Option<&[u8]>,
+        apv: Option<&[u8]>,
+    ) -> anyhow::Result<Vec<u8>> {
         let shared_key_len_bytes = ((shared_key_len * 8) as u32).to_be_bytes();
         let alg_len_bytes = (alg.len() as u32).to_be_bytes();
         let apu_len_bytes = (match apu {
             Some(val) => val.len(),
             None => 0,
-        } as u32).to_be_bytes();
+        } as u32)
+            .to_be_bytes();
         let apv_len_bytes = (match apv {
             Some(val) => val.len(),
             None => 0,
-        } as u32).to_be_bytes();
+        } as u32)
+            .to_be_bytes();
 
         let mut shared_key = Vec::new();
         let md = MessageDigest::sha256();
@@ -517,7 +526,7 @@ impl EcdhEsJweAlgorithm {
         } else if shared_key.len() < shared_key_len {
             unreachable!();
         }
-        
+
         Ok(shared_key)
     }
 }
@@ -665,7 +674,7 @@ impl JweEncrypter for EcdhEsJweEncrypter {
                     key_len,
                     &derived_key,
                     apu.as_deref(),
-                    apv.as_deref()
+                    apv.as_deref(),
                 )?;
                 Ok((Cow::Owned(shared_key), None))
             } else {
@@ -674,7 +683,7 @@ impl JweEncrypter for EcdhEsJweEncrypter {
                     self.algorithm.key_len(),
                     &derived_key,
                     apu.as_deref(),
-                    apv.as_deref()
+                    apv.as_deref(),
                 )?;
 
                 let aes = match AesKey::new_encrypt(&shared_key) {
@@ -756,11 +765,15 @@ impl JweDecrypter for EcdhEsJweDecrypter {
     ) -> Result<Cow<[u8]>, JoseError> {
         (|| -> anyhow::Result<Cow<[u8]>> {
             match &self.algorithm {
-                EcdhEsJweAlgorithm::EcdhEs => if encrypted_key.is_some() {
-                    bail!("The encrypted_key must be empty.");
+                EcdhEsJweAlgorithm::EcdhEs => {
+                    if encrypted_key.is_some() {
+                        bail!("The encrypted_key must be empty.");
+                    }
                 }
-                _ => if encrypted_key.is_none() {
-                    bail!("A encrypted_key is required.");
+                _ => {
+                    if encrypted_key.is_none() {
+                        bail!("A encrypted_key is required.");
+                    }
                 }
             }
 
@@ -863,7 +876,7 @@ impl JweDecrypter for EcdhEsJweDecrypter {
                     key_len,
                     &derived_key,
                     apu.as_deref(),
-                    apv.as_deref()
+                    apv.as_deref(),
                 )?;
                 Ok(Cow::Owned(shared_key))
             } else {
@@ -872,7 +885,7 @@ impl JweDecrypter for EcdhEsJweDecrypter {
                     self.algorithm.key_len(),
                     &derived_key,
                     apu.as_deref(),
-                    apv.as_deref()
+                    apv.as_deref(),
                 )?;
 
                 let aes = match AesKey::new_decrypt(&shared_key) {

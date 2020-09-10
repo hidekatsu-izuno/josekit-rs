@@ -234,9 +234,11 @@ impl JweEncrypter for AesJweEncrypter {
             let key = util::rand_bytes(key_len);
             let mut encrypted_key = vec![0; key_len + 8];
             match aes::wrap_key(&aes, None, &mut encrypted_key, &key) {
-                Ok(val) => if val < encrypted_key.len() {
-                    encrypted_key.truncate(val);
-                },
+                Ok(val) => {
+                    if val < encrypted_key.len() {
+                        encrypted_key.truncate(val);
+                    }
+                }
                 Err(_) => bail!("Failed to wrap key."),
             }
 
@@ -310,9 +312,11 @@ impl JweDecrypter for AesJweDecrypter {
 
             let mut key = vec![0; key_len];
             match aes::unwrap_key(&aes, None, &mut key, encrypted_key) {
-                Ok(val) =>  if val < key.len() {
-                    key.truncate(val);
-                },
+                Ok(val) => {
+                    if val < key.len() {
+                        key.truncate(val);
+                    }
+                }
                 Err(_) => bail!("Failed to unwrap key."),
             };
 

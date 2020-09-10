@@ -1,4 +1,4 @@
-pub mod alg;
+mod alg;
 
 use std::collections::BTreeSet;
 use std::collections::HashMap;
@@ -1332,7 +1332,7 @@ impl JoseHeader for JwsHeader {
     fn box_clone(&self) -> Box<dyn JoseHeader> {
         Box::new(self.clone())
     }
-    
+
     fn into_map(self) -> Map<String, Value> {
         self.claims
     }

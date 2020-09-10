@@ -8,8 +8,9 @@ use serde_json::Value;
 use crate::der::oid::{OID_MGF1, OID_RSASSA_PSS, OID_SHA256, OID_SHA384, OID_SHA512};
 use crate::der::{DerBuilder, DerClass, DerReader, DerType};
 use crate::jose::JoseError;
+use crate::jwa::HashAlgorithm;
 use crate::jwk::{Jwk, KeyPair};
-use crate::util::{self, HashAlgorithm};
+use crate::util;
 
 #[derive(Debug, Clone)]
 pub struct RsaPssKeyPair {
@@ -30,7 +31,7 @@ impl RsaPssKeyPair {
     pub fn set_algorithm(&mut self, value: Option<&str>) {
         self.algorithm = value.map(|val| val.to_string());
     }
-    
+
     pub fn set_key_id(&mut self, key_id: Option<impl Into<String>>) {
         match key_id {
             Some(val) => {
@@ -618,14 +619,14 @@ impl KeyPair for RsaPssKeyPair {
             None => None,
         }
     }
-    
+
     fn key_id(&self) -> Option<&str> {
         match &self.key_id {
             Some(val) => Some(val.as_str()),
             None => None,
         }
     }
-    
+
     fn to_der_private_key(&self) -> Vec<u8> {
         Self::to_pkcs8(
             &self.to_raw_private_key(),
@@ -703,8 +704,8 @@ impl Deref for RsaPssKeyPair {
 mod tests {
     use anyhow::Result;
 
+    use crate::jwa::HashAlgorithm;
     use crate::jwk::RsaPssKeyPair;
-    use crate::util::HashAlgorithm;
 
     #[test]
     fn test_rsa_jwt() -> Result<()> {
