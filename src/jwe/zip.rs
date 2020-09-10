@@ -1,1 +1,1 @@
-pub mod deflate;
+pub(crate) mod deflate;

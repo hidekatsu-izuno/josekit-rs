@@ -1,2 +1,2 @@
-pub mod aes_cbc_hmac;
-pub mod aes_gcm;
+pub(crate) mod aes_cbc_hmac;
+pub(crate) mod aes_gcm;

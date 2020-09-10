@@ -1,8 +1,9 @@
+pub(crate) mod oid;
 mod builder;
-mod error;
-pub mod oid;
 mod reader;
+mod error;
 
+pub use crate::der::oid::ObjectIdentifier;
 pub use crate::der::builder::DerBuilder;
 pub use crate::der::error::DerError;
 pub use crate::der::reader::DerReader;

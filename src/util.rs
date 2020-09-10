@@ -19,7 +19,7 @@ use std::ptr;
 use crate::jwk::Jwk;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub enum SourceValue {
+pub(crate) enum SourceValue {
     Jwk(Jwk),
     Bytes(Vec<u8>),
     BytesArray(Vec<Vec<u8>>),
@@ -27,7 +27,7 @@ pub enum SourceValue {
     SystemTime(SystemTime),
 }
 
-pub fn rand_bytes(len: usize) -> Vec<u8> {
+pub(crate) fn rand_bytes(len: usize) -> Vec<u8> {
     let mut vec = vec![0; len];
     rand::rand_bytes(&mut vec).unwrap();
     vec
@@ -37,7 +37,7 @@ pub fn ceiling(len: usize, div: usize) -> usize {
     (len + (div - 1)) / div
 }
 
-pub fn parse_pem(input: &[u8]) -> anyhow::Result<(String, Vec<u8>)> {
+pub(crate) fn parse_pem(input: &[u8]) -> anyhow::Result<(String, Vec<u8>)> {
     static RE_PEM: Lazy<Regex> = Lazy::new(|| {
         Regex::new(concat!(
             r"^",
@@ -68,7 +68,7 @@ pub fn parse_pem(input: &[u8]) -> anyhow::Result<(String, Vec<u8>)> {
     Ok(result)
 }
 
-pub fn num_to_vec(num: &BigNumRef, len: usize) -> Vec<u8> {
+pub(crate) fn num_to_vec(num: &BigNumRef, len: usize) -> Vec<u8> {
     let vec = num.to_vec();
     if vec.len() < len {
         let mut tmp = Vec::with_capacity(len);
@@ -85,11 +85,11 @@ pub fn num_to_vec(num: &BigNumRef, len: usize) -> Vec<u8> {
 const NID_X25519: c_int = 1034;
 const NID_X448: c_int = 1035;
 
-pub fn generate_x25519() -> Result<PKey<Private>, ErrorStack> {
+pub(crate) fn generate_x25519() -> Result<PKey<Private>, ErrorStack> {
     generate_der(NID_X25519)
 }
 
-pub fn generate_x448() -> Result<PKey<Private>, ErrorStack> {
+pub(crate) fn generate_x448() -> Result<PKey<Private>, ErrorStack> {
     generate_der(NID_X448)
 }
 

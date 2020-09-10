@@ -1,8 +1,8 @@
-pub mod ec;
-pub mod ecx;
-pub mod ed;
-pub mod rsa;
-pub mod rsapss;
+pub(crate) mod ec;
+pub(crate) mod ecx;
+pub(crate) mod ed;
+pub(crate) mod rsa;
+pub(crate) mod rsapss;
 
 use std::fmt::Debug;
 
