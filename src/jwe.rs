@@ -245,6 +245,7 @@ impl JweContext {
                 }
             }
             let header_bytes = serde_json::to_vec(header.claims_set())?;
+            let header_b64 = base64::encode_config(header_bytes, base64::URL_SAFE_NO_PAD);
 
             let compressed;
             let content = if let Some(compression) = compression {
@@ -262,10 +263,10 @@ impl JweContext {
                 None
             };
 
-            let (ciphertext, tag) = cencryption.encrypt(&key, iv, content, &header_bytes)?;
+            let (ciphertext, tag) = cencryption.encrypt(&key, iv, content, header_b64.as_bytes())?;
 
             let mut capacity = 4;
-            capacity += util::ceiling(header_bytes.len() * 4, 3);
+            capacity += header_b64.len();
             if let Some(val) = &encrypted_key {
                 capacity += util::ceiling(val.len() * 4, 3);
             }
@@ -278,7 +279,7 @@ impl JweContext {
             }
 
             let mut message = String::with_capacity(capacity);
-            base64::encode_config_buf(header_bytes, base64::URL_SAFE_NO_PAD, &mut message);
+            message.push_str(&header_b64);
             message.push_str(".");
             if let Some(val) = &encrypted_key {
                 base64::encode_config_buf(val, base64::URL_SAFE_NO_PAD, &mut message);
@@ -1757,28 +1758,32 @@ mod tests {
 
     use crate::jose::JoseHeader;
     use crate::jwe::{self, Dir, JweAlgorithm, JweHeader};
+    use crate::util;
 
     #[test]
     fn test_jwe_compact_serialization() -> Result<()> {
-        for enc in vec!["A128CBC-HS256", "A256GCM"] {
+        for enc in vec!["A128CBC-HS256", "A192CBC-HS384", "A256CBC-HS512", "A128GCM", "A256GCM", "A256GCM"] {
             let mut src_header = JweHeader::new();
             src_header.set_content_encryption(enc);
             src_header.set_token_type("JWT");
             let src_payload = b"test payload!";
 
+            //println!("{}", enc);
+
             let alg = Dir;
             let key = match enc {
-                "A128CBC-HS256" => b"0123456789ABCDEF0123456789ABCDEF".as_ref(),
-                "A128GCM" => b"0123456789ABCDEF".as_ref(),
-                "A192GCM" => b"0123456789ABCDEF01234567".as_ref(),
-                "A256GCM" => b"0123456789ABCDEF0123456789ABCDEF".as_ref(),
+                "A128CBC-HS256" => util::rand_bytes(32),
+                "A192CBC-HS384" => util::rand_bytes(40),
+                "A256CBC-HS512" => util::rand_bytes(48),
+                "A128GCM" => util::rand_bytes(16),
+                "A192GCM" => util::rand_bytes(24),
+                "A256GCM" => util::rand_bytes(32),
                 _ => unreachable!(),
             };
-            let encrypter = alg.encrypter_from_bytes(key)?;
-
+            let encrypter = alg.encrypter_from_bytes(&key)?;
             let jwe = jwe::serialize_compact(src_payload, &src_header, &encrypter)?;
 
-            let decrypter = alg.decrypter_from_bytes(key)?;
+            let decrypter = alg.decrypter_from_bytes(&key)?;
             let (dst_payload, dst_header) = jwe::deserialize_compact(&jwe, &decrypter)?;
 
             src_header.set_claim("alg", Some(Value::String(alg.name().to_string())))?;
