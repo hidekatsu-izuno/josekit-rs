@@ -698,7 +698,8 @@ PBES2-HMAC+AES is used to encrypt a message by random bytes as CEK (content encr
 and the CEK is wrapping by common secret key.
 Three algorithms are available for AES-GCM: PBES2-HS256+A128KW, PBES2-HS384+A192KW and PBES2-HS512+A256KW.
 
-You can use any bytes as the key. But the length must be AES key size.
+You can use any bytes as the key. But a password is recommended that the length is no shorter 
+than AES key size and no longer than 128 octets.
 
 ```rust
 use josekit::jwe::{ JweHeader, A128GcmKw };
@@ -711,7 +712,7 @@ header.set_content_encryption("A128CBC-HS256");
 let mut payload = JwtPayload::new();
 payload.set_subject("subject");
 
-let common_secret_key = load_from_file("secret")?;
+let common_secret_key = b"password";
 
 // Encrypting JWT
 let encrypter = Pbes2HS256A128Kw.encrypter_from_bytes(&common_secret_key)?;
