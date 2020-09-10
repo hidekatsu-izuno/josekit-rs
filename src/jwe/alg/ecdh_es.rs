@@ -404,13 +404,6 @@ impl EcdhEsJweAlgorithm {
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
-
-    fn is_direct(&self) -> bool {
-        match self {
-            Self::EcdhEs => true,
-            _ => false,
-        }
-    }
     
     fn key_len(&self) -> usize {
         match self {
@@ -762,16 +755,12 @@ impl JweDecrypter for EcdhEsJweDecrypter {
         key_len: usize,
     ) -> Result<Cow<[u8]>, JoseError> {
         (|| -> anyhow::Result<Cow<[u8]>> {
-            match encrypted_key {
-                Some(_) => {
-                    if self.algorithm.is_direct() {
-                        bail!("The encrypted_key must not exist.");
-                    }
+            match &self.algorithm {
+                EcdhEsJweAlgorithm::EcdhEs => if encrypted_key.is_some() {
+                    bail!("The encrypted_key must be empty.");
                 }
-                None => {
-                    if !self.algorithm.is_direct() {
-                        bail!("A encrypted_key is required.");
-                    }
+                _ => if encrypted_key.is_none() {
+                    bail!("A encrypted_key is required.");
                 }
             }
 
