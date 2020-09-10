@@ -277,23 +277,27 @@ impl JweEncrypter for Pbes2HmacJweEncrypter {
                 }
             };
 
+            let mut salt = Vec::with_capacity(self.algorithm().name().len() + 1 + p2s.len());
+            salt.extend_from_slice(self.algorithm().name().as_bytes());
+            salt.push(0);
+            salt.extend_from_slice(&p2s);
+
             let md = self.algorithm.hash_algorithm().message_digest();
             let mut derived_key = vec![0; self.algorithm.derived_key_len()];
-            pkcs5::pbkdf2_hmac(&self.private_key, &p2s, p2c, md, &mut derived_key)?;
+            pkcs5::pbkdf2_hmac(&self.private_key, &salt, p2c, md, &mut derived_key)?;
 
             let aes = match AesKey::new_encrypt(&derived_key) {
                 Ok(val) => val,
-                Err(_) => bail!("Failed to set encrypt key."),
+                Err(_) => bail!("Failed to set a encryption key."),
             };
 
             let key = util::rand_bytes(key_len);
             let mut encrypted_key = vec![0; key_len + 8];
-            let len = match aes::wrap_key(&aes, None, &mut encrypted_key, &key) {
-                Ok(val) => val,
-                Err(_) => bail!("Failed to wrap key."),
-            };
-            if len < encrypted_key.len() {
-                encrypted_key.truncate(len);
+            match aes::wrap_key(&aes, None, &mut encrypted_key, &key) {
+                Ok(val) => if val < encrypted_key.len() {
+                    encrypted_key.truncate(val);
+                },
+                Err(_) => bail!("Failed to wrap a key."),
             }
 
             header.set_algorithm(self.algorithm.name());
@@ -360,7 +364,13 @@ impl JweDecrypter for Pbes2HmacJweDecrypter {
             };
 
             let p2s = match header.claim("p2s") {
-                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
+                Some(Value::String(val)) => {
+                    let p2s = base64::decode_config(val, base64::URL_SAFE_NO_PAD)?;
+                    if p2s.len() < 8 {
+                        bail!("The decoded value of p2s header claim must be 8 or more.");
+                    }
+                    p2s
+                }
                 Some(_) => bail!("The p2s header claim must be string."),
                 None => bail!("The p2s header claim is required."),
             };
@@ -373,22 +383,26 @@ impl JweDecrypter for Pbes2HmacJweDecrypter {
                 None => bail!("The p2c header claim is required."),
             };
 
+            let mut salt = Vec::with_capacity(self.algorithm().name().len() + 1 + p2s.len());
+            salt.extend_from_slice(self.algorithm().name().as_bytes());
+            salt.push(0);
+            salt.extend_from_slice(&p2s);
+
             let md = self.algorithm.hash_algorithm().message_digest();
             let mut derived_key = vec![0; self.algorithm.derived_key_len()];
-            pkcs5::pbkdf2_hmac(&self.private_key, &p2s, p2c, md, &mut derived_key)?;
+            pkcs5::pbkdf2_hmac(&self.private_key, &salt, p2c, md, &mut derived_key)?;
 
             let aes = match AesKey::new_decrypt(&derived_key) {
                 Ok(val) => val,
-                Err(_) => bail!("Failed to set decrypt key."),
+                Err(_) => bail!("Failed to set a decryption key."),
             };
 
             let mut key = vec![0; key_len];
-            let len = match aes::unwrap_key(&aes, None, &mut key, &encrypted_key) {
-                Ok(val) => val,
-                Err(_) => bail!("Failed to unwrap key."),
-            };
-            if len < key.len() {
-                key.truncate(len);
+            match aes::unwrap_key(&aes, None, &mut key, &encrypted_key) {
+                Ok(val) => if val < key.len() {
+                    key.truncate(val);
+                },
+                Err(_) => bail!("Failed to unwrap a key."),
             }
 
             Ok(Cow::Owned(key))

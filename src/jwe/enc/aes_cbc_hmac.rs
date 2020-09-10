@@ -115,7 +115,7 @@ impl JweContentEncryption for AesCbcHmacJweEncryption {
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))?;
 
-        let tag = self.calcurate_tag(aad, iv, message, mac_key)?;
+        let tag = self.calcurate_tag(aad, iv, &encrypted_message, mac_key)?;
 
         Ok((encrypted_message, Some(tag)))
     }
