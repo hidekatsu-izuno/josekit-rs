@@ -411,6 +411,15 @@ impl EcdhEsJweAlgorithm {
             _ => false,
         }
     }
+    
+    fn key_len(&self) -> usize {
+        match self {
+            Self::EcdhEsA128Kw => 16,
+            Self::EcdhEsA192Kw => 24,
+            Self::EcdhEsA256Kw => 32,
+            _ => unreachable!(),
+        }
+    }
 
     fn detect_pkcs8(input: &[u8], is_public: bool) -> Option<EcdhEsKeyType> {
         let key_type;
@@ -473,6 +482,50 @@ impl EcdhEsJweAlgorithm {
         }
 
         Some(key_type)
+    }
+    
+    fn concat_kdf(&self, alg: &str, shared_key_len: usize, derived_key: &[u8], apu: Option<&[u8]>, apv: Option<&[u8]>) -> anyhow::Result<Vec<u8>> {
+        let shared_key_len_bytes = ((shared_key_len * 8) as u32).to_be_bytes();
+        let alg_len_bytes = (alg.len() as u32).to_be_bytes();
+        let apu_len_bytes = (match apu {
+            Some(val) => val.len(),
+            None => 0,
+        } as u32).to_be_bytes();
+        let apv_len_bytes = (match apv {
+            Some(val) => val.len(),
+            None => 0,
+        } as u32).to_be_bytes();
+
+        let mut shared_key = Vec::new();
+        let md = MessageDigest::sha256();
+        let count = util::ceiling(shared_key_len, md.size());
+        for i in 0..count {
+            let mut hasher = Hasher::new(md)?;
+            hasher.update(&((i + 1) as u32).to_be_bytes())?;
+            hasher.update(&derived_key)?;
+            hasher.update(&alg_len_bytes)?;
+            hasher.update(alg.as_bytes())?;
+            hasher.update(&apu_len_bytes)?;
+            if let Some(val) = apu {
+                hasher.update(val)?;
+            }
+            hasher.update(&apv_len_bytes)?;
+            if let Some(val) = apv {
+                hasher.update(val)?;
+            }
+            hasher.update(&shared_key_len_bytes)?;
+
+            let digest = hasher.finish()?;
+            shared_key.extend(digest.to_vec());
+        }
+
+        if shared_key.len() > shared_key_len {
+            shared_key.truncate(shared_key_len);
+        } else if shared_key.len() < shared_key_len {
+            unreachable!();
+        }
+        
+        Ok(shared_key)
     }
 }
 
@@ -613,45 +666,24 @@ impl JweEncrypter for EcdhEsJweEncrypter {
             deriver.set_peer(&self.public_key)?;
             let derived_key = deriver.derive_to_vec()?;
 
-            // concat KDF
-            let alg = if self.algorithm.is_direct() {
-                header.content_encryption().unwrap()
-            } else {
-                header.algorithm().unwrap()
-            };
-            let shared_key_len = match self.algorithm {
-                EcdhEsJweAlgorithm::EcdhEs => key_len,
-                EcdhEsJweAlgorithm::EcdhEsA128Kw => 128 / 8,
-                EcdhEsJweAlgorithm::EcdhEsA192Kw => 192 / 8,
-                EcdhEsJweAlgorithm::EcdhEsA256Kw => 256 / 8,
-            };
-            let md = MessageDigest::sha256();
-            let mut shared_key = Vec::new();
-            for i in 0..util::ceiling(shared_key_len, md.size()) {
-                let mut hasher = Hasher::new(md)?;
-                hasher.update(&((i + 1) as u32).to_be_bytes())?;
-                hasher.update(&derived_key)?;
-                hasher.update(alg.as_bytes())?;
-                if let Some(val) = &apu {
-                    hasher.update(val.as_slice())?;
-                }
-                if let Some(val) = &apv {
-                    hasher.update(val.as_slice())?;
-                }
-                hasher.update(&((shared_key_len * 8) as u32).to_be_bytes())?;
-
-                let digest = hasher.finish()?;
-                shared_key.extend(digest.to_vec());
-            }
-            if shared_key.len() > shared_key_len {
-                shared_key.truncate(shared_key_len);
-            } else if shared_key.len() < shared_key_len {
-                unreachable!();
-            }
-
-            if self.algorithm.is_direct() {
+            if let EcdhEsJweAlgorithm::EcdhEs = self.algorithm {
+                let shared_key = self.algorithm.concat_kdf(
+                    header.content_encryption().unwrap(),
+                    key_len,
+                    &derived_key,
+                    apu.as_deref(),
+                    apv.as_deref()
+                )?;
                 Ok((Cow::Owned(shared_key), None))
             } else {
+                let shared_key = self.algorithm.concat_kdf(
+                    header.algorithm().unwrap(),
+                    self.algorithm.key_len(),
+                    &derived_key,
+                    apu.as_deref(),
+                    apv.as_deref()
+                )?;
+
                 let aes = match AesKey::new_encrypt(&shared_key) {
                     Ok(val) => val,
                     Err(_) => bail!("Failed to set encrypt key."),
@@ -836,54 +868,24 @@ impl JweDecrypter for EcdhEsJweDecrypter {
             let derived_key = deriver.derive_to_vec()?;
 
             // concat KDF
-            let alg = if self.algorithm.is_direct() {
-                header.content_encryption().unwrap()
-            } else {
-                header.algorithm().unwrap()
-            };
-            let shared_key_len = match self.algorithm {
-                EcdhEsJweAlgorithm::EcdhEs => key_len,
-                EcdhEsJweAlgorithm::EcdhEsA128Kw => 128 / 8,
-                EcdhEsJweAlgorithm::EcdhEsA192Kw => 192 / 8,
-                EcdhEsJweAlgorithm::EcdhEsA256Kw => 256 / 8,
-            };
-            let shared_key_bits = ((shared_key_len * 8) as u32).to_be_bytes();
-
-            let mut shared_key = Vec::new();
-            let md = MessageDigest::sha256();
-            let count = util::ceiling(shared_key_len, md.size());
-            for i in 0..count {
-                let mut hasher = Hasher::new(md)?;
-                hasher.update(&((i + 1) as u32).to_be_bytes())?;
-                hasher.update(&derived_key)?;
-                hasher.update(&(alg.len() as u32).to_be_bytes())?;
-                hasher.update(alg.as_bytes())?;
-                if let Some(val) = &apu {
-                    hasher.update(&(val.len() as u32).to_be_bytes())?;
-                    hasher.update(val.as_slice())?;
-                } else {
-                    hasher.update(&(0 as u32).to_be_bytes())?;
-                }
-                if let Some(val) = &apv {
-                    hasher.update(&(val.len() as u32).to_be_bytes())?;
-                    hasher.update(val.as_slice())?;
-                } else {
-                    hasher.update(&(0 as u32).to_be_bytes())?;
-                }
-                hasher.update(&shared_key_bits)?;
-
-                let digest = hasher.finish()?;
-                shared_key.extend(digest.to_vec());
-            }
-            if shared_key.len() > shared_key_len {
-                shared_key.truncate(shared_key_len);
-            } else if shared_key.len() < shared_key_len {
-                unreachable!();
-            }
-
-            if self.algorithm.is_direct() {
+            if let EcdhEsJweAlgorithm::EcdhEs = self.algorithm {
+                let shared_key = self.algorithm.concat_kdf(
+                    header.content_encryption().unwrap(),
+                    key_len,
+                    &derived_key,
+                    apu.as_deref(),
+                    apv.as_deref()
+                )?;
                 Ok(Cow::Owned(shared_key))
             } else {
+                let shared_key = self.algorithm.concat_kdf(
+                    header.algorithm().unwrap(),
+                    self.algorithm.key_len(),
+                    &derived_key,
+                    apu.as_deref(),
+                    apv.as_deref()
+                )?;
+
                 let aes = match AesKey::new_decrypt(&shared_key) {
                     Ok(val) => val,
                     Err(_) => bail!("Failed to set encrypt key."),
