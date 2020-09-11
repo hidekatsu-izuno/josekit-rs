@@ -3,6 +3,7 @@ use std::fmt::Debug;
 
 use crate::jose::JoseError;
 
+/// Represent a algorithm of JWE enc header claim.
 pub trait JweContentEncryption: Debug + Send + Sync {
     /// Return the "enc" (encryption) header parameter value of JWE.
     fn name(&self) -> &str;

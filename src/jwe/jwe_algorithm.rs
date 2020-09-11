@@ -4,6 +4,7 @@ use std::fmt::Debug;
 use crate::jose::JoseError;
 use crate::jwe::JweHeader;
 
+/// Represent a algorithm of JWE alg header claim.
 pub trait JweAlgorithm: Debug + Send + Sync {
     /// Return the "alg" (algorithm) header parameter value of JWE.
     fn name(&self) -> &str;
