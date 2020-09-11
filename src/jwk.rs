@@ -1,3 +1,5 @@
+//! JSON Web Key (JWK) support.
+
 mod jwk;
 mod jwk_set;
 pub mod key_pair;

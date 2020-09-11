@@ -1,3 +1,5 @@
+//! JSON Web Token (JWT) support.
+
 mod jwt_payload;
 mod jwt_payload_validator;
 

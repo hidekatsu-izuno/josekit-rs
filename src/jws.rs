@@ -1,3 +1,5 @@
+//! JSON Web Signature (JWS) support.
+
 pub mod alg;
 mod jws_algorithm;
 mod jws_context;

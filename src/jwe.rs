@@ -1,3 +1,5 @@
+//! JSON Web Encryption (JWE) support.
+
 pub mod alg;
 pub mod enc;
 mod jwe_algorithm;
