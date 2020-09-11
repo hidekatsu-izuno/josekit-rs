@@ -363,7 +363,6 @@ impl Display for JwtPayload {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use std::time::SystemTime;

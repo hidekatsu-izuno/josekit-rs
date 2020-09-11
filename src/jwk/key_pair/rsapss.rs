@@ -705,7 +705,7 @@ mod tests {
     use anyhow::Result;
 
     use crate::jwa::HashAlgorithm;
-    use crate::jwk::RsaPssKeyPair;
+    use crate::jwk::key_pair::RsaPssKeyPair;
 
     #[test]
     fn test_rsa_jwt() -> Result<()> {

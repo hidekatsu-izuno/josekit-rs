@@ -1,10 +1,8 @@
-mod alg;
-mod enc;
-mod zip;
+pub mod alg;
+pub mod enc;
+pub mod zip;
 mod jwe_header;
 mod jwe_algorithm;
-mod jwe_encrypter;
-mod jwe_decrypter;
 mod jwe_content_encryption;
 mod jwe_compression;
 mod jwe_context;
@@ -15,45 +13,11 @@ use crate::jose::JoseError;
 
 pub use crate::jwe::jwe_header::JweHeader;
 pub use crate::jwe::jwe_algorithm::JweAlgorithm;
-pub use crate::jwe::jwe_encrypter::JweEncrypter;
-pub use crate::jwe::jwe_decrypter::JweDecrypter;
+pub use crate::jwe::jwe_algorithm::JweEncrypter;
+pub use crate::jwe::jwe_algorithm::JweDecrypter;
 pub use crate::jwe::jwe_content_encryption::JweContentEncryption;
 pub use crate::jwe::jwe_compression::JweCompression;
 pub use crate::jwe::jwe_context::JweContext;
-
-pub use crate::jwe::alg::direct::DirectJweAlgorithm::Dir;
-
-pub use crate::jwe::alg::ecdh_es::EcdhEsJweAlgorithm::EcdhEs;
-pub use crate::jwe::alg::ecdh_es::EcdhEsJweAlgorithm::EcdhEsA128Kw;
-pub use crate::jwe::alg::ecdh_es::EcdhEsJweAlgorithm::EcdhEsA192Kw;
-pub use crate::jwe::alg::ecdh_es::EcdhEsJweAlgorithm::EcdhEsA256Kw;
-
-pub use crate::jwe::alg::aeskw::AesJweAlgorithm::A128Kw;
-pub use crate::jwe::alg::aeskw::AesJweAlgorithm::A192Kw;
-pub use crate::jwe::alg::aeskw::AesJweAlgorithm::A256Kw;
-
-pub use crate::jwe::alg::aesgcmkw::AesGcmJweAlgorithm::A128GcmKw;
-pub use crate::jwe::alg::aesgcmkw::AesGcmJweAlgorithm::A192GcmKw;
-pub use crate::jwe::alg::aesgcmkw::AesGcmJweAlgorithm::A256GcmKw;
-
-pub use crate::jwe::alg::pbes2_hmac_aeskw::Pbes2HmacJweAlgorithm::Pbes2HS256A128Kw;
-pub use crate::jwe::alg::pbes2_hmac_aeskw::Pbes2HmacJweAlgorithm::Pbes2HS384A192Kw;
-pub use crate::jwe::alg::pbes2_hmac_aeskw::Pbes2HmacJweAlgorithm::Pbes2HS512A256Kw;
-
-#[allow(deprecated)]
-pub use crate::jwe::alg::rsaes::RsaesJweAlgorithm::Rsa1_5;
-pub use crate::jwe::alg::rsaes::RsaesJweAlgorithm::RsaOaep;
-pub use crate::jwe::alg::rsaes::RsaesJweAlgorithm::RsaOaep256;
-
-pub use crate::jwe::enc::aes_cbc_hmac::AesCbcHmacJweEncryption::A128CbcHS256;
-pub use crate::jwe::enc::aes_cbc_hmac::AesCbcHmacJweEncryption::A192CbcHS384;
-pub use crate::jwe::enc::aes_cbc_hmac::AesCbcHmacJweEncryption::A256CbcHS512;
-
-pub use crate::jwe::enc::aes_gcm::AesGcmJweEncryption::A128Gcm;
-pub use crate::jwe::enc::aes_gcm::AesGcmJweEncryption::A192Gcm;
-pub use crate::jwe::enc::aes_gcm::AesGcmJweEncryption::A256Gcm;
-
-pub use crate::jwe::zip::deflate::DeflateJweCompression::Def;
 
 static DEFAULT_CONTEXT: Lazy<JweContext> = Lazy::new(|| JweContext::new());
 
@@ -212,7 +176,8 @@ mod tests {
     use serde_json::Value;
 
     use crate::jose::JoseHeader;
-    use crate::jwe::{self, Dir, JweAlgorithm, JweHeader};
+    use crate::jwe::{self, JweAlgorithm, JweHeader};
+    use crate::jwe::alg::Dir;
     use crate::util;
 
     #[test]

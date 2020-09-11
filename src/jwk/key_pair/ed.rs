@@ -510,7 +510,7 @@ impl Deref for EdKeyPair {
 mod tests {
     use anyhow::Result;
 
-    use crate::jwk::{EdCurve, EdKeyPair};
+    use crate::jwk::key_pair::{EdCurve, EdKeyPair};
 
     #[test]
     fn test_ed_jwt() -> Result<()> {

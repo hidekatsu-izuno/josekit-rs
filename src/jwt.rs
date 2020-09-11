@@ -1,8 +1,8 @@
-mod payload;
-mod payload_validator;
+mod jwt_payload;
+mod jwt_payload_validator;
 
-pub use crate::jwt::payload::JwtPayload;
-pub use crate::jwt::payload_validator::JwtPayloadValidator;
+pub use crate::jwt::jwt_payload::JwtPayload;
+pub use crate::jwt::jwt_payload_validator::JwtPayloadValidator;
 
 use anyhow::bail;
 use once_cell::sync::Lazy;
@@ -561,7 +561,7 @@ mod tests {
     use std::path::PathBuf;
     use std::time::{Duration, SystemTime};
 
-    use crate::jwe::{
+    use crate::jwe::alg::{
         A128GcmKw, A128Kw, A192GcmKw, A192Kw, A256GcmKw, A256Kw, Dir, EcdhEs, EcdhEsA128Kw,
         EcdhEsA192Kw, EcdhEsA256Kw, Pbes2HS256A128Kw, Pbes2HS384A192Kw, Pbes2HS512A256Kw, Rsa1_5,
         RsaOaep,

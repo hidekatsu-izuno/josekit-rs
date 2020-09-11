@@ -6,7 +6,9 @@ use anyhow::bail;
 use serde_json::{Map, Value};
 
 use crate::jose::{JoseError, JoseHeader};
-use crate::jwe::{JweHeader, JweEncrypter, JweDecrypter, JweContentEncryption, JweCompression, Def, A128CbcHS256, A192CbcHS384, A256CbcHS512, A128Gcm, A192Gcm, A256Gcm};
+use crate::jwe::{JweHeader, JweEncrypter, JweDecrypter, JweContentEncryption, JweCompression};
+use crate::jwe::enc::{A128CbcHS256, A192CbcHS384, A256CbcHS512, A128Gcm, A192Gcm, A256Gcm};
+use crate::jwe::zip::Def;
 use crate::util;
 
 #[derive(Debug, Eq, PartialEq, Clone)]
