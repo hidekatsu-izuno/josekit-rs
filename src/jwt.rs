@@ -818,9 +818,9 @@ mod tests {
         payload.set_issuer("iss");
         payload.set_subject("sub");
         payload.set_audience(vec!["aud0", "aud1"]);
-        payload.set_expires_at(SystemTime::UNIX_EPOCH + Duration::from_secs(60));
-        payload.set_not_before(SystemTime::UNIX_EPOCH + Duration::from_secs(10));
-        payload.set_issued_at(SystemTime::UNIX_EPOCH);
+        payload.set_expires_at(&(SystemTime::UNIX_EPOCH + Duration::from_secs(60)));
+        payload.set_not_before(&(SystemTime::UNIX_EPOCH + Duration::from_secs(10)));
+        payload.set_issued_at(&SystemTime::UNIX_EPOCH);
         payload.set_jwt_id("jti");
         payload.set_claim("payload_claim", Some(json!("payload_claim")))?;
 
@@ -847,7 +847,7 @@ mod tests {
             assert_eq!(payload.issuer(), Some("joe"));
             assert_eq!(
                 payload.expires_at(),
-                Some(&(SystemTime::UNIX_EPOCH + Duration::from_secs(1300819380)))
+                Some(SystemTime::UNIX_EPOCH + Duration::from_secs(1300819380))
             );
             assert_eq!(
                 payload.claim("http://example.com/is_root"),
@@ -871,7 +871,7 @@ mod tests {
             assert_eq!(payload.issuer(), Some("joe"));
             assert_eq!(
                 payload.expires_at(),
-                Some(&(SystemTime::UNIX_EPOCH + Duration::from_secs(1300819380)))
+                Some(SystemTime::UNIX_EPOCH + Duration::from_secs(1300819380))
             );
             assert_eq!(
                 payload.claim("http://example.com/is_root"),
@@ -895,7 +895,7 @@ mod tests {
             assert_eq!(payload.issuer(), Some("joe"));
             assert_eq!(
                 payload.expires_at(),
-                Some(&(SystemTime::UNIX_EPOCH + Duration::from_secs(1300819380)))
+                Some(SystemTime::UNIX_EPOCH + Duration::from_secs(1300819380))
             );
             assert_eq!(
                 payload.claim("http://example.com/is_root"),
@@ -923,7 +923,7 @@ mod tests {
             assert_eq!(payload.issuer(), Some("joe"));
             assert_eq!(
                 payload.expires_at(),
-                Some(&(SystemTime::UNIX_EPOCH + Duration::from_secs(1300819380)))
+                Some(SystemTime::UNIX_EPOCH + Duration::from_secs(1300819380))
             );
             assert_eq!(
                 payload.claim("http://example.com/is_root"),
@@ -948,7 +948,7 @@ mod tests {
             assert_eq!(payload.issuer(), Some("joe"));
             assert_eq!(
                 payload.expires_at(),
-                Some(&(SystemTime::UNIX_EPOCH + Duration::from_secs(1300819380)))
+                Some(SystemTime::UNIX_EPOCH + Duration::from_secs(1300819380))
             );
             assert_eq!(
                 payload.claim("http://example.com/is_root"),
@@ -981,7 +981,7 @@ mod tests {
                 assert_eq!(payload.issuer(), Some("joe"));
                 assert_eq!(
                     payload.expires_at(),
-                    Some(&(SystemTime::UNIX_EPOCH + Duration::from_secs(1300819380)))
+                    Some(SystemTime::UNIX_EPOCH + Duration::from_secs(1300819380))
                 );
                 assert_eq!(
                     payload.claim("http://example.com/is_root"),
@@ -1023,7 +1023,7 @@ mod tests {
                     assert_eq!(payload.issuer(), Some("joe"));
                     assert_eq!(
                         payload.expires_at(),
-                        Some(&(SystemTime::UNIX_EPOCH + Duration::from_secs(1300819380)))
+                        Some(SystemTime::UNIX_EPOCH + Duration::from_secs(1300819380))
                     );
                     assert_eq!(
                         payload.claim("http://example.com/is_root"),
@@ -1058,7 +1058,7 @@ mod tests {
                 assert_eq!(payload.issuer(), Some("joe"));
                 assert_eq!(
                     payload.expires_at(),
-                    Some(&(SystemTime::UNIX_EPOCH + Duration::from_secs(1300819380)))
+                    Some(SystemTime::UNIX_EPOCH + Duration::from_secs(1300819380))
                 );
                 assert_eq!(
                     payload.claim("http://example.com/is_root"),
@@ -1092,7 +1092,7 @@ mod tests {
                 assert_eq!(payload.issuer(), Some("joe"));
                 assert_eq!(
                     payload.expires_at(),
-                    Some(&(SystemTime::UNIX_EPOCH + Duration::from_secs(1300819380)))
+                    Some(SystemTime::UNIX_EPOCH + Duration::from_secs(1300819380))
                 );
                 assert_eq!(
                     payload.claim("http://example.com/is_root"),
@@ -1126,7 +1126,7 @@ mod tests {
                 assert_eq!(payload.issuer(), Some("joe"));
                 assert_eq!(
                     payload.expires_at(),
-                    Some(&(SystemTime::UNIX_EPOCH + Duration::from_secs(1300819380)))
+                    Some(SystemTime::UNIX_EPOCH + Duration::from_secs(1300819380))
                 );
                 assert_eq!(
                     payload.claim("http://example.com/is_root"),
@@ -1157,7 +1157,7 @@ mod tests {
                 assert_eq!(payload.issuer(), Some("joe"));
                 assert_eq!(
                     payload.expires_at(),
-                    Some(&(SystemTime::UNIX_EPOCH + Duration::from_secs(1300819380)))
+                    Some(SystemTime::UNIX_EPOCH + Duration::from_secs(1300819380))
                 );
                 assert_eq!(
                     payload.claim("http://example.com/is_root"),

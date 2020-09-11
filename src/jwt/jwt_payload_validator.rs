@@ -176,35 +176,35 @@ impl JwtPayloadValidator {
             let max_issued_time = self.max_issued_time().unwrap_or(&now);
 
             if let Some(not_before) = payload.not_before() {
-                if not_before > &current_time {
+                if &not_before > current_time {
                     bail!(
                         "The token is not yet valid: {}",
-                        DateTime::<Utc>::from(*not_before)
+                        DateTime::<Utc>::from(not_before)
                     );
                 }
             }
 
             if let Some(expires_at) = payload.expires_at() {
-                if expires_at <= &current_time {
+                if &expires_at <= current_time {
                     bail!(
                         "The token has expired: {}",
-                        DateTime::<Utc>::from(*expires_at)
+                        DateTime::<Utc>::from(expires_at)
                     );
                 }
             }
 
             if let Some(issued_at) = payload.issued_at() {
-                if issued_at < &min_issued_time {
+                if &issued_at < min_issued_time {
                     bail!(
                         "The issued time is too old: {}",
-                        DateTime::<Utc>::from(*issued_at)
+                        DateTime::<Utc>::from(issued_at)
                     );
                 }
 
-                if issued_at > &max_issued_time {
+                if &issued_at > max_issued_time {
                     bail!(
                         "The issued time is too new: {}",
-                        DateTime::<Utc>::from(*issued_at)
+                        DateTime::<Utc>::from(issued_at)
                     );
                 }
             }

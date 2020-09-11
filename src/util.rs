@@ -1,5 +1,3 @@
-use std::time::SystemTime;
-
 use anyhow::bail;
 use once_cell::sync::Lazy;
 use openssl::bn::BigNumRef;
@@ -14,7 +12,6 @@ pub(crate) enum SourceValue {
     Bytes(Vec<u8>),
     BytesArray(Vec<Vec<u8>>),
     StringArray(Vec<String>),
-    SystemTime(SystemTime),
 }
 
 pub(crate) fn rand_bytes(len: usize) -> Vec<u8> {
