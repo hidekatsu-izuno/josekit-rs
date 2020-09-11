@@ -11,8 +11,8 @@ use serde_json::Value;
 use crate::der::{DerBuilder, DerType};
 use crate::jose::JoseError;
 use crate::jwe::{JweAlgorithm, JweDecrypter, JweEncrypter, JweHeader};
-use crate::jwk::Jwk;
 use crate::jwk::key_pair::RsaKeyPair;
+use crate::jwk::Jwk;
 use crate::util;
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]

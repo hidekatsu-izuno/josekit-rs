@@ -1,8 +1,8 @@
 pub mod alg;
 mod jws_algorithm;
-mod jws_multi_signer;
-mod jws_header;
 mod jws_context;
+mod jws_header;
+mod jws_multi_signer;
 
 use once_cell::sync::Lazy;
 
@@ -11,9 +11,9 @@ use crate::jose::JoseError;
 pub use crate::jws::jws_algorithm::JwsAlgorithm;
 pub use crate::jws::jws_algorithm::JwsSigner;
 pub use crate::jws::jws_algorithm::JwsVerifier;
-pub use crate::jws::jws_multi_signer::JwsMultiSigner;
-pub use crate::jws::jws_header::JwsHeader;
 pub use crate::jws::jws_context::JwsContext;
+pub use crate::jws::jws_header::JwsHeader;
+pub use crate::jws::jws_multi_signer::JwsMultiSigner;
 
 #[deprecated(since = "0.4.0", note = "Please use ::jws::alg::HS256")]
 pub use crate::jws::alg::hmac::HmacJwsAlgorithm::HS256;

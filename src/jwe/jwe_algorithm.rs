@@ -1,5 +1,5 @@
-use std::fmt::Debug;
 use std::borrow::Cow;
+use std::fmt::Debug;
 
 use crate::jose::JoseError;
 use crate::jwe::JweHeader;

@@ -1,23 +1,23 @@
 pub mod alg;
 pub mod enc;
-pub mod zip;
-mod jwe_header;
 mod jwe_algorithm;
-mod jwe_content_encryption;
 mod jwe_compression;
+mod jwe_content_encryption;
 mod jwe_context;
+mod jwe_header;
+pub mod zip;
 
 use once_cell::sync::Lazy;
 
 use crate::jose::JoseError;
 
-pub use crate::jwe::jwe_header::JweHeader;
 pub use crate::jwe::jwe_algorithm::JweAlgorithm;
-pub use crate::jwe::jwe_algorithm::JweEncrypter;
 pub use crate::jwe::jwe_algorithm::JweDecrypter;
-pub use crate::jwe::jwe_content_encryption::JweContentEncryption;
+pub use crate::jwe::jwe_algorithm::JweEncrypter;
 pub use crate::jwe::jwe_compression::JweCompression;
+pub use crate::jwe::jwe_content_encryption::JweContentEncryption;
 pub use crate::jwe::jwe_context::JweContext;
+pub use crate::jwe::jwe_header::JweHeader;
 
 static DEFAULT_CONTEXT: Lazy<JweContext> = Lazy::new(|| JweContext::new());
 
@@ -176,13 +176,20 @@ mod tests {
     use serde_json::Value;
 
     use crate::jose::JoseHeader;
-    use crate::jwe::{self, JweAlgorithm, JweHeader};
     use crate::jwe::alg::Dir;
+    use crate::jwe::{self, JweAlgorithm, JweHeader};
     use crate::util;
 
     #[test]
     fn test_jwe_compact_serialization() -> Result<()> {
-        for enc in vec!["A128CBC-HS256", "A192CBC-HS384", "A256CBC-HS512", "A128GCM", "A256GCM", "A256GCM"] {
+        for enc in vec![
+            "A128CBC-HS256",
+            "A192CBC-HS384",
+            "A256CBC-HS512",
+            "A128GCM",
+            "A256GCM",
+            "A256GCM",
+        ] {
             let mut src_header = JweHeader::new();
             src_header.set_content_encryption(enc);
             src_header.set_token_type("JWT");

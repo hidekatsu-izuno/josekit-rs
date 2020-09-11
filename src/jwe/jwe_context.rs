@@ -6,9 +6,9 @@ use anyhow::bail;
 use serde_json::{Map, Value};
 
 use crate::jose::{JoseError, JoseHeader};
-use crate::jwe::{JweHeader, JweEncrypter, JweDecrypter, JweContentEncryption, JweCompression};
-use crate::jwe::enc::{A128CbcHS256, A192CbcHS384, A256CbcHS512, A128Gcm, A192Gcm, A256Gcm};
+use crate::jwe::enc::{A128CbcHS256, A128Gcm, A192CbcHS384, A192Gcm, A256CbcHS512, A256Gcm};
 use crate::jwe::zip::Def;
+use crate::jwe::{JweCompression, JweContentEncryption, JweDecrypter, JweEncrypter, JweHeader};
 use crate::util;
 
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -220,7 +220,8 @@ impl JweContext {
                 None
             };
 
-            let (ciphertext, tag) = cencryption.encrypt(&key, iv, content, header_b64.as_bytes())?;
+            let (ciphertext, tag) =
+                cencryption.encrypt(&key, iv, content, header_b64.as_bytes())?;
 
             let mut capacity = 4;
             capacity += header_b64.len();

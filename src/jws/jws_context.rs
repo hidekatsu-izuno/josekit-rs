@@ -5,7 +5,7 @@ use anyhow::bail;
 use serde_json::{Map, Value};
 
 use crate::jose::JoseError;
-use crate::jws::{JwsHeader, JwsSigner, JwsVerifier, JwsMultiSigner};
+use crate::jws::{JwsHeader, JwsMultiSigner, JwsSigner, JwsVerifier};
 use crate::util;
 
 #[derive(Debug, Eq, PartialEq, Clone)]

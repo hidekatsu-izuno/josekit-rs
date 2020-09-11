@@ -1,8 +1,8 @@
+pub mod ecdsa;
+pub mod eddsa;
 pub mod hmac;
 pub mod rsassa;
 pub mod rsassa_pss;
-pub mod ecdsa;
-pub mod eddsa;
 
 pub use crate::jws::alg::hmac::HmacJwsAlgorithm::HS256;
 pub use crate::jws::alg::hmac::HmacJwsAlgorithm::HS384;

@@ -1,5 +1,5 @@
 use std::convert::Into;
-use std::time::{SystemTime};
+use std::time::SystemTime;
 
 use anyhow::bail;
 use chrono::{DateTime, Utc};

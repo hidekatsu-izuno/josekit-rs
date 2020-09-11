@@ -1,8 +1,8 @@
+pub mod ec;
+pub mod ecx;
+pub mod ed;
 pub mod rsa;
 pub mod rsapss;
-pub mod ec;
-pub mod ed;
-pub mod ecx;
 
 pub use crate::jwk::key_pair::ec::EcCurve;
 pub use crate::jwk::key_pair::ec::EcKeyPair;

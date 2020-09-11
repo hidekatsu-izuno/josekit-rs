@@ -17,7 +17,9 @@ impl<'a> JwsMultiSigner<'a> {
         }
     }
 
-    pub fn signers(&self) -> &Vec<(
+    pub fn signers(
+        &self,
+    ) -> &Vec<(
         Option<&'a JwsHeader>,
         Option<&'a JwsHeader>,
         &'a dyn JwsSigner,

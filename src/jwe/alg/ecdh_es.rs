@@ -16,8 +16,8 @@ use crate::der::oid::{
 use crate::der::{DerReader, DerType};
 use crate::jose::{JoseError, JoseHeader};
 use crate::jwe::{JweAlgorithm, JweDecrypter, JweEncrypter, JweHeader};
-use crate::jwk::Jwk;
 use crate::jwk::key_pair::{EcCurve, EcKeyPair, EcxCurve, EcxKeyPair};
+use crate::jwk::Jwk;
 use crate::util;
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
@@ -939,8 +939,8 @@ mod tests {
     use crate::jwe::enc::aes_cbc_hmac::AesCbcHmacJweEncryption;
     use crate::jwe::enc::aes_gcm::AesGcmJweEncryption;
     use crate::jwe::JweHeader;
-    use crate::jwk::Jwk;
     use crate::jwk::key_pair::{EcCurve, EcxCurve};
+    use crate::jwk::Jwk;
 
     #[test]
     fn encrypt_and_decrypt_ecdh_es_with_pkcs8_der() -> Result<()> {
