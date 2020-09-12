@@ -36,7 +36,7 @@ impl DerBuilder {
     }
 
     pub fn append_integer_from_u8(&mut self, value: u8) {
-        self.append(DerType::Integer, &[value]);
+        self.append(DerType::Integer, None, &[value]);
     }
 
     pub fn append_integer_from_u64(&mut self, value: u64) {
@@ -46,25 +46,21 @@ impl DerBuilder {
             vec.push((rest & 0xFF) as u8);
             rest >>= 8;
         }
-        self.append(DerType::Integer, &vec);
+        self.append(DerType::Integer, None, &vec);
     }
 
     pub fn append_integer_from_be_slice(&mut self, value: &[u8], sign: bool) {
-        let mut vec;
-        let mut value = value;
+        let prefix = if sign && value.len() > 0 && value[0] & 0b10000000 != 0 {
+            Some(0)
+        } else {
+            None
+        };
 
-        if !sign && value.len() > 0 && value[0] & 0b10000000 != 0 {
-            vec = Vec::with_capacity(1 + value.len());
-            vec.push(0);
-            vec.extend_from_slice(value);
-            value = &vec;
-        }
-
-        self.append(DerType::Integer, value);
+        self.append(DerType::Integer, prefix, value);
     }
 
     pub fn append_null(&mut self) {
-        self.append(DerType::Null, &vec![]);
+        self.append(DerType::Null, None, &[]);
     }
 
     pub fn append_object_identifier(&mut self, oid: &ObjectIdentifier) {
@@ -96,11 +92,11 @@ impl DerBuilder {
             }
         }
 
-        self.append(DerType::ObjectIdentifier, &vec);
+        self.append(DerType::ObjectIdentifier, None, &vec);
     }
 
     pub fn append_octed_string_from_bytes(&mut self, contents: &[u8]) {
-        self.append(DerType::OctetString, contents);
+        self.append(DerType::OctetString, None, contents);
     }
 
     pub fn append_bit_string_from_bytes(&mut self, contents: &[u8], trailing_len: u8) {
@@ -108,12 +104,10 @@ impl DerBuilder {
             unreachable!();
         }
 
-        let mut vec = contents.to_vec();
-        vec.insert(0, trailing_len as u8);
-        self.append(DerType::BitString, &vec);
+        self.append(DerType::BitString, Some(trailing_len), contents);
     }
 
-    pub fn append(&mut self, der_type: DerType, contents: &[u8]) {
+    pub fn append(&mut self, der_type: DerType, prefix: Option<u8>, contents: &[u8]) {
         let current = self.stack.last_mut().unwrap();
 
         let class_no = der_type.der_class().class_no();
@@ -133,7 +127,10 @@ impl DerBuilder {
             current.push(n as u8);
         }
 
-        let len = contents.len();
+        let len = contents.len() + match prefix {
+            Some(_) => 1,
+            None => 0,
+        };
         if len < 0b10000000 {
             current.push(len as u8);
         } else {
@@ -149,6 +146,9 @@ impl DerBuilder {
             }
         }
 
+        if let Some(val) = prefix {
+            current.push(val);
+        }
         current.extend_from_slice(contents);
     }
 

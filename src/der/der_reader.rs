@@ -252,14 +252,22 @@ impl<R: Read> DerReader<R> {
         }
     }
 
-    pub fn to_be_bytes(&self, sign: bool) -> Vec<u8> {
+    pub fn to_be_bytes(&self, sign: bool, min_len: usize) -> Vec<u8> {
         if let DerType::Integer = self.der_type {
             if let Some(contents) = &self.contents {
-                let mut vec = contents.to_vec();
-                if !sign && contents.len() > 0 && contents[0] == 0 {
-                    vec.remove(0);
+                if contents.len() < min_len {
+                    let mut vec = Vec::with_capacity(min_len);
+                    for _ in 0..(min_len - contents.len()) {
+                        vec.push(0);
+                    }
+                    vec.extend_from_slice(contents);
+                    vec
+                } else if contents.len() -1 >= min_len 
+                    && !sign && contents.len() > 0 &&  contents[0] == 0 {
+                    contents[1..].to_vec()
+                } else {
+                    contents.to_vec()
                 }
-                vec
             } else {
                 unreachable!();
             }

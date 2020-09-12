@@ -259,6 +259,14 @@ impl EcdsaJwsAlgorithm {
         }
     }
 
+    fn signature_len(&self) -> usize {
+        match self {
+            Self::ES256 | Self::ES256K => 64,
+            Self::ES384 => 96,
+            Self::ES512 => 132,
+        }
+    }
+
     fn hash_algorithm(&self) -> HashAlgorithm {
         match self {
             Self::ES256 => HashAlgorithm::Sha256,
@@ -324,12 +332,7 @@ impl JwsSigner for EcdsaJwsSigner {
     }
 
     fn signature_len(&self) -> usize {
-        match self.algorithm {
-            EcdsaJwsAlgorithm::ES256 => 64,
-            EcdsaJwsAlgorithm::ES384 => 96,
-            EcdsaJwsAlgorithm::ES512 => 131,
-            EcdsaJwsAlgorithm::ES256K => 64,
-        }
+        self.algorithm.signature_len()
     }
 
     fn key_id(&self) -> Option<&str> {
@@ -345,27 +348,31 @@ impl JwsSigner for EcdsaJwsSigner {
 
             let mut signer = Signer::new(md, &self.private_key)?;
             signer.update(message)?;
-            let signature = signer.sign_to_vec()?;
+            let der_signature = signer.sign_to_vec()?;
 
-            let mut der_signature = Vec::with_capacity(6 + 32 + 32);
-            let mut reader = DerReader::from_bytes(&signature);
+            let signature_len = self.signature_len();
+            let sep = signature_len / 2;
+
+            let mut signature = Vec::with_capacity(signature_len);
+            let mut reader = DerReader::from_bytes(&der_signature);
             match reader.next()? {
                 Some(DerType::Sequence) => {}
                 _ => unreachable!("A generated signature is invalid."),
             }
             match reader.next()? {
                 Some(DerType::Integer) => {
-                    der_signature.extend_from_slice(&reader.to_be_bytes(false));
+                    signature.extend_from_slice(&reader.to_be_bytes(false, sep));
                 }
                 _ => unreachable!("A generated signature is invalid."),
             }
             match reader.next()? {
                 Some(DerType::Integer) => {
-                    der_signature.extend_from_slice(&reader.to_be_bytes(false));
+                    signature.extend_from_slice(&reader.to_be_bytes(false, sep));
                 }
                 _ => unreachable!("A generated signature is invalid."),
             }
-            Ok(der_signature)
+
+            Ok(signature)
         })()
         .map_err(|err| JoseError::InvalidSignature(err))
     }
@@ -417,11 +424,20 @@ impl JwsVerifier for EcdsaJwsVerifier {
 
     fn verify(&self, message: &[u8], signature: &[u8]) -> Result<(), JoseError> {
         (|| -> anyhow::Result<()> {
-            let mut der_builder = DerBuilder::new(); // 6 + 33 + 33
+            let signature_len = self.algorithm.signature_len();
+            if signature.len() != signature_len {
+                bail!("A signature size must be {}: {}", signature_len, signature.len());
+            }
+
+            let mut der_builder = DerBuilder::new();
             der_builder.begin(DerType::Sequence);
             {
-                der_builder.append_integer_from_be_slice(&signature[..32], false);
-                der_builder.append_integer_from_be_slice(&signature[32..], false);
+                let sep = signature_len / 2;
+
+                let zeros = signature[..sep].iter().take_while(|b| **b == 0).count();
+                der_builder.append_integer_from_be_slice(&signature[zeros..sep], true);
+                let zeros = signature[sep..].iter().take_while(|b| **b == 0).count();
+                der_builder.append_integer_from_be_slice(&signature[(sep + zeros)..], true);
             }
             der_builder.end();
             let der_signature = der_builder.build();
@@ -611,6 +627,8 @@ mod tests {
             EcdsaJwsAlgorithm::ES512,
             EcdsaJwsAlgorithm::ES256K,
         ] {
+            println!("{}", alg);
+
             let private_key = load_file(match alg {
                 EcdsaJwsAlgorithm::ES256 => "pem/EC_P-256_private.pem",
                 EcdsaJwsAlgorithm::ES384 => "pem/EC_P-384_private.pem",
