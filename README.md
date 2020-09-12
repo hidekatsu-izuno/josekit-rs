@@ -24,9 +24,9 @@ cargo build --release
 <table>
 <thead>
     <tr>
-        <th style="width: 35%">Name</th>
-        <th>Description</th>
-        <th style="width: 25%">Key Type</th>
+        <th width="35%">Name</th>
+        <th width="40%">Description</th>
+        <th width="25%">Key Type</th>
     </tr>
 </thead>
 <tbody>
