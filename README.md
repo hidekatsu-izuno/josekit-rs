@@ -24,9 +24,9 @@ cargo build --release
 <table>
 <thead>
     <tr>
-        <th>Name</th>
+        <th style="width: 35%">Name</th>
         <th>Description</th>
-        <th>Key Type</th>
+        <th style="width: 25%">Key Type</th>
     </tr>
 </thead>
 <tbody>
@@ -105,12 +105,12 @@ cargo build --release
 
 ## Supported encryption algorithms
 
-<table>
+<table style="table-layout: fixed">
 <thead>
     <tr>
-        <th>Name</th>
+        <th style="width: 35%">Name</th>
         <th>Description</th>
-        <th>Key Type</th>
+        <th style="width: 25%">Key Type</th>
     </tr>
 </thead>
 <tbody>
@@ -222,7 +222,7 @@ RSA-OAEP-256, RSA-OAEP-384 and RSA-OAEP-512 are not supported yet.
 
 ### Private Key
 
-<table>
+<table style="table-layout: fixed">
 <thead>
 <tr>
     <th rowspan="2">Algorithm</th>
@@ -283,7 +283,7 @@ RSA-OAEP-256, RSA-OAEP-384 and RSA-OAEP-512 are not supported yet.
 
 ### Public Key
 
-<table>
+<table style="table-layout: fixed">
 <thead>
 <tr>
     <th rowspan="2">Algorithm</th>

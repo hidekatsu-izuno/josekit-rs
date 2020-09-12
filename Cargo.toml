@@ -2,7 +2,6 @@
 name = "josekit"
 version = "0.4.0"
 description = "JOSE (Javascript Object Signing and Encryption) library for Rust."
-homepage = "https://github.com/hidekatsu-izuno/josekit-rs"
 repository = "https://github.com/hidekatsu-izuno/josekit-rs"
 readme = "README.md"
 license = "MIT OR Apache-2.0"
