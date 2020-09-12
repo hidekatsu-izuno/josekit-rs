@@ -211,7 +211,7 @@ impl JwtPayloadValidator {
 
             if let Some(audience) = &self.audience {
                 if let Some(audiences) = payload.audience() {
-                    if !audiences.contains(&audience) {
+                    if !audiences.contains(&audience.as_str()) {
                         bail!("Key aud is invalid: {}", audiences.join(", "));
                     }
                 }

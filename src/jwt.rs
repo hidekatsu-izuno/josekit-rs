@@ -112,7 +112,7 @@ impl JwtContext {
     ) -> Result<String, JoseError> {
         (|| -> anyhow::Result<String> {
             if let Some(vals) = header.critical() {
-                if vals.iter().any(|val| val == "b64") {
+                if vals.contains(&"b64") {
                     bail!("JWT is not support b64 header claim.");
                 }
             }
@@ -554,7 +554,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    #![allow(deprecated)]
+    
 
     use anyhow::Result;
     use serde_json::json;
@@ -563,14 +563,16 @@ mod tests {
     use std::path::PathBuf;
     use std::time::{Duration, SystemTime};
 
+    #[allow(deprecated)]
     use crate::jwe::alg::{
         A128GcmKw, A128Kw, A192GcmKw, A192Kw, A256GcmKw, A256Kw, Dir, EcdhEs, EcdhEsA128Kw,
         EcdhEsA192Kw, EcdhEsA256Kw, Pbes2HS256A128Kw, Pbes2HS384A192Kw, Pbes2HS512A256Kw, Rsa1_5,
         RsaOaep,
     };
     use crate::jwk::Jwk;
-    use crate::jws::{
-        EdDSA, JwsHeader, ES256, ES256K, ES384, ES512, HS256, HS384, HS512, PS256, PS384, PS512,
+    use crate::jws::JwsHeader;
+    use crate::jws::alg::{
+        EdDSA, ES256, ES256K, ES384, ES512, HS256, HS384, HS512, PS256, PS384, PS512,
         RS256, RS384, RS512,
     };
     use crate::jwt::{self, JwtPayload, JwtPayloadValidator};
@@ -583,38 +585,38 @@ mod tests {
         header.set_jwk_set_url("jku");
         header.set_jwk(jwk.clone());
         header.set_x509_url("x5u");
-        header.set_x509_certificate_chain(vec![b"x5c0".to_vec(), b"x5c1".to_vec()]);
-        header.set_x509_certificate_sha1_thumbprint(b"x5t".to_vec());
-        header.set_x509_certificate_sha256_thumbprint(b"x5t#S256".to_vec());
+        header.set_x509_certificate_chain(&vec![b"x5c0", b"x5c1"]);
+        header.set_x509_certificate_sha1_thumbprint(b"x5t");
+        header.set_x509_certificate_sha256_thumbprint(b"x5t#S256");
         header.set_key_id("kid");
         header.set_token_type("typ");
         header.set_content_type("cty");
-        header.set_critical(vec!["crit0", "crit1"]);
+        header.set_critical(&vec!["crit0", "crit1"]);
         header.set_url("url");
-        header.set_nonce(b"nonce".to_vec());
+        header.set_nonce(b"nonce");
         header.set_claim("header_claim", Some(json!("header_claim")))?;
 
         assert!(matches!(header.jwk_set_url(), Some("jku")));
-        assert!(matches!(header.jwk(), Some(val) if val == &jwk));
+        assert!(matches!(header.jwk(), Some(val) if val == jwk));
         assert!(matches!(header.x509_url(), Some("x5u")));
         assert!(
-            matches!(header.x509_certificate_chain(), Some(vals) if vals == &vec![
+            matches!(header.x509_certificate_chain(), Some(vals) if vals == vec![
                 b"x5c0".to_vec(),
                 b"x5c1".to_vec(),
             ])
         );
         assert!(
-            matches!(header.x509_certificate_sha1_thumbprint(), Some(val) if val == &b"x5t".to_vec())
+            matches!(header.x509_certificate_sha1_thumbprint(), Some(val) if val == b"x5t".to_vec())
         );
         assert!(
-            matches!(header.x509_certificate_sha256_thumbprint(), Some(val) if val == &b"x5t#S256".to_vec())
+            matches!(header.x509_certificate_sha256_thumbprint(), Some(val) if val == b"x5t#S256".to_vec())
         );
         assert!(matches!(header.key_id(), Some("kid")));
         assert!(matches!(header.token_type(), Some("typ")));
         assert!(matches!(header.content_type(), Some("cty")));
         assert!(matches!(header.url(), Some("url")));
-        assert!(matches!(header.nonce(), Some(val) if val == &b"nonce".to_vec()));
-        assert!(matches!(header.critical(), Some(vals) if vals == &vec!["crit0", "crit1"]));
+        assert!(matches!(header.nonce(), Some(val) if val == b"nonce".to_vec()));
+        assert!(matches!(header.critical(), Some(vals) if vals == vec!["crit0", "crit1"]));
         assert!(matches!(header.claim("header_claim"), Some(val) if val == &json!("header_claim")));
 
         Ok(())
@@ -1140,6 +1142,7 @@ mod tests {
 
     #[test]
     fn test_external_jwt_decrypt_with_rsaes() -> Result<()> {
+        #[allow(deprecated)]
         for alg in vec![Rsa1_5, RsaOaep] {
             for enc in vec!["A128CBC-HS256", "A256GCM"] {
                 println!("{} {}", alg.name(), enc);

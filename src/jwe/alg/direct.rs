@@ -288,7 +288,7 @@ mod tests {
             jwk.set_key_use("enc");
             jwk.set_parameter(
                 "k",
-                Some(json!("MDEyMzQ1Njc4OUFCQ0RFRjAxMjM0NTY3ODlBQkNERUY=")),
+                Some(json!("MDEyMzQ1Njc4OUFCQ0RFRjAxMjM0NTY3ODlBQkNERUY")),
             )?;
             jwk
         };

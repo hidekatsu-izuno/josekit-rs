@@ -24,49 +24,15 @@ impl JwtPayload {
     ///
     /// # Arguments
     ///
-    /// * `claims` - JWT payload claims.
-    pub fn from_map(claims: Map<String, Value>) -> Result<Self, JoseError> {
-        (|| -> anyhow::Result<Self> {
-            for (key, value) in &claims {
-                match key.as_ref() {
-                    "iss" | "sub" | "jti" => match value {
-                        Value::String(_) => {}
-                        _ => bail!("The JWT {} payload claim must be a string.", key),
-                    },
-                    "aud" => match value {
-                        Value::String(_) => {}
-                        Value::Array(vals) => {
-                            for val in vals {
-                                match val {
-                                    Value::String(_) => {},
-                                    _ => bail!(
-                                        "An element of JWT {} payload claim must be a string.",
-                                        key
-                                    ),
-                                }
-                            }
-                        }
-                        _ => bail!("The JWT {} payload claim must be a string or array.", key),
-                    },
-                    "exp" | "nbf" | "iat" => match value {
-                        Value::Number(val) => match val.as_u64() {
-                            Some(_) => {}
-                            None => bail!(
-                                "The JWT {} payload claim must be a positive integer within 64bit.",
-                                key
-                            ),
-                        },
-                        _ => bail!("The JWT {} payload claim must be a string type.", key),
-                    },
-                    _ => {}
-                }
-            }
+    /// * `map` - JWT payload claims.
+    pub fn from_map(map: impl Into<Map<String, Value>>) -> Result<Self, JoseError> {
+        let map: Map<String, Value> = map.into();
+        for (key, value) in &map {
+            Self::check_claim(key, value)?;
+        }
 
-            Ok(Self { claims })
-        })()
-        .map_err(|err| match err.downcast::<JoseError>() {
-            Ok(err) => err,
-            Err(err) => JoseError::InvalidJwtFormat(err),
+        Ok(Self {
+            claims: map,
         })
     }
 
@@ -132,22 +98,22 @@ impl JwtPayload {
     }
 
     /// Return values for audience payload claim (aud).
-    pub fn audience(&self) -> Option<Vec<String>> {
+    pub fn audience(&self) -> Option<Vec<&str>> {
         match self.claims.get("aud") {
             Some(Value::Array(vals)) => {
                 let mut vec = Vec::with_capacity(vals.len());
                 for val in vals {
                     match val {
                         Value::String(val2) => {
-                            vec.push(val2.clone());
+                            vec.push(val2.as_str());
                         },
-                        _ => {},
+                        _ => return None,
                     }
                 }
                 Some(vec)
             },
             Some(Value::String(val)) => {
-                Some(vec![val.clone()])
+                Some(vec![val])
             },
             _ => None,
         }
@@ -266,63 +232,14 @@ impl JwtPayload {
     /// * `value` - a typed value of payload claim
     pub fn set_claim(&mut self, key: &str, value: Option<Value>) -> Result<(), JoseError> {
         (|| -> anyhow::Result<()> {
-            match key {
-                "iss" | "sub" | "jti" => match &value {
-                    Some(Value::String(_)) => {
-                        self.claims.insert(key.to_string(), value.unwrap());
-                    }
-                    None => {
-                        self.claims.remove(key);
-                    }
-                    _ => bail!("The JWT {} payload claim must be a string.", key),
+            match value {
+                Some(val) => {
+                    Self::check_claim(key, &val)?;
+                    self.claims.insert(key.to_string(), val);
                 },
-                "aud" => match &value {
-                    Some(Value::String(_)) => {
-                        let key = key.to_string();
-                        self.claims.insert(key, value.unwrap());
-                    }
-                    Some(Value::Array(vals)) => {
-                        let key = key.to_string();
-                        let mut vec = Vec::with_capacity(vals.len());
-                        for val in vals {
-                            match val {
-                                Value::String(val) => vec.push(val.to_string()),
-                                _ => bail!(
-                                    "An element of the JWT {} payload claim must be a string.",
-                                    key
-                                ),
-                            }
-                        }
-                        self.claims.insert(key, value.unwrap());
-                    }
-                    None => {
-                        self.claims.remove(key);
-                    }
-                    _ => bail!("The JWT {} payload claim must be a string or array.", key),
-                },
-                "exp" | "nbf" | "iat" => match &value {
-                    Some(Value::Number(val)) => match val.as_u64() {
-                        Some(_) => {
-                            self.claims.insert(key.to_string(), value.unwrap());
-                        }
-                        None => bail!(
-                            "The JWT {} payload claim must be a positive integer within 64bit.",
-                            key
-                        ),
-                    },
-                    None => {
-                        self.claims.remove(key);
-                    }
-                    _ => bail!("The JWT {} header claim must be a string.", key),
-                },
-                _ => match &value {
-                    Some(_) => {
-                        self.claims.insert(key.to_string(), value.unwrap());
-                    }
-                    None => {
-                        self.claims.remove(key);
-                    }
-                },
+                None => {
+                    self.claims.remove(key);
+                }
             }
 
             Ok(())
@@ -342,6 +259,46 @@ impl JwtPayload {
     /// Return values for payload claims set
     pub fn claims_set(&self) -> &Map<String, Value> {
         &self.claims
+    }
+
+    fn check_claim(key: &str, value: &Value) -> Result<(), JoseError> {
+        (|| -> anyhow::Result<()> {
+            match key {
+                "iss" | "sub" | "jti" => match &value {
+                    Value::String(_) => {}
+                    _ => bail!("The JWT {} payload claim must be a string.", key),
+                },
+                "aud" => match &value {
+                    Value::String(_) => {}
+                    Value::Array(vals) => {
+                        for val in vals {
+                            match val {
+                                Value::String(_) => {},
+                                _ => bail!(
+                                    "An element of the JWT {} payload claim must be a string.",
+                                    key
+                                ),
+                            }
+                        }
+                    }
+                    _ => bail!("The JWT {} payload claim must be a string or array.", key),
+                },
+                "exp" | "nbf" | "iat" => match &value {
+                    Value::Number(val) => match val.as_u64() {
+                        Some(_) => {}
+                        None => bail!(
+                            "The JWT {} payload claim must be a positive integer within 64bit.",
+                            key
+                        ),
+                    },
+                    _ => bail!("The JWT {} header claim must be a string.", key),
+                },
+                _ => {}
+            }
+
+            Ok(())
+        })()
+        .map_err(|err| JoseError::InvalidJwtFormat(err))
     }
 }
 

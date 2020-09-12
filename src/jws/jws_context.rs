@@ -82,9 +82,9 @@ impl JwsContext {
         (|| -> anyhow::Result<String> {
             let mut b64 = true;
             if let Some(vals) = header.critical() {
-                if vals.iter().any(|e| e == "b64") {
+                if vals.contains(&"b64") {
                     if let Some(val) = header.base64url_encode_payload() {
-                        b64 = *val;
+                        b64 = val;
                     }
                 }
             }
@@ -249,9 +249,9 @@ impl JwsContext {
 
             let mut protected_map = if let Some(val) = protected {
                 if let Some(vals) = val.critical() {
-                    if vals.iter().any(|e| e == "b64") {
+                    if vals.contains(&"b64") {
                         if let Some(val) = val.base64url_encode_payload() {
-                            b64 = *val;
+                            b64 = val;
                         }
                     }
                 }
@@ -382,13 +382,14 @@ impl JwsContext {
                 None => bail!("A verifier is not found."),
             };
 
-            match header.algorithm() {
-                Some(val) => {
+            match header.claim("alg") {
+                Some(Value::String(val)) => {
                     let expected_alg = verifier.algorithm().name();
                     if val != expected_alg {
                         bail!("The JWS alg header claim is not {}: {}", expected_alg, val);
                     }
                 }
+                Some(_) => bail!("The JWS alg header claim must be a string."),
                 None => bail!("The JWS alg header claim is required."),
             }
 
@@ -402,16 +403,18 @@ impl JwsContext {
             }
 
             let mut b64 = true;
-            if let Some(critical) = header.critical() {
-                for name in critical {
-                    if !self.is_acceptable_critical(name) {
-                        bail!("The critical name '{}' is not supported.", name);
-                    }
-
-                    if name == "b64" {
-                        if let Some(val) = header.base64url_encode_payload() {
-                            b64 = *val;
+            if let Some(Value::Array(vals)) = header.claim("crit") {
+                for val in vals {
+                    if let Value::String(val2) = val {
+                        if !self.is_acceptable_critical(val2) {
+                            bail!("The critical name '{}' is not supported.", val2);
                         }
+    
+                        if val2 == "b64" {
+                            if let Some(val) = header.base64url_encode_payload() {
+                                b64 = val;
+                            }
+                        }    
                     }
                 }
             }

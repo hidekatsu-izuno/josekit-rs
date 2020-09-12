@@ -17,39 +17,6 @@ pub use crate::jws::jws_context::JwsContext;
 pub use crate::jws::jws_header::JwsHeader;
 pub use crate::jws::jws_multi_signer::JwsMultiSigner;
 
-#[deprecated(since = "0.4.0", note = "Please use ::jws::alg::HS256")]
-pub use crate::jws::alg::hmac::HmacJwsAlgorithm::HS256;
-#[deprecated(since = "0.4.0", note = "Please use ::jws::alg::HS384")]
-pub use crate::jws::alg::hmac::HmacJwsAlgorithm::HS384;
-#[deprecated(since = "0.4.0", note = "Please use ::jws::alg::HS512")]
-pub use crate::jws::alg::hmac::HmacJwsAlgorithm::HS512;
-
-#[deprecated(since = "0.4.0", note = "Please use ::jws::alg::RS256")]
-pub use crate::jws::alg::rsassa::RsassaJwsAlgorithm::RS256;
-#[deprecated(since = "0.4.0", note = "Please use ::jws::alg::RS384")]
-pub use crate::jws::alg::rsassa::RsassaJwsAlgorithm::RS384;
-#[deprecated(since = "0.4.0", note = "Please use ::jws::alg::RS512")]
-pub use crate::jws::alg::rsassa::RsassaJwsAlgorithm::RS512;
-
-#[deprecated(since = "0.4.0", note = "Please use ::jws::alg::PS256")]
-pub use crate::jws::alg::rsassa_pss::RsassaPssJwsAlgorithm::PS256;
-#[deprecated(since = "0.4.0", note = "Please use ::jws::alg::PS384")]
-pub use crate::jws::alg::rsassa_pss::RsassaPssJwsAlgorithm::PS384;
-#[deprecated(since = "0.4.0", note = "Please use ::jws::alg::PS512")]
-pub use crate::jws::alg::rsassa_pss::RsassaPssJwsAlgorithm::PS512;
-
-#[deprecated(since = "0.4.0", note = "Please use ::jws::alg::ES256")]
-pub use crate::jws::alg::ecdsa::EcdsaJwsAlgorithm::ES256;
-#[deprecated(since = "0.4.0", note = "Please use ::jws::alg::ES256K")]
-pub use crate::jws::alg::ecdsa::EcdsaJwsAlgorithm::ES256K;
-#[deprecated(since = "0.4.0", note = "Please use ::jws::alg::ES384")]
-pub use crate::jws::alg::ecdsa::EcdsaJwsAlgorithm::ES384;
-#[deprecated(since = "0.4.0", note = "Please use ::jws::alg::ES512")]
-pub use crate::jws::alg::ecdsa::EcdsaJwsAlgorithm::ES512;
-
-#[deprecated(since = "0.4.0", note = "Please use ::jws::alg::EdDSA")]
-pub use crate::jws::alg::eddsa::EddsaJwsAlgorithm::EdDSA;
-
 static DEFAULT_CONTEXT: Lazy<JwsContext> = Lazy::new(|| JwsContext::new());
 
 /// Return a representation of the data that is formatted by compact serialization.
@@ -201,7 +168,8 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::jws::{self, EdDSA, JwsHeader, JwsMultiSigner, ES256, RS256};
+    use crate::jws::{self, JwsHeader, JwsMultiSigner};
+    use crate::jws::alg::{EdDSA, ES256, RS256};
     use anyhow::Result;
     use serde_json::Value;
     use std::fs::File;

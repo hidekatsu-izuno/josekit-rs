@@ -2,17 +2,7 @@ use anyhow::bail;
 use once_cell::sync::Lazy;
 use openssl::bn::BigNumRef;
 use openssl::rand;
-use regex::bytes::{NoExpand, Regex};
-
-use crate::jwk::Jwk;
-
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub(crate) enum SourceValue {
-    Jwk(Jwk),
-    Bytes(Vec<u8>),
-    BytesArray(Vec<Vec<u8>>),
-    StringArray(Vec<String>),
-}
+use regex::{self, bytes};
 
 pub(crate) fn rand_bytes(len: usize) -> Vec<u8> {
     let mut vec = vec![0; len];
@@ -24,9 +14,17 @@ pub(crate) fn ceiling(len: usize, div: usize) -> usize {
     (len + (div - 1)) / div
 }
 
+pub(crate) fn is_base64_url_safe_nopad(input: &str) -> bool {
+    static RE_BASE64: Lazy<regex::Regex> = Lazy::new(|| {
+        regex::Regex::new(r"^(?:[A-Za-z0-9+/_-]{4})*(?:[A-Za-z0-9+/_-]{2}(==)?|[A-Za-z0-9+/_-]{3}=?)?$").unwrap()
+    });
+
+    RE_BASE64.is_match(input)
+}
+
 pub(crate) fn parse_pem(input: &[u8]) -> anyhow::Result<(String, Vec<u8>)> {
-    static RE_PEM: Lazy<Regex> = Lazy::new(|| {
-        Regex::new(concat!(
+    static RE_PEM: Lazy<bytes::Regex> = Lazy::new(|| {
+        bytes::Regex::new(concat!(
             r"^",
             r"-----BEGIN ([A-Z0-9 -]+)-----[\t ]*(?:\r\n|[\r\n])",
             r"([\t\r\n a-zA-Z0-9+/=]+)",
@@ -36,13 +34,13 @@ pub(crate) fn parse_pem(input: &[u8]) -> anyhow::Result<(String, Vec<u8>)> {
         .unwrap()
     });
 
-    static RE_FILTER: Lazy<Regex> = Lazy::new(|| Regex::new("[\t\r\n ]").unwrap());
+    static RE_FILTER: Lazy<bytes::Regex> = Lazy::new(|| bytes::Regex::new("[\t\r\n ]").unwrap());
 
     let result = if let Some(caps) = RE_PEM.captures(input) {
         match (caps.get(1), caps.get(2), caps.get(3)) {
             (Some(ref m1), Some(ref m2), Some(ref m3)) if m1.as_bytes() == m3.as_bytes() => {
                 let alg = String::from_utf8(m1.as_bytes().to_vec())?;
-                let base64_data = RE_FILTER.replace_all(m2.as_bytes(), NoExpand(b""));
+                let base64_data = RE_FILTER.replace_all(m2.as_bytes(), bytes::NoExpand(b""));
                 let data = base64::decode_config(&base64_data, base64::STANDARD)?;
                 (alg, data)
             }
@@ -66,5 +64,20 @@ pub(crate) fn num_to_vec(num: &BigNumRef, len: usize) -> Vec<u8> {
         tmp
     } else {
         vec
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_base64_url_safe_nopad;
+
+    #[test]
+    fn test_is_base64_url_safe_nopad() {
+        assert!(is_base64_url_safe_nopad("MA"));
+        assert!(is_base64_url_safe_nopad("MDEyMzQ1Njc4OQ"));
+        assert!(is_base64_url_safe_nopad("MDEyMzQ1Njc4OQ=="));
+        assert!(!is_base64_url_safe_nopad("AB<>"));
+        assert!(!is_base64_url_safe_nopad("MDEyMzQ1Njc4OQ="));
+        assert!(!is_base64_url_safe_nopad("MDEyMzQ1Njc4O"));
     }
 }
