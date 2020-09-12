@@ -353,29 +353,28 @@ You can use any bytes as the key. But the key length must be larger than
 or equal to the output hash size.
 
 ```rust
-use josekit::jose::JoseError;
+#use josekit::jose::JoseError;
 use josekit::jws::{ JwsHeader, alg::HS256 };
 use josekit::jwt::{ self, JwtPayload };
 
-fn main() -> Result<(), JoseError> {
-    let mut header = JwsHeader::new();
-    header.set_token_type("JWT");
+#fn main() -> Result<(), JoseError> {
+let mut header = JwsHeader::new();
+header.set_token_type("JWT");
 
-    let mut payload = JwtPayload::new();
-    payload.set_subject("subject");
+let mut payload = JwtPayload::new();
+payload.set_subject("subject");
 
-    let key = b"0123456789ABCDEF0123456789ABCDEF";
+let key = b"0123456789ABCDEF0123456789ABCDEF";
 
-    // Signing JWT
-    let signer = HS256.signer_from_bytes(key)?;
-    let jwt = jwt::encode_with_signer(&payload, &header, &signer)?;
+// Signing JWT
+let signer = HS256.signer_from_bytes(key)?;
+let jwt = jwt::encode_with_signer(&payload, &header, &signer)?;
 
-    // Verifing JWT
-    let verifier = HS256.verifier_from_bytes(key)?;
-    let (payload, header) = jwt::decode_with_verifier(&jwt, &verifier)?;
-
-    Ok(())
-}
+// Verifing JWT
+let verifier = HS256.verifier_from_bytes(key)?;
+let (payload, header) = jwt::decode_with_verifier(&jwt, &verifier)?;
+#    Ok(())
+#}
 ```
 
 ### Signing a JWT by RSASSA
