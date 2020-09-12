@@ -105,12 +105,12 @@ cargo build --release
 
 ## Supported encryption algorithms
 
-<table style="table-layout: fixed">
+<table>
 <thead>
     <tr>
-        <th style="width: 35%">Name</th>
-        <th>Description</th>
-        <th style="width: 25%">Key Type</th>
+        <th width="35%">Name</th>
+        <th width="40%">Description</th>
+        <th width="25%">Key Type</th>
     </tr>
 </thead>
 <tbody>
@@ -222,19 +222,19 @@ RSA-OAEP-256, RSA-OAEP-384 and RSA-OAEP-512 are not supported yet.
 
 ### Private Key
 
-<table style="table-layout: fixed">
+<table>
 <thead>
 <tr>
-    <th rowspan="2">Algorithm</th>
-    <th rowspan="2">JWK</th>
+    <th width="25%" rowspan="2">Algorithm</th>
+    <th width="15%" rowspan="2">JWK</th>
     <th colspan="2">PEM</th>
     <th colspan="2">DER</th>
 </tr>
 <tr>
-    <th>PKCS#8</th>
-    <th>Traditional</th>
-    <th>PKCS#8</th>
-    <th>Raw</th>
+    <th width="15%">PKCS#8</th>
+    <th width="15%">Traditional</th>
+    <th width="15%">PKCS#8</th>
+    <th width="15%" >Raw</th>
 </tr>
 </thead>
 <tbody>
@@ -283,19 +283,19 @@ RSA-OAEP-256, RSA-OAEP-384 and RSA-OAEP-512 are not supported yet.
 
 ### Public Key
 
-<table style="table-layout: fixed">
+<table>
 <thead>
 <tr>
-    <th rowspan="2">Algorithm</th>
-    <th rowspan="2">JWK</th>
+    <th width="25%" rowspan="2">Algorithm</th>
+    <th width="15%" rowspan="2">JWK</th>
     <th colspan="2">PEM</th>
     <th colspan="2">DER</th>
 </tr>
 <tr>
-    <th>SPKI</th>
-    <th>Traditional</th>
-    <th>SPKI</th>
-    <th>Raw</th>
+    <th width="15%">SPKI</th>
+    <th width="15%">Traditional</th>
+    <th width="15%">SPKI</th>
+    <th width="15%">Raw</th>
 </tr>
 </thead>
 <tbody>
