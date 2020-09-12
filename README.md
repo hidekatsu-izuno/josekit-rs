@@ -222,7 +222,7 @@ RSA-OAEP-256, RSA-OAEP-384 and RSA-OAEP-512 are not supported yet.
 
 ### Private Key
 
-<table width="100%">
+<table style="width:100%">
 <thead>
 <tr>
     <th width="25%" rowspan="2">Algorithm</th>
@@ -283,7 +283,7 @@ RSA-OAEP-256, RSA-OAEP-384 and RSA-OAEP-512 are not supported yet.
 
 ### Public Key
 
-<table width="100%">
+<table style="width:100%">
 <thead>
 <tr>
     <th width="25%" rowspan="2">Algorithm</th>
