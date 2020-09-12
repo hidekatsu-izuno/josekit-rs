@@ -14,11 +14,11 @@ use crate::der::oid::{
     OID_X448,
 };
 use crate::der::{DerReader, DerType};
-use crate::jose::{JoseError, JoseHeader};
 use crate::jwe::{JweAlgorithm, JweDecrypter, JweEncrypter, JweHeader};
 use crate::jwk::key_pair::{EcCurve, EcKeyPair, EcxCurve, EcxKeyPair};
 use crate::jwk::Jwk;
 use crate::util;
+use crate::{JoseError, JoseHeader};
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 enum EcdhEsKeyType {

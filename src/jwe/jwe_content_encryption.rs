@@ -1,7 +1,7 @@
 use std::cmp::Eq;
 use std::fmt::Debug;
 
-use crate::jose::JoseError;
+use crate::JoseError;
 
 /// Represent a algorithm of JWE enc header claim.
 pub trait JweContentEncryption: Debug + Send + Sync {

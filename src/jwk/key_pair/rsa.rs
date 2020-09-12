@@ -7,9 +7,9 @@ use serde_json::Value;
 
 use crate::der::oid::OID_RSA_ENCRYPTION;
 use crate::der::{DerBuilder, DerReader, DerType};
-use crate::jose::JoseError;
 use crate::jwk::{Jwk, KeyPair};
 use crate::util;
+use crate::JoseError;
 
 #[derive(Debug, Clone)]
 pub struct RsaKeyPair {

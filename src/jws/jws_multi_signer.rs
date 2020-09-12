@@ -1,7 +1,7 @@
 use anyhow::bail;
 
-use crate::jose::{JoseError, JoseHeader};
 use crate::jws::{JwsHeader, JwsSigner};
+use crate::{JoseError, JoseHeader};
 pub struct JwsMultiSigner<'a> {
     signers: Vec<(
         Option<&'a JwsHeader>,

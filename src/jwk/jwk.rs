@@ -7,8 +7,8 @@ use serde::ser::SerializeMap;
 use serde::{Serialize, Serializer};
 use serde_json::{Map, Value};
 
-use crate::jose::JoseError;
 use crate::util;
+use crate::JoseError;
 
 /// Represents JWK object.
 #[derive(Debug, Eq, PartialEq, Clone)]

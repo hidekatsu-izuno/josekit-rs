@@ -5,9 +5,9 @@ use std::ops::Deref;
 use anyhow::bail;
 use serde_json::Value;
 
-use crate::jose::JoseError;
 use crate::jwe::{JweAlgorithm, JweDecrypter, JweEncrypter, JweHeader};
 use crate::jwk::Jwk;
+use crate::JoseError;
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum DirectJweAlgorithm {

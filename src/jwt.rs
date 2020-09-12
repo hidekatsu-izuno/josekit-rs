@@ -10,11 +10,11 @@ use anyhow::bail;
 use once_cell::sync::Lazy;
 use serde_json::{Map, Value};
 
-use crate::jose::{JoseError, JoseHeader};
 use crate::jwe::{JweContext, JweDecrypter, JweEncrypter, JweHeader};
 use crate::jwk::{Jwk, JwkSet};
 use crate::jws::{JwsContext, JwsHeader, JwsSigner, JwsVerifier};
 use crate::util;
+use crate::{JoseError, JoseHeader};
 
 static DEFAULT_CONTEXT: Lazy<JwtContext> = Lazy::new(|| JwtContext::new());
 

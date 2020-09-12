@@ -5,11 +5,11 @@ use std::fmt::Debug;
 use anyhow::bail;
 use serde_json::{Map, Value};
 
-use crate::jose::{JoseError, JoseHeader};
 use crate::jwe::enc::{A128CbcHS256, A128Gcm, A192CbcHS384, A192Gcm, A256CbcHS512, A256Gcm};
 use crate::jwe::zip::Def;
 use crate::jwe::{JweCompression, JweContentEncryption, JweDecrypter, JweEncrypter, JweHeader};
 use crate::util;
+use crate::{JoseError, JoseHeader};
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct JweContext {

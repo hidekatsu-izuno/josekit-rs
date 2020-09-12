@@ -13,9 +13,9 @@ use crate::der::oid::{
     OID_SECP521R1,
 };
 use crate::der::{DerBuilder, DerClass, DerReader, DerType};
-use crate::jose::JoseError;
 use crate::jwk::{Jwk, KeyPair};
 use crate::util;
+use crate::JoseError;
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum EcCurve {

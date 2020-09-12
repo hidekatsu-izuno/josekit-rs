@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use serde_json::{Map, Value};
 
-use crate::jose::JoseError;
+use crate::JoseError;
 
 pub trait JoseHeader: Display + Send + Sync {
     /// Return the value for algorithm header claim (alg).

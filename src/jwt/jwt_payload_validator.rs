@@ -5,8 +5,8 @@ use anyhow::bail;
 use chrono::{DateTime, Utc};
 use serde_json::{Map, Value};
 
-use crate::jose::JoseError;
 use crate::jwt::JwtPayload;
+use crate::JoseError;
 
 /// Represents JWT payload validator.
 #[derive(Debug, Eq, PartialEq)]

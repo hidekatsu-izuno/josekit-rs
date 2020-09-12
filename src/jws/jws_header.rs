@@ -4,9 +4,9 @@ use std::ops::{Deref, DerefMut};
 use anyhow::bail;
 use serde_json::{Map, Value};
 
-use crate::jose::{JoseError, JoseHeader};
 use crate::jwk::Jwk;
 use crate::util;
+use crate::{JoseError, JoseHeader};
 
 /// Represent JWS header claims
 #[derive(Debug, Eq, PartialEq, Clone)]

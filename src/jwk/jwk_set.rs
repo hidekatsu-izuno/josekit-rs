@@ -8,8 +8,8 @@ use std::ops::Bound::Included;
 use std::string::ToString;
 use std::sync::Arc;
 
-use crate::jose::JoseError;
-use crate::jwk::jwk::Jwk;
+use crate::jwk::Jwk;
+use crate::JoseError;
 
 /// Represents JWK set.
 #[derive(Debug, Eq, PartialEq, Clone)]

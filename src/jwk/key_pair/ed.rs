@@ -8,9 +8,9 @@ use serde_json::Value;
 
 use crate::der::oid::ObjectIdentifier;
 use crate::der::{DerBuilder, DerReader, DerType};
-use crate::jose::JoseError;
 use crate::jwk::{Jwk, KeyPair};
 use crate::util;
+use crate::JoseError;
 
 static OID_ED25519: Lazy<ObjectIdentifier> =
     Lazy::new(|| ObjectIdentifier::from_slice(&[1, 3, 101, 112]));

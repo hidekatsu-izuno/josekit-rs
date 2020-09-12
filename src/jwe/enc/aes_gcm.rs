@@ -4,8 +4,8 @@ use std::ops::Deref;
 use anyhow::bail;
 use openssl::symm::{self, Cipher};
 
-use crate::jose::JoseError;
 use crate::jwe::JweContentEncryption;
+use crate::JoseError;
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum AesGcmJweEncryption {

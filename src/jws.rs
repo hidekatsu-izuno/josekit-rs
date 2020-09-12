@@ -8,7 +8,7 @@ mod jws_multi_signer;
 
 use once_cell::sync::Lazy;
 
-use crate::jose::JoseError;
+use crate::JoseError;
 
 pub use crate::jws::jws_algorithm::JwsAlgorithm;
 pub use crate::jws::jws_algorithm::JwsSigner;

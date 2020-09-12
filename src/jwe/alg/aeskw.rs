@@ -6,10 +6,10 @@ use anyhow::bail;
 use openssl::aes::{self, AesKey};
 use serde_json::Value;
 
-use crate::jose::JoseError;
 use crate::jwe::{JweAlgorithm, JweDecrypter, JweEncrypter, JweHeader};
 use crate::jwk::Jwk;
 use crate::util;
+use crate::JoseError;
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum AesJweAlgorithm {

@@ -11,7 +11,7 @@ pub mod zip;
 
 use once_cell::sync::Lazy;
 
-use crate::jose::JoseError;
+use crate::JoseError;
 
 pub use crate::jwe::jwe_algorithm::JweAlgorithm;
 pub use crate::jwe::jwe_algorithm::JweDecrypter;
@@ -177,10 +177,10 @@ mod tests {
     use anyhow::Result;
     use serde_json::Value;
 
-    use crate::jose::JoseHeader;
     use crate::jwe::alg::Dir;
     use crate::jwe::{self, JweAlgorithm, JweHeader};
     use crate::util;
+    use crate::JoseHeader;
 
     #[test]
     fn test_jwe_compact_serialization() -> Result<()> {

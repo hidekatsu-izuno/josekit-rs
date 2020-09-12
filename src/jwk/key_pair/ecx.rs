@@ -7,9 +7,9 @@ use serde_json::Value;
 
 use crate::der::oid::{ObjectIdentifier, OID_X25519, OID_X448};
 use crate::der::{DerBuilder, DerReader, DerType};
-use crate::jose::JoseError;
 use crate::jwk::{Jwk, KeyPair};
 use crate::util;
+use crate::JoseError;
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum EcxCurve {

@@ -1,8 +1,8 @@
 use std::borrow::Cow;
 use std::fmt::Debug;
 
-use crate::jose::JoseError;
 use crate::jwe::JweHeader;
+use crate::JoseError;
 
 /// Represent a algorithm of JWE alg header claim.
 pub trait JweAlgorithm: Debug + Send + Sync {

@@ -4,9 +4,9 @@ use std::fmt::Debug;
 use anyhow::bail;
 use serde_json::{Map, Value};
 
-use crate::jose::JoseError;
 use crate::jws::{JwsHeader, JwsMultiSigner, JwsSigner, JwsVerifier};
 use crate::util;
+use crate::JoseError;
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct JwsContext {

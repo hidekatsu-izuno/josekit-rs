@@ -7,8 +7,8 @@ use openssl::pkey::{PKey, Private};
 use openssl::sign::Signer;
 use openssl::symm::{self, Cipher};
 
-use crate::jose::JoseError;
 use crate::jwe::JweContentEncryption;
+use crate::JoseError;
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum AesCbcHmacJweEncryption {

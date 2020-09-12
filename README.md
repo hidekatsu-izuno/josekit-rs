@@ -353,9 +353,7 @@ You can use any bytes as the key. But the key length must be larger than
 or equal to the output hash size.
 
 ```rust
-use josekit::jose::JoseError;
-use josekit::jws::{ JwsHeader, alg::HS256 };
-use josekit::jwt::{ self, JwtPayload };
+use josekit::{JoseError, jws::{JwsHeader, alg::HS256}, jwt::{self, JwtPayload}};
 
 fn main() -> Result<(), JoseError> {
     let mut header = JwsHeader::new();
@@ -394,9 +392,7 @@ openssl pkey -in private.pem -pubout -out public.pem
 ```
 
 ```rust
-use josekit::jose::JoseError;
-use josekit::jws::{ JwsHeader, alg::RS256 };
-use josekit::jwt::{ self, JwtPayload };
+use josekit::{JoseError, jws::{JwsHeader, alg::RS256}, jwt::{self, JwtPayload}};
 
 const PRIVATE_KEY: &str = concat!(env!("CARGO_MANIFEST_DIR"), 
     "/data/pem/RSA_2048bit_private.pem");
@@ -450,9 +446,7 @@ openssl pkey -in private.pem -pubout -out public.pem
 ```
 
 ```rust
-use josekit::jose::JoseError;
-use josekit::jws::{ JwsHeader, alg::PS256 };
-use josekit::jwt::{ self, JwtPayload };
+use josekit::{JoseError, jws::{JwsHeader, alg::PS256}, jwt::{self, JwtPayload}};
 
 const PRIVATE_KEY: &str = concat!(env!("CARGO_MANIFEST_DIR"), 
     "/data/pem/RSA-PSS_2048bit_SHA-256_private.pem");
@@ -507,9 +501,7 @@ openssl pkey -in private.pem -pubout -out public.pem
 ```
 
 ```rust
-use josekit::jose::JoseError;
-use josekit::jws::{ JwsHeader, alg::ES256 };
-use josekit::jwt::{ self, JwtPayload };
+use josekit::{JoseError, jws::{JwsHeader, alg::ES256}, jwt::{self, JwtPayload}};
 
 const PRIVATE_KEY: &str = concat!(env!("CARGO_MANIFEST_DIR"), 
     "/data/pem/EC_P-256_private.pem");
@@ -559,9 +551,7 @@ openssl pkey -in private.pem -pubout -out public.pem
 ```
 
 ```rust
-use josekit::jose::JoseError;
-use josekit::jws::{ JwsHeader, alg::EdDSA };
-use josekit::jwt::{ self, JwtPayload };
+use josekit::{JoseError, jws::{JwsHeader, alg::EdDSA}, jwt::{self, JwtPayload}};
 
 const PRIVATE_KEY: &str = concat!(env!("CARGO_MANIFEST_DIR"), 
     "/data/pem/ED25519_private.pem");
@@ -597,9 +587,7 @@ The algorithm name is "dir" only.
 You can use any bytes as the key. But the length must be the same as the length of the CEK.
 
 ```rust
-use josekit::jose::JoseError;
-use josekit::jwe::{ JweHeader, alg::Dir };
-use josekit::jwt::{ self, JwtPayload };
+use josekit::{JoseError, jwe::{JweHeader, alg::Dir}, jwt::{self, JwtPayload}};
 
 fn main() -> Result<(), JoseError> {
     let mut header = JweHeader::new();
@@ -661,9 +649,7 @@ openssl pkey -in private.pem -pubout -out public.pem
 ```
 
 ```rust
-use josekit::jose::JoseError;
-use josekit::jwe::{ JweHeader, alg::EcdhEs };
-use josekit::jwt::{ self, JwtPayload };
+use josekit::{JoseError, jwe::{JweHeader, alg::EcdhEs}, jwt::{self, JwtPayload}};
 
 const PRIVATE_KEY: &str = concat!(env!("CARGO_MANIFEST_DIR"), 
     "/data/pem/EC_P-256_private.pem");
@@ -701,9 +687,7 @@ Three algorithms are available for AES: A128KW, A192KW and A256KW.
 You can use any bytes as the key. But the length must be AES key size.
 
 ```rust
-use josekit::jose::JoseError;
-use josekit::jwe::{ JweHeader, alg::A128Kw };
-use josekit::jwt::{ self, JwtPayload };
+use josekit::{JoseError, jwe::{JweHeader, alg::A128Kw}, jwt::{self, JwtPayload}};
 
 fn main() -> Result<(), JoseError> {
     let mut header = JweHeader::new();
@@ -735,9 +719,7 @@ Three algorithms are available for AES-GCM: A128GCMKW, A192GCMKW and A256GCMKW.
 You can use any bytes as the key. But the length must be AES key size.
 
 ```rust
-use josekit::jose::JoseError;
-use josekit::jwe::{ JweHeader, alg::A128GcmKw };
-use josekit::jwt::{ self, JwtPayload };
+use josekit::{JoseError, jwe::{JweHeader, alg::A128GcmKw}, jwt::{self, JwtPayload}};
 
 fn main() -> Result<(), JoseError> {
     let mut header = JweHeader::new();
@@ -770,9 +752,7 @@ You can use any bytes as the key. But a password is recommended that the length 
 than AES key size and no longer than 128 octets.
 
 ```rust
-use josekit::jose::JoseError;
-use josekit::jwe::{ JweHeader, alg::Pbes2HS256A128Kw };
-use josekit::jwt::{ self, JwtPayload };
+use josekit::{JoseError, jwe::{JweHeader, alg::Pbes2HS256A128Kw}, jwt::{self, JwtPayload}};
 
 fn main() -> Result<(), JoseError> {
     let mut header = JweHeader::new();
@@ -812,9 +792,7 @@ openssl pkey -in private.pem -pubout -out public.pem
 ```
 
 ```rust
-use josekit::jose::JoseError;
-use josekit::jwe::{ JweHeader, alg::RsaOaep };
-use josekit::jwt::{ self, JwtPayload };
+use josekit::{JoseError, jwe::{JweHeader, alg::RsaOaep}, jwt::{self, JwtPayload}};
 
 const PRIVATE_KEY: &str = concat!(env!("CARGO_MANIFEST_DIR"), 
     "/data/pem/RSA_2048bit_private.pem");
@@ -845,9 +823,7 @@ fn main() -> Result<(), JoseError> {
 ### Unsecured JWT
 
 ```rust
-use josekit::jose::JoseError;
-use josekit::jws::JwsHeader;
-use josekit::jwt::{self, JwtPayload};
+use josekit::{JoseError, jws::JwsHeader, jwt::{self, JwtPayload}};
 
 fn main() -> Result<(), JoseError> {
     let mut header = JwsHeader::new();
@@ -865,8 +841,7 @@ fn main() -> Result<(), JoseError> {
 ### Validate payload
 
 ```rust,should_panic
-use josekit::jose::JoseError;
-use josekit::jwt::{JwtPayload, JwtPayloadValidator};
+use josekit::{JoseError, jwt::{JwtPayload, JwtPayloadValidator}};
 use std::time::{Duration, SystemTime};
 
 fn main() -> Result<(), JoseError> {

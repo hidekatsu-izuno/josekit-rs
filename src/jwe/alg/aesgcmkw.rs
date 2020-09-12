@@ -6,10 +6,10 @@ use anyhow::bail;
 use openssl::symm::{self, Cipher};
 use serde_json::Value;
 
-use crate::jose::{JoseError, JoseHeader};
 use crate::jwe::{JweAlgorithm, JweDecrypter, JweEncrypter, JweHeader};
 use crate::jwk::Jwk;
 use crate::util;
+use crate::{JoseError, JoseHeader};
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum AesGcmJweAlgorithm {

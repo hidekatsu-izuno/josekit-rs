@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use crate::jose::JoseError;
+use crate::JoseError;
 
 pub trait JwsAlgorithm: Debug + Send + Sync {
     /// Return the "alg" (algorithm) header parameter value of JWS.
