@@ -127,10 +127,11 @@ impl DerBuilder {
             current.push(n as u8);
         }
 
-        let len = contents.len() + match prefix {
-            Some(_) => 1,
-            None => 0,
-        };
+        let len = contents.len()
+            + match prefix {
+                Some(_) => 1,
+                None => 0,
+            };
         if len < 0b10000000 {
             current.push(len as u8);
         } else {

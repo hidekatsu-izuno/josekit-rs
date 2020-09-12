@@ -30,7 +30,7 @@ pub trait JwsSigner: Debug + Send + Sync {
     /// Return the source key ID.
     /// The default value is a value of kid parameter in JWK.
     fn key_id(&self) -> Option<&str>;
-        
+
     /// Return the signature length of JWS.
     fn signature_len(&self) -> usize;
 

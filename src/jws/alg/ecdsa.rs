@@ -426,7 +426,11 @@ impl JwsVerifier for EcdsaJwsVerifier {
         (|| -> anyhow::Result<()> {
             let signature_len = self.algorithm.signature_len();
             if signature.len() != signature_len {
-                bail!("A signature size must be {}: {}", signature_len, signature.len());
+                bail!(
+                    "A signature size must be {}: {}",
+                    signature_len,
+                    signature.len()
+                );
             }
 
             let mut der_builder = DerBuilder::new();

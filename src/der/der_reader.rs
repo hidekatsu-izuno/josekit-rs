@@ -257,13 +257,25 @@ impl<R: Read> DerReader<R> {
             if let Some(contents) = &self.contents {
                 if contents.len() < min_len {
                     let mut vec = Vec::with_capacity(min_len);
-                    for _ in 0..(min_len - contents.len()) {
-                        vec.push(0);
+                    if sign && contents.len() > 0 && (contents[0] & 0b10000000) != 0 {
+                        vec.push(0b10000000);
+                        for _ in 0..(min_len - contents.len() - 1) {
+                            vec.push(0);
+                        }
+                        vec.push(contents[0] & 0b01111111);
+                        vec.extend_from_slice(&contents[1..]);
+                    } else {
+                        for _ in 0..(min_len - contents.len()) {
+                            vec.push(0);
+                        }
+                        vec.extend_from_slice(contents);
                     }
-                    vec.extend_from_slice(contents);
                     vec
-                } else if contents.len() -1 >= min_len 
-                    && !sign && contents.len() > 0 &&  contents[0] == 0 {
+                } else if contents.len() - 1 >= min_len
+                    && !sign
+                    && contents.len() > 0
+                    && contents[0] == 0
+                {
                     contents[1..].to_vec()
                 } else {
                     contents.to_vec()
