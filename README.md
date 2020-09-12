@@ -21,11 +21,11 @@ cargo build --release
 
 ## Supported signing algorithms
 
-<table>
+<table width="100%">
 <thead>
     <tr>
-        <th width="35%">Name</th>
-        <th width="40%">Description</th>
+        <th width="30%">Name</th>
+        <th width="45%">Description</th>
         <th width="25%">Key Type</th>
     </tr>
 </thead>
@@ -105,11 +105,11 @@ cargo build --release
 
 ## Supported encryption algorithms
 
-<table>
+<table width="100%">
 <thead>
     <tr>
-        <th width="35%">Name</th>
-        <th width="40%">Description</th>
+        <th width="30%">Name</th>
+        <th width="45%">Description</th>
         <th width="25%">Key Type</th>
     </tr>
 </thead>
@@ -222,7 +222,7 @@ RSA-OAEP-256, RSA-OAEP-384 and RSA-OAEP-512 are not supported yet.
 
 ### Private Key
 
-<table>
+<table width="100%">
 <thead>
 <tr>
     <th width="25%" rowspan="2">Algorithm</th>
@@ -283,7 +283,7 @@ RSA-OAEP-256, RSA-OAEP-384 and RSA-OAEP-512 are not supported yet.
 
 ### Public Key
 
-<table>
+<table width="100%">
 <thead>
 <tr>
     <th width="25%" rowspan="2">Algorithm</th>
