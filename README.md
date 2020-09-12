@@ -21,7 +21,7 @@ cargo build --release
 
 ## Supported signing algorithms
 
-<table width="100%">
+<table>
 <thead>
     <tr>
         <th width="30%">Name</th>
@@ -93,7 +93,7 @@ cargo build --release
     <tr>
         <td>EdDSA</td>
         <td>EdDSA signature algorithms</td>
-        <td>ED (curve: Ed25519 or Ed448)</td>
+        <td>OKP (curve: Ed25519 or Ed448)</td>
     </tr>
     <tr>
         <td>none</td>
@@ -105,7 +105,7 @@ cargo build --release
 
 ## Supported encryption algorithms
 
-<table width="100%">
+<table>
 <thead>
     <tr>
         <th width="30%">Name</th>
@@ -132,7 +132,7 @@ cargo build --release
         <td>ECDH-ES</td>
         <td>Elliptic Curve Diffie-Hellman Ephemeral Static key agreement using Concat KDF</td>
         <td rowspan="4">EC (curve: P-256, P-384, P-521 or secp256k1)<br />
-            ECX (curve: X25519 or X448)</td>
+            OKP (curve: X25519 or X448)</td>
     </tr>
     <tr>
         <td>ECDH-ES+A128KW</td>
@@ -936,10 +936,3 @@ dual licensed as above, without any additional terms or conditions.
 - [RFC8410: Algorithm Identifiers for Ed25519, Ed448, X25519, and X448 for Use in the Internet X.509 Public Key Infrastructure](https://tools.ietf.org/html/rfc8410)
 - [RFC8037: CFRG Elliptic Curve Diffie-Hellman (ECDH) and Signatures in JSON Object Signing and Encryption (JOSE)](https://tools.ietf.org/html/rfc8037)
 - [RFC7468: Textual Encodings of PKIX, PKCS, and CMS Structures](https://tools.ietf.org/html/rfc7468)
-
-<style>
-table {
-    table-layout: fixed;
-    width: 100%;
-}
-</style>
