@@ -17,9 +17,7 @@ pub struct JwsHeader {
 impl JwsHeader {
     /// Return a JwsHeader instance.
     pub fn new() -> Self {
-        Self {
-            claims: Map::new(),
-        }
+        Self { claims: Map::new() }
     }
 
     /// Return a new header instance from json style header.
@@ -61,9 +59,7 @@ impl JwsHeader {
         })()
         .map_err(|err| JoseError::InvalidJwsFormat(err))?;
 
-        Ok(Self {
-            claims: map,
-        })
+        Ok(Self { claims: map })
     }
 
     /// Set a value for algorithm header claim (alg).
@@ -108,11 +104,9 @@ impl JwsHeader {
     /// Return the value for JWK header claim (jwk).
     pub fn jwk(&self) -> Option<Jwk> {
         match self.claims.get("jwk") {
-            Some(Value::Object(vals)) => {
-                match Jwk::from_map(vals.clone()) {
-                    Ok(val) => Some(val),
-                    Err(_) => None
-                }
+            Some(Value::Object(vals)) => match Jwk::from_map(vals.clone()) {
+                Ok(val) => Some(val),
+                Err(_) => None,
             },
             _ => None,
         }
@@ -161,19 +155,16 @@ impl JwsHeader {
                 for val in vals {
                     match val {
                         Value::String(val2) => {
-                            match base64::decode_config(
-                                val2,
-                                base64::URL_SAFE_NO_PAD,
-                            ) {
+                            match base64::decode_config(val2, base64::URL_SAFE_NO_PAD) {
                                 Ok(val3) => vec.push(val3.clone()),
                                 Err(_) => return None,
                             }
-                        },
+                        }
                         _ => return None,
                     }
                 }
                 Some(vec)
-            },
+            }
             _ => None,
         }
     }
@@ -192,14 +183,9 @@ impl JwsHeader {
     /// Return the value for X.509 certificate SHA-1 thumbprint header claim (x5t).
     pub fn x509_certificate_sha1_thumbprint(&self) -> Option<Vec<u8>> {
         match self.claims.get("x5t") {
-            Some(Value::String(val)) => {
-                match base64::decode_config(
-                    val,
-                    base64::URL_SAFE_NO_PAD,
-                ) {
-                    Ok(val2) => Some(val2),
-                    Err(_) => None,
-                }
+            Some(Value::String(val)) => match base64::decode_config(val, base64::URL_SAFE_NO_PAD) {
+                Ok(val2) => Some(val2),
+                Err(_) => None,
             },
             _ => None,
         }
@@ -219,14 +205,9 @@ impl JwsHeader {
     /// Return the value for X.509 certificate SHA-256 thumbprint header claim (x5t#S256).
     pub fn x509_certificate_sha256_thumbprint(&self) -> Option<Vec<u8>> {
         match self.claims.get("x5t#S256") {
-            Some(Value::String(val)) => {
-                match base64::decode_config(
-                    val,
-                    base64::URL_SAFE_NO_PAD,
-                ) {
-                    Ok(val2) => Some(val2),
-                    Err(_) => None,
-                }
+            Some(Value::String(val)) => match base64::decode_config(val, base64::URL_SAFE_NO_PAD) {
+                Ok(val2) => Some(val2),
+                Err(_) => None,
             },
             _ => None,
         }
@@ -313,7 +294,7 @@ impl JwsHeader {
                     }
                 }
                 Some(vec)
-            },
+            }
             _ => None,
         }
     }
@@ -367,14 +348,9 @@ impl JwsHeader {
     /// Return the value for nonce header claim (nonce).
     pub fn nonce(&self) -> Option<Vec<u8>> {
         match self.claims.get("nonce") {
-            Some(Value::String(val)) => {
-                match base64::decode_config(
-                    val,
-                    base64::URL_SAFE_NO_PAD,
-                ) {
-                    Ok(val2) => Some(val2),
-                    Err(_) => None,
-                }
+            Some(Value::String(val)) => match base64::decode_config(val, base64::URL_SAFE_NO_PAD) {
+                Ok(val2) => Some(val2),
+                Err(_) => None,
             },
             _ => None,
         }
@@ -391,7 +367,7 @@ impl JwsHeader {
                     Value::Array(vals) => {
                         for val in vals {
                             match val {
-                                Value::String(_) => {},
+                                Value::String(_) => {}
                                 _ => bail!(
                                     "An element of the JWS {} header claim must be a string.",
                                     key
@@ -415,7 +391,10 @@ impl JwsHeader {
                             match val {
                                 Value::String(val) => {
                                     if !util::is_base64_url_safe_nopad(val) {
-                                        bail!("The JWS {} header claim must be a base64 string.", key);
+                                        bail!(
+                                            "The JWS {} header claim must be a base64 string.",
+                                            key
+                                        );
                                     }
                                 }
                                 _ => bail!(
@@ -450,12 +429,12 @@ impl JoseHeader for JwsHeader {
             Some(val) => {
                 Self::check_claim(key, &val)?;
                 self.claims.insert(key.to_string(), val);
-            },
+            }
             None => {
                 self.claims.remove(key);
             }
         }
-        
+
         Ok(())
     }
 

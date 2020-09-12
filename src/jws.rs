@@ -168,8 +168,8 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::jws::{self, JwsHeader, JwsMultiSigner};
     use crate::jws::alg::{EdDSA, ES256, RS256};
+    use crate::jws::{self, JwsHeader, JwsMultiSigner};
     use anyhow::Result;
     use serde_json::Value;
     use std::fs::File;

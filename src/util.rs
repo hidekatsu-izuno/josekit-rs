@@ -1,8 +1,8 @@
 use anyhow::bail;
-use regex::{self, bytes};
 use once_cell::sync::Lazy;
 use openssl::bn::BigNumRef;
 use openssl::rand;
+use regex::{self, bytes};
 
 pub(crate) fn rand_bytes(len: usize) -> Vec<u8> {
     let mut vec = vec![0; len];
@@ -16,7 +16,10 @@ pub(crate) fn ceiling(len: usize, div: usize) -> usize {
 
 pub(crate) fn is_base64_url_safe_nopad(input: &str) -> bool {
     static RE_BASE64: Lazy<regex::Regex> = Lazy::new(|| {
-        regex::Regex::new(r"^(?:[A-Za-z0-9+/_-]{4})*(?:[A-Za-z0-9+/_-]{2}(==)?|[A-Za-z0-9+/_-]{3}=?)?$").unwrap()
+        regex::Regex::new(
+            r"^(?:[A-Za-z0-9+/_-]{4})*(?:[A-Za-z0-9+/_-]{2}(==)?|[A-Za-z0-9+/_-]{3}=?)?$",
+        )
+        .unwrap()
     });
 
     RE_BASE64.is_match(input)

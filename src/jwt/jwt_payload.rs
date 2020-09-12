@@ -15,9 +15,7 @@ pub struct JwtPayload {
 impl JwtPayload {
     /// Return a new JWT payload
     pub fn new() -> Self {
-        Self {
-            claims: Map::new(),
-        }
+        Self { claims: Map::new() }
     }
 
     /// Return the JWT payload from map.
@@ -31,9 +29,7 @@ impl JwtPayload {
             Self::check_claim(key, value)?;
         }
 
-        Ok(Self {
-            claims: map,
-        })
+        Ok(Self { claims: map })
     }
 
     /// Set a value for issuer payload claim (iss).
@@ -106,15 +102,13 @@ impl JwtPayload {
                     match val {
                         Value::String(val2) => {
                             vec.push(val2.as_str());
-                        },
+                        }
                         _ => return None,
                     }
                 }
                 Some(vec)
-            },
-            Some(Value::String(val)) => {
-                Some(vec![val])
-            },
+            }
+            Some(Value::String(val)) => Some(vec![val]),
             _ => None,
         }
     }
@@ -139,9 +133,7 @@ impl JwtPayload {
     pub fn expires_at(&self) -> Option<SystemTime> {
         match self.claims.get("exp") {
             Some(Value::Number(val)) => match val.as_u64() {
-                Some(val) => {
-                    Some(SystemTime::UNIX_EPOCH + Duration::from_secs(val))
-                }
+                Some(val) => Some(SystemTime::UNIX_EPOCH + Duration::from_secs(val)),
                 None => None,
             },
             _ => None,
@@ -168,9 +160,7 @@ impl JwtPayload {
     pub fn not_before(&self) -> Option<SystemTime> {
         match self.claims.get("nbf") {
             Some(Value::Number(val)) => match val.as_u64() {
-                Some(val) => {
-                    Some(SystemTime::UNIX_EPOCH + Duration::from_secs(val))
-                }
+                Some(val) => Some(SystemTime::UNIX_EPOCH + Duration::from_secs(val)),
                 None => None,
             },
             _ => None,
@@ -197,9 +187,7 @@ impl JwtPayload {
     pub fn issued_at(&self) -> Option<SystemTime> {
         match self.claims.get("iat") {
             Some(Value::Number(val)) => match val.as_u64() {
-                Some(val) => {
-                    Some(SystemTime::UNIX_EPOCH + Duration::from_secs(val))
-                }
+                Some(val) => Some(SystemTime::UNIX_EPOCH + Duration::from_secs(val)),
                 None => None,
             },
             _ => None,
@@ -236,7 +224,7 @@ impl JwtPayload {
                 Some(val) => {
                     Self::check_claim(key, &val)?;
                     self.claims.insert(key.to_string(), val);
-                },
+                }
                 None => {
                     self.claims.remove(key);
                 }
@@ -273,7 +261,7 @@ impl JwtPayload {
                     Value::Array(vals) => {
                         for val in vals {
                             match val {
-                                Value::String(_) => {},
+                                Value::String(_) => {}
                                 _ => bail!(
                                     "An element of the JWT {} payload claim must be a string.",
                                     key
@@ -344,7 +332,9 @@ mod tests {
 
         assert!(matches!(payload.issuer(), Some("iss")));
         assert!(matches!(payload.subject(), Some("sub")));
-        assert!(matches!(payload.audience(), Some(ref vals) if vals == &vec!["aud0".to_string(), "aud1".to_string()]));
+        assert!(
+            matches!(payload.audience(), Some(ref vals) if vals == &vec!["aud0".to_string(), "aud1".to_string()])
+        );
         assert!(matches!(payload.expires_at(), Some(ref val) if val == &SystemTime::UNIX_EPOCH));
         assert!(matches!(payload.not_before(), Some(ref val) if val == &SystemTime::UNIX_EPOCH));
         assert!(matches!(payload.issued_at(), Some(ref val) if val == &SystemTime::UNIX_EPOCH));

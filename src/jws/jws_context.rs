@@ -409,12 +409,12 @@ impl JwsContext {
                         if !self.is_acceptable_critical(val2) {
                             bail!("The critical name '{}' is not supported.", val2);
                         }
-    
+
                         if val2 == "b64" {
                             if let Some(val) = header.base64url_encode_payload() {
                                 b64 = val;
                             }
-                        }    
+                        }
                     }
                 }
             }

@@ -26,16 +26,14 @@ impl Jwk {
             },
         }
     }
-    
+
     pub fn from_map(map: impl Into<Map<String, Value>>) -> Result<Self, JoseError> {
         let map: Map<String, Value> = map.into();
         Self::check_map(&map)?;
 
-        Ok(Self {
-            map,
-        })
+        Ok(Self { map })
     }
-    
+
     pub fn from_reader(input: &mut dyn Read) -> Result<Self, JoseError> {
         (|| -> anyhow::Result<Self> {
             let map: Map<String, Value> = serde_json::from_reader(input)?;
@@ -297,12 +295,12 @@ impl Jwk {
             Some(val) => {
                 Self::check_parameter(key, &val)?;
                 self.map.insert(key.to_string(), val);
-            },
+            }
             None => {
                 (|| -> anyhow::Result<()> {
                     match key {
                         "kty" => bail!("The JWK {} parameter must be required.", key),
-                        _ => {},
+                        _ => {}
                     }
                     Ok(())
                 })()
@@ -341,14 +339,14 @@ impl Jwk {
         (|| -> anyhow::Result<()> {
             match key {
                 "kty" | "use" | "alg" | "kid" | "x5u" | "crv" => match &value {
-                    Value::String(_) => {},
+                    Value::String(_) => {}
                     _ => bail!("The JWK {} parameter must be a string.", key),
                 },
                 "key_ops" => match &value {
                     Value::Array(vals) => {
                         for val in vals {
                             match val {
-                                Value::String(_) => {},
+                                Value::String(_) => {}
                                 _ => bail!(
                                     "An element of the JWK {} parameter must be a string.",
                                     key
@@ -358,14 +356,16 @@ impl Jwk {
                     }
                     _ => bail!("The JWK {} parameter must be a array of string.", key),
                 },
-                "x5t" | "x5t#S256" | "k" | "d" | "p" | "q" | "dp" | "dq" | "qi" | "x" | "y" => match &value {
-                    Value::String(val) => {
-                        if !util::is_base64_url_safe_nopad(val) {
-                            bail!("The JWK {} parameter must be a base64 string.", key);
+                "x5t" | "x5t#S256" | "k" | "d" | "p" | "q" | "dp" | "dq" | "qi" | "x" | "y" => {
+                    match &value {
+                        Value::String(val) => {
+                            if !util::is_base64_url_safe_nopad(val) {
+                                bail!("The JWK {} parameter must be a base64 string.", key);
+                            }
                         }
-                    },
-                    _ => bail!("The JWK {} parameter must be a string.", key),
-                },
+                        _ => bail!("The JWK {} parameter must be a string.", key),
+                    }
+                }
                 "x5c" => match &value {
                     Value::Array(vals) => {
                         for val in vals {
@@ -384,7 +384,7 @@ impl Jwk {
                     }
                     _ => bail!("The JWK {} parameter must be a array of string.", key),
                 },
-                _ => {},
+                _ => {}
             }
 
             Ok(())

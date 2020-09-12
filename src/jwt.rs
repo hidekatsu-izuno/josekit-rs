@@ -567,11 +567,11 @@ mod tests {
         RsaOaep,
     };
     use crate::jwk::Jwk;
-    use crate::jws::JwsHeader;
     use crate::jws::alg::{
-        EdDSA, ES256, ES256K, ES384, ES512, HS256, HS384, HS512, PS256, PS384, PS512,
-        RS256, RS384, RS512,
+        EdDSA, ES256, ES256K, ES384, ES512, HS256, HS384, HS512, PS256, PS384, PS512, RS256, RS384,
+        RS512,
     };
+    use crate::jws::JwsHeader;
     use crate::jwt::{self, JwtPayload, JwtPayloadValidator};
     use crate::util;
 
