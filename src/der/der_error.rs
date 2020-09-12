@@ -14,9 +14,6 @@ pub enum DerError {
     #[error("Invalid contents: {0}")]
     InvalidContents(String),
 
-    #[error("Invalid Utf8 String: {0}")]
-    InvalidUtf8String(#[source] std::string::FromUtf8Error),
-
     #[error("Overflow length.")]
     Overflow,
 

@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 use crate::der::oid::ObjectIdentifier;
 use crate::der::DerType;
 

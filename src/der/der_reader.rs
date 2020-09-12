@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 use std::io::{Bytes, Read};
 
 use crate::der::oid::ObjectIdentifier;
@@ -338,7 +340,7 @@ impl<R: Read> DerReader<R> {
         if let DerType::Utf8String = self.der_type {
             if let Some(contents) = &self.contents {
                 let value = String::from_utf8(contents.to_vec())
-                    .map_err(|err| DerError::InvalidUtf8String(err))?;
+                    .map_err(|_| DerError::InvalidContents("Invalid UTF-8 sequence found".to_string()))?;
                 Ok(value)
             } else {
                 unreachable!();
