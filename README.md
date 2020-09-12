@@ -353,24 +353,29 @@ You can use any bytes as the key. But the key length must be larger than
 or equal to the output hash size.
 
 ```rust
-use josekit::jws::{ JwsHeader, HS256 };
+use josekit::jose::JoseError;
+use josekit::jws::{ JwsHeader, alg::HS256 };
 use josekit::jwt::{ self, JwtPayload };
 
-let mut header = JwsHeader::new();
-header.set_token_type("JWT");
+fn main() -> Result<(), JoseError> {
+    let mut header = JwsHeader::new();
+    header.set_token_type("JWT");
 
-let mut payload = JwtPayload::new();
-payload.set_subject("subject");
+    let mut payload = JwtPayload::new();
+    payload.set_subject("subject");
 
-let common_secret_key = load_from_file("secret")?;
+    let key = b"0123456789ABCDEF0123456789ABCDEF";
 
-// Signing JWT
-let signer = HS256.signer_from_bytes(&common_secret_key)?;
-let jwt = jwt::encode_with_signer(&payload, &header, &signer)?;
+    // Signing JWT
+    let signer = HS256.signer_from_bytes(key)?;
+    let jwt = jwt::encode_with_signer(&payload, &header, &signer)?;
 
-// Verifing JWT
-let verifier = HS256.signer_from_bytes(&common_secret_key)?
-let (payload, header) = jwt::decode_with_verifier(&jwt, &verifier)?;
+    // Verifing JWT
+    let verifier = HS256.verifier_from_bytes(key)?;
+    let (payload, header) = jwt::decode_with_verifier(&jwt, &verifier)?;
+
+    Ok(())
+}
 ```
 
 ### Signing a JWT by RSASSA
@@ -389,24 +394,35 @@ openssl pkey -in private.pem -pubout -out public.pem
 ```
 
 ```rust
-use josekit::jws::{ JwsHeader, RS256 };
+use josekit::jose::JoseError;
+use josekit::jws::{ JwsHeader, alg::RS256 };
 use josekit::jwt::{ self, JwtPayload };
+use std::fs;
 
-let mut header = JwsHeader::new();
-header.set_token_type("JWT");
+const PRIVATE_KEY: &str = concat!(env!("CARGO_MANIFEST_DIR"), 
+    "/data/pem/RSA_2048bit_private.pem");
+const PUBLIC_KEY: &str = concat!(env!("CARGO_MANIFEST_DIR"), 
+    "/data/pem/RSA_2048bit_public.pem");
 
-let mut payload = JwtPayload::new();
-payload.set_subject("subject");
+fn main() -> Result<(), JoseError> {
+    let mut header = JwsHeader::new();
+    header.set_token_type("JWT");
 
-// Signing JWT
-let private_key = load_from_file("private.pem")?;
-let signer = RS256.signer_from_pem(&private_key)?;
-let jwt = jwt::encode_with_signer(&payload, &header, &signer)?;
+    let mut payload = JwtPayload::new();
+    payload.set_subject("subject");
 
-// Verifing JWT
-let public_key = load_from_file("public.pem")?;
-let verifier = RS256.verifier_from_pem(&public_key)?;
-let (payload, header) = jwt::decode_with_verifier(&jwt, &verifier)?;
+    // Signing JWT
+    let private_key = fs::read(PRIVATE_KEY).unwrap();
+    let signer = RS256.signer_from_pem(&private_key)?;
+    let jwt = jwt::encode_with_signer(&payload, &header, &signer)?;
+
+    // Verifing JWT
+    let public_key = fs::read(PUBLIC_KEY).unwrap();
+    let verifier = RS256.verifier_from_pem(&public_key)?;
+    let (payload, header) = jwt::decode_with_verifier(&jwt, &verifier)?;
+    
+    Ok(())
+}
 ```
 
 ### Signing a JWT by RSASSA-PSS
@@ -435,24 +451,35 @@ openssl pkey -in private.pem -pubout -out public.pem
 ```
 
 ```rust
-use josekit::jws::{ JwsHeader, PS256 };
+use josekit::jose::JoseError;
+use josekit::jws::{ JwsHeader, alg::PS256 };
 use josekit::jwt::{ self, JwtPayload };
+use std::fs;
 
-let mut header = JwsHeader::new();
-header.set_token_type("JWT");
+const PRIVATE_KEY: &str = concat!(env!("CARGO_MANIFEST_DIR"), 
+    "/data/pem/RSA-PSS_2048bit_SHA-256_private.pem");
+const PUBLIC_KEY: &str = concat!(env!("CARGO_MANIFEST_DIR"), 
+    "/data/pem/RSA-PSS_2048bit_SHA-256_public.pem");
 
-let mut payload = JwtPayload::new();
-payload.set_subject("subject");
+fn main() -> Result<(), JoseError> {
+    let mut header = JwsHeader::new();
+    header.set_token_type("JWT");
 
-// Signing JWT
-let private_key = load_from_file("private.pem")?;
-let signer = PS256.signer_from_pem(&private_key)?;
-let jwt = jwt::encode_with_signer(&payload, &header, &signer)?;
+    let mut payload = JwtPayload::new();
+    payload.set_subject("subject");
 
-// Verifing JWT
-let public_key = load_from_file("public.pem")?;
-let verifier = PS256.verifier_from_pem(&public_key)?;
-let (payload, header) = jwt::decode_with_verifier(&jwt, &verifier)?;
+    // Signing JWT
+    let private_key = fs::read(PRIVATE_KEY).unwrap();
+    let signer = PS256.signer_from_pem(&private_key)?;
+    let jwt = jwt::encode_with_signer(&payload, &header, &signer)?;
+
+    // Verifing JWT
+    let public_key = fs::read(PUBLIC_KEY).unwrap();
+    let verifier = PS256.verifier_from_pem(&public_key)?;
+    let (payload, header) = jwt::decode_with_verifier(&jwt, &verifier)?;
+
+    Ok(())
+}
 ```
 
 ### Signing a JWT by ECDSA
@@ -482,24 +509,35 @@ openssl pkey -in private.pem -pubout -out public.pem
 ```
 
 ```rust
-use josekit::jws::{ JwsHeader, ES256 };
+use josekit::jose::JoseError;
+use josekit::jws::{ JwsHeader, alg::ES256 };
 use josekit::jwt::{ self, JwtPayload };
+use std::fs;
 
-let mut header = JwsHeader::new();
-header.set_token_type("JWT");
+const PRIVATE_KEY: &str = concat!(env!("CARGO_MANIFEST_DIR"), 
+    "/data/pem/EC_P-256_private.pem");
+const PUBLIC_KEY: &str = concat!(env!("CARGO_MANIFEST_DIR"), 
+    "/data/pem/EC_P-256_public.pem");
 
-let mut payload = JwtPayload::new();
-payload.set_subject("subject");
+fn main() -> Result<(), JoseError> {
+    let mut header = JwsHeader::new();
+    header.set_token_type("JWT");
 
-// Signing JWT
-let private_key = load_from_file("private.pem")?;
-let signer = ES256.signer_from_pem(&private_key)?;
-let jwt = jwt::encode_with_signer(&payload, &header, &signer)?;
+    let mut payload = JwtPayload::new();
+    payload.set_subject("subject");
 
-// Verifing JWT
-let public_key = load_from_file("public.pem")?;
-let verifier = ES256.verifier_from_pem(&public_key)?;
-let (payload, header) = jwt::decode_with_verifier(&jwt, &verifier)?;
+    // Signing JWT
+    let private_key = fs::read(PRIVATE_KEY).unwrap();
+    let signer = ES256.signer_from_pem(&private_key)?;
+    let jwt = jwt::encode_with_signer(&payload, &header, &signer)?;
+
+    // Verifing JWT
+    let public_key = fs::read(PUBLIC_KEY).unwrap();
+    let verifier = ES256.verifier_from_pem(&public_key)?;
+    let (payload, header) = jwt::decode_with_verifier(&jwt, &verifier)?;
+
+    Ok(())
+}
 ```
 
 ### Signing a JWT by EdDSA
@@ -524,24 +562,35 @@ openssl pkey -in private.pem -pubout -out public.pem
 ```
 
 ```rust
-use josekit::jws::{ JwsHeader, EdDSA };
+use josekit::jose::JoseError;
+use josekit::jws::{ JwsHeader, alg::EdDSA };
 use josekit::jwt::{ self, JwtPayload };
+use std::fs;
 
-let mut header = JwsHeader::new();
-header.set_token_type("JWT");
+const PRIVATE_KEY: &str = concat!(env!("CARGO_MANIFEST_DIR"), 
+    "/data/pem/ED25519_private.pem");
+const PUBLIC_KEY: &str = concat!(env!("CARGO_MANIFEST_DIR"), 
+    "/data/pem/ED25519_public.pem");
 
-let mut payload = JwtPayload::new();
-payload.set_subject("subject");
+fn main() -> Result<(), JoseError> {
+    let mut header = JwsHeader::new();
+    header.set_token_type("JWT");
 
-// Signing JWT
-let private_key = load_from_file("private.pem")?;
-let signer = EdDSA.signer_from_pem(&private_key)?;
-let jwt = jwt::encode_with_signer(&payload, &header, &signer)?;
+    let mut payload = JwtPayload::new();
+    payload.set_subject("subject");
 
-// Verifing JWT
-let public_key = load_from_file("public.pem")?;
-let verifier = EdDSA.verifier_from_pem(&public_key)?;
-let (payload, header) = jwt::decode_with_verifier(&jwt, &verifier)?;
+    // Signing JWT
+    let private_key = fs::read(PRIVATE_KEY).unwrap();
+    let signer = EdDSA.signer_from_pem(&private_key)?;
+    let jwt = jwt::encode_with_signer(&payload, &header, &signer)?;
+
+    // Verifing JWT
+    let public_key = fs::read(PUBLIC_KEY).unwrap();
+    let verifier = EdDSA.verifier_from_pem(&public_key)?;
+    let (payload, header) = jwt::decode_with_verifier(&jwt, &verifier)?;
+
+    Ok(())
+}
 ```
 
 ### Encrypting a JWT by a Direct method
@@ -552,25 +601,31 @@ The algorithm name is "dir" only.
 You can use any bytes as the key. But the length must be the same as the length of the CEK.
 
 ```rust
-use josekit::jwe::{ JweHeader, Dir };
+use josekit::jose::JoseError;
+use josekit::jwe::{ JweHeader, alg::Dir };
 use josekit::jwt::{ self, JwtPayload };
+use std::fs;
 
-let mut header = JweHeader::new();
-header.set_token_type("JWT");
-header.set_content_encryption("A128CBC-HS256");
+fn main() -> Result<(), JoseError> {
+    let mut header = JweHeader::new();
+    header.set_token_type("JWT");
+    header.set_content_encryption("A128CBC-HS256");
 
-let mut payload = JwtPayload::new();
-payload.set_subject("subject");
+    let mut payload = JwtPayload::new();
+    payload.set_subject("subject");
 
-let content_encryption_key = load_from_file("secret")?;
+    let key = b"0123456789ABCDEF0123456789ABCDEF";
 
-// Encrypting JWT
-let encrypter = Dir.encrypter_from_bytes(&content_encryption_key)?;
-let jwt = jwt::encode_with_encrypter(&payload, &header, &encrypter)?;
+    // Encrypting JWT
+    let encrypter = Dir.encrypter_from_bytes(key)?;
+    let jwt = jwt::encode_with_encrypter(&payload, &header, &encrypter)?;
 
-// Decrypting JWT
-let decrypter = Dir.decrypter_from_bytes(&content_encryption_key)?
-let (payload, header) = jwt::decode_with_decrypter(&jwt, &decrypter)?;
+    // Decrypting JWT
+    let decrypter = Dir.decrypter_from_bytes(key)?;
+    let (payload, header) = jwt::decode_with_decrypter(&jwt, &decrypter)?;
+
+    Ok(())
+}
 ```
 
 ### Encrypting a JWT by ECDH-ES
@@ -611,25 +666,36 @@ openssl pkey -in private.pem -pubout -out public.pem
 ```
 
 ```rust
-use josekit::jwe::{ JweHeader, EcdhEs };
+use josekit::jose::JoseError;
+use josekit::jwe::{ JweHeader, alg::EcdhEs };
 use josekit::jwt::{ self, JwtPayload };
+use std::fs;
 
-let mut header = JweHeader::new();
-header.set_token_type("JWT");
-header.set_content_encryption("A128CBC-HS256");
+const PRIVATE_KEY: &str = concat!(env!("CARGO_MANIFEST_DIR"), 
+    "/data/pem/EC_P-256_private.pem");
+const PUBLIC_KEY: &str = concat!(env!("CARGO_MANIFEST_DIR"), 
+    "/data/pem/EC_P-256_public.pem");
 
-let mut payload = JwtPayload::new();
-payload.set_subject("subject");
+fn main() -> Result<(), JoseError> {
+    let mut header = JweHeader::new();
+    header.set_token_type("JWT");
+    header.set_content_encryption("A128CBC-HS256");
 
-// Encrypting JWT
-let public_key = load_from_file("EC_public.pem")?;
-let encrypter = EcdhEs.encrypter_from_pem(&public_key)?;
-let jwt = jwt::encode_with_encrypter(&payload, &header, &encrypter)?;
+    let mut payload = JwtPayload::new();
+    payload.set_subject("subject");
 
-// Decrypting JWT
-let private_key = load_from_file("EC_private.pem")?;
-let decrypter = EcdhEs.decrypter_from_pem(&private_key)?
-let (payload, header) = jwt::decode_with_decrypter(&jwt, &decrypter)?;
+    // Encrypting JWT
+    let public_key = fs::read(PUBLIC_KEY).unwrap();
+    let encrypter = EcdhEs.encrypter_from_pem(&public_key)?;
+    let jwt = jwt::encode_with_encrypter(&payload, &header, &encrypter)?;
+
+    // Decrypting JWT
+    let private_key = fs::read(PRIVATE_KEY).unwrap();
+    let decrypter = EcdhEs.decrypter_from_pem(&private_key)?;
+    let (payload, header) = jwt::decode_with_decrypter(&jwt, &decrypter)?;
+
+    Ok(())
+}
 ```
 
 ### Encrypting a JWT by AESKW
@@ -641,25 +707,29 @@ Three algorithms are available for AES: A128KW, A192KW and A256KW.
 You can use any bytes as the key. But the length must be AES key size.
 
 ```rust
-use josekit::jwe::{ JweHeader, A128Kw };
+use josekit::jose::JoseError;
+use josekit::jwe::{ JweHeader, alg::A128Kw };
 use josekit::jwt::{ self, JwtPayload };
 
-let mut header = JweHeader::new();
-header.set_token_type("JWT");
-header.set_content_encryption("A128CBC-HS256");
+fn main() -> Result<(), JoseError> {
+    let mut header = JweHeader::new();
+    header.set_token_type("JWT");
+    header.set_content_encryption("A128CBC-HS256");
 
-let mut payload = JwtPayload::new();
-payload.set_subject("subject");
+    let mut payload = JwtPayload::new();
+    payload.set_subject("subject");
 
-let common_secret_key = load_from_file("secret")?;
+    let key = b"0123456789ABCDEF";
 
-// Encrypting JWT
-let encrypter = A128Kw.encrypter_from_bytes(&common_secret_key)?;
-let jwt = jwt::encode_with_encrypter(&payload, &header, &encrypter)?;
+    // Encrypting JWT
+    let encrypter = A128Kw.encrypter_from_bytes(key)?;
+    let jwt = jwt::encode_with_encrypter(&payload, &header, &encrypter)?;
 
-// Decrypting JWT
-let decrypter = A128Kw.decrypter_from_bytes(&common_secret_key)?
-let (payload, header) = jwt::decode_with_decrypter(&jwt, &decrypter)?;
+    // Decrypting JWT
+    let decrypter = A128Kw.decrypter_from_bytes(key)?;
+    let (payload, header) = jwt::decode_with_decrypter(&jwt, &decrypter)?;
+    Ok(())
+}
 ```
 
 ### Encrypting a JWT by AES-GCM
@@ -671,25 +741,29 @@ Three algorithms are available for AES-GCM: A128GCMKW, A192GCMKW and A256GCMKW.
 You can use any bytes as the key. But the length must be AES key size.
 
 ```rust
-use josekit::jwe::{ JweHeader, A128GcmKw };
+use josekit::jose::JoseError;
+use josekit::jwe::{ JweHeader, alg::A128GcmKw };
 use josekit::jwt::{ self, JwtPayload };
 
-let mut header = JweHeader::new();
-header.set_token_type("JWT");
-header.set_content_encryption("A128CBC-HS256");
+fn main() -> Result<(), JoseError> {
+    let mut header = JweHeader::new();
+    header.set_token_type("JWT");
+    header.set_content_encryption("A128CBC-HS256");
 
-let mut payload = JwtPayload::new();
-payload.set_subject("subject");
+    let mut payload = JwtPayload::new();
+    payload.set_subject("subject");
 
-let common_secret_key = load_from_file("secret")?;
+    let key = b"0123456789ABCDEF";
 
-// Encrypting JWT
-let encrypter = A128GcmKw.encrypter_from_bytes(&common_secret_key)?;
-let jwt = jwt::encode_with_encrypter(&payload, &header, &encrypter)?;
+    // Encrypting JWT
+    let encrypter = A128GcmKw.encrypter_from_bytes(key)?;
+    let jwt = jwt::encode_with_encrypter(&payload, &header, &encrypter)?;
 
-// Decrypting JWT
-let decrypter = A128GcmKw.decrypter_from_bytes(&common_secret_key)?
-let (payload, header) = jwt::decode_with_decrypter(&jwt, &decrypter)?;
+    // Decrypting JWT
+    let decrypter = A128GcmKw.decrypter_from_bytes(key)?;
+    let (payload, header) = jwt::decode_with_decrypter(&jwt, &decrypter)?;
+    Ok(())
+}
 ```
 
 ### Encrypting a JWT by PBES2-HMAC+AESKW
@@ -702,25 +776,29 @@ You can use any bytes as the key. But a password is recommended that the length 
 than AES key size and no longer than 128 octets.
 
 ```rust
-use josekit::jwe::{ JweHeader, A128GcmKw };
+use josekit::jose::JoseError;
+use josekit::jwe::{ JweHeader, alg::Pbes2HS256A128Kw };
 use josekit::jwt::{ self, JwtPayload };
 
-let mut header = JweHeader::new();
-header.set_token_type("JWT");
-header.set_content_encryption("A128CBC-HS256");
+fn main() -> Result<(), JoseError> {
+    let mut header = JweHeader::new();
+    header.set_token_type("JWT");
+    header.set_content_encryption("A128CBC-HS256");
 
-let mut payload = JwtPayload::new();
-payload.set_subject("subject");
+    let mut payload = JwtPayload::new();
+    payload.set_subject("subject");
 
-let common_secret_key = b"password";
+    let key = b"01234567";
 
-// Encrypting JWT
-let encrypter = Pbes2HS256A128Kw.encrypter_from_bytes(&common_secret_key)?;
-let jwt = jwt::encode_with_encrypter(&payload, &header, &encrypter)?;
+    // Encrypting JWT
+    let encrypter = Pbes2HS256A128Kw.encrypter_from_bytes(key)?;
+    let jwt = jwt::encode_with_encrypter(&payload, &header, &encrypter)?;
 
-// Decrypting JWT
-let decrypter = Pbes2HS256A128Kw.decrypter_from_bytes(&common_secret_key)?
-let (payload, header) = jwt::decode_with_decrypter(&jwt, &decrypter)?;
+    // Decrypting JWT
+    let decrypter = Pbes2HS256A128Kw.decrypter_from_bytes(key)?;
+    let (payload, header) = jwt::decode_with_decrypter(&jwt, &decrypter)?;
+    Ok(())
+}
 ```
 
 ### Encrypting a JWT by RSAES
@@ -740,65 +818,84 @@ openssl pkey -in private.pem -pubout -out public.pem
 ```
 
 ```rust
-use josekit::jwe::{ JweHeader, RsaOaep };
+use josekit::jose::JoseError;
+use josekit::jwe::{ JweHeader, alg::RsaOaep };
 use josekit::jwt::{ self, JwtPayload };
+use std::fs;
 
-let mut header = JweHeader::new();
-header.set_token_type("JWT");
-header.set_content_encryption("A128CBC-HS256");
+const PRIVATE_KEY: &str = concat!(env!("CARGO_MANIFEST_DIR"), 
+    "/data/pem/RSA_2048bit_private.pem");
+const PUBLIC_KEY: &str = concat!(env!("CARGO_MANIFEST_DIR"), 
+    "/data/pem/RSA_2048bit_public.pem");
 
-let mut payload = JwtPayload::new();
-payload.set_subject("subject");
+fn main() -> Result<(), JoseError> {
+    let mut header = JweHeader::new();
+    header.set_token_type("JWT");
+    header.set_content_encryption("A128CBC-HS256");
 
-// Encrypting JWT
-let public_key = load_from_file("public.pem")?;
-let encrypter = RsaOaep.encrypter_from_pem(&public_key)?;
-let jwt = jwt::encode_with_encrypter(&payload, &header, &encrypter)?;
+    let mut payload = JwtPayload::new();
+    payload.set_subject("subject");
 
-// Decrypting JWT
-let private_key = load_from_file("private.pem")?;
-let decrypter = RsaOaep.decrypter_from_pem(&private_key)?
-let (payload, header) = jwt::decode_with_decrypter(&jwt, &decrypter)?;
+    // Encrypting JWT
+    let public_key = fs::read(PUBLIC_KEY).unwrap();
+    let encrypter = RsaOaep.encrypter_from_pem(&public_key)?;
+    let jwt = jwt::encode_with_encrypter(&payload, &header, &encrypter)?;
+
+    // Decrypting JWT
+    let private_key = fs::read(PRIVATE_KEY).unwrap();
+    let decrypter = RsaOaep.decrypter_from_pem(&private_key)?;
+    let (payload, header) = jwt::decode_with_decrypter(&jwt, &decrypter)?;
+    Ok(())
+}
 ```
 
 ### Unsecured JWT
 
 ```rust
+use josekit::jose::JoseError;
 use josekit::jws::JwsHeader;
 use josekit::jwt::{self, JwtPayload};
 
-let mut header = JwsHeader::new();
-header.set_token_type("JWT");
+fn main() -> Result<(), JoseError> {
+    let mut header = JwsHeader::new();
+    header.set_token_type("JWT");
 
-let mut payload = JwtPayload::new();
-payload.set_subject("subject");
+    let mut payload = JwtPayload::new();
+    payload.set_subject("subject");
 
-let jwt = jwt::encode_unsecured(&payload, &header)?;
-let (payload, header) = jwt::decode_unsecured(&jwt)?;
+    let jwt = jwt::encode_unsecured(&payload, &header)?;
+    let (payload, header) = jwt::decode_unsecured(&jwt)?;
+    Ok(())
+}
 ```
 
 ### Validate payload
 
-```rust
-use josekit::jwt::{self, JwtPayloadValidator };
+```rust,should_panic
+use josekit::jose::JoseError;
+use josekit::jwt::{self, JwtPayload, JwtPayloadValidator };
+use std::fs;
+use std::time::{Duration, SystemTime};
 
-...
-let (payload, _) = jwt::decode_with_verifier(&jwt, &verifier)?;
+fn main() -> Result<(), JoseError> {
+    let mut validator = JwtPayloadValidator::new();
+    // value based validation
+    validator.set_issuer("http://example.com");
+    validator.set_audience("user1");
+    validator.set_jwt_id("550e8400-e29b-41d4-a716-446655440000");
 
-let mut validator = JwtPayloadValidator::new();
-// value based validation
-validator.set_issuer("http://example.com");
-validator.set_audience("user1");
-validator.set_jwt_id("550e8400-e29b-41d4-a716-446655440000");
+    // time based validation: not_before <= base_time < expires_at
+    validator.set_base_time(SystemTime::now() + Duration::from_secs(30));
 
-// time based validation: not_before <= base_time < expires_at
-validator.set_base_time(SystemTime::now() + Duration::from_secs(30));
+    // issued time based validation: min_issued_time <= issued_time <= max_issued_time
+    validator.set_min_issued_time(SystemTime::now() - Duration::from_secs(48 * 60));
+    validator.set_max_issued_time(SystemTime::now() + Duration::from_secs(24 * 60));
 
-// issued time based validation: min_issued_time <= issued_time <= max_issued_time
-validator.set_min_issued_time(SystemTime::now() - Duration::from_secs(48 * 60));
-validator.set_max_issued_time(SystemTime::now() + Duration::from_secs(24 * 60));
+    let mut payload = JwtPayload::new();
 
-validator.validate(&payload)?;
+    validator.validate(&payload)?;
+    Ok(())
+}
 ```
 
 ## ToDo

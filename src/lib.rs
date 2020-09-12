@@ -10,3 +10,9 @@ pub mod jws;
 pub mod jwt;
 
 mod util;
+
+#[cfg(doctest)]
+use doc_comment::doctest;
+
+#[cfg(doctest)]
+doctest!("../README.md");
