@@ -316,15 +316,12 @@ pub struct RsaesJweEncrypter {
 }
 
 impl RsaesJweEncrypter {
-    pub fn set_key_id(&mut self, key_id: Option<impl Into<String>>) {
-        match key_id {
-            Some(val) => {
-                self.key_id = Some(val.into());
-            }
-            None => {
-                self.key_id = None;
-            }
-        }
+    pub fn set_key_id(&mut self, value: impl Into<String>) {
+        self.key_id = Some(value.into());
+    }
+
+    pub fn remove_key_id(&mut self) {
+        self.key_id = None;
     }
 }
 
@@ -403,15 +400,12 @@ pub struct RsaesJweDecrypter {
 }
 
 impl RsaesJweDecrypter {
-    pub fn set_key_id(&mut self, key_id: Option<impl Into<String>>) {
-        match key_id {
-            Some(val) => {
-                self.key_id = Some(val.into());
-            }
-            None => {
-                self.key_id = None;
-            }
-        }
+    pub fn set_key_id(&mut self, value: impl Into<String>) {
+        self.key_id = Some(value.into());
+    }
+
+    pub fn remove_key_id(&mut self) {
+        self.key_id = None;
     }
 }
 

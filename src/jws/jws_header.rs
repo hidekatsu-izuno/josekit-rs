@@ -479,3 +479,56 @@ impl DerefMut for JwsHeader {
         self
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use anyhow::Result;
+    use serde_json::json;
+
+    use crate::jwk::Jwk;
+    use crate::jws::JwsHeader;
+
+    #[test]
+    fn test_new_jws_header() -> Result<()> {
+        let mut header = JwsHeader::new();
+        let jwk = Jwk::new("oct");
+        header.set_jwk_set_url("jku");
+        header.set_jwk(jwk.clone());
+        header.set_x509_url("x5u");
+        header.set_x509_certificate_chain(&vec![b"x5c0", b"x5c1"]);
+        header.set_x509_certificate_sha1_thumbprint(b"x5t");
+        header.set_x509_certificate_sha256_thumbprint(b"x5t#S256");
+        header.set_key_id("kid");
+        header.set_token_type("typ");
+        header.set_content_type("cty");
+        header.set_critical(&vec!["crit0", "crit1"]);
+        header.set_url("url");
+        header.set_nonce(b"nonce");
+        header.set_claim("header_claim", Some(json!("header_claim")))?;
+
+        assert!(matches!(header.jwk_set_url(), Some("jku")));
+        assert!(matches!(header.jwk(), Some(val) if val == jwk));
+        assert!(matches!(header.x509_url(), Some("x5u")));
+        assert!(
+            matches!(header.x509_certificate_chain(), Some(vals) if vals == vec![
+                b"x5c0".to_vec(),
+                b"x5c1".to_vec(),
+            ])
+        );
+        assert!(
+            matches!(header.x509_certificate_sha1_thumbprint(), Some(val) if val == b"x5t".to_vec())
+        );
+        assert!(
+            matches!(header.x509_certificate_sha256_thumbprint(), Some(val) if val == b"x5t#S256".to_vec())
+        );
+        assert!(matches!(header.key_id(), Some("kid")));
+        assert!(matches!(header.token_type(), Some("typ")));
+        assert!(matches!(header.content_type(), Some("cty")));
+        assert!(matches!(header.url(), Some("url")));
+        assert!(matches!(header.nonce(), Some(val) if val == b"nonce".to_vec()));
+        assert!(matches!(header.critical(), Some(vals) if vals == vec!["crit0", "crit1"]));
+        assert!(matches!(header.claim("header_claim"), Some(val) if val == &json!("header_claim")));
+
+        Ok(())
+    }
+}

@@ -201,9 +201,9 @@ mod tests {
     use anyhow::Result;
     use serde_json::Value;
 
-    use crate::JoseHeader;
-    use crate::jwe::{self, JweAlgorithm, JweHeader, Dir};
+    use crate::jwe::{self, Dir, JweAlgorithm, JweHeader};
     use crate::util;
+    use crate::JoseHeader;
 
     #[test]
     fn test_jwe_compact_serialization() -> Result<()> {

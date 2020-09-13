@@ -151,6 +151,8 @@ impl EcdhEsJweAlgorithm {
                 public_key,
                 key_type,
                 key_id: None,
+                agreement_partyuinfo: None,
+                agreement_partyvinfo: None,
             })
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
@@ -178,6 +180,8 @@ impl EcdhEsJweAlgorithm {
                 public_key,
                 key_type,
                 key_id: None,
+                agreement_partyuinfo: None,
+                agreement_partyvinfo: None,
             })
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
@@ -268,6 +272,8 @@ impl EcdhEsJweAlgorithm {
                 key_type,
                 public_key,
                 key_id,
+                agreement_partyuinfo: None,
+                agreement_partyvinfo: None,
             })
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
@@ -569,19 +575,34 @@ pub struct EcdhEsJweEncrypter {
     algorithm: EcdhEsJweAlgorithm,
     key_type: EcdhEsKeyType,
     public_key: PKey<Public>,
+    agreement_partyuinfo: Option<Vec<u8>>,
+    agreement_partyvinfo: Option<Vec<u8>>,
     key_id: Option<String>,
 }
 
 impl EcdhEsJweEncrypter {
-    pub fn set_key_id(&mut self, key_id: Option<impl Into<String>>) {
-        match key_id {
-            Some(val) => {
-                self.key_id = Some(val.into());
-            }
-            None => {
-                self.key_id = None;
-            }
-        }
+    pub fn set_agreement_partyuinfo(&mut self, value: impl Into<Vec<u8>>) {
+        self.agreement_partyuinfo = Some(value.into());
+    }
+
+    pub fn remove_agreement_partyuinfo(&mut self) {
+        self.agreement_partyuinfo = None;
+    }
+
+    pub fn set_agreement_partyvinfo(&mut self, value: impl Into<Vec<u8>>) {
+        self.agreement_partyvinfo = Some(value.into());
+    }
+
+    pub fn remove_agreement_partyvinfo(&mut self) {
+        self.agreement_partyvinfo = None;
+    }
+
+    pub fn set_key_id(&mut self, value: impl Into<String>) {
+        self.key_id = Some(value.into());
+    }
+
+    pub fn remove_key_id(&mut self) {
+        self.key_id = None;
     }
 }
 
@@ -603,21 +624,37 @@ impl JweEncrypter for EcdhEsJweEncrypter {
         key_len: usize,
     ) -> Result<(Cow<[u8]>, Option<Vec<u8>>), JoseError> {
         (|| -> anyhow::Result<(Cow<[u8]>, Option<Vec<u8>>)> {
+            let apu_vec;
             let apu = match header.claim("apu") {
                 Some(Value::String(val)) => {
-                    let apu = base64::decode_config(val, base64::URL_SAFE_NO_PAD)?;
-                    Some(apu)
+                    apu_vec = base64::decode_config(val, base64::URL_SAFE_NO_PAD)?;
+                    Some(apu_vec.as_slice())
                 }
                 Some(_) => bail!("The apu header claim must be string."),
-                None => None,
+                None => match &self.agreement_partyuinfo {
+                    Some(val) => {
+                        let apu_b64 = base64::encode_config(val, base64::URL_SAFE_NO_PAD);
+                        header.set_claim("apu", Some(Value::String(apu_b64)))?;
+                        Some(val.as_slice())
+                    }
+                    None => None,
+                },
             };
+            let apv_vec;
             let apv = match header.claim("apv") {
                 Some(Value::String(val)) => {
-                    let apv = base64::decode_config(val, base64::URL_SAFE_NO_PAD)?;
-                    Some(apv)
+                    apv_vec = base64::decode_config(val, base64::URL_SAFE_NO_PAD)?;
+                    Some(apv_vec.as_slice())
                 }
                 Some(_) => bail!("The apv header claim must be string."),
-                None => None,
+                None => match &self.agreement_partyvinfo {
+                    Some(val) => {
+                        let apv_b64 = base64::encode_config(val, base64::URL_SAFE_NO_PAD);
+                        header.set_claim("apv", Some(Value::String(apv_b64)))?;
+                        Some(val.as_slice())
+                    }
+                    None => None,
+                },
             };
 
             header.set_algorithm(self.algorithm.name());
@@ -737,15 +774,12 @@ pub struct EcdhEsJweDecrypter {
 }
 
 impl EcdhEsJweDecrypter {
-    pub fn set_key_id(&mut self, key_id: Option<impl Into<String>>) {
-        match key_id {
-            Some(val) => {
-                self.key_id = Some(val.into());
-            }
-            None => {
-                self.key_id = None;
-            }
-        }
+    pub fn set_key_id(&mut self, value: impl Into<String>) {
+        self.key_id = Some(value.into());
+    }
+
+    pub fn remove_key_id(&mut self) {
+        self.key_id = None;
     }
 }
 
