@@ -112,7 +112,7 @@ where
 /// * `header` - The decoded JWS header claims.
 /// * `verifier` - The JWS verifier.
 pub fn deserialize_compact(
-    input: &str,
+    input: impl AsRef<[u8]>,
     verifier: &dyn JwsVerifier,
 ) -> Result<(Vec<u8>, JwsHeader), JoseError> {
     DEFAULT_CONTEXT.deserialize_compact(input, verifier)
@@ -126,7 +126,7 @@ pub fn deserialize_compact(
 /// * `header` - The decoded JWS header claims.
 /// * `selector` - a function for selecting the verifying algorithm.
 pub fn deserialize_compact_with_selector<'a, F>(
-    input: &str,
+    input: impl AsRef<[u8]>,
     selector: F,
 ) -> Result<(Vec<u8>, JwsHeader), JoseError>
 where
@@ -143,7 +143,7 @@ where
 /// * `header` - The decoded JWS header claims.
 /// * `verifier` - The JWS verifier.
 pub fn deserialize_json<'a>(
-    input: &str,
+    input: impl AsRef<[u8]>,
     verifier: &'a dyn JwsVerifier,
 ) -> Result<(Vec<u8>, JwsHeader), JoseError> {
     DEFAULT_CONTEXT.deserialize_json(input, verifier)
@@ -157,7 +157,7 @@ pub fn deserialize_json<'a>(
 /// * `header` - The decoded JWS header claims.
 /// * `selector` - a function for selecting the verifying algorithm.
 pub fn deserialize_json_with_selector<'a, F>(
-    input: &str,
+    input: impl AsRef<[u8]>,
     selector: F,
 ) -> Result<(Vec<u8>, JwsHeader), JoseError>
 where

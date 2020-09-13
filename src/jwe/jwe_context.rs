@@ -455,7 +455,7 @@ impl JweContext {
     /// * `decrypter` - The JWS decrypter.
     pub fn deserialize_compact(
         &self,
-        input: &str,
+        input: impl AsRef<[u8]>,
         decrypter: &dyn JweDecrypter,
     ) -> Result<(Vec<u8>, JweHeader), JoseError> {
         self.deserialize_compact_with_selector(input, |_header| Ok(Some(decrypter)))
@@ -469,17 +469,18 @@ impl JweContext {
     /// * `selector` - a function for selecting the decrypting algorithm.
     pub fn deserialize_compact_with_selector<'a, F>(
         &self,
-        input: &str,
+        input: impl AsRef<[u8]>,
         selector: F,
     ) -> Result<(Vec<u8>, JweHeader), JoseError>
     where
         F: Fn(&JweHeader) -> Result<Option<&'a dyn JweDecrypter>, JoseError>,
     {
         (|| -> anyhow::Result<(Vec<u8>, JweHeader)> {
-            let indexies: Vec<usize> = input
-                .char_indices()
-                .filter(|(_, c)| c == &'.')
-                .map(|(i, _)| i)
+            let input = input.as_ref();
+            let indexies: Vec<usize> = input.iter()
+                .enumerate()
+                .filter(|(_, b)| **b == b'.' as u8)
+                .map(|(pos, _)| pos)
                 .collect();
             if indexies.len() != 4 {
                 bail!(
@@ -567,7 +568,7 @@ impl JweContext {
             }
 
             let key = decrypter.decrypt(&merged, encrypted_key, cencryption.key_len())?;
-            let content = cencryption.decrypt(&key, iv, &ciphertext, header_b64.as_bytes(), tag)?;
+            let content = cencryption.decrypt(&key, iv, &ciphertext, header_b64, tag)?;
             let content = match compression {
                 Some(val) => val.decompress(&content)?,
                 None => content,
@@ -589,7 +590,7 @@ impl JweContext {
     /// * `decrypter` - The JWE decrypter.
     pub fn deserialize_json<'a>(
         &self,
-        input: &str,
+        input: impl AsRef<[u8]>,
         decrypter: &'a dyn JweDecrypter,
     ) -> Result<(Vec<u8>, JweHeader), JoseError> {
         self.deserialize_json_with_selector(input, |header| {
@@ -623,14 +624,15 @@ impl JweContext {
     /// * `selector` - a function for selecting the decrypting algorithm.
     pub fn deserialize_json_with_selector<'a, F>(
         &self,
-        input: &str,
+        input: impl AsRef<[u8]>,
         selector: F,
     ) -> Result<(Vec<u8>, JweHeader), JoseError>
     where
         F: Fn(&JweHeader) -> Result<Option<&'a dyn JweDecrypter>, JoseError>,
     {
         (|| -> anyhow::Result<(Vec<u8>, JweHeader)> {
-            let mut map: Map<String, Value> = serde_json::from_str(input)?;
+            let input = input.as_ref();
+            let mut map: Map<String, Value> = serde_json::from_slice(input)?;
 
             let (protected, protected_b64) = match map.remove("protected") {
                 Some(Value::String(val)) => {

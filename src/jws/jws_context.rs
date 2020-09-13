@@ -336,7 +336,7 @@ impl JwsContext {
     /// * `verifier` - The JWS verifier.
     pub fn deserialize_compact(
         &self,
-        input: &str,
+        input: impl AsRef<[u8]>,
         verifier: &dyn JwsVerifier,
     ) -> Result<(Vec<u8>, JwsHeader), JoseError> {
         self.deserialize_compact_with_selector(input, |_header| Ok(Some(verifier)))
@@ -351,17 +351,18 @@ impl JwsContext {
     /// * `selector` - a function for selecting the verifying algorithm.
     pub fn deserialize_compact_with_selector<'a, F>(
         &self,
-        input: &str,
+        input: impl AsRef<[u8]>,
         selector: F,
     ) -> Result<(Vec<u8>, JwsHeader), JoseError>
     where
         F: Fn(&JwsHeader) -> Result<Option<&'a dyn JwsVerifier>, JoseError>,
     {
         (|| -> anyhow::Result<(Vec<u8>, JwsHeader)> {
-            let indexies: Vec<usize> = input
-                .char_indices()
-                .filter(|(_, c)| c == &'.')
-                .map(|(i, _)| i)
+            let input = input.as_ref();
+            let indexies: Vec<usize> = input.iter()
+                .enumerate()
+                .filter(|(_, b)| **b == b'.' as u8)
+                .map(|(pos, _)| pos)
                 .collect();
             if indexies.len() != 2 {
                 bail!(
@@ -421,12 +422,12 @@ impl JwsContext {
 
             let message = &input[..(indexies[1])];
             let signature = base64::decode_config(signature, base64::URL_SAFE_NO_PAD)?;
-            verifier.verify(message.as_bytes(), &signature)?;
+            verifier.verify(message, &signature)?;
 
             let payload = if b64 {
                 base64::decode_config(payload, base64::URL_SAFE_NO_PAD)?
             } else {
-                payload.to_string().into_bytes()
+                payload.to_vec()
             };
 
             Ok((payload, header))
@@ -446,7 +447,7 @@ impl JwsContext {
     /// * `verifier` - The JWS verifier.
     pub fn deserialize_json<'a>(
         &self,
-        input: &str,
+        input: impl AsRef<[u8]>,
         verifier: &'a dyn JwsVerifier,
     ) -> Result<(Vec<u8>, JwsHeader), JoseError> {
         self.deserialize_json_with_selector(input, |header| {
@@ -481,14 +482,15 @@ impl JwsContext {
     /// * `selector` - a function for selecting the verifying algorithm.
     pub fn deserialize_json_with_selector<'a, F>(
         &self,
-        input: &str,
+        input: impl AsRef<[u8]>,
         selector: F,
     ) -> Result<(Vec<u8>, JwsHeader), JoseError>
     where
         F: Fn(&JwsHeader) -> Result<Option<&'a dyn JwsVerifier>, JoseError>,
     {
         (|| -> anyhow::Result<(Vec<u8>, JwsHeader)> {
-            let mut map: Map<String, Value> = serde_json::from_str(input)?;
+            let input = input.as_ref();
+            let mut map: Map<String, Value> = serde_json::from_slice(input)?;
 
             let payload_b64 = match map.remove("payload") {
                 Some(Value::String(val)) => val,
