@@ -8,11 +8,10 @@ use openssl::aes::{self, AesKey};
 use openssl::pkcs5;
 use serde_json::{Number, Value};
 
-use crate::jwa::HashAlgorithm;
 use crate::jwe::{JweAlgorithm, JweDecrypter, JweEncrypter, JweHeader};
 use crate::jwk::Jwk;
 use crate::util;
-use crate::{JoseError, JoseHeader};
+use crate::{HashAlgorithm, JoseError, JoseHeader};
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum Pbes2HmacJweAlgorithm {

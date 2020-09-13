@@ -15,7 +15,10 @@ use crate::der::oid::{
 };
 use crate::der::{DerReader, DerType};
 use crate::jwe::{JweAlgorithm, JweDecrypter, JweEncrypter, JweHeader};
-use crate::jwk::key_pair::{EcCurve, EcKeyPair, EcxCurve, EcxKeyPair};
+use crate::jwk::alg::{
+    ec::{EcCurve, EcKeyPair},
+    ecx::{EcxCurve, EcxKeyPair},
+};
 use crate::jwk::Jwk;
 use crate::util;
 use crate::{JoseError, JoseHeader};
@@ -939,7 +942,7 @@ mod tests {
     use crate::jwe::enc::aes_cbc_hmac::AesCbcHmacJweEncryption;
     use crate::jwe::enc::aes_gcm::AesGcmJweEncryption;
     use crate::jwe::JweHeader;
-    use crate::jwk::key_pair::{EcCurve, EcxCurve};
+    use crate::jwk::alg::{ec::EcCurve, ecx::EcxCurve};
     use crate::jwk::Jwk;
 
     #[test]

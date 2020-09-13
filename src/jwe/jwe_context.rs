@@ -477,7 +477,8 @@ impl JweContext {
     {
         (|| -> anyhow::Result<(Vec<u8>, JweHeader)> {
             let input = input.as_ref();
-            let indexies: Vec<usize> = input.iter()
+            let indexies: Vec<usize> = input
+                .iter()
                 .enumerate()
                 .filter(|(_, b)| **b == b'.' as u8)
                 .map(|(pos, _)| pos)

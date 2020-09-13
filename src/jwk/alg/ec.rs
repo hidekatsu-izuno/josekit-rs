@@ -550,7 +550,7 @@ impl Deref for EcKeyPair {
 mod tests {
     use anyhow::Result;
 
-    use crate::jwk::key_pair::{EcCurve, EcKeyPair};
+    use super::{EcCurve, EcKeyPair};
 
     #[test]
     fn test_ec_jwt() -> Result<()> {

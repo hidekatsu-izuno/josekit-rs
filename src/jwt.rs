@@ -10,10 +10,10 @@ pub use crate::jwt::jwt_payload_validator::JwtPayloadValidator;
 
 use once_cell::sync::Lazy;
 
-use crate::{JoseError, JoseHeader};
 use crate::jwe::{JweDecrypter, JweEncrypter, JweHeader};
 use crate::jwk::{Jwk, JwkSet};
 use crate::jws::{JwsHeader, JwsSigner, JwsVerifier};
+use crate::{JoseError, JoseHeader};
 
 static DEFAULT_CONTEXT: Lazy<JwtContext> = Lazy::new(|| JwtContext::new());
 

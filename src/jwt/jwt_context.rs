@@ -1,12 +1,12 @@
 use anyhow::bail;
 use serde_json::{Map, Value};
 
-use crate::{JoseError, JoseHeader};
 use crate::jwe::{JweContext, JweDecrypter, JweEncrypter, JweHeader};
 use crate::jwk::{Jwk, JwkSet};
 use crate::jws::{JwsContext, JwsHeader, JwsSigner, JwsVerifier};
 use crate::jwt::JwtPayload;
 use crate::util;
+use crate::{JoseError, JoseHeader};
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct JwtContext {
@@ -175,7 +175,10 @@ impl JwtContext {
     /// # Arguments
     ///
     /// * `input` - a JWT string representation.
-    pub fn decode_unsecured(&self, input: impl AsRef<[u8]>) -> Result<(JwtPayload, JwsHeader), JoseError> {
+    pub fn decode_unsecured(
+        &self,
+        input: impl AsRef<[u8]>,
+    ) -> Result<(JwtPayload, JwsHeader), JoseError> {
         (|| -> anyhow::Result<(JwtPayload, JwsHeader)> {
             let input = input.as_ref();
             let parts: Vec<&[u8]> = input.split(|b| *b == '.' as u8).collect();

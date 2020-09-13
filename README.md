@@ -869,6 +869,7 @@ fn main() -> Result<(), JoseError> {
 ## ToDo
 
 - Supports RSA-OAEP-256, RSA-OAEP-384 and RSA-OAEP-512.
+- Supports multiple recipients jwe json serialization. 
 
 ## License
 

@@ -6,8 +6,10 @@ use openssl::pkey::{PKey, Private, Public};
 use openssl::sign::{Signer, Verifier};
 use serde_json::Value;
 
-use crate::jwk::key_pair::{EdCurve, EdKeyPair};
-use crate::jwk::Jwk;
+use crate::jwk::{
+    alg::ed::{EdCurve, EdKeyPair},
+    Jwk,
+};
 use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier};
 use crate::util;
 use crate::JoseError;

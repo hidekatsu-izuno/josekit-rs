@@ -9,10 +9,9 @@ use crate::der::{
     oid::{OID_MGF1, OID_RSASSA_PSS, OID_SHA256, OID_SHA384, OID_SHA512},
     DerBuilder, DerClass, DerReader, DerType,
 };
-use crate::jwa::HashAlgorithm;
 use crate::jwk::{Jwk, KeyPair};
 use crate::util;
-use crate::JoseError;
+use crate::{HashAlgorithm, JoseError};
 
 #[derive(Debug, Clone)]
 pub struct RsaPssKeyPair {
@@ -706,8 +705,8 @@ impl Deref for RsaPssKeyPair {
 mod tests {
     use anyhow::Result;
 
-    use crate::jwa::HashAlgorithm;
-    use crate::jwk::key_pair::RsaPssKeyPair;
+    use super::RsaPssKeyPair;
+    use crate::HashAlgorithm;
 
     #[test]
     fn test_rsa_jwt() -> Result<()> {

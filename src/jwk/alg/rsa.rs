@@ -422,7 +422,7 @@ impl Deref for RsaKeyPair {
 mod tests {
     use anyhow::Result;
 
-    use crate::jwk::key_pair::RsaKeyPair;
+    use super::RsaKeyPair;
 
     #[test]
     fn test_rsa_jwt() -> Result<()> {

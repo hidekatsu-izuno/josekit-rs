@@ -506,7 +506,7 @@ mod tests {
     use std::io::Read;
     use std::path::PathBuf;
 
-    use crate::jwk::key_pair::{EcxCurve, EcxKeyPair};
+    use super::{EcxCurve, EcxKeyPair};
 
     #[test]
     fn test_generate_ecx() -> Result<()> {

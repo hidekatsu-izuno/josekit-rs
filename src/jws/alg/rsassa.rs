@@ -7,12 +7,10 @@ use openssl::sign::{Signer, Verifier};
 use serde_json::Value;
 
 use crate::der::{DerBuilder, DerType};
-use crate::jwa::HashAlgorithm;
-use crate::jwk::key_pair::RsaKeyPair;
-use crate::jwk::Jwk;
+use crate::jwk::{alg::rsa::RsaKeyPair, Jwk};
 use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier};
 use crate::util;
-use crate::JoseError;
+use crate::{HashAlgorithm, JoseError};
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum RsassaJwsAlgorithm {
