@@ -178,13 +178,13 @@ mod tests {
     use std::time::{Duration, SystemTime};
 
     #[allow(deprecated)]
-    use crate::jwe::alg::{
+    use crate::jwe::{
         A128GcmKw, A128Kw, A192GcmKw, A192Kw, A256GcmKw, A256Kw, Dir, EcdhEs, EcdhEsA128Kw,
         EcdhEsA192Kw, EcdhEsA256Kw, Pbes2HS256A128Kw, Pbes2HS384A192Kw, Pbes2HS512A256Kw, Rsa1_5,
         RsaOaep,
     };
     use crate::jwk::Jwk;
-    use crate::jws::alg::{
+    use crate::jws::{
         EdDSA, ES256, ES256K, ES384, ES512, HS256, HS384, HS512, PS256, PS384, PS512, RS256, RS384,
         RS512,
     };

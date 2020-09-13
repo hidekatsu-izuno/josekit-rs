@@ -21,6 +21,30 @@ pub use crate::jwe::jwe_content_encryption::JweContentEncryption;
 pub use crate::jwe::jwe_context::JweContext;
 pub use crate::jwe::jwe_header::JweHeader;
 
+pub use crate::jwe::alg::direct::DirectJweAlgorithm::Dir;
+
+pub use crate::jwe::alg::ecdh_es::EcdhEsJweAlgorithm::EcdhEs;
+pub use crate::jwe::alg::ecdh_es::EcdhEsJweAlgorithm::EcdhEsA128Kw;
+pub use crate::jwe::alg::ecdh_es::EcdhEsJweAlgorithm::EcdhEsA192Kw;
+pub use crate::jwe::alg::ecdh_es::EcdhEsJweAlgorithm::EcdhEsA256Kw;
+
+pub use crate::jwe::alg::aeskw::AesJweAlgorithm::A128Kw;
+pub use crate::jwe::alg::aeskw::AesJweAlgorithm::A192Kw;
+pub use crate::jwe::alg::aeskw::AesJweAlgorithm::A256Kw;
+
+pub use crate::jwe::alg::aesgcmkw::AesGcmJweAlgorithm::A128GcmKw;
+pub use crate::jwe::alg::aesgcmkw::AesGcmJweAlgorithm::A192GcmKw;
+pub use crate::jwe::alg::aesgcmkw::AesGcmJweAlgorithm::A256GcmKw;
+
+pub use crate::jwe::alg::pbes2_hmac_aeskw::Pbes2HmacJweAlgorithm::Pbes2HS256A128Kw;
+pub use crate::jwe::alg::pbes2_hmac_aeskw::Pbes2HmacJweAlgorithm::Pbes2HS384A192Kw;
+pub use crate::jwe::alg::pbes2_hmac_aeskw::Pbes2HmacJweAlgorithm::Pbes2HS512A256Kw;
+
+#[allow(deprecated)]
+pub use crate::jwe::alg::rsaes::RsaesJweAlgorithm::Rsa1_5;
+pub use crate::jwe::alg::rsaes::RsaesJweAlgorithm::RsaOaep;
+pub use crate::jwe::alg::rsaes::RsaesJweAlgorithm::RsaOaep256;
+
 static DEFAULT_CONTEXT: Lazy<JweContext> = Lazy::new(|| JweContext::new());
 
 /// Return a representation of the data that is formatted by compact serialization.
@@ -177,10 +201,9 @@ mod tests {
     use anyhow::Result;
     use serde_json::Value;
 
-    use crate::jwe::alg::Dir;
-    use crate::jwe::{self, JweAlgorithm, JweHeader};
-    use crate::util;
     use crate::JoseHeader;
+    use crate::jwe::{self, JweAlgorithm, JweHeader, Dir};
+    use crate::util;
 
     #[test]
     fn test_jwe_compact_serialization() -> Result<()> {
