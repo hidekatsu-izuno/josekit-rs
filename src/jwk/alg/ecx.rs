@@ -78,8 +78,8 @@ impl EcxKeyPair {
     pub fn generate(curve: EcxCurve) -> Result<EcxKeyPair, JoseError> {
         (|| -> anyhow::Result<EcxKeyPair> {
             let private_key = match curve {
-                EcxCurve::X25519 => openssl_ecx::generate_x25519()?,
-                EcxCurve::X448 => openssl_ecx::generate_x448()?,
+                EcxCurve::X25519 => PKey::generate_x25519()?,
+                EcxCurve::X448 => PKey::generate_x448()?,
             };
 
             Ok(EcxKeyPair {
@@ -568,66 +568,5 @@ mod tests {
         let mut data = Vec::new();
         file.read_to_end(&mut data)?;
         Ok(data)
-    }
-}
-
-mod openssl_ecx {
-    use openssl::error::ErrorStack;
-    use openssl::pkey::{PKey, Private};
-    use openssl_sys::{
-        i2d_PrivateKey, EVP_PKEY_CTX_free, EVP_PKEY_CTX_new_id, EVP_PKEY_free, EVP_PKEY_keygen,
-        EVP_PKEY_keygen_init,
-    };
-    use std::os::raw::c_int;
-    use std::ptr;
-
-    const NID_X25519: c_int = 1034;
-    const NID_X448: c_int = 1035;
-
-    pub(crate) fn generate_x25519() -> Result<PKey<Private>, ErrorStack> {
-        generate_der(NID_X25519)
-    }
-
-    pub(crate) fn generate_x448() -> Result<PKey<Private>, ErrorStack> {
-        generate_der(NID_X448)
-    }
-
-    fn generate_der(nid: c_int) -> Result<PKey<Private>, ErrorStack> {
-        let der = unsafe {
-            let pctx = match EVP_PKEY_CTX_new_id(nid, ptr::null_mut()) {
-                val if val.is_null() => return Err(ErrorStack::get()),
-                val => val,
-            };
-
-            if EVP_PKEY_keygen_init(pctx) <= 0 {
-                EVP_PKEY_CTX_free(pctx);
-                return Err(ErrorStack::get());
-            }
-
-            let mut pkey = ptr::null_mut();
-            if EVP_PKEY_keygen(pctx, &mut pkey) <= 0 {
-                EVP_PKEY_CTX_free(pctx);
-                return Err(ErrorStack::get());
-            }
-
-            let len = match i2d_PrivateKey(pkey, ptr::null_mut()) {
-                val if val <= 0 => {
-                    EVP_PKEY_free(pkey);
-                    return Err(ErrorStack::get());
-                }
-                val => val,
-            };
-
-            let mut der = vec![0; len as usize];
-            if i2d_PrivateKey(pkey, &mut der.as_mut_ptr()) != len {
-                EVP_PKEY_free(pkey);
-                return Err(ErrorStack::get());
-            }
-
-            EVP_PKEY_free(pkey);
-            der
-        };
-
-        PKey::private_key_from_der(&der)
     }
 }
