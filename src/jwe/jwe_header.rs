@@ -367,6 +367,50 @@ impl JweHeader {
         }
     }
 
+    /// Set a value for a agreement PartyUInfo header claim (apu).
+    ///
+    /// # Arguments
+    ///
+    /// * `value` - A agreement PartyUInfo
+    pub fn set_agreement_partyuinfo(&mut self, value: impl AsRef<[u8]>) {
+        let key = "apu".to_string();
+        let val = base64::encode_config(&value, base64::URL_SAFE_NO_PAD);
+        self.claims.insert(key.clone(), Value::String(val));
+    }
+
+    /// Return the value for agreement PartyUInfo header claim (apu).
+    pub fn agreement_partyuinfo(&self) -> Option<Vec<u8>> {
+        match self.claims.get("apu") {
+            Some(Value::String(val)) => match base64::decode_config(val, base64::URL_SAFE_NO_PAD) {
+                Ok(val2) => Some(val2),
+                Err(_) => None,
+            },
+            _ => None,
+        }
+    }
+
+    /// Set a value for a agreement PartyVInfo header claim (apv).
+    ///
+    /// # Arguments
+    ///
+    /// * `value` - A agreement PartyVInfo
+    pub fn set_agreement_partyvinfo(&mut self, value: impl AsRef<[u8]>) {
+        let key = "apv".to_string();
+        let val = base64::encode_config(&value, base64::URL_SAFE_NO_PAD);
+        self.claims.insert(key.clone(), Value::String(val));
+    }
+
+    /// Return the value for agreement PartyVInfo header claim (apv).
+    pub fn agreement_partyvinfo(&self) -> Option<Vec<u8>> {
+        match self.claims.get("apv") {
+            Some(Value::String(val)) => match base64::decode_config(val, base64::URL_SAFE_NO_PAD) {
+                Ok(val2) => Some(val2),
+                Err(_) => None,
+            },
+            _ => None,
+        }
+    }
+
     /// Set a value for issuer header claim (iss).
     ///
     /// # Arguments
