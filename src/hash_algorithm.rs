@@ -25,7 +25,7 @@ impl HashAlgorithm {
         }
     }
 
-    pub fn message_digest(&self) -> MessageDigest {
+    pub(crate) fn message_digest(&self) -> MessageDigest {
         match self {
             Self::Sha256 => MessageDigest::sha256(),
             Self::Sha384 => MessageDigest::sha384(),
