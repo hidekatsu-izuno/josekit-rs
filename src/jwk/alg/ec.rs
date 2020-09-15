@@ -121,12 +121,13 @@ impl EcKeyPair {
     /// * `curve` - EC curve
     pub fn from_der(input: impl AsRef<[u8]>, curve: Option<EcCurve>) -> Result<Self, JoseError> {
         (|| -> anyhow::Result<Self> {
+            let input = input.as_ref();
             let pkcs8_der_vec;
-            let (pkcs8_der, curve) = match Self::detect_pkcs8(input.as_ref(), false) {
+            let (pkcs8_der, curve) = match Self::detect_pkcs8(input, false) {
                 Some(val) => match curve {
-                    Some(val2) if val2 == val => (input.as_ref(), val),
+                    Some(val2) if val2 == val => (input, val),
                     Some(val2) => bail!("The curve is mismatched: {}", val2),
-                    None => (input.as_ref(), val),
+                    None => (input, val),
                 },
                 None => match curve {
                     Some(val) => {
@@ -359,9 +360,9 @@ impl EcKeyPair {
         jwk
     }
 
-    pub(crate) fn detect_pkcs8(input: &[u8], is_public: bool) -> Option<EcCurve> {
+    pub(crate) fn detect_pkcs8(input: impl AsRef<[u8]>, is_public: bool) -> Option<EcCurve> {
         let curve;
-        let mut reader = DerReader::from_reader(input);
+        let mut reader = DerReader::from_reader(input.as_ref());
 
         match reader.next() {
             Ok(Some(DerType::Sequence)) => {}
@@ -414,9 +415,9 @@ impl EcKeyPair {
         Some(curve)
     }
 
-    pub(crate) fn detect_ec_curve(input: &[u8]) -> Option<EcCurve> {
+    pub(crate) fn detect_ec_curve(input: impl AsRef<[u8]>) -> Option<EcCurve> {
         let curve;
-        let mut reader = DerReader::from_reader(input);
+        let mut reader = DerReader::from_reader(input.as_ref());
 
         match reader.next() {
             Ok(Some(DerType::Sequence)) => {}

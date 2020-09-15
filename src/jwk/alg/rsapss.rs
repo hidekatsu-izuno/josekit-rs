@@ -9,7 +9,7 @@ use crate::der::{
     oid::{OID_MGF1, OID_RSASSA_PSS, OID_SHA256, OID_SHA384, OID_SHA512},
     DerBuilder, DerClass, DerReader, DerType,
 };
-use crate::jwk::{Jwk, KeyPair};
+use crate::jwk::{Jwk, KeyPair, alg::rsa::RsaKeyPair};
 use crate::util;
 use crate::{HashAlgorithm, JoseError};
 
@@ -41,6 +41,33 @@ impl RsaPssKeyPair {
             None => {
                 self.key_id = None;
             }
+        }
+    }
+
+    pub fn into_rsa_keypair(
+        self,
+    ) -> RsaKeyPair {
+        RsaKeyPair::from_private_key(
+            self.private_key,
+            self.key_len,
+        )
+    }
+
+    pub(crate) fn from_private_key(
+        private_key: PKey<Private>,
+        key_len: u32,
+        hash: HashAlgorithm,
+        mgf1_hash: HashAlgorithm,
+        salt_len: u8,
+    ) -> Self {
+        Self {
+            private_key,
+            key_len,
+            hash,
+            mgf1_hash,
+            salt_len,
+            algorithm: None,
+            key_id: None
         }
     }
 
@@ -90,9 +117,10 @@ impl RsaPssKeyPair {
         salt_len: Option<u8>,
     ) -> Result<Self, JoseError> {
         (|| -> anyhow::Result<Self> {
+            let input = input.as_ref();
             let pkcs8_der_vec;
             let (pkcs8_der, hash, mgf1_hash, salt_len) =
-                match Self::detect_pkcs8(input.as_ref(), false) {
+                match Self::detect_pkcs8(input, false) {
                     Some((hash2, mgf1_hash2, salt_len2)) => {
                         let hash = match hash {
                             Some(val) if val == hash2 => hash2,
@@ -114,7 +142,7 @@ impl RsaPssKeyPair {
                             None => salt_len2,
                         };
 
-                        (input.as_ref(), hash, mgf1_hash, salt_len)
+                        (input, hash, mgf1_hash, salt_len)
                     }
                     None => {
                         let hash = match hash {
@@ -132,8 +160,18 @@ impl RsaPssKeyPair {
                             None => bail!("The salt length is required."),
                         };
 
+                        let rsa_der_vec;
+                        let rsa_der = match RsaKeyPair::detect_pkcs8(input, false) {
+                            Some(_) => {
+                                let keypair = RsaKeyPair::from_der(input)?;
+                                rsa_der_vec = keypair.to_raw_private_key();
+                                &rsa_der_vec
+                            },
+                            None => input
+                        };
+
                         pkcs8_der_vec =
-                            Self::to_pkcs8(input.as_ref(), false, hash, mgf1_hash, salt_len);
+                            Self::to_pkcs8(rsa_der, false, hash, mgf1_hash, salt_len);
                         (pkcs8_der_vec.as_slice(), hash, mgf1_hash, salt_len)
                     }
                 };
@@ -152,7 +190,10 @@ impl RsaPssKeyPair {
                 key_id: None,
             })
         })()
-        .map_err(|err| JoseError::InvalidKeyFormat(err))
+        .map_err(|err| match err.downcast::<JoseError>() {
+            Ok(err) => err,
+            Err(err) => JoseError::InvalidKeyFormat(err),
+        })
     }
 
     /// Create a RSA-PSS key pair from a private key of common or traditinal PEM format.
@@ -388,13 +429,13 @@ impl RsaPssKeyPair {
     }
 
     pub(crate) fn detect_pkcs8(
-        input: &[u8],
+        input: impl AsRef<[u8]>,
         is_public: bool,
     ) -> Option<(HashAlgorithm, HashAlgorithm, u8)> {
         let md;
         let mgf1_md;
         let salt_len;
-        let mut reader = DerReader::from_reader(input);
+        let mut reader = DerReader::from_reader(input.as_ref());
 
         match reader.next() {
             Ok(Some(DerType::Sequence)) => {}

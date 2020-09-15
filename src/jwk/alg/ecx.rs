@@ -99,11 +99,12 @@ impl EcxKeyPair {
     /// * `curve` - Montgomery curve
     pub fn from_der(input: impl AsRef<[u8]>, curve: Option<EcxCurve>) -> Result<Self, JoseError> {
         (|| -> anyhow::Result<Self> {
-            let (pkcs8_der, curve) = match Self::detect_pkcs8(input.as_ref(), false) {
+            let input = input.as_ref();
+            let (pkcs8_der, curve) = match Self::detect_pkcs8(input, false) {
                 Some(val) => match curve {
-                    Some(val2) if val2 == val => (input.as_ref(), val),
+                    Some(val2) if val2 == val => (input, val),
                     Some(val2) => bail!("The curve is mismatched: {}", val2),
-                    None => (input.as_ref(), val),
+                    None => (input, val),
                 },
                 None => bail!("The Montgomery curve private key must be wrapped by PKCS#8 format."),
             };
@@ -372,9 +373,9 @@ impl EcxKeyPair {
         jwk
     }
 
-    pub(crate) fn detect_pkcs8(input: &[u8], is_public: bool) -> Option<EcxCurve> {
+    pub(crate) fn detect_pkcs8(input: impl AsRef<[u8]>, is_public: bool) -> Option<EcxCurve> {
         let curve;
-        let mut reader = DerReader::from_reader(input);
+        let mut reader = DerReader::from_reader(input.as_ref());
 
         match reader.next() {
             Ok(Some(DerType::Sequence)) => {}

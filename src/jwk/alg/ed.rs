@@ -379,9 +379,9 @@ impl EdKeyPair {
         jwk
     }
 
-    pub(crate) fn detect_pkcs8(input: &[u8], is_public: bool) -> Option<EdCurve> {
+    pub(crate) fn detect_pkcs8(input: impl AsRef<[u8]>, is_public: bool) -> Option<EdCurve> {
         let curve;
-        let mut reader = DerReader::from_reader(input);
+        let mut reader = DerReader::from_reader(input.as_ref());
 
         match reader.next() {
             Ok(Some(DerType::Sequence)) => {}

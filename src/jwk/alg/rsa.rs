@@ -7,9 +7,9 @@ use serde_json::Value;
 
 use crate::der::oid::OID_RSA_ENCRYPTION;
 use crate::der::{DerBuilder, DerReader, DerType};
-use crate::jwk::{Jwk, KeyPair};
+use crate::jwk::{Jwk, KeyPair, alg::rsapss::RsaPssKeyPair};
 use crate::util;
-use crate::JoseError;
+use crate::{JoseError, HashAlgorithm};
 
 #[derive(Debug, Clone)]
 pub struct RsaKeyPair {
@@ -36,6 +36,33 @@ impl RsaKeyPair {
             None => {
                 self.key_id = None;
             }
+        }
+    }
+
+    pub fn into_rsa_pss_keypair(
+        self,
+        hash: HashAlgorithm,
+        mgf1_hash: HashAlgorithm,
+        salt_len: u8,
+    ) -> RsaPssKeyPair {
+        RsaPssKeyPair::from_private_key(
+            self.private_key,
+            self.key_len,
+            hash,
+            mgf1_hash,
+            salt_len
+        )
+    }
+
+    pub(crate) fn from_private_key(
+        private_key: PKey<Private>,
+        key_len: u32,
+    ) -> Self {
+        Self {
+            private_key,
+            key_len,
+            algorithm: None,
+            key_id: None
         }
     }
 
@@ -283,8 +310,8 @@ impl RsaKeyPair {
         jwk
     }
 
-    pub(crate) fn detect_pkcs8(input: &[u8], is_public: bool) -> Option<()> {
-        let mut reader = DerReader::from_reader(input);
+    pub(crate) fn detect_pkcs8(input: impl AsRef<[u8]>, is_public: bool) -> Option<()> {
+        let mut reader = DerReader::from_reader(input.as_ref());
 
         match reader.next() {
             Ok(Some(DerType::Sequence)) => {}

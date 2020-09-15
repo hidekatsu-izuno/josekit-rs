@@ -6,7 +6,7 @@ JOSE (Javascript Object Signing and Encryption: JWT, JWS, JWE, JWA, JWK) library
 
 ```toml
 [dependencies]
-josekit = "0.4.0"
+josekit = "0.4.1"
 ```
 
 This library depends on OpenSSL DLL. Read more about [Crate openssl](https://docs.rs/openssl/). 
@@ -192,13 +192,12 @@ cargo build --release
     <tr>
         <td>RSA1_5</td>
         <td>RSAES-PKCS1-v1_5</td>
-        <td rowspan="2">RSA (size: 1024 bits or more)</td>
+        <td rowspan="5">RSA (size: 1024 bits or more)</td>
     </tr>
     <tr>
         <td>RSA-OAEP</td>
         <td>RSAES OAEP using default parameters</td>
     </tr>
-<!--
     <tr>
         <td>RSA-OAEP-256</td>
         <td>RSAES OAEP using SHA-256 and MGF1 with SHA-256</td>
@@ -211,12 +210,8 @@ cargo build --release
         <td>RSA-OAEP-512</td>
         <td>RSAES OAEP using SHA-512 and MGF1 with SHA-512</td>
     </tr>
--->
 </tbody>
 </table>
-
-RSA-OAEP-256, RSA-OAEP-384 and RSA-OAEP-512 are not supported yet.
-
 
 ## Supported key formats
 
@@ -649,7 +644,7 @@ openssl pkey -in private.pem -pubout -out public.pem
 ```
 
 ```rust
-use josekit::{JoseError, jwe::{JweHeader, EcdhEs}, jwt::{self, JwtPayload}};
+use josekit::{JoseError, jwe::{JweHeader, ECDH_ES}, jwt::{self, JwtPayload}};
 
 const PRIVATE_KEY: &str = concat!(env!("CARGO_MANIFEST_DIR"), 
     "/data/pem/EC_P-256_private.pem");
@@ -666,12 +661,12 @@ fn main() -> Result<(), JoseError> {
 
     // Encrypting JWT
     let public_key = std::fs::read(PUBLIC_KEY).unwrap();
-    let encrypter = EcdhEs.encrypter_from_pem(&public_key)?;
+    let encrypter = ECDH_ES.encrypter_from_pem(&public_key)?;
     let jwt = jwt::encode_with_encrypter(&payload, &header, &encrypter)?;
 
     // Decrypting JWT
     let private_key = std::fs::read(PRIVATE_KEY).unwrap();
-    let decrypter = EcdhEs.decrypter_from_pem(&private_key)?;
+    let decrypter = ECDH_ES.decrypter_from_pem(&private_key)?;
     let (payload, header) = jwt::decode_with_decrypter(&jwt, &decrypter)?;
 
     Ok(())
@@ -687,7 +682,7 @@ Three algorithms are available for AES: A128KW, A192KW and A256KW.
 You can use any bytes as the key. But the length must be AES key size.
 
 ```rust
-use josekit::{JoseError, jwe::{JweHeader, A128Kw}, jwt::{self, JwtPayload}};
+use josekit::{JoseError, jwe::{JweHeader, A128KW}, jwt::{self, JwtPayload}};
 
 fn main() -> Result<(), JoseError> {
     let mut header = JweHeader::new();
@@ -700,11 +695,11 @@ fn main() -> Result<(), JoseError> {
     let key = b"0123456789ABCDEF";
 
     // Encrypting JWT
-    let encrypter = A128Kw.encrypter_from_bytes(key)?;
+    let encrypter = A128KW.encrypter_from_bytes(key)?;
     let jwt = jwt::encode_with_encrypter(&payload, &header, &encrypter)?;
 
     // Decrypting JWT
-    let decrypter = A128Kw.decrypter_from_bytes(key)?;
+    let decrypter = A128KW.decrypter_from_bytes(key)?;
     let (payload, header) = jwt::decode_with_decrypter(&jwt, &decrypter)?;
     Ok(())
 }
@@ -719,7 +714,7 @@ Three algorithms are available for AES-GCM: A128GCMKW, A192GCMKW and A256GCMKW.
 You can use any bytes as the key. But the length must be AES key size.
 
 ```rust
-use josekit::{JoseError, jwe::{JweHeader, A128GcmKw}, jwt::{self, JwtPayload}};
+use josekit::{JoseError, jwe::{JweHeader, A128GCMKW}, jwt::{self, JwtPayload}};
 
 fn main() -> Result<(), JoseError> {
     let mut header = JweHeader::new();
@@ -732,11 +727,11 @@ fn main() -> Result<(), JoseError> {
     let key = b"0123456789ABCDEF";
 
     // Encrypting JWT
-    let encrypter = A128GcmKw.encrypter_from_bytes(key)?;
+    let encrypter = A128GCMKW.encrypter_from_bytes(key)?;
     let jwt = jwt::encode_with_encrypter(&payload, &header, &encrypter)?;
 
     // Decrypting JWT
-    let decrypter = A128GcmKw.decrypter_from_bytes(key)?;
+    let decrypter = A128GCMKW.decrypter_from_bytes(key)?;
     let (payload, header) = jwt::decode_with_decrypter(&jwt, &decrypter)?;
     Ok(())
 }
@@ -752,7 +747,7 @@ You can use any bytes as the key. But a password is recommended that the length 
 than AES key size and no longer than 128 octets.
 
 ```rust
-use josekit::{JoseError, jwe::{JweHeader, Pbes2HS256A128Kw}, jwt::{self, JwtPayload}};
+use josekit::{JoseError, jwe::{JweHeader, PBES2_HS256_A128KW}, jwt::{self, JwtPayload}};
 
 fn main() -> Result<(), JoseError> {
     let mut header = JweHeader::new();
@@ -765,11 +760,11 @@ fn main() -> Result<(), JoseError> {
     let key = b"01234567";
 
     // Encrypting JWT
-    let encrypter = Pbes2HS256A128Kw.encrypter_from_bytes(key)?;
+    let encrypter = PBES2_HS256_A128KW.encrypter_from_bytes(key)?;
     let jwt = jwt::encode_with_encrypter(&payload, &header, &encrypter)?;
 
     // Decrypting JWT
-    let decrypter = Pbes2HS256A128Kw.decrypter_from_bytes(key)?;
+    let decrypter = PBES2_HS256_A128KW.decrypter_from_bytes(key)?;
     let (payload, header) = jwt::decode_with_decrypter(&jwt, &decrypter)?;
     Ok(())
 }
@@ -792,7 +787,7 @@ openssl pkey -in private.pem -pubout -out public.pem
 ```
 
 ```rust
-use josekit::{JoseError, jwe::{JweHeader, RsaOaep}, jwt::{self, JwtPayload}};
+use josekit::{JoseError, jwe::{JweHeader, RSA_OAEP}, jwt::{self, JwtPayload}};
 
 const PRIVATE_KEY: &str = concat!(env!("CARGO_MANIFEST_DIR"), 
     "/data/pem/RSA_2048bit_private.pem");
@@ -809,12 +804,12 @@ fn main() -> Result<(), JoseError> {
 
     // Encrypting JWT
     let public_key = std::fs::read(PUBLIC_KEY).unwrap();
-    let encrypter = RsaOaep.encrypter_from_pem(&public_key)?;
+    let encrypter = RSA_OAEP.encrypter_from_pem(&public_key)?;
     let jwt = jwt::encode_with_encrypter(&payload, &header, &encrypter)?;
 
     // Decrypting JWT
     let private_key = std::fs::read(PRIVATE_KEY).unwrap();
-    let decrypter = RsaOaep.decrypter_from_pem(&private_key)?;
+    let decrypter = RSA_OAEP.decrypter_from_pem(&private_key)?;
     let (payload, header) = jwt::decode_with_decrypter(&jwt, &decrypter)?;
     Ok(())
 }
@@ -868,7 +863,6 @@ fn main() -> Result<(), JoseError> {
 
 ## ToDo
 
-- Supports RSA-OAEP-256, RSA-OAEP-384 and RSA-OAEP-512.
 - Supports multiple recipients jwe json serialization. 
 
 ## License

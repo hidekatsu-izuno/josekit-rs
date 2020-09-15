@@ -235,3 +235,35 @@ impl JwtPayloadValidator {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::time::{Duration, SystemTime};
+
+    use serde_json::json;
+    use anyhow::Result;
+    
+    use crate::jwt::{JwtPayload, JwtPayloadValidator};
+
+    #[test]
+    fn test_jwt_payload_validate() -> Result<()> {
+        let mut payload = JwtPayload::new();
+        payload.set_issuer("iss");
+        payload.set_subject("sub");
+        payload.set_audience(vec!["aud0", "aud1"]);
+        payload.set_expires_at(&(SystemTime::UNIX_EPOCH + Duration::from_secs(60)));
+        payload.set_not_before(&(SystemTime::UNIX_EPOCH + Duration::from_secs(10)));
+        payload.set_issued_at(&SystemTime::UNIX_EPOCH);
+        payload.set_jwt_id("jti");
+        payload.set_claim("payload_claim", Some(json!("payload_claim")))?;
+
+        let mut validator = JwtPayloadValidator::new();
+        validator.set_base_time(SystemTime::UNIX_EPOCH + Duration::from_secs(30));
+        validator.set_issuer("iss");
+        validator.set_audience("aud1");
+        validator.set_claim("payload_claim", json!("payload_claim"));
+        validator.validate(&payload)?;
+
+        Ok(())
+    }
+}

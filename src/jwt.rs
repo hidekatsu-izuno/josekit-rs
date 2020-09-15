@@ -1,5 +1,6 @@
 //! JSON Web Token (JWT) support.
 
+pub mod alg;
 mod jwt_context;
 mod jwt_payload;
 mod jwt_payload_validator;
@@ -7,6 +8,8 @@ mod jwt_payload_validator;
 pub use crate::jwt::jwt_context::JwtContext;
 pub use crate::jwt::jwt_payload::JwtPayload;
 pub use crate::jwt::jwt_payload_validator::JwtPayloadValidator;
+
+pub use crate::jwt::alg::unsecured::UnsecuredJwsAlgorithm::None;
 
 use once_cell::sync::Lazy;
 
@@ -179,16 +182,16 @@ mod tests {
 
     #[allow(deprecated)]
     use crate::jwe::{
-        A128GcmKw, A128Kw, A192GcmKw, A192Kw, A256GcmKw, A256Kw, Dir, EcdhEs, EcdhEsA128Kw,
-        EcdhEsA192Kw, EcdhEsA256Kw, Pbes2HS256A128Kw, Pbes2HS384A192Kw, Pbes2HS512A256Kw, Rsa1_5,
-        RsaOaep,
+        A128GCMKW, A128KW, A192GCMKW, A192KW, A256GCMKW, A256KW, Dir, ECDH_ES, ECDH_ES_A128KW,
+        ECDH_ES_A192KW, ECDH_ES_A256KW, PBES2_HS256_A128KW, PBES2_HS384_A192KW, PBES2_HS512_A256KW, 
+        RSA1_5, RSA_OAEP, RSA_OAEP_256,
     };
     use crate::jwk::Jwk;
     use crate::jws::{
         EdDSA, JwsHeader, ES256, ES256K, ES384, ES512, HS256, HS384, HS512, PS256, PS384, PS512,
         RS256, RS384, RS512,
     };
-    use crate::jwt::{self, JwtPayload, JwtPayloadValidator};
+    use crate::jwt::{self, JwtPayload};
     use crate::util;
 
     #[test]
@@ -210,6 +213,25 @@ mod tests {
         let (dst_payload, dst_header) = jwt::decode_unsecured(&jwt_string)?;
 
         src_header.set_claim("alg", Some(json!("none")))?;
+        assert_eq!(src_header, dst_header);
+        assert_eq!(src_payload, dst_payload);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_jwt_none() -> Result<()> {
+        let alg = jwt::None;
+        let mut src_header = JwsHeader::new();
+        src_header.set_token_type("JWT");
+        let src_payload = JwtPayload::new();
+        let signer = alg.signer();
+        let jwt_string = jwt::encode_with_signer(&src_payload, &src_header, &signer)?;
+
+        let verifier = alg.verifier();
+        let (dst_payload, dst_header) = jwt::decode_with_verifier(&jwt_string, &verifier)?;
+
+        src_header.set_claim("alg", Some(json!(alg.name())))?;
         assert_eq!(src_header, dst_header);
         assert_eq!(src_payload, dst_payload);
 
@@ -384,28 +406,6 @@ mod tests {
     }
 
     #[test]
-    fn test_jwt_payload_validate() -> Result<()> {
-        let mut payload = JwtPayload::new();
-        payload.set_issuer("iss");
-        payload.set_subject("sub");
-        payload.set_audience(vec!["aud0", "aud1"]);
-        payload.set_expires_at(&(SystemTime::UNIX_EPOCH + Duration::from_secs(60)));
-        payload.set_not_before(&(SystemTime::UNIX_EPOCH + Duration::from_secs(10)));
-        payload.set_issued_at(&SystemTime::UNIX_EPOCH);
-        payload.set_jwt_id("jti");
-        payload.set_claim("payload_claim", Some(json!("payload_claim")))?;
-
-        let mut validator = JwtPayloadValidator::new();
-        validator.set_base_time(SystemTime::UNIX_EPOCH + Duration::from_secs(30));
-        validator.set_issuer("iss");
-        validator.set_audience("aud1");
-        validator.set_claim("payload_claim", json!("payload_claim"));
-        validator.validate(&payload)?;
-
-        Ok(())
-    }
-
-    #[test]
     fn test_external_jwt_verify_with_hmac() -> Result<()> {
         let jwk = Jwk::from_bytes(&load_file("jwk/oct_512bit_private.jwk")?)?;
 
@@ -566,7 +566,7 @@ mod tests {
 
     #[test]
     fn test_external_jwt_decrypt_with_ecdh_es() -> Result<()> {
-        for alg in vec![EcdhEs, EcdhEsA128Kw, EcdhEsA192Kw, EcdhEsA256Kw] {
+        for alg in vec![ECDH_ES, ECDH_ES_A128KW, ECDH_ES_A192KW, ECDH_ES_A256KW] {
             for curve in vec!["P-256", "P-384", "P-521", "X25519"] {
                 for enc in vec!["A128CBC-HS256", "A256GCM"] {
                     // println!("{} {} {}", alg.name(), curve, enc);
@@ -609,14 +609,14 @@ mod tests {
 
     #[test]
     fn test_external_jwt_decrypt_with_aeskw() -> Result<()> {
-        for alg in vec![A128Kw, A192Kw, A256Kw] {
+        for alg in vec![A128KW, A192KW, A256KW] {
             for enc in vec!["A128CBC-HS256", "A256GCM"] {
                 println!("{} {}", alg.name(), enc);
 
                 let jwk = load_file(match alg {
-                    A128Kw => "jwk/oct_128bit_private.jwk",
-                    A192Kw => "jwk/oct_192bit_private.jwk",
-                    A256Kw => "jwk/oct_256bit_private.jwk",
+                    A128KW => "jwk/oct_128bit_private.jwk",
+                    A192KW => "jwk/oct_192bit_private.jwk",
+                    A256KW => "jwk/oct_256bit_private.jwk",
                 })?;
                 let jwk = Jwk::from_bytes(&jwk)?;
                 let decrypter = alg.decrypter_from_jwk(&jwk)?;
@@ -643,14 +643,14 @@ mod tests {
 
     #[test]
     fn test_external_jwt_decrypt_with_aesgcmkw() -> Result<()> {
-        for alg in vec![A128GcmKw, A192GcmKw, A256GcmKw] {
+        for alg in vec![A128GCMKW, A192GCMKW, A256GCMKW] {
             for enc in vec!["A128CBC-HS256", "A256GCM"] {
                 println!("{} {}", alg.name(), enc);
 
                 let jwk = load_file(match alg {
-                    A128GcmKw => "jwk/oct_128bit_private.jwk",
-                    A192GcmKw => "jwk/oct_192bit_private.jwk",
-                    A256GcmKw => "jwk/oct_256bit_private.jwk",
+                    A128GCMKW => "jwk/oct_128bit_private.jwk",
+                    A192GCMKW => "jwk/oct_192bit_private.jwk",
+                    A256GCMKW => "jwk/oct_256bit_private.jwk",
                 })?;
                 let jwk = Jwk::from_bytes(&jwk)?;
                 let decrypter = alg.decrypter_from_jwk(&jwk)?;
@@ -677,14 +677,14 @@ mod tests {
 
     #[test]
     fn test_external_jwt_decrypt_with_pbes2_hmac_aeskw() -> Result<()> {
-        for alg in vec![Pbes2HS256A128Kw, Pbes2HS384A192Kw, Pbes2HS512A256Kw] {
+        for alg in vec![PBES2_HS256_A128KW, PBES2_HS384_A192KW, PBES2_HS512_A256KW] {
             for enc in vec!["A128CBC-HS256", "A256GCM"] {
                 println!("{} {}", alg.name(), enc);
 
                 let jwk = load_file(match alg {
-                    Pbes2HS256A128Kw => "jwk/oct_128bit_private.jwk",
-                    Pbes2HS384A192Kw => "jwk/oct_128bit_private.jwk",
-                    Pbes2HS512A256Kw => "jwk/oct_128bit_private.jwk",
+                    PBES2_HS256_A128KW => "jwk/oct_128bit_private.jwk",
+                    PBES2_HS384_A192KW => "jwk/oct_128bit_private.jwk",
+                    PBES2_HS512_A256KW => "jwk/oct_128bit_private.jwk",
                 })?;
                 let jwk = Jwk::from_bytes(&jwk)?;
                 let decrypter = alg.decrypter_from_jwk(&jwk)?;
@@ -712,9 +712,9 @@ mod tests {
     #[test]
     fn test_external_jwt_decrypt_with_rsaes() -> Result<()> {
         #[allow(deprecated)]
-        for alg in vec![Rsa1_5, RsaOaep] {
+        for alg in vec![RSA1_5, RSA_OAEP, RSA_OAEP_256] {
             for enc in vec!["A128CBC-HS256", "A256GCM"] {
-                println!("{} {}", alg.name(), enc);
+                // println!("{} {}", alg.name(), enc);
 
                 let jwk = load_file("jwk/RSA_private.jwk")?;
 

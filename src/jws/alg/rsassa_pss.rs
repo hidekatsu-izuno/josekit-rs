@@ -4,10 +4,11 @@ use std::ops::Deref;
 use anyhow::bail;
 use openssl::pkey::{PKey, Private, Public};
 use openssl::sign::{Signer, Verifier};
+use openssl::rsa::Rsa;
 use serde_json::Value;
 
 use crate::der::{DerBuilder, DerType};
-use crate::jwk::{alg::rsapss::RsaPssKeyPair, Jwk};
+use crate::jwk::{alg::rsapss::RsaPssKeyPair, alg::rsa::RsaKeyPair, Jwk};
 use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier};
 use crate::util;
 use crate::{HashAlgorithm, JoseError};
@@ -195,8 +196,9 @@ impl RsassaPssJwsAlgorithm {
         input: impl AsRef<[u8]>,
     ) -> Result<RsassaPssJwsVerifier, JoseError> {
         (|| -> anyhow::Result<RsassaPssJwsVerifier> {
+            let input = input.as_ref();
             let spki_der_vec;
-            let spki_der = match RsaPssKeyPair::detect_pkcs8(input.as_ref(), true) {
+            let spki_der = match RsaPssKeyPair::detect_pkcs8(input, true) {
                 Some((hash, mgf1_hash, salt_len)) => {
                     if hash != self.hash_algorithm() {
                         bail!("The message digest parameter is mismatched: {}", hash);
@@ -212,8 +214,18 @@ impl RsassaPssJwsAlgorithm {
                     input.as_ref()
                 }
                 None => {
+                    let rsa_der_vec;
+                    let rsa_der = match RsaKeyPair::detect_pkcs8(input, true) {
+                        Some(_) => {
+                            let rsa = Rsa::public_key_from_der(input)?;
+                            rsa_der_vec = rsa.public_key_to_der_pkcs1()?;
+                            &rsa_der_vec
+                        },
+                        None => input
+                    };
+                    
                     spki_der_vec = RsaPssKeyPair::to_pkcs8(
-                        input.as_ref(),
+                        rsa_der, 
                         true,
                         self.hash_algorithm(),
                         self.hash_algorithm(),
@@ -543,6 +555,26 @@ mod tests {
         ] {
             let keypair = alg.generate_keypair(2048)?;
 
+            let signer = alg.signer_from_der(&keypair.to_der_private_key())?;
+            let signature = signer.sign(input)?;
+
+            let verifier = alg.verifier_from_der(&keypair.to_der_public_key())?;
+            verifier.verify(input, &signature)?;
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn sign_and_verify_rsassa_pss_generated_rsa_der() -> Result<()> {
+        let input = b"abcde12345";
+
+        let keypair = RsaKeyPair::generate(2048)?;
+        for alg in &[
+            RsassaPssJwsAlgorithm::PS256,
+            RsassaPssJwsAlgorithm::PS384,
+            RsassaPssJwsAlgorithm::PS512,
+        ] {
             let signer = alg.signer_from_der(&keypair.to_der_private_key())?;
             let signature = signer.sign(input)?;
 
