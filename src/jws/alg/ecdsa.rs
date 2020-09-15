@@ -469,8 +469,7 @@ mod tests {
     use super::*;
 
     use anyhow::Result;
-    use std::fs::File;
-    use std::io::Read;
+    use std::fs;
     use std::path::PathBuf;
 
     #[test]
@@ -689,9 +688,7 @@ mod tests {
         pb.push("data");
         pb.push(path);
 
-        let mut file = File::open(&pb)?;
-        let mut data = Vec::new();
-        file.read_to_end(&mut data)?;
+        let data = fs::read(&pb)?;
         Ok(data)
     }
 }
