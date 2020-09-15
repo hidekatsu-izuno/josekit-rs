@@ -534,63 +534,27 @@ mod tests {
     fn test_external_jwt_decrypt_with_dir() -> Result<()> {
         for alg in vec![Dir] {
             for enc in vec!["A128CBC-HS256", "A256GCM"] {
-                // println!("{} {}", alg.name(), enc);
+                for zip in vec![None, Some("DEF")] {
+                    // println!("{} {}", alg.name(), enc);
 
-                let jwk = load_file(match enc {
-                    "A128CBC-HS256" => "jwk/oct_256bit_private.jwk",
-                    "A256GCM" => "jwk/oct_256bit_private.jwk",
-                    _ => unreachable!(),
-                })?;
-                let jwk = Jwk::from_bytes(&jwk)?;
-                let decrypter = alg.decrypter_from_jwk(&jwk)?;
-                let jwt_string =
-                    String::from_utf8(load_file(&format!("jwt/{}_{}.jwt", alg.name(), enc))?)?;
-                let (payload, header) = jwt::decode_with_decrypter(&jwt_string, &decrypter)?;
-
-                assert_eq!(header.algorithm(), Some(decrypter.algorithm().name()));
-                assert_eq!(header.content_encryption(), Some(enc));
-                assert_eq!(payload.issuer(), Some("joe"));
-                assert_eq!(
-                    payload.expires_at(),
-                    Some(SystemTime::UNIX_EPOCH + Duration::from_secs(1300819380))
-                );
-                assert_eq!(
-                    payload.claim("http://example.com/is_root"),
-                    Some(&json!(true))
-                );
-            }
-        }
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_external_jwt_decrypt_with_ecdh_es() -> Result<()> {
-        for alg in vec![ECDH_ES, ECDH_ES_A128KW, ECDH_ES_A192KW, ECDH_ES_A256KW] {
-            for curve in vec!["P-256", "P-384", "P-521", "X25519"] {
-                for enc in vec!["A128CBC-HS256", "A256GCM"] {
-                    // println!("{} {} {}", alg.name(), curve, enc);
-
-                    let jwk = load_file(match curve {
-                        "P-256" => "jwk/EC_P-256_private.jwk",
-                        "P-384" => "jwk/EC_P-384_private.jwk",
-                        "P-521" => "jwk/EC_P-521_private.jwk",
-                        "X25519" => "jwk/OKP_X25519_private.jwk",
+                    let jwk = load_file(match enc {
+                        "A128CBC-HS256" => "jwk/oct_256bit_private.jwk",
+                        "A256GCM" => "jwk/oct_256bit_private.jwk",
                         _ => unreachable!(),
                     })?;
+                    let external_jwt = load_file(&(match zip {
+                        Some(val) => format!("jwt/{}_{}_{}.jwt", alg.name(), enc, val),
+                        None => format!("jwt/{}_{}.jwt", alg.name(), enc),
+                    }))?;
 
                     let jwk = Jwk::from_bytes(&jwk)?;
                     let decrypter = alg.decrypter_from_jwk(&jwk)?;
-                    let jwt_string = String::from_utf8(load_file(&format!(
-                        "jwt/{}_{}_{}.jwt",
-                        alg.name(),
-                        curve,
-                        enc
-                    ))?)?;
+                    let jwt_string = String::from_utf8(external_jwt)?;
                     let (payload, header) = jwt::decode_with_decrypter(&jwt_string, &decrypter)?;
 
                     assert_eq!(header.algorithm(), Some(decrypter.algorithm().name()));
                     assert_eq!(header.content_encryption(), Some(enc));
+                    assert_eq!(header.compression(), zip);
                     assert_eq!(payload.issuer(), Some("joe"));
                     assert_eq!(
                         payload.expires_at(),
@@ -608,33 +572,92 @@ mod tests {
     }
 
     #[test]
+    fn test_external_jwt_decrypt_with_ecdh_es() -> Result<()> {
+        for alg in vec![ECDH_ES, ECDH_ES_A128KW, ECDH_ES_A192KW, ECDH_ES_A256KW] {
+            for curve in vec!["P-256", "P-384", "P-521", "X25519"] {
+                for enc in vec!["A128CBC-HS256", "A256GCM"] {
+                    for zip in vec![None, Some("DEF")] {
+                        // println!("{} {} {}", alg.name(), curve, enc);
+
+                        let jwk = load_file(match curve {
+                            "P-256" => "jwk/EC_P-256_private.jwk",
+                            "P-384" => "jwk/EC_P-384_private.jwk",
+                            "P-521" => "jwk/EC_P-521_private.jwk",
+                            "X25519" => "jwk/OKP_X25519_private.jwk",
+                            _ => unreachable!(),
+                        })?;
+                        let external_jwt = load_file(&(match zip {
+                            Some(val) => format!("jwt/{}_{}_{}_{}.jwt",
+                            alg.name(),
+                            curve,
+                            enc, 
+                            val),
+                            None => format!("jwt/{}_{}_{}.jwt",
+                            alg.name(),
+                            curve,
+                            enc),
+                        }))?;
+
+                        let jwk = Jwk::from_bytes(&jwk)?;
+                        let decrypter = alg.decrypter_from_jwk(&jwk)?;
+                        let jwt_string = String::from_utf8(external_jwt)?;
+                        let (payload, header) = jwt::decode_with_decrypter(&jwt_string, &decrypter)?;
+
+                        assert_eq!(header.algorithm(), Some(decrypter.algorithm().name()));
+                        assert_eq!(header.content_encryption(), Some(enc));
+                        assert_eq!(header.compression(), zip);
+                        assert_eq!(payload.issuer(), Some("joe"));
+                        assert_eq!(
+                            payload.expires_at(),
+                            Some(SystemTime::UNIX_EPOCH + Duration::from_secs(1300819380))
+                        );
+                        assert_eq!(
+                            payload.claim("http://example.com/is_root"),
+                            Some(&json!(true))
+                        );
+                    }
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    #[test]
     fn test_external_jwt_decrypt_with_aeskw() -> Result<()> {
         for alg in vec![A128KW, A192KW, A256KW] {
             for enc in vec!["A128CBC-HS256", "A256GCM"] {
-                println!("{} {}", alg.name(), enc);
+                for zip in vec![None, Some("DEF")] {
+                    // println!("{} {}", alg.name(), enc);
 
-                let jwk = load_file(match alg {
-                    A128KW => "jwk/oct_128bit_private.jwk",
-                    A192KW => "jwk/oct_192bit_private.jwk",
-                    A256KW => "jwk/oct_256bit_private.jwk",
-                })?;
-                let jwk = Jwk::from_bytes(&jwk)?;
-                let decrypter = alg.decrypter_from_jwk(&jwk)?;
-                let jwt_string =
-                    String::from_utf8(load_file(&format!("jwt/{}_{}.jwt", alg.name(), enc))?)?;
-                let (payload, header) = jwt::decode_with_decrypter(&jwt_string, &decrypter)?;
+                    let jwk = load_file(match alg {
+                        A128KW => "jwk/oct_128bit_private.jwk",
+                        A192KW => "jwk/oct_192bit_private.jwk",
+                        A256KW => "jwk/oct_256bit_private.jwk",
+                    })?;
+                    let external_jwt = load_file(&(match zip {
+                        Some(val) => format!("jwt/{}_{}_{}.jwt", alg.name(), enc, val),
+                        None => format!("jwt/{}_{}.jwt", alg.name(), enc),
+                    }))?;
 
-                assert_eq!(header.algorithm(), Some(decrypter.algorithm().name()));
-                assert_eq!(header.content_encryption(), Some(enc));
-                assert_eq!(payload.issuer(), Some("joe"));
-                assert_eq!(
-                    payload.expires_at(),
-                    Some(SystemTime::UNIX_EPOCH + Duration::from_secs(1300819380))
-                );
-                assert_eq!(
-                    payload.claim("http://example.com/is_root"),
-                    Some(&json!(true))
-                );
+                    let jwk = Jwk::from_bytes(&jwk)?;
+                    let decrypter = alg.decrypter_from_jwk(&jwk)?;
+                    let jwt_string = String::from_utf8(external_jwt)?;
+                    let (payload, header) = jwt::decode_with_decrypter(&jwt_string, &decrypter)?;
+
+                    assert_eq!(header.algorithm(), Some(decrypter.algorithm().name()));
+                    assert_eq!(header.content_encryption(), Some(enc));
+                    assert_eq!(header.compression(), zip);
+                    assert_eq!(payload.issuer(), Some("joe"));
+                    assert_eq!(
+                        payload.expires_at(),
+                        Some(SystemTime::UNIX_EPOCH + Duration::from_secs(1300819380))
+                    );
+                    assert_eq!(
+                        payload.claim("http://example.com/is_root"),
+                        Some(&json!(true))
+                    );
+                }
             }
         }
 
@@ -645,30 +668,37 @@ mod tests {
     fn test_external_jwt_decrypt_with_aesgcmkw() -> Result<()> {
         for alg in vec![A128GCMKW, A192GCMKW, A256GCMKW] {
             for enc in vec!["A128CBC-HS256", "A256GCM"] {
-                println!("{} {}", alg.name(), enc);
+                for zip in vec![None, Some("DEF")] {
+                    // println!("{} {}", alg.name(), enc);
 
-                let jwk = load_file(match alg {
-                    A128GCMKW => "jwk/oct_128bit_private.jwk",
-                    A192GCMKW => "jwk/oct_192bit_private.jwk",
-                    A256GCMKW => "jwk/oct_256bit_private.jwk",
-                })?;
-                let jwk = Jwk::from_bytes(&jwk)?;
-                let decrypter = alg.decrypter_from_jwk(&jwk)?;
-                let jwt_string =
-                    String::from_utf8(load_file(&format!("jwt/{}_{}.jwt", alg.name(), enc))?)?;
-                let (payload, header) = jwt::decode_with_decrypter(&jwt_string, &decrypter)?;
+                    let jwk = load_file(match alg {
+                        A128GCMKW => "jwk/oct_128bit_private.jwk",
+                        A192GCMKW => "jwk/oct_192bit_private.jwk",
+                        A256GCMKW => "jwk/oct_256bit_private.jwk",
+                    })?;
+                    let external_jwt = load_file(&(match zip {
+                        Some(val) => format!("jwt/{}_{}_{}.jwt", alg.name(), enc, val),
+                        None => format!("jwt/{}_{}.jwt", alg.name(), enc),
+                    }))?;
 
-                assert_eq!(header.algorithm(), Some(decrypter.algorithm().name()));
-                assert_eq!(header.content_encryption(), Some(enc));
-                assert_eq!(payload.issuer(), Some("joe"));
-                assert_eq!(
-                    payload.expires_at(),
-                    Some(SystemTime::UNIX_EPOCH + Duration::from_secs(1300819380))
-                );
-                assert_eq!(
-                    payload.claim("http://example.com/is_root"),
-                    Some(&json!(true))
-                );
+                    let jwk = Jwk::from_bytes(&jwk)?;
+                    let decrypter = alg.decrypter_from_jwk(&jwk)?;
+                    let jwt_string = String::from_utf8(external_jwt)?;
+                    let (payload, header) = jwt::decode_with_decrypter(&jwt_string, &decrypter)?;
+
+                    assert_eq!(header.algorithm(), Some(decrypter.algorithm().name()));
+                    assert_eq!(header.content_encryption(), Some(enc));
+                    assert_eq!(header.compression(), zip);
+                    assert_eq!(payload.issuer(), Some("joe"));
+                    assert_eq!(
+                        payload.expires_at(),
+                        Some(SystemTime::UNIX_EPOCH + Duration::from_secs(1300819380))
+                    );
+                    assert_eq!(
+                        payload.claim("http://example.com/is_root"),
+                        Some(&json!(true))
+                    );
+                }
             }
         }
 
@@ -679,30 +709,37 @@ mod tests {
     fn test_external_jwt_decrypt_with_pbes2_hmac_aeskw() -> Result<()> {
         for alg in vec![PBES2_HS256_A128KW, PBES2_HS384_A192KW, PBES2_HS512_A256KW] {
             for enc in vec!["A128CBC-HS256", "A256GCM"] {
-                println!("{} {}", alg.name(), enc);
+                for zip in vec![None, Some("DEF")] {
+                    // println!("{} {}", alg.name(), enc);
 
-                let jwk = load_file(match alg {
-                    PBES2_HS256_A128KW => "jwk/oct_128bit_private.jwk",
-                    PBES2_HS384_A192KW => "jwk/oct_128bit_private.jwk",
-                    PBES2_HS512_A256KW => "jwk/oct_128bit_private.jwk",
-                })?;
-                let jwk = Jwk::from_bytes(&jwk)?;
-                let decrypter = alg.decrypter_from_jwk(&jwk)?;
-                let jwt_string =
-                    String::from_utf8(load_file(&format!("jwt/{}_{}.jwt", alg.name(), enc))?)?;
-                let (payload, header) = jwt::decode_with_decrypter(&jwt_string, &decrypter)?;
+                    let jwk = load_file(match alg {
+                        PBES2_HS256_A128KW => "jwk/oct_128bit_private.jwk",
+                        PBES2_HS384_A192KW => "jwk/oct_128bit_private.jwk",
+                        PBES2_HS512_A256KW => "jwk/oct_128bit_private.jwk",
+                    })?;
+                    let external_jwt = load_file(&(match zip {
+                        Some(val) => format!("jwt/{}_{}_{}.jwt", alg.name(), enc, val),
+                        None => format!("jwt/{}_{}.jwt", alg.name(), enc),
+                    }))?;
 
-                assert_eq!(header.algorithm(), Some(decrypter.algorithm().name()));
-                assert_eq!(header.content_encryption(), Some(enc));
-                assert_eq!(payload.issuer(), Some("joe"));
-                assert_eq!(
-                    payload.expires_at(),
-                    Some(SystemTime::UNIX_EPOCH + Duration::from_secs(1300819380))
-                );
-                assert_eq!(
-                    payload.claim("http://example.com/is_root"),
-                    Some(&json!(true))
-                );
+                    let jwk = Jwk::from_bytes(&jwk)?;
+                    let decrypter = alg.decrypter_from_jwk(&jwk)?;
+                    let jwt_string = String::from_utf8(external_jwt)?;
+                    let (payload, header) = jwt::decode_with_decrypter(&jwt_string, &decrypter)?;
+
+                    assert_eq!(header.algorithm(), Some(decrypter.algorithm().name()));
+                    assert_eq!(header.content_encryption(), Some(enc));
+                    assert_eq!(header.compression(), zip);
+                    assert_eq!(payload.issuer(), Some("joe"));
+                    assert_eq!(
+                        payload.expires_at(),
+                        Some(SystemTime::UNIX_EPOCH + Duration::from_secs(1300819380))
+                    );
+                    assert_eq!(
+                        payload.claim("http://example.com/is_root"),
+                        Some(&json!(true))
+                    );
+                }
             }
         }
 
@@ -714,27 +751,33 @@ mod tests {
         #[allow(deprecated)]
         for alg in vec![RSA1_5, RSA_OAEP, RSA_OAEP_256] {
             for enc in vec!["A128CBC-HS256", "A256GCM"] {
-                // println!("{} {}", alg.name(), enc);
+                for zip in vec![None, Some("DEF")] {
+                    // println!("{} {}", alg.name(), enc);
 
-                let jwk = load_file("jwk/RSA_private.jwk")?;
+                    let jwk = load_file("jwk/RSA_private.jwk")?;
+                    let external_jwt = load_file(&(match zip {
+                        Some(val) => format!("jwt/{}_{}_{}.jwt", alg.name(), enc, val),
+                        None => format!("jwt/{}_{}.jwt", alg.name(), enc),
+                    }))?;
 
-                let jwk = Jwk::from_bytes(&jwk)?;
-                let decrypter = alg.decrypter_from_jwk(&jwk)?;
-                let jwt_string =
-                    String::from_utf8(load_file(&format!("jwt/{}_{}.jwt", alg.name(), enc))?)?;
-                let (payload, header) = jwt::decode_with_decrypter(&jwt_string, &decrypter)?;
+                    let jwk = Jwk::from_bytes(&jwk)?;
+                    let decrypter = alg.decrypter_from_jwk(&jwk)?;
+                    let jwt_string = String::from_utf8(external_jwt)?;
+                    let (payload, header) = jwt::decode_with_decrypter(&jwt_string, &decrypter)?;
 
-                assert_eq!(header.algorithm(), Some(decrypter.algorithm().name()));
-                assert_eq!(header.content_encryption(), Some(enc));
-                assert_eq!(payload.issuer(), Some("joe"));
-                assert_eq!(
-                    payload.expires_at(),
-                    Some(SystemTime::UNIX_EPOCH + Duration::from_secs(1300819380))
-                );
-                assert_eq!(
-                    payload.claim("http://example.com/is_root"),
-                    Some(&json!(true))
-                );
+                    assert_eq!(header.algorithm(), Some(decrypter.algorithm().name()));
+                    assert_eq!(header.content_encryption(), Some(enc));
+                    assert_eq!(header.compression(), zip);
+                    assert_eq!(payload.issuer(), Some("joe"));
+                    assert_eq!(
+                        payload.expires_at(),
+                        Some(SystemTime::UNIX_EPOCH + Duration::from_secs(1300819380))
+                    );
+                    assert_eq!(
+                        payload.claim("http://example.com/is_root"),
+                        Some(&json!(true))
+                    );
+                }
             }
         }
 
