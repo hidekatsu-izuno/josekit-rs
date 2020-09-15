@@ -4,8 +4,7 @@ use serde_json::{Map, Value};
 use crate::jwe::{JweContext, JweDecrypter, JweEncrypter, JweHeader};
 use crate::jwk::{Jwk, JwkSet};
 use crate::jws::{JwsContext, JwsHeader, JwsSigner, JwsVerifier};
-use crate::jwt::JwtPayload;
-use crate::util;
+use crate::jwt::{self, JwtPayload};
 use crate::{JoseError, JoseHeader};
 
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -62,29 +61,7 @@ impl JwtContext {
         payload: &JwtPayload,
         header: &JwsHeader,
     ) -> Result<String, JoseError> {
-        (|| -> anyhow::Result<String> {
-            let mut header = header.claims_set().clone();
-            header.insert("alg".to_string(), Value::String("none".to_string()));
-            let header_bytes = serde_json::to_vec(&header)?;
-
-            let payload_bytes = serde_json::to_vec(payload.claims_set())?;
-
-            let mut capacity = 2;
-            capacity += util::ceiling(header_bytes.len() * 4, 3);
-            capacity += util::ceiling(payload_bytes.len() * 4, 3);
-
-            let mut message = String::with_capacity(capacity);
-            base64::encode_config_buf(header_bytes, base64::URL_SAFE_NO_PAD, &mut message);
-            message.push_str(".");
-            base64::encode_config_buf(payload_bytes, base64::URL_SAFE_NO_PAD, &mut message);
-            message.push_str(".");
-
-            Ok(message)
-        })()
-        .map_err(|err| match err.downcast::<JoseError>() {
-            Ok(err) => err,
-            Err(err) => JoseError::InvalidJwtFormat(err),
-        })
+        self.encode_with_signer(payload, header, &jwt::None.signer())
     }
 
     /// Return the string repsentation of the JWT with the siginig algorithm.
@@ -179,43 +156,7 @@ impl JwtContext {
         &self,
         input: impl AsRef<[u8]>,
     ) -> Result<(JwtPayload, JwsHeader), JoseError> {
-        (|| -> anyhow::Result<(JwtPayload, JwsHeader)> {
-            let input = input.as_ref();
-            let parts: Vec<&[u8]> = input.split(|b| *b == '.' as u8).collect();
-            if parts.len() != 3 {
-                bail!("The unsecured JWT must be three parts separated by colon.");
-            }
-            if parts[2].len() != 0 {
-                bail!("The unsecured JWT must not have a signature part.");
-            }
-
-            let header = base64::decode_config(parts[0], base64::URL_SAFE_NO_PAD)?;
-            let header: Map<String, Value> = serde_json::from_slice(&header)?;
-
-            match header.get("alg") {
-                Some(Value::String(val)) if val == "none" => {}
-                Some(Value::String(val)) => bail!("The JWT alg header claim is not none: {}", val),
-                Some(_) => bail!("The JWT alg header claim must be a string."),
-                None => bail!("The JWT alg header claim is missing."),
-            }
-
-            match header.get("kid") {
-                None => {}
-                Some(_) => bail!("A JWT of none alg cannot have kid header claim."),
-            }
-
-            let header = JwsHeader::from_map(header)?;
-
-            let payload = base64::decode_config(parts[1], base64::URL_SAFE_NO_PAD)?;
-            let payload: Map<String, Value> = serde_json::from_slice(&payload)?;
-            let payload = JwtPayload::from_map(payload)?;
-
-            Ok((payload, header))
-        })()
-        .map_err(|err| match err.downcast::<JoseError>() {
-            Ok(err) => err,
-            Err(err) => JoseError::InvalidJwtFormat(err),
-        })
+        self.decode_with_verifier(input, &jwt::None.verifier())
     }
 
     /// Return the JWT object decoded by the selected verifier.
