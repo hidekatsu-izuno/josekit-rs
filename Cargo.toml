@@ -6,7 +6,7 @@ repository = "https://github.com/hidekatsu-izuno/josekit-rs"
 readme = "README.md"
 license = "MIT OR Apache-2.0"
 authors = ["Hidekatsu Izuno <hidekatsu.izuno@gmail.com>"]
-keywords = ["joes", "jwt", "jws", "jwe", "jwa"]
+keywords = ["jose", "jwt", "jws", "jwe", "jwa"]
 categories = ["authentication"]
 edition = "2018"
 
