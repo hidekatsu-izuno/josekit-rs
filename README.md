@@ -247,7 +247,7 @@ cargo build --release
     <td>OK</td>
     <td>OK</td>
     <td>OK</td>
-    <td>-</td>
+    <td>OK</td>
 </tr>
 <tr>
     <td>EC</td>
