@@ -8,7 +8,7 @@ use crate::jwe::JweContentEncryption;
 use crate::JoseError;
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
-pub enum AesGcmJweEncryption {
+pub enum AesgcmJweEncryption {
     /// AES GCM using 128-bit key
     A128Gcm,
     /// AES GCM using 192-bit key
@@ -17,7 +17,7 @@ pub enum AesGcmJweEncryption {
     A256Gcm,
 }
 
-impl AesGcmJweEncryption {
+impl AesgcmJweEncryption {
     fn cipher(&self) -> Cipher {
         match self {
             Self::A128Gcm => Cipher::aes_128_gcm(),
@@ -27,7 +27,7 @@ impl AesGcmJweEncryption {
     }
 }
 
-impl JweContentEncryption for AesGcmJweEncryption {
+impl JweContentEncryption for AesgcmJweEncryption {
     fn name(&self) -> &str {
         match self {
             Self::A128Gcm => "A128GCM",
@@ -108,13 +108,13 @@ impl JweContentEncryption for AesGcmJweEncryption {
     }
 }
 
-impl Display for AesGcmJweEncryption {
+impl Display for AesgcmJweEncryption {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
         fmt.write_str(self.name())
     }
 }
 
-impl Deref for AesGcmJweEncryption {
+impl Deref for AesgcmJweEncryption {
     type Target = dyn JweContentEncryption;
 
     fn deref(&self) -> &Self::Target {
@@ -126,7 +126,7 @@ impl Deref for AesGcmJweEncryption {
 mod tests {
     use anyhow::Result;
 
-    use super::AesGcmJweEncryption;
+    use super::AesgcmJweEncryption;
     use crate::util;
 
     #[test]
@@ -135,9 +135,9 @@ mod tests {
         let aad = b"test";
 
         for enc in vec![
-            AesGcmJweEncryption::A128Gcm,
-            AesGcmJweEncryption::A192Gcm,
-            AesGcmJweEncryption::A256Gcm,
+            AesgcmJweEncryption::A128Gcm,
+            AesgcmJweEncryption::A192Gcm,
+            AesgcmJweEncryption::A256Gcm,
         ] {
             let key = util::rand_bytes(enc.key_len());
             let iv = util::rand_bytes(enc.iv_len());

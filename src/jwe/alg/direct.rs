@@ -270,13 +270,13 @@ mod tests {
     use serde_json::json;
 
     use super::DirectJweAlgorithm;
-    use crate::jwe::enc::aes_cbc_hmac::AesCbcHmacJweEncryption;
+    use crate::jwe::enc::aescbc_hmac::AescbcHmacJweEncryption;
     use crate::jwe::JweHeader;
     use crate::jwk::Jwk;
 
     #[test]
     fn encrypt_and_decrypt_direct() -> Result<()> {
-        let enc = AesCbcHmacJweEncryption::A128CbcHS256;
+        let enc = AescbcHmacJweEncryption::A128CbcHS256;
         let jwk = {
             let mut jwk = Jwk::new("oct");
             jwk.set_key_use("enc");

@@ -513,14 +513,14 @@ mod tests {
     use std::path::PathBuf;
 
     use super::RsaesJweAlgorithm;
-    use crate::jwe::enc::aes_cbc_hmac::AesCbcHmacJweEncryption;
+    use crate::jwe::enc::aescbc_hmac::AescbcHmacJweEncryption;
     use crate::jwe::JweHeader;
     use crate::jwk::Jwk;
 
     #[test]
     #[allow(deprecated)]
     fn encrypt_and_decrypt_rsaes() -> Result<()> {
-        let enc = AesCbcHmacJweEncryption::A128CbcHS256;
+        let enc = AescbcHmacJweEncryption::A128CbcHS256;
 
         let private_key = load_file("jwk/RSA_private.jwk")?;
         let mut private_key = Jwk::from_bytes(&private_key)?;

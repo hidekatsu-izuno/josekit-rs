@@ -11,7 +11,7 @@ use crate::jwe::JweContentEncryption;
 use crate::JoseError;
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
-pub enum AesCbcHmacJweEncryption {
+pub enum AescbcHmacJweEncryption {
     /// AES_128_CBC_HMAC_SHA_256 authenticated encryption algorithm
     A128CbcHS256,
     /// AES_192_CBC_HMAC_SHA_384 authenticated encryption algorithm
@@ -20,7 +20,7 @@ pub enum AesCbcHmacJweEncryption {
     A256CbcHS512,
 }
 
-impl AesCbcHmacJweEncryption {
+impl AescbcHmacJweEncryption {
     fn cipher(&self) -> Cipher {
         match self {
             Self::A128CbcHS256 => Cipher::aes_128_cbc(),
@@ -68,7 +68,7 @@ impl AesCbcHmacJweEncryption {
     }
 }
 
-impl JweContentEncryption for AesCbcHmacJweEncryption {
+impl JweContentEncryption for AescbcHmacJweEncryption {
     fn name(&self) -> &str {
         match self {
             Self::A128CbcHS256 => "A128CBC-HS256",
@@ -170,13 +170,13 @@ impl JweContentEncryption for AesCbcHmacJweEncryption {
     }
 }
 
-impl Display for AesCbcHmacJweEncryption {
+impl Display for AescbcHmacJweEncryption {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
         fmt.write_str(self.name())
     }
 }
 
-impl Deref for AesCbcHmacJweEncryption {
+impl Deref for AescbcHmacJweEncryption {
     type Target = dyn JweContentEncryption;
 
     fn deref(&self) -> &Self::Target {
@@ -188,7 +188,7 @@ impl Deref for AesCbcHmacJweEncryption {
 mod tests {
     use anyhow::Result;
 
-    use super::AesCbcHmacJweEncryption;
+    use super::AescbcHmacJweEncryption;
     use crate::util;
 
     #[test]
@@ -197,9 +197,9 @@ mod tests {
         let aad = b"test";
 
         for enc in vec![
-            AesCbcHmacJweEncryption::A128CbcHS256,
-            AesCbcHmacJweEncryption::A192CbcHS384,
-            AesCbcHmacJweEncryption::A256CbcHS512,
+            AescbcHmacJweEncryption::A128CbcHS256,
+            AescbcHmacJweEncryption::A192CbcHS384,
+            AescbcHmacJweEncryption::A256CbcHS512,
         ] {
             let key = util::rand_bytes(enc.key_len());
             let iv = util::rand_bytes(enc.iv_len());

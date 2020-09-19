@@ -972,15 +972,15 @@ mod tests {
     use std::path::PathBuf;
 
     use super::{EcdhEsJweAlgorithm, EcdhEsKeyType};
-    use crate::jwe::enc::aes_cbc_hmac::AesCbcHmacJweEncryption;
-    use crate::jwe::enc::aes_gcm::AesGcmJweEncryption;
+    use crate::jwe::enc::aescbc_hmac::AescbcHmacJweEncryption;
+    use crate::jwe::enc::aesgcm::AesgcmJweEncryption;
     use crate::jwe::JweHeader;
     use crate::jwk::alg::{ec::EcCurve, ecx::EcxCurve};
     use crate::jwk::Jwk;
 
     #[test]
     fn encrypt_and_decrypt_ecdh_es_with_pkcs8_der() -> Result<()> {
-        let enc = AesCbcHmacJweEncryption::A128CbcHS256;
+        let enc = AescbcHmacJweEncryption::A128CbcHS256;
 
         for alg in vec![
             EcdhEsJweAlgorithm::EcdhEs,
@@ -1033,7 +1033,7 @@ mod tests {
 
     #[test]
     fn encrypt_and_decrypt_ecdh_es_with_pem() -> Result<()> {
-        let enc = AesCbcHmacJweEncryption::A128CbcHS256;
+        let enc = AescbcHmacJweEncryption::A128CbcHS256;
 
         for alg in vec![
             EcdhEsJweAlgorithm::EcdhEs,
@@ -1086,7 +1086,7 @@ mod tests {
 
     #[test]
     fn encrypt_and_decrypt_ecdh_es_with_traditional_pem() -> Result<()> {
-        let enc = AesGcmJweEncryption::A128Gcm;
+        let enc = AesgcmJweEncryption::A128Gcm;
 
         for alg in vec![
             EcdhEsJweAlgorithm::EcdhEs,
@@ -1141,7 +1141,7 @@ mod tests {
 
     #[test]
     fn encrypt_and_decrypt_ecdh_es_with_jwk() -> Result<()> {
-        let enc = AesCbcHmacJweEncryption::A128CbcHS256;
+        let enc = AescbcHmacJweEncryption::A128CbcHS256;
 
         for alg in vec![
             EcdhEsJweAlgorithm::EcdhEs,

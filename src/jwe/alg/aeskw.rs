@@ -12,7 +12,7 @@ use crate::util;
 use crate::JoseError;
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
-pub enum AesJweAlgorithm {
+pub enum AeskwJweAlgorithm {
     /// AES Key Wrap with default initial value using 128-bit key
     A128Kw,
     /// AES Key Wrap with default initial value using 192-bit key
@@ -21,12 +21,12 @@ pub enum AesJweAlgorithm {
     A256Kw,
 }
 
-impl AesJweAlgorithm {
+impl AeskwJweAlgorithm {
     pub fn encrypter_from_bytes(
         &self,
         input: impl AsRef<[u8]>,
-    ) -> Result<AesJweEncrypter, JoseError> {
-        (|| -> anyhow::Result<AesJweEncrypter> {
+    ) -> Result<AeskwJweEncrypter, JoseError> {
+        (|| -> anyhow::Result<AeskwJweEncrypter> {
             let private_key = input.as_ref().to_vec();
 
             if private_key.len() != self.key_len() {
@@ -37,7 +37,7 @@ impl AesJweAlgorithm {
                 );
             }
 
-            Ok(AesJweEncrypter {
+            Ok(AeskwJweEncrypter {
                 algorithm: self.clone(),
                 private_key,
                 key_id: None,
@@ -46,8 +46,8 @@ impl AesJweAlgorithm {
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
-    pub fn encrypter_from_jwk(&self, jwk: &Jwk) -> Result<AesJweEncrypter, JoseError> {
-        (|| -> anyhow::Result<AesJweEncrypter> {
+    pub fn encrypter_from_jwk(&self, jwk: &Jwk) -> Result<AeskwJweEncrypter, JoseError> {
+        (|| -> anyhow::Result<AeskwJweEncrypter> {
             match jwk.key_type() {
                 val if val == "oct" => {}
                 val => bail!("A parameter kty must be oct: {}", val),
@@ -77,7 +77,7 @@ impl AesJweAlgorithm {
 
             let key_id = jwk.key_id().map(|val| val.to_string());
 
-            Ok(AesJweEncrypter {
+            Ok(AeskwJweEncrypter {
                 algorithm: self.clone(),
                 private_key: k,
                 key_id,
@@ -89,8 +89,8 @@ impl AesJweAlgorithm {
     pub fn decrypter_from_bytes(
         &self,
         input: impl AsRef<[u8]>,
-    ) -> Result<AesJweDecrypter, JoseError> {
-        (|| -> anyhow::Result<AesJweDecrypter> {
+    ) -> Result<AeskwJweDecrypter, JoseError> {
+        (|| -> anyhow::Result<AeskwJweDecrypter> {
             let private_key = input.as_ref().to_vec();
 
             if private_key.len() != self.key_len() {
@@ -101,7 +101,7 @@ impl AesJweAlgorithm {
                 );
             }
 
-            Ok(AesJweDecrypter {
+            Ok(AeskwJweDecrypter {
                 algorithm: self.clone(),
                 private_key,
                 key_id: None,
@@ -110,8 +110,8 @@ impl AesJweAlgorithm {
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
-    pub fn decrypter_from_jwk(&self, jwk: &Jwk) -> Result<AesJweDecrypter, JoseError> {
-        (|| -> anyhow::Result<AesJweDecrypter> {
+    pub fn decrypter_from_jwk(&self, jwk: &Jwk) -> Result<AeskwJweDecrypter, JoseError> {
+        (|| -> anyhow::Result<AeskwJweDecrypter> {
             match jwk.key_type() {
                 val if val == "oct" => {}
                 val => bail!("A parameter kty must be oct: {}", val),
@@ -142,7 +142,7 @@ impl AesJweAlgorithm {
 
             let key_id = jwk.key_id().map(|val| val.to_string());
 
-            Ok(AesJweDecrypter {
+            Ok(AeskwJweDecrypter {
                 algorithm: self.clone(),
                 private_key: k,
                 key_id,
@@ -160,7 +160,7 @@ impl AesJweAlgorithm {
     }
 }
 
-impl JweAlgorithm for AesJweAlgorithm {
+impl JweAlgorithm for AeskwJweAlgorithm {
     fn name(&self) -> &str {
         match self {
             Self::A128Kw => "A128KW",
@@ -174,13 +174,13 @@ impl JweAlgorithm for AesJweAlgorithm {
     }
 }
 
-impl Display for AesJweAlgorithm {
+impl Display for AeskwJweAlgorithm {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
         fmt.write_str(self.name())
     }
 }
 
-impl Deref for AesJweAlgorithm {
+impl Deref for AeskwJweAlgorithm {
     type Target = dyn JweAlgorithm;
 
     fn deref(&self) -> &Self::Target {
@@ -189,13 +189,13 @@ impl Deref for AesJweAlgorithm {
 }
 
 #[derive(Debug, Clone)]
-pub struct AesJweEncrypter {
-    algorithm: AesJweAlgorithm,
+pub struct AeskwJweEncrypter {
+    algorithm: AeskwJweAlgorithm,
     private_key: Vec<u8>,
     key_id: Option<String>,
 }
 
-impl AesJweEncrypter {
+impl AeskwJweEncrypter {
     pub fn set_key_id(&mut self, value: impl Into<String>) {
         self.key_id = Some(value.into());
     }
@@ -205,7 +205,7 @@ impl AesJweEncrypter {
     }
 }
 
-impl JweEncrypter for AesJweEncrypter {
+impl JweEncrypter for AeskwJweEncrypter {
     fn algorithm(&self) -> &dyn JweAlgorithm {
         &self.algorithm
     }
@@ -250,7 +250,7 @@ impl JweEncrypter for AesJweEncrypter {
     }
 }
 
-impl Deref for AesJweEncrypter {
+impl Deref for AeskwJweEncrypter {
     type Target = dyn JweEncrypter;
 
     fn deref(&self) -> &Self::Target {
@@ -259,13 +259,13 @@ impl Deref for AesJweEncrypter {
 }
 
 #[derive(Debug, Clone)]
-pub struct AesJweDecrypter {
-    algorithm: AesJweAlgorithm,
+pub struct AeskwJweDecrypter {
+    algorithm: AeskwJweAlgorithm,
     private_key: Vec<u8>,
     key_id: Option<String>,
 }
 
-impl AesJweDecrypter {
+impl AeskwJweDecrypter {
     pub fn set_key_id(&mut self, value: impl Into<String>) {
         self.key_id = Some(value.into());
     }
@@ -275,7 +275,7 @@ impl AesJweDecrypter {
     }
 }
 
-impl JweDecrypter for AesJweDecrypter {
+impl JweDecrypter for AeskwJweDecrypter {
     fn algorithm(&self) -> &dyn JweAlgorithm {
         &self.algorithm
     }
@@ -324,7 +324,7 @@ impl JweDecrypter for AesJweDecrypter {
     }
 }
 
-impl Deref for AesJweDecrypter {
+impl Deref for AeskwJweDecrypter {
     type Target = dyn JweDecrypter;
 
     fn deref(&self) -> &Self::Target {
@@ -338,20 +338,20 @@ mod tests {
     use base64;
     use serde_json::json;
 
-    use super::AesJweAlgorithm;
-    use crate::jwe::enc::aes_cbc_hmac::AesCbcHmacJweEncryption;
+    use super::AeskwJweAlgorithm;
+    use crate::jwe::enc::aescbc_hmac::AescbcHmacJweEncryption;
     use crate::jwe::JweHeader;
     use crate::jwk::Jwk;
     use crate::util;
 
     #[test]
     fn encrypt_and_decrypt_aes() -> Result<()> {
-        let enc = AesCbcHmacJweEncryption::A128CbcHS256;
+        let enc = AescbcHmacJweEncryption::A128CbcHS256;
 
         for alg in vec![
-            AesJweAlgorithm::A128Kw,
-            AesJweAlgorithm::A192Kw,
-            AesJweAlgorithm::A256Kw,
+            AeskwJweAlgorithm::A128Kw,
+            AeskwJweAlgorithm::A192Kw,
+            AeskwJweAlgorithm::A256Kw,
         ] {
             let mut header = JweHeader::new();
             header.set_content_encryption(enc.name());

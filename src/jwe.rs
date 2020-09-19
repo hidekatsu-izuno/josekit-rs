@@ -32,23 +32,23 @@ pub use EcdhEsA128Kw as ECDH_ES_A128KW;
 pub use EcdhEsA192Kw as ECDH_ES_A192KW;
 pub use EcdhEsA256Kw as ECDH_ES_A256KW;
 
-pub use crate::jwe::alg::aeskw::AesJweAlgorithm::A128Kw;
-pub use crate::jwe::alg::aeskw::AesJweAlgorithm::A192Kw;
-pub use crate::jwe::alg::aeskw::AesJweAlgorithm::A256Kw;
+pub use crate::jwe::alg::aeskw::AeskwJweAlgorithm::A128Kw;
+pub use crate::jwe::alg::aeskw::AeskwJweAlgorithm::A192Kw;
+pub use crate::jwe::alg::aeskw::AeskwJweAlgorithm::A256Kw;
 pub use A128Kw as A128KW;
 pub use A192Kw as A192KW;
 pub use A256Kw as A256KW;
 
-pub use crate::jwe::alg::aesgcmkw::AesGcmJweAlgorithm::A128GcmKw;
-pub use crate::jwe::alg::aesgcmkw::AesGcmJweAlgorithm::A192GcmKw;
-pub use crate::jwe::alg::aesgcmkw::AesGcmJweAlgorithm::A256GcmKw;
+pub use crate::jwe::alg::aesgcmkw::AesgcmkwJweAlgorithm::A128GcmKw;
+pub use crate::jwe::alg::aesgcmkw::AesgcmkwJweAlgorithm::A192GcmKw;
+pub use crate::jwe::alg::aesgcmkw::AesgcmkwJweAlgorithm::A256GcmKw;
 pub use A128GcmKw as A128GCMKW;
 pub use A192GcmKw as A192GCMKW;
 pub use A256GcmKw as A256GCMKW;
 
-pub use crate::jwe::alg::pbes2_hmac_aeskw::Pbes2HmacJweAlgorithm::Pbes2HS256A128Kw;
-pub use crate::jwe::alg::pbes2_hmac_aeskw::Pbes2HmacJweAlgorithm::Pbes2HS384A192Kw;
-pub use crate::jwe::alg::pbes2_hmac_aeskw::Pbes2HmacJweAlgorithm::Pbes2HS512A256Kw;
+pub use crate::jwe::alg::pbes2_hmac_aeskw::Pbes2HmacAeskwJweAlgorithm::Pbes2HS256A128Kw;
+pub use crate::jwe::alg::pbes2_hmac_aeskw::Pbes2HmacAeskwJweAlgorithm::Pbes2HS384A192Kw;
+pub use crate::jwe::alg::pbes2_hmac_aeskw::Pbes2HmacAeskwJweAlgorithm::Pbes2HS512A256Kw;
 pub use Pbes2HS256A128Kw as PBES2_HS256_A128KW;
 pub use Pbes2HS384A192Kw as PBES2_HS384_A192KW;
 pub use Pbes2HS512A256Kw as PBES2_HS512_A256KW;
