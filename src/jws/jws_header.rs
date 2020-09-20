@@ -420,6 +420,10 @@ impl JwsHeader {
 }
 
 impl JoseHeader for JwsHeader {
+    fn len(&self) -> usize {
+        self.claims.len()
+    }
+    
     fn claims_set(&self) -> &Map<String, Value> {
         &self.claims
     }

@@ -1,3 +1,5 @@
+use std::slice;
+
 use anyhow::bail;
 
 use crate::jws::{JwsHeader, JwsSigner};
@@ -5,7 +7,7 @@ use crate::{JoseError, JoseHeader};
 
 #[derive(Debug)]
 pub struct JwsSignerList<'a> {
-    signers: Vec<(
+    list: Vec<(
         Option<&'a JwsHeader>,
         Option<&'a JwsHeader>,
         &'a dyn JwsSigner,
@@ -15,18 +17,16 @@ pub struct JwsSignerList<'a> {
 impl<'a> JwsSignerList<'a> {
     pub fn new() -> Self {
         Self {
-            signers: Vec::new(),
+            list: Vec::new(),
         }
     }
 
-    pub fn signers(
-        &self,
-    ) -> &Vec<(
+    pub fn iter(&self) -> slice::Iter<'_, (
         Option<&'a JwsHeader>,
         Option<&'a JwsHeader>,
         &'a dyn JwsSigner,
     )> {
-        &self.signers
+        self.list.as_slice().iter()
     }
 
     pub fn push_signer(
@@ -48,7 +48,7 @@ impl<'a> JwsSignerList<'a> {
                 }
             }
 
-            self.signers.push((protected, header, signer));
+            self.list.push((protected, header, signer));
 
             Ok(())
         })()

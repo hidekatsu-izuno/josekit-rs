@@ -7,7 +7,7 @@ use serde_json::{Map, Value};
 
 use crate::jwe::enc::{A128CBC_HS256, A128GCM, A192CBC_HS384, A192GCM, A256CBC_HS512, A256GCM};
 use crate::jwe::zip::Def;
-use crate::jwe::{JweCompression, JweContentEncryption, JweDecrypter, JweEncrypter, JweHeader, JweEncrypterList};
+use crate::jwe::{JweCompression, JweContentEncryption, JweDecrypter, JweEncrypter, JweHeader};
 use crate::util;
 use crate::{JoseError, JoseHeader};
 
@@ -260,76 +260,217 @@ impl JweContext {
             Err(err) => JoseError::InvalidJweFormat(err),
         })
     }
+/*
+    /// Return a representation of the data that is formatted by flattened json serialization.
+    ///
+    /// # Arguments
+    ///
+    /// * `payload` - The payload data.
+    /// * `protected` - The JWS protected header claims.
+    /// * `unprotected` - The JWS unprotected header claims.
+    /// * `recipients` - The JWE header claims and the JWE encrypter pair for recipients.
+    /// * `aad` - The JWE additional authenticated data.
+    pub fn serialize_general_json(
+        &self,
+        payload: &[u8],
+        protected: Option<&JweHeader>,
+        unprotected: Option<&JweHeader>,
+        recipients: &[(
+            Option<&JweHeader>,
+            &dyn JweEncrypter,
+        )],
+        aad: Option<&[u8]>,
+    ) -> Result<String, JoseError> {
+        self.serialize_general_json_with_selector(
+            payload,
+            protected,
+            unprotected,
+            recipients.iter()
+                .map(|(header, _)| header.as_deref())
+                .collect::<Vec<Option<&JweHeader>>>()
+                .as_slice(),
+            aad,
+            |i, _header| Some(recipients[i].1),
+        )
+    }
 
     /// Return a representation of the data that is formatted by flattened json serialization.
     ///
     /// # Arguments
     ///
-    /// * `protected` - The JWS protected header claims.
-    /// * `header` - The JWS unprotected header claims.
     /// * `payload` - The payload data.
-    /// * `encrypters` - The JWE encrypter list.
-    /*
-    pub fn serialize_general_json(
+    /// * `protected` - The JWS protected header claims.
+    /// * `unprotected` - The JWS unprotected header claims.
+    /// * `recipients` - The JWE header claims for recipients.
+    /// * `aad` - The JWE additional authenticated data.
+    /// * `selector` - a function for selecting the encrypting algorithm.
+    pub fn serialize_general_json_with_selector<'a, F>(
         &self,
         payload: &[u8],
-        encrypters: &JweEncrypterList,
-    ) -> Result<String, JoseError> {
-        (|| -> anyhow::Result<String> {
-            let payload_b64 = base64::encode_config(payload, base64::URL_SAFE_NO_PAD);
+        protected: Option<&JweHeader>,
+        unprotected: Option<&JweHeader>,
+        recipients: &[Option<&JweHeader>],
+        aad: Option<&[u8]>,
+        selector: F,
+    ) -> Result<String, JoseError>
+    where
+        F: Fn(usize, &JweHeader) -> Option<&'a dyn JweEncrypter>,
+    {
+        let mut merged_map = match protected {
+            Some(val) => val.claims_set().clone(),
+            None => Map::new(),
+        };
 
-            let mut json = String::new();
-            json.push_str("{\"signatures\":[");
+        let compressed;
+        let content = match merged_map.get("zip") {
+            Some(Value::String(val)) => match self.get_compression(val) {
+                Some(val) => {
+                    compressed = val.compress(payload).unwrap();
+                    &compressed
+                },
+                None => bail!("A compression algorithm is not registered: {}", val),
+            },
+            Some(_) => bail!("A zip header claim must be a string."),
+            None => payload,
+        };
 
-            for (i, (protected, header, signer)) in signer.signers().iter().enumerate() {
-                if i > 0 {
-                    json.push_str(",");
+        if let Some(val) = unprotected {
+            for (key, value) in val.claims_set() {
+                if merged_map.contains_key(key) {
+                    bail!("Duplicate key exists: {}", key);
                 }
+                merged_map.insert(key.clone(), value.clone());
+            }
+        }
 
-                let mut protected = match protected {
-                    Some(val) => val.claims_set().clone(),
-                    None => Map::new(),
-                };
-                protected.insert(
-                    "alg".to_string(),
-                    Value::String(signer.algorithm().name().to_string()),
-                );
+        let cencryption = match merged_map.get("enc") {
+            Some(Value::String(val)) => match self.get_content_encryption(val) {
+                Some(val) => val,
+                None => bail!("A content encryption is not registered: {}", val),
+            },
+            Some(_) => bail!("A enc header claim must be a string."),
+            None => bail!("A enc header claim is required."),
+        };
 
-                let protected_bytes = serde_json::to_vec(&protected)?;
-                let protected_b64 =
-                    base64::encode_config(&protected_bytes, base64::URL_SAFE_NO_PAD);
+        let protected_b64 = match protected {
+            Some(val) if val.len() > 0 => {
+                let protected_json = serde_json::to_vec(val.claims_set()).unwrap();
+                Some(base64::encode_config(protected_json, base64::URL_SAFE_NO_PAD))
+            },
+            _ => None,
+        };
 
-                let message = format!("{}.{}", &protected_b64, &payload_b64);
-                let signature = signer.sign(message.as_bytes())?;
+        let iv = if cencryption.iv_len() > 0 {
+            Some(util::rand_bytes(cencryption.iv_len()))
+        } else {
+            None
+        };
 
-                json.push_str("{\"protected\":\"");
-                json.push_str(&protected_b64);
-                json.push_str("\"");
+        let aad_b64 = match aad {
+            Some(val) => Some(base64::encode_config(val, base64::URL_SAFE_NO_PAD)),
+            None => None
+        };
 
-                if let Some(val) = header {
-                    let header = serde_json::to_string(val.claims_set())?;
-                    json.push_str(",\"header\":");
-                    json.push_str(&header);
-                }
+        let mut full_aad = String::with_capacity(1 + 
+            protected_b64.map_or(0, |val| val.len()) +
+            aad_b64.map_or(0, |val| val.len())
+        );
+        if let Some(val) = protected_b64 {
+            full_aad.push_str(&val);
+        }
+        full_aad.push_str(".");
+        if let Some(val) = aad_b64 {
+            full_aad.push_str(&val);
+        }
 
-                json.push_str(",\"signature\":\"");
-                base64::encode_config_buf(&signature, base64::URL_SAFE_NO_PAD, &mut json);
-                json.push_str("\"}");
+        let (ciphertext, tag) = cencryption.encrypt(
+            &key, 
+            iv.map(|val| val.as_slice()),
+            content, 
+            full_aad.as_bytes()
+        )?;
+
+        let mut json = String::new();
+        json.push_str("{\"protected\":\"");
+        if let Some(val) = &protected_b64 {
+            json.push_str(val);
+        }
+        json.push_str("\"");
+        
+        json.push_str(",\"unprotected\":");
+        if let Some(val) = unprotected {
+            let unprotected_json = serde_json::to_string(val.claims_set()).unwrap();
+            json.push_str(&unprotected_json);
+        }
+
+        json.push_str(",\"recipients\":[");
+        for (i, header) in recipients.iter().enumerate() {
+            if i > 0 {
+                json.push_str(",");
             }
 
-            json.push_str("],\"payload\":\"");
-            json.push_str(&payload_b64);
-            json.push_str("\"}");
+            let merged = match header {
+                Some(val) => {
+                    let mut merged_map = merged_map.clone();
+                    for (key, value) in val.claims_set() {
+                        if merged_map.contains_key(key) {
+                            bail!("Duplicate key exists: {}", key);
+                        }
+                        merged_map.insert(key.clone(), value.clone());
+                    }
+                    JweHeader::from_map(merged_map)?
+                },
+                None => JweHeader::from_map(merged_map.clone())?,
+            };
 
-            Ok(json)
-        })()
-        .map_err(|err| match err.downcast::<JoseError>() {
-            Ok(err) => err,
-            Err(err) => JoseError::InvalidJwtFormat(err),
-        })
+            let encrypter = match selector(i, &merged) {
+                Some(val) => val,
+                None => bail!("A encrypter is not found."),
+            };
+
+            let mut header = match header {
+                Some(val) => *val.clone(),
+                None => JweHeader::new(),
+            };
+            header.set_algorithm(encrypter.algorithm().name());
+            let header_json = serde_json::to_string(header.claims_set()).unwrap();
+
+            json.push_str("{\"header\":\"");
+            json.push_str(&header_json);
+            json.push_str("\"");
+
+
+
+        }
+        json.push_str("]");
+
+        if let Some(val) = aad_b64 {
+            json.push_str(",\"aad\":\"");
+            json.push_str(&val);
+            json.push_str("\"");
+        }
+
+        json.push_str(",\"iv\":\"");
+        if let Some(val) = iv {
+            base64::encode_config_buf(&val, base64::URL_SAFE_NO_PAD, &mut json);
+        }
+        json.push_str("\"");
+
+        json.push_str(",\"ciphertext\":\"");
+        base64::encode_config_buf(&ciphertext, base64::URL_SAFE_NO_PAD, &mut json);
+        json.push_str("\"");
+
+        json.push_str(",\"tag\":\"");
+        if let Some(val) = tag {
+            base64::encode_config_buf(&val, base64::URL_SAFE_NO_PAD, &mut json);
+        }
+        json.push_str("\"");
+
+        json.push_str("}");
+
+        Ok(json)
     }
-    */
-
+*/
     /// Return a representation of the data that is formatted by flattened json serialization.
     ///
     /// # Arguments
@@ -408,10 +549,6 @@ impl JweContext {
             }
 
             let merged = JweHeader::from_map(merged_map)?;
-            let encrypter = match selector(&merged) {
-                Some(val) => val,
-                None => bail!("A encrypter is not found."),
-            };
 
             let cencryption = match merged.content_encryption() {
                 Some(enc) => match self.get_content_encryption(enc) {
@@ -427,6 +564,11 @@ impl JweContext {
                     None => bail!("A compression algorithm is not registered: {}", zip),
                 },
                 None => None,
+            };
+
+            let encrypter = match selector(&merged) {
+                Some(val) => val,
+                None => bail!("A encrypter is not found."),
             };
 
             let compressed;

@@ -572,6 +572,10 @@ impl JweHeader {
 }
 
 impl JoseHeader for JweHeader {
+    fn len(&self) -> usize {
+        self.claims.len()
+    }
+
     fn claims_set(&self) -> &Map<String, Value> {
         &self.claims
     }
