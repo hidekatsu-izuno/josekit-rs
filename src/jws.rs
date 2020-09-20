@@ -4,7 +4,7 @@ pub mod alg;
 mod jws_algorithm;
 mod jws_context;
 mod jws_header;
-mod jws_multi_signer;
+mod jws_signer_list;
 
 use once_cell::sync::Lazy;
 
@@ -15,7 +15,7 @@ pub use crate::jws::jws_algorithm::JwsSigner;
 pub use crate::jws::jws_algorithm::JwsVerifier;
 pub use crate::jws::jws_context::JwsContext;
 pub use crate::jws::jws_header::JwsHeader;
-pub use crate::jws::jws_multi_signer::JwsMultiSigner;
+pub use crate::jws::jws_signer_list::JwsSignerList;
 
 use crate::jws::alg::hmac::HmacJwsAlgorithm;
 pub use HmacJwsAlgorithm::Hs256 as HS256;
@@ -86,7 +86,7 @@ where
 /// * `signer` - The JWS signer.
 pub fn serialize_general_json(
     payload: &[u8],
-    signer: &JwsMultiSigner,
+    signer: &JwsSignerList,
 ) -> Result<String, JoseError> {
     DEFAULT_CONTEXT.serialize_general_json(payload, signer)
 }
@@ -192,7 +192,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::jws::{self, EdDSA, JwsHeader, JwsMultiSigner, ES256, RS256};
+    use crate::jws::{self, EdDSA, JwsHeader, JwsSignerList, ES256, RS256};
     use anyhow::Result;
     use serde_json::Value;
     use std::fs;
@@ -280,10 +280,10 @@ mod tests {
         src_header_3.set_token_type("JWT-3");
         let signer_3 = EdDSA.signer_from_pem(&private_key_3)?;
 
-        let mut multi_signer = JwsMultiSigner::new();
-        multi_signer.add_signer(Some(&src_protected_1), Some(&src_header_1), &signer_1)?;
-        multi_signer.add_signer(Some(&src_protected_2), Some(&src_header_2), &signer_2)?;
-        multi_signer.add_signer(Some(&src_protected_3), Some(&src_header_3), &signer_3)?;
+        let mut multi_signer = JwsSignerList::new();
+        multi_signer.push_signer(Some(&src_protected_1), Some(&src_header_1), &signer_1)?;
+        multi_signer.push_signer(Some(&src_protected_2), Some(&src_header_2), &signer_2)?;
+        multi_signer.push_signer(Some(&src_protected_3), Some(&src_header_3), &signer_3)?;
 
         let json = jws::serialize_general_json(src_payload, &multi_signer)?;
 

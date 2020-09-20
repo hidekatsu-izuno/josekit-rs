@@ -366,7 +366,7 @@ mod tests {
 
     #[test]
     fn encrypt_and_decrypt_aes_gcm() -> Result<()> {
-        let enc = AescbcHmacJweEncryption::A128CbcHS256;
+        let enc = AescbcHmacJweEncryption::A128cbcHs256;
 
         for alg in vec![
             AesgcmkwJweAlgorithm::A128gcmkw,

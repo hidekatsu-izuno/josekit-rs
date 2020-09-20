@@ -1,16 +1,12 @@
 pub mod aescbc_hmac;
 pub mod aesgcm;
 
-pub use crate::jwe::enc::aescbc_hmac::AescbcHmacJweEncryption::A128CbcHS256;
-pub use crate::jwe::enc::aescbc_hmac::AescbcHmacJweEncryption::A192CbcHS384;
-pub use crate::jwe::enc::aescbc_hmac::AescbcHmacJweEncryption::A256CbcHS512;
-pub use A128CbcHS256 as AES_128_CBC_HMAC_SHA_256;
-pub use A192CbcHS384 as AES_192_CBC_HMAC_SHA_384;
-pub use A256CbcHS512 as AES_256_CBC_HMAC_SHA_512;
+use crate::jwe::enc::aescbc_hmac::AescbcHmacJweEncryption;
+pub use AescbcHmacJweEncryption::A128cbcHs256 as A128CBC_HS256;
+pub use AescbcHmacJweEncryption::A192cbcHs384 as A192CBC_HS384;
+pub use AescbcHmacJweEncryption::A256cbcHs512 as A256CBC_HS512;
 
-pub use crate::jwe::enc::aesgcm::AesgcmJweEncryption::A128Gcm;
-pub use crate::jwe::enc::aesgcm::AesgcmJweEncryption::A192Gcm;
-pub use crate::jwe::enc::aesgcm::AesgcmJweEncryption::A256Gcm;
-pub use A128Gcm as A128GCM;
-pub use A192Gcm as A192GCM;
-pub use A256Gcm as A256GCM;
+use crate::jwe::enc::aesgcm::AesgcmJweEncryption;
+pub use AesgcmJweEncryption::A128gcm as A128GCM;
+pub use AesgcmJweEncryption::A192gcm as A192GCM;
+pub use AesgcmJweEncryption::A256gcm as A256GCM;

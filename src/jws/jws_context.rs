@@ -4,7 +4,7 @@ use std::fmt::Debug;
 use anyhow::bail;
 use serde_json::{Map, Value};
 
-use crate::jws::{JwsHeader, JwsMultiSigner, JwsSigner, JwsVerifier};
+use crate::jws::{JwsHeader, JwsSignerList, JwsSigner, JwsVerifier};
 use crate::util;
 use crate::JoseError;
 
@@ -150,7 +150,7 @@ impl JwsContext {
     pub fn serialize_general_json(
         &self,
         payload: &[u8],
-        signer: &JwsMultiSigner,
+        signer: &JwsSignerList,
     ) -> Result<String, JoseError> {
         (|| -> anyhow::Result<String> {
             let payload_b64 = base64::encode_config(payload, base64::URL_SAFE_NO_PAD);

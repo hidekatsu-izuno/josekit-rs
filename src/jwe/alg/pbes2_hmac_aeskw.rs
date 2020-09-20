@@ -435,7 +435,7 @@ mod tests {
 
     #[test]
     fn encrypt_and_decrypt_pbes2_hmac() -> Result<()> {
-        let enc = AescbcHmacJweEncryption::A128CbcHS256;
+        let enc = AescbcHmacJweEncryption::A128cbcHs256;
 
         for alg in vec![
             Pbes2HmacAeskwJweAlgorithm::Pbes2Hs256A128kw,

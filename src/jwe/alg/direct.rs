@@ -276,7 +276,7 @@ mod tests {
 
     #[test]
     fn encrypt_and_decrypt_direct() -> Result<()> {
-        let enc = AescbcHmacJweEncryption::A128CbcHS256;
+        let enc = AescbcHmacJweEncryption::A128cbcHs256;
         let jwk = {
             let mut jwk = Jwk::new("oct");
             jwk.set_key_use("enc");

@@ -520,7 +520,7 @@ mod tests {
     #[test]
     #[allow(deprecated)]
     fn encrypt_and_decrypt_rsaes() -> Result<()> {
-        let enc = AescbcHmacJweEncryption::A128CbcHS256;
+        let enc = AescbcHmacJweEncryption::A128cbcHs256;
 
         let private_key = load_file("jwk/RSA_private.jwk")?;
         let mut private_key = Jwk::from_bytes(&private_key)?;

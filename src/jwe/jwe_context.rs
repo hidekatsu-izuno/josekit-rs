@@ -5,9 +5,9 @@ use std::fmt::Debug;
 use anyhow::bail;
 use serde_json::{Map, Value};
 
-use crate::jwe::enc::{A128CbcHS256, A128Gcm, A192CbcHS384, A192Gcm, A256CbcHS512, A256Gcm};
+use crate::jwe::enc::{A128CBC_HS256, A128GCM, A192CBC_HS384, A192GCM, A256CBC_HS512, A256GCM};
 use crate::jwe::zip::Def;
-use crate::jwe::{JweCompression, JweContentEncryption, JweDecrypter, JweEncrypter, JweHeader};
+use crate::jwe::{JweCompression, JweContentEncryption, JweDecrypter, JweEncrypter, JweHeader, JweEncrypterList};
 use crate::util;
 use crate::{JoseError, JoseHeader};
 
@@ -33,12 +33,12 @@ impl JweContext {
             },
             content_encryptions: {
                 let content_encryptions: Vec<Box<dyn JweContentEncryption>> = vec![
-                    Box::new(A128CbcHS256),
-                    Box::new(A192CbcHS384),
-                    Box::new(A256CbcHS512),
-                    Box::new(A128Gcm),
-                    Box::new(A192Gcm),
-                    Box::new(A256Gcm),
+                    Box::new(A128CBC_HS256),
+                    Box::new(A192CBC_HS384),
+                    Box::new(A256CBC_HS512),
+                    Box::new(A128GCM),
+                    Box::new(A192GCM),
+                    Box::new(A256GCM),
                 ];
 
                 let mut map = BTreeMap::new();
@@ -260,6 +260,75 @@ impl JweContext {
             Err(err) => JoseError::InvalidJweFormat(err),
         })
     }
+
+    /// Return a representation of the data that is formatted by flattened json serialization.
+    ///
+    /// # Arguments
+    ///
+    /// * `protected` - The JWS protected header claims.
+    /// * `header` - The JWS unprotected header claims.
+    /// * `payload` - The payload data.
+    /// * `encrypters` - The JWE encrypter list.
+    /*
+    pub fn serialize_general_json(
+        &self,
+        payload: &[u8],
+        encrypters: &JweEncrypterList,
+    ) -> Result<String, JoseError> {
+        (|| -> anyhow::Result<String> {
+            let payload_b64 = base64::encode_config(payload, base64::URL_SAFE_NO_PAD);
+
+            let mut json = String::new();
+            json.push_str("{\"signatures\":[");
+
+            for (i, (protected, header, signer)) in signer.signers().iter().enumerate() {
+                if i > 0 {
+                    json.push_str(",");
+                }
+
+                let mut protected = match protected {
+                    Some(val) => val.claims_set().clone(),
+                    None => Map::new(),
+                };
+                protected.insert(
+                    "alg".to_string(),
+                    Value::String(signer.algorithm().name().to_string()),
+                );
+
+                let protected_bytes = serde_json::to_vec(&protected)?;
+                let protected_b64 =
+                    base64::encode_config(&protected_bytes, base64::URL_SAFE_NO_PAD);
+
+                let message = format!("{}.{}", &protected_b64, &payload_b64);
+                let signature = signer.sign(message.as_bytes())?;
+
+                json.push_str("{\"protected\":\"");
+                json.push_str(&protected_b64);
+                json.push_str("\"");
+
+                if let Some(val) = header {
+                    let header = serde_json::to_string(val.claims_set())?;
+                    json.push_str(",\"header\":");
+                    json.push_str(&header);
+                }
+
+                json.push_str(",\"signature\":\"");
+                base64::encode_config_buf(&signature, base64::URL_SAFE_NO_PAD, &mut json);
+                json.push_str("\"}");
+            }
+
+            json.push_str("],\"payload\":\"");
+            json.push_str(&payload_b64);
+            json.push_str("\"}");
+
+            Ok(json)
+        })()
+        .map_err(|err| match err.downcast::<JoseError>() {
+            Ok(err) => err,
+            Err(err) => JoseError::InvalidJwtFormat(err),
+        })
+    }
+    */
 
     /// Return a representation of the data that is formatted by flattened json serialization.
     ///

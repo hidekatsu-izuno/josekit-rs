@@ -10,19 +10,19 @@ use crate::JoseError;
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum AesgcmJweEncryption {
     /// AES GCM using 128-bit key
-    A128Gcm,
+    A128gcm,
     /// AES GCM using 192-bit key
-    A192Gcm,
+    A192gcm,
     /// AES GCM using 256-bit key
-    A256Gcm,
+    A256gcm,
 }
 
 impl AesgcmJweEncryption {
     fn cipher(&self) -> Cipher {
         match self {
-            Self::A128Gcm => Cipher::aes_128_gcm(),
-            Self::A192Gcm => Cipher::aes_192_gcm(),
-            Self::A256Gcm => Cipher::aes_256_gcm(),
+            Self::A128gcm => Cipher::aes_128_gcm(),
+            Self::A192gcm => Cipher::aes_192_gcm(),
+            Self::A256gcm => Cipher::aes_256_gcm(),
         }
     }
 }
@@ -30,17 +30,17 @@ impl AesgcmJweEncryption {
 impl JweContentEncryption for AesgcmJweEncryption {
     fn name(&self) -> &str {
         match self {
-            Self::A128Gcm => "A128GCM",
-            Self::A192Gcm => "A192GCM",
-            Self::A256Gcm => "A256GCM",
+            Self::A128gcm => "A128GCM",
+            Self::A192gcm => "A192GCM",
+            Self::A256gcm => "A256GCM",
         }
     }
 
     fn key_len(&self) -> usize {
         match self {
-            Self::A128Gcm => 16,
-            Self::A192Gcm => 24,
-            Self::A256Gcm => 32,
+            Self::A128gcm => 16,
+            Self::A192gcm => 24,
+            Self::A256gcm => 32,
         }
     }
 
@@ -135,9 +135,9 @@ mod tests {
         let aad = b"test";
 
         for enc in vec![
-            AesgcmJweEncryption::A128Gcm,
-            AesgcmJweEncryption::A192Gcm,
-            AesgcmJweEncryption::A256Gcm,
+            AesgcmJweEncryption::A128gcm,
+            AesgcmJweEncryption::A192gcm,
+            AesgcmJweEncryption::A256gcm,
         ] {
             let key = util::rand_bytes(enc.key_len());
             let iv = util::rand_bytes(enc.iv_len());

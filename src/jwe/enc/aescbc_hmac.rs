@@ -13,19 +13,19 @@ use crate::JoseError;
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum AescbcHmacJweEncryption {
     /// AES_128_CBC_HMAC_SHA_256 authenticated encryption algorithm
-    A128CbcHS256,
+    A128cbcHs256,
     /// AES_192_CBC_HMAC_SHA_384 authenticated encryption algorithm
-    A192CbcHS384,
+    A192cbcHs384,
     /// AES_256_CBC_HMAC_SHA_512 authenticated encryption algorithm
-    A256CbcHS512,
+    A256cbcHs512,
 }
 
 impl AescbcHmacJweEncryption {
     fn cipher(&self) -> Cipher {
         match self {
-            Self::A128CbcHS256 => Cipher::aes_128_cbc(),
-            Self::A192CbcHS384 => Cipher::aes_192_cbc(),
-            Self::A256CbcHS512 => Cipher::aes_256_cbc(),
+            Self::A128cbcHs256 => Cipher::aes_128_cbc(),
+            Self::A192cbcHs384 => Cipher::aes_192_cbc(),
+            Self::A256cbcHs512 => Cipher::aes_256_cbc(),
         }
     }
 
@@ -37,9 +37,9 @@ impl AescbcHmacJweEncryption {
         mac_key: &[u8],
     ) -> Result<Vec<u8>, JoseError> {
         let (message_digest, tlen) = match self {
-            Self::A128CbcHS256 => (MessageDigest::sha256(), 16),
-            Self::A192CbcHS384 => (MessageDigest::sha384(), 24),
-            Self::A256CbcHS512 => (MessageDigest::sha512(), 32),
+            Self::A128cbcHs256 => (MessageDigest::sha256(), 16),
+            Self::A192cbcHs384 => (MessageDigest::sha384(), 24),
+            Self::A256cbcHs512 => (MessageDigest::sha512(), 32),
         };
 
         let pkey = (|| -> anyhow::Result<PKey<Private>> {
@@ -71,17 +71,17 @@ impl AescbcHmacJweEncryption {
 impl JweContentEncryption for AescbcHmacJweEncryption {
     fn name(&self) -> &str {
         match self {
-            Self::A128CbcHS256 => "A128CBC-HS256",
-            Self::A192CbcHS384 => "A192CBC-HS384",
-            Self::A256CbcHS512 => "A256CBC-HS512",
+            Self::A128cbcHs256 => "A128CBC-HS256",
+            Self::A192cbcHs384 => "A192CBC-HS384",
+            Self::A256cbcHs512 => "A256CBC-HS512",
         }
     }
 
     fn key_len(&self) -> usize {
         match self {
-            Self::A128CbcHS256 => 16 + 16,
-            Self::A192CbcHS384 => 16 + 24,
-            Self::A256CbcHS512 => 16 + 32,
+            Self::A128cbcHs256 => 16 + 16,
+            Self::A192cbcHs384 => 16 + 24,
+            Self::A256cbcHs512 => 16 + 32,
         }
     }
 
@@ -197,9 +197,9 @@ mod tests {
         let aad = b"test";
 
         for enc in vec![
-            AescbcHmacJweEncryption::A128CbcHS256,
-            AescbcHmacJweEncryption::A192CbcHS384,
-            AescbcHmacJweEncryption::A256CbcHS512,
+            AescbcHmacJweEncryption::A128cbcHs256,
+            AescbcHmacJweEncryption::A192cbcHs384,
+            AescbcHmacJweEncryption::A256cbcHs512,
         ] {
             let key = util::rand_bytes(enc.key_len());
             let iv = util::rand_bytes(enc.iv_len());
