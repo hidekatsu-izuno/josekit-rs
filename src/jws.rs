@@ -4,7 +4,6 @@ pub mod alg;
 mod jws_algorithm;
 mod jws_context;
 mod jws_header;
-mod jws_signer_list;
 
 use once_cell::sync::Lazy;
 
@@ -15,7 +14,6 @@ pub use crate::jws::jws_algorithm::JwsSigner;
 pub use crate::jws::jws_algorithm::JwsVerifier;
 pub use crate::jws::jws_context::JwsContext;
 pub use crate::jws::jws_header::JwsHeader;
-pub use crate::jws::jws_signer_list::JwsSignerList;
 
 use crate::jws::alg::hmac::HmacJwsAlgorithm;
 pub use HmacJwsAlgorithm::Hs256 as HS256;
@@ -76,19 +74,44 @@ where
     DEFAULT_CONTEXT.serialize_compact_with_selector(payload, header, selector)
 }
 
-/// Return a representation of the data that is formatted by flattened json serialization.
+/// Return a representation of the data that is formatted by general json serialization.
 ///
 /// # Arguments
 ///
 /// * `protected` - The JWS protected header claims.
 /// * `header` - The JWS unprotected header claims.
 /// * `payload` - The payload data.
-/// * `signer` - The JWS signer.
+/// * `signers` - The JWS signer.
 pub fn serialize_general_json(
     payload: &[u8],
-    signer: &JwsSignerList,
+    signers: &[(
+        Option<&JwsHeader>,
+        Option<&JwsHeader>,
+        &dyn JwsSigner,
+    )],
 ) -> Result<String, JoseError> {
-    DEFAULT_CONTEXT.serialize_general_json(payload, signer)
+    DEFAULT_CONTEXT.serialize_general_json(payload, signers)
+}
+
+/// Return a representation of the data that is formatted by general json serialization.
+///
+/// # Arguments
+///
+/// * `payload` - The payload data.
+/// * `headers` - The JWS headers.
+/// * `selector` - a function for selecting the signing algorithm.
+pub fn serialize_general_json_with_selecter<'a, F>(
+    payload: &[u8],
+    headers: &[(
+        Option<&JwsHeader>,
+        Option<&JwsHeader>,
+    )],
+    selector: F,
+) -> Result<String, JoseError>
+where
+    F: Fn(usize, &JwsHeader) -> Option<&'a dyn JwsSigner>,
+{
+    DEFAULT_CONTEXT.serialize_general_json_with_selecter(payload, headers, selector)
 }
 
 /// Return a representation of the data that is formatted by flattened json serialization.
@@ -192,7 +215,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::jws::{self, EdDSA, JwsHeader, JwsSignerList, ES256, RS256};
+    use crate::jws::{self, EdDSA, JwsHeader, JwsSigner, ES256, RS256};
     use anyhow::Result;
     use serde_json::Value;
     use std::fs;
@@ -280,12 +303,11 @@ mod tests {
         src_header_3.set_token_type("JWT-3");
         let signer_3 = EdDSA.signer_from_pem(&private_key_3)?;
 
-        let mut multi_signer = JwsSignerList::new();
-        multi_signer.push_signer(Some(&src_protected_1), Some(&src_header_1), &signer_1)?;
-        multi_signer.push_signer(Some(&src_protected_2), Some(&src_header_2), &signer_2)?;
-        multi_signer.push_signer(Some(&src_protected_3), Some(&src_header_3), &signer_3)?;
-
-        let json = jws::serialize_general_json(src_payload, &multi_signer)?;
+        let json = jws::serialize_general_json(src_payload, vec![
+            (Some(&src_protected_1), Some(&src_header_1), &signer_1 as &dyn JwsSigner),
+            (Some(&src_protected_2), Some(&src_header_2), &signer_2 as &dyn JwsSigner),
+            (Some(&src_protected_3), Some(&src_header_3), &signer_3 as &dyn JwsSigner),
+        ].as_slice())?;
 
         let verifier = ES256.verifier_from_pem(&public_key)?;
         let (dst_payload, dst_header) = jws::deserialize_json(&json, &verifier)?;

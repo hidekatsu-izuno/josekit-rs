@@ -4,7 +4,7 @@ use std::fmt::Debug;
 use anyhow::bail;
 use serde_json::{Map, Value};
 
-use crate::jws::{JwsHeader, JwsSignerList, JwsSigner, JwsVerifier};
+use crate::jws::{JwsHeader, JwsSigner, JwsVerifier};
 use crate::util;
 use crate::JoseError;
 
@@ -146,58 +146,118 @@ impl JwsContext {
     /// * `protected` - The JWS protected header claims.
     /// * `header` - The JWS unprotected header claims.
     /// * `payload` - The payload data.
-    /// * `signer` - The JWS signer.
+    /// * `signers` - The JWS signer.
     pub fn serialize_general_json(
         &self,
         payload: &[u8],
-        signers: &JwsSignerList,
+        signers: &[(
+            Option<&JwsHeader>,
+            Option<&JwsHeader>,
+            &dyn JwsSigner,
+        )],
     ) -> Result<String, JoseError> {
-        let payload_b64 = base64::encode_config(payload, base64::URL_SAFE_NO_PAD);
+        self.serialize_general_json_with_selecter(
+            payload,
+            signers.iter()
+                .map(|(protected, header, _)| {
+                    (protected.as_deref(), header.as_deref())
+                })
+                .collect::<Vec<(Option<&JwsHeader>, Option<&JwsHeader>)>>()
+                .as_slice(),
+            |i, _header| Some(signers[i].2),
+        )
+    }
 
-        let mut json = String::new();
-        json.push_str("{\"signatures\":[");
+    /// Return a representation of the data that is formatted by flattened json serialization.
+    ///
+    /// # Arguments
+    ///
+    /// * `payload` - The payload data.
+    /// * `headers` - The JWS headers.
+    /// * `selector` - a function for selecting the signing algorithm.
+    pub fn serialize_general_json_with_selecter<'a, F>(
+        &self,
+        payload: &[u8],
+        headers: &[(
+            Option<&JwsHeader>,
+            Option<&JwsHeader>,
+        )],
+        selector: F,
+    ) -> Result<String, JoseError>
+    where
+        F: Fn(usize, &JwsHeader) -> Option<&'a dyn JwsSigner>,
+    {
+        (|| -> anyhow::Result<String> {
+            let payload_b64 = base64::encode_config(payload, base64::URL_SAFE_NO_PAD);
 
-        for (i, (protected, header, signer)) in signers.iter().enumerate() {
-            if i > 0 {
-                json.push_str(",");
+            let mut json = String::new();
+            json.push_str("{\"signatures\":[");
+
+            for (i, (protected, header)) in headers.iter().enumerate() {
+                if i > 0 {
+                    json.push_str(",");
+                }
+
+                let mut merged_map = match protected {
+                    Some(val) => val.claims_set().clone(),
+                    None => Map::new(),
+                };
+                if let Some(val) = header {
+                    for (key, value) in val.claims_set() {
+                        if merged_map.contains_key(key) {
+                            bail!("Duplicate key exists: {}", key);
+                        }
+                        merged_map.insert(key.clone(), value.clone());
+                    }
+                }
+
+                let merged = JwsHeader::from_map(merged_map)?;
+                let signer = match selector(i, &merged) {
+                    Some(val) => val,
+                    None => bail!("A signer is not found."),
+                };
+
+                let mut protected = match protected {
+                    Some(val) => val.claims_set().clone(),
+                    None => Map::new(),
+                };
+                protected.insert(
+                    "alg".to_string(),
+                    Value::String(signer.algorithm().name().to_string()),
+                );
+
+                let protected_bytes = serde_json::to_vec(&protected)?;
+                let protected_b64 =
+                    base64::encode_config(&protected_bytes, base64::URL_SAFE_NO_PAD);
+
+                let message = format!("{}.{}", &protected_b64, &payload_b64);
+                let signature = signer.sign(message.as_bytes())?;
+
+                json.push_str("{\"protected\":\"");
+                json.push_str(&protected_b64);
+                json.push_str("\"");
+
+                if let Some(val) = header {
+                    let header = serde_json::to_string(val.claims_set())?;
+                    json.push_str(",\"header\":");
+                    json.push_str(&header);
+                }
+
+                json.push_str(",\"signature\":\"");
+                base64::encode_config_buf(&signature, base64::URL_SAFE_NO_PAD, &mut json);
+                json.push_str("\"}");
             }
 
-            let mut protected = match protected {
-                Some(val) => val.claims_set().clone(),
-                None => Map::new(),
-            };
-            protected.insert(
-                "alg".to_string(),
-                Value::String(signer.algorithm().name().to_string()),
-            );
-
-            let protected_bytes = serde_json::to_vec(&protected).unwrap();
-            let protected_b64 =
-                base64::encode_config(&protected_bytes, base64::URL_SAFE_NO_PAD);
-
-            let message = format!("{}.{}", &protected_b64, &payload_b64);
-            let signature = signer.sign(message.as_bytes())?;
-
-            json.push_str("{\"protected\":\"");
-            json.push_str(&protected_b64);
-            json.push_str("\"");
-
-            if let Some(val) = header {
-                let header = serde_json::to_string(val.claims_set()).unwrap();
-                json.push_str(",\"header\":");
-                json.push_str(&header);
-            }
-
-            json.push_str(",\"signature\":\"");
-            base64::encode_config_buf(&signature, base64::URL_SAFE_NO_PAD, &mut json);
+            json.push_str("],\"payload\":\"");
+            json.push_str(&payload_b64);
             json.push_str("\"}");
-        }
 
-        json.push_str("],\"payload\":\"");
-        json.push_str(&payload_b64);
-        json.push_str("\"}");
-
-        Ok(json)
+            Ok(json)
+        })()
+        .map_err(|err| match err.downcast::<JoseError>() {
+            Ok(err) => err,
+            Err(err) => JoseError::InvalidJwtFormat(err),
+        })
     }
 
     /// Return a representation of the data that is formatted by flattened json serialization.
