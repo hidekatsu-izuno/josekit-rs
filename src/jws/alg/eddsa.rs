@@ -17,7 +17,7 @@ use crate::JoseError;
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum EddsaJwsAlgorithm {
     /// EdDSA signature algorithms
-    EdDSA,
+    Eddsa,
 }
 
 impl EddsaJwsAlgorithm {
@@ -383,7 +383,7 @@ mod tests {
         let input = b"abcde12345";
 
         for curve in vec![EdCurve::Ed25519, EdCurve::Ed448] {
-            let alg = EddsaJwsAlgorithm::EdDSA;
+            let alg = EddsaJwsAlgorithm::Eddsa;
             let keypair = alg.generate_keypair(curve)?;
 
             let signer = alg.signer_from_der(&keypair.to_der_private_key())?;
@@ -401,7 +401,7 @@ mod tests {
         let input = b"abcde12345";
 
         for curve in vec![EdCurve::Ed25519, EdCurve::Ed448] {
-            let alg = EddsaJwsAlgorithm::EdDSA;
+            let alg = EddsaJwsAlgorithm::Eddsa;
             let keypair = alg.generate_keypair(curve)?;
 
             let signer = alg.signer_from_pem(&keypair.to_pem_private_key())?;
@@ -419,7 +419,7 @@ mod tests {
         let input = b"abcde12345";
 
         for curve in vec![EdCurve::Ed25519, EdCurve::Ed448] {
-            let alg = EddsaJwsAlgorithm::EdDSA;
+            let alg = EddsaJwsAlgorithm::Eddsa;
             let keypair = alg.generate_keypair(curve)?;
 
             let signer = alg.signer_from_pem(&keypair.to_traditional_pem_private_key())?;
@@ -437,7 +437,7 @@ mod tests {
         let input = b"abcde12345";
 
         for curve in vec![EdCurve::Ed25519, EdCurve::Ed448] {
-            let alg = EddsaJwsAlgorithm::EdDSA;
+            let alg = EddsaJwsAlgorithm::Eddsa;
             let keypair = alg.generate_keypair(curve)?;
 
             let signer = alg.signer_from_jwk(&keypair.to_jwk_private_key())?;
@@ -454,7 +454,7 @@ mod tests {
     fn sign_and_verify_eddsa_jwt() -> Result<()> {
         let input = b"abcde12345";
 
-        let alg = EddsaJwsAlgorithm::EdDSA;
+        let alg = EddsaJwsAlgorithm::Eddsa;
 
         let private_key = load_file("jwk/OKP_Ed25519_private.jwk")?;
         let public_key = load_file("jwk/OKP_Ed25519_private.jwk")?;
@@ -472,7 +472,7 @@ mod tests {
     fn sign_and_verify_eddsa_pkcs8_pem() -> Result<()> {
         let input = b"abcde12345";
 
-        let alg = EddsaJwsAlgorithm::EdDSA;
+        let alg = EddsaJwsAlgorithm::Eddsa;
 
         for crv in &["ED25519", "ED448"] {
             let private_key = load_file(&format!("pem/{}_private.pem", crv))?;
@@ -492,7 +492,7 @@ mod tests {
     fn sign_and_verify_eddsa_pkcs8_der() -> Result<()> {
         let input = b"abcde12345";
 
-        let alg = EddsaJwsAlgorithm::EdDSA;
+        let alg = EddsaJwsAlgorithm::Eddsa;
 
         for crv in &["ED25519", "ED448"] {
             let private_key = load_file(&format!("der/{}_pkcs8_private.der", crv))?;

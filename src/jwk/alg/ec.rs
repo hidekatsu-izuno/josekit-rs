@@ -22,7 +22,7 @@ pub enum EcCurve {
     P256,
     P384,
     P521,
-    Secp256K1,
+    Secp256k1,
 }
 
 impl EcCurve {
@@ -31,7 +31,7 @@ impl EcCurve {
             Self::P256 => "P-256",
             Self::P384 => "P-384",
             Self::P521 => "P-521",
-            Self::Secp256K1 => "secp256k1",
+            Self::Secp256k1 => "secp256k1",
         }
     }
 
@@ -40,7 +40,7 @@ impl EcCurve {
             Self::P256 => &OID_PRIME256V1,
             Self::P384 => &OID_SECP384R1,
             Self::P521 => &OID_SECP521R1,
-            Self::Secp256K1 => &OID_SECP256K1,
+            Self::Secp256k1 => &OID_SECP256K1,
         }
     }
 
@@ -49,13 +49,13 @@ impl EcCurve {
             Self::P256 => Nid::X9_62_PRIME256V1,
             Self::P384 => Nid::SECP384R1,
             Self::P521 => Nid::SECP521R1,
-            Self::Secp256K1 => Nid::SECP256K1,
+            Self::Secp256k1 => Nid::SECP256K1,
         }
     }
 
     fn coordinate_size(&self) -> usize {
         match self {
-            Self::P256 | Self::Secp256K1 => 32,
+            Self::P256 | Self::Secp256k1 => 32,
             Self::P384 => 48,
             Self::P521 => 66,
         }
@@ -173,7 +173,7 @@ impl EcKeyPair {
                         "P-256" => EcCurve::P256,
                         "P-384" => EcCurve::P384,
                         "P-521" => EcCurve::P521,
-                        "secp256k1" => EcCurve::Secp256K1,
+                        "secp256k1" => EcCurve::Secp256k1,
                         _ => bail!("A parameter crv is unrecognized: {}", val),
                     },
                 },
@@ -404,7 +404,7 @@ impl EcKeyPair {
                         Ok(val) if val == *OID_PRIME256V1 => EcCurve::P256,
                         Ok(val) if val == *OID_SECP384R1 => EcCurve::P384,
                         Ok(val) if val == *OID_SECP521R1 => EcCurve::P521,
-                        Ok(val) if val == *OID_SECP256K1 => EcCurve::Secp256K1,
+                        Ok(val) if val == *OID_SECP256K1 => EcCurve::Secp256k1,
                         _ => return None,
                     },
                     _ => return None,
@@ -453,7 +453,7 @@ impl EcKeyPair {
                         Ok(val) if val == *OID_PRIME256V1 => EcCurve::P256,
                         Ok(val) if val == *OID_SECP384R1 => EcCurve::P384,
                         Ok(val) if val == *OID_SECP521R1 => EcCurve::P521,
-                        Ok(val) if val == *OID_SECP256K1 => EcCurve::Secp256K1,
+                        Ok(val) if val == *OID_SECP256K1 => EcCurve::Secp256k1,
                         _ => return None,
                     },
                     _ => return None,
@@ -559,7 +559,7 @@ mod tests {
             EcCurve::P256,
             EcCurve::P384,
             EcCurve::P521,
-            EcCurve::Secp256K1,
+            EcCurve::Secp256k1,
         ] {
             let keypair1 = EcKeyPair::generate(curve)?;
             let der_private1 = keypair1.to_der_private_key();

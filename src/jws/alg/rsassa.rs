@@ -15,13 +15,13 @@ use crate::{HashAlgorithm, JoseError};
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum RsassaJwsAlgorithm {
     /// RSASSA-PKCS1-v1_5 using SHA-256
-    RS256,
+    Rs256,
 
     /// RSASSA-PKCS1-v1_5 using SHA-384
-    RS384,
+    Rs384,
 
     /// RSASSA-PKCS1-v1_5 using SHA-512
-    RS512,
+    Rs512,
 }
 
 impl RsassaJwsAlgorithm {
@@ -305,9 +305,9 @@ impl RsassaJwsAlgorithm {
 
     fn hash_algorithm(&self) -> HashAlgorithm {
         match self {
-            Self::RS256 => HashAlgorithm::Sha256,
-            Self::RS384 => HashAlgorithm::Sha384,
-            Self::RS512 => HashAlgorithm::Sha512,
+            Self::Rs256 => HashAlgorithm::Sha256,
+            Self::Rs384 => HashAlgorithm::Sha384,
+            Self::Rs512 => HashAlgorithm::Sha512,
         }
     }
 }
@@ -315,9 +315,9 @@ impl RsassaJwsAlgorithm {
 impl JwsAlgorithm for RsassaJwsAlgorithm {
     fn name(&self) -> &str {
         match self {
-            Self::RS256 => "RS256",
-            Self::RS384 => "RS384",
-            Self::RS512 => "RS512",
+            Self::Rs256 => "RS256",
+            Self::Rs384 => "RS384",
+            Self::Rs512 => "RS512",
         }
     }
 
@@ -465,9 +465,9 @@ mod tests {
         let input = b"abcde12345";
 
         for alg in &[
-            RsassaJwsAlgorithm::RS256,
-            RsassaJwsAlgorithm::RS384,
-            RsassaJwsAlgorithm::RS512,
+            RsassaJwsAlgorithm::Rs256,
+            RsassaJwsAlgorithm::Rs384,
+            RsassaJwsAlgorithm::Rs512,
         ] {
             let keypair = alg.generate_keypair(2048)?;
 
@@ -486,9 +486,9 @@ mod tests {
         let input = b"abcde12345";
 
         for alg in &[
-            RsassaJwsAlgorithm::RS256,
-            RsassaJwsAlgorithm::RS384,
-            RsassaJwsAlgorithm::RS512,
+            RsassaJwsAlgorithm::Rs256,
+            RsassaJwsAlgorithm::Rs384,
+            RsassaJwsAlgorithm::Rs512,
         ] {
             let keypair = alg.generate_keypair(2048)?;
 
@@ -507,9 +507,9 @@ mod tests {
         let input = b"abcde12345";
 
         for alg in &[
-            RsassaJwsAlgorithm::RS256,
-            RsassaJwsAlgorithm::RS384,
-            RsassaJwsAlgorithm::RS512,
+            RsassaJwsAlgorithm::Rs256,
+            RsassaJwsAlgorithm::Rs384,
+            RsassaJwsAlgorithm::Rs512,
         ] {
             let keypair = alg.generate_keypair(2048)?;
 
@@ -528,9 +528,9 @@ mod tests {
         let input = b"abcde12345";
 
         for alg in &[
-            RsassaJwsAlgorithm::RS256,
-            RsassaJwsAlgorithm::RS384,
-            RsassaJwsAlgorithm::RS512,
+            RsassaJwsAlgorithm::Rs256,
+            RsassaJwsAlgorithm::Rs384,
+            RsassaJwsAlgorithm::Rs512,
         ] {
             let keypair = alg.generate_keypair(2048)?;
 
@@ -549,9 +549,9 @@ mod tests {
         let input = b"abcde12345";
 
         for alg in &[
-            RsassaJwsAlgorithm::RS256,
-            RsassaJwsAlgorithm::RS384,
-            RsassaJwsAlgorithm::RS512,
+            RsassaJwsAlgorithm::Rs256,
+            RsassaJwsAlgorithm::Rs384,
+            RsassaJwsAlgorithm::Rs512,
         ] {
             let keypair = alg.generate_keypair(2048)?;
 
@@ -570,9 +570,9 @@ mod tests {
         let input = b"abcde12345";
 
         for alg in &[
-            RsassaJwsAlgorithm::RS256,
-            RsassaJwsAlgorithm::RS384,
-            RsassaJwsAlgorithm::RS512,
+            RsassaJwsAlgorithm::Rs256,
+            RsassaJwsAlgorithm::Rs384,
+            RsassaJwsAlgorithm::Rs512,
         ] {
             let private_key = load_file("jwk/RSA_private.jwk")?;
             let public_key = load_file("jwk/RSA_public.jwk")?;
@@ -592,9 +592,9 @@ mod tests {
         let input = b"abcde12345";
 
         for alg in &[
-            RsassaJwsAlgorithm::RS256,
-            RsassaJwsAlgorithm::RS384,
-            RsassaJwsAlgorithm::RS512,
+            RsassaJwsAlgorithm::Rs256,
+            RsassaJwsAlgorithm::Rs384,
+            RsassaJwsAlgorithm::Rs512,
         ] {
             let private_key = load_file("pem/RSA_2048bit_private.pem")?;
             let public_key = load_file("pem/RSA_2048bit_public.pem")?;
@@ -614,9 +614,9 @@ mod tests {
         let input = b"abcde12345";
 
         for alg in &[
-            RsassaJwsAlgorithm::RS256,
-            RsassaJwsAlgorithm::RS384,
-            RsassaJwsAlgorithm::RS512,
+            RsassaJwsAlgorithm::Rs256,
+            RsassaJwsAlgorithm::Rs384,
+            RsassaJwsAlgorithm::Rs512,
         ] {
             let private_key = load_file("der/RSA_2048bit_pkcs8_private.der")?;
             let public_key = load_file("der/RSA_2048bit_spki_public.der")?;
@@ -636,9 +636,9 @@ mod tests {
         let input = b"abcde12345";
 
         for alg in &[
-            RsassaJwsAlgorithm::RS256,
-            RsassaJwsAlgorithm::RS384,
-            RsassaJwsAlgorithm::RS512,
+            RsassaJwsAlgorithm::Rs256,
+            RsassaJwsAlgorithm::Rs384,
+            RsassaJwsAlgorithm::Rs512,
         ] {
             let private_key = load_file("pem/RSA_2048bit_private.pem")?;
             let public_key = load_file("pem/RSA_2048bit_public.pem")?;
@@ -658,9 +658,9 @@ mod tests {
         let input = b"abcde12345";
 
         for alg in &[
-            RsassaJwsAlgorithm::RS256,
-            RsassaJwsAlgorithm::RS384,
-            RsassaJwsAlgorithm::RS512,
+            RsassaJwsAlgorithm::Rs256,
+            RsassaJwsAlgorithm::Rs384,
+            RsassaJwsAlgorithm::Rs512,
         ] {
             let private_key = load_file("der/RSA_2048bit_raw_private.der")?;
             let public_key = load_file("der/RSA_2048bit_raw_public.der")?;

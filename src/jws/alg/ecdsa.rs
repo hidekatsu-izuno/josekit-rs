@@ -18,13 +18,13 @@ use crate::{HashAlgorithm, JoseError};
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum EcdsaJwsAlgorithm {
     /// ECDSA using P-256 and SHA-256
-    ES256,
+    Es256,
     /// ECDSA using P-384 and SHA-384
-    ES384,
+    Es384,
     /// ECDSA using P-521 and SHA-512
-    ES512,
+    Es512,
     /// ECDSA using secp256k1 curve and SHA-256
-    ES256K,
+    Es256k,
 }
 
 impl EcdsaJwsAlgorithm {
@@ -253,27 +253,27 @@ impl EcdsaJwsAlgorithm {
 
     fn curve(&self) -> EcCurve {
         match self {
-            Self::ES256 => EcCurve::P256,
-            Self::ES384 => EcCurve::P384,
-            Self::ES512 => EcCurve::P521,
-            Self::ES256K => EcCurve::Secp256K1,
+            Self::Es256 => EcCurve::P256,
+            Self::Es384 => EcCurve::P384,
+            Self::Es512 => EcCurve::P521,
+            Self::Es256k => EcCurve::Secp256k1,
         }
     }
 
     fn signature_len(&self) -> usize {
         match self {
-            Self::ES256 | Self::ES256K => 64,
-            Self::ES384 => 96,
-            Self::ES512 => 132,
+            Self::Es256 | Self::Es256k => 64,
+            Self::Es384 => 96,
+            Self::Es512 => 132,
         }
     }
 
     fn hash_algorithm(&self) -> HashAlgorithm {
         match self {
-            Self::ES256 => HashAlgorithm::Sha256,
-            Self::ES384 => HashAlgorithm::Sha384,
-            Self::ES512 => HashAlgorithm::Sha512,
-            Self::ES256K => HashAlgorithm::Sha256,
+            Self::Es256 => HashAlgorithm::Sha256,
+            Self::Es384 => HashAlgorithm::Sha384,
+            Self::Es512 => HashAlgorithm::Sha512,
+            Self::Es256k => HashAlgorithm::Sha256,
         }
     }
 }
@@ -281,10 +281,10 @@ impl EcdsaJwsAlgorithm {
 impl JwsAlgorithm for EcdsaJwsAlgorithm {
     fn name(&self) -> &str {
         match self {
-            Self::ES256 => "ES256",
-            Self::ES384 => "ES384",
-            Self::ES512 => "ES512",
-            Self::ES256K => "ES256K",
+            Self::Es256 => "ES256",
+            Self::Es384 => "ES384",
+            Self::Es512 => "ES512",
+            Self::Es256k => "ES256K",
         }
     }
 
@@ -477,10 +477,10 @@ mod tests {
         let input = b"abcde12345";
 
         for alg in &[
-            EcdsaJwsAlgorithm::ES256,
-            EcdsaJwsAlgorithm::ES384,
-            EcdsaJwsAlgorithm::ES512,
-            EcdsaJwsAlgorithm::ES256K,
+            EcdsaJwsAlgorithm::Es256,
+            EcdsaJwsAlgorithm::Es384,
+            EcdsaJwsAlgorithm::Es512,
+            EcdsaJwsAlgorithm::Es256k,
         ] {
             let keypair = alg.generate_keypair()?;
 
@@ -499,10 +499,10 @@ mod tests {
         let input = b"abcde12345";
 
         for alg in &[
-            EcdsaJwsAlgorithm::ES256,
-            EcdsaJwsAlgorithm::ES384,
-            EcdsaJwsAlgorithm::ES512,
-            EcdsaJwsAlgorithm::ES256K,
+            EcdsaJwsAlgorithm::Es256,
+            EcdsaJwsAlgorithm::Es384,
+            EcdsaJwsAlgorithm::Es512,
+            EcdsaJwsAlgorithm::Es256k,
         ] {
             let keypair = alg.generate_keypair()?;
 
@@ -521,10 +521,10 @@ mod tests {
         let input = b"abcde12345";
 
         for alg in &[
-            EcdsaJwsAlgorithm::ES256,
-            EcdsaJwsAlgorithm::ES384,
-            EcdsaJwsAlgorithm::ES512,
-            EcdsaJwsAlgorithm::ES256K,
+            EcdsaJwsAlgorithm::Es256,
+            EcdsaJwsAlgorithm::Es384,
+            EcdsaJwsAlgorithm::Es512,
+            EcdsaJwsAlgorithm::Es256k,
         ] {
             let keypair = alg.generate_keypair()?;
 
@@ -543,10 +543,10 @@ mod tests {
         let input = b"abcde12345";
 
         for alg in &[
-            EcdsaJwsAlgorithm::ES256,
-            EcdsaJwsAlgorithm::ES384,
-            EcdsaJwsAlgorithm::ES512,
-            EcdsaJwsAlgorithm::ES256K,
+            EcdsaJwsAlgorithm::Es256,
+            EcdsaJwsAlgorithm::Es384,
+            EcdsaJwsAlgorithm::Es512,
+            EcdsaJwsAlgorithm::Es256k,
         ] {
             let keypair = alg.generate_keypair()?;
 
@@ -565,10 +565,10 @@ mod tests {
         let input = b"abcde12345";
 
         for alg in &[
-            EcdsaJwsAlgorithm::ES256,
-            EcdsaJwsAlgorithm::ES384,
-            EcdsaJwsAlgorithm::ES512,
-            EcdsaJwsAlgorithm::ES256K,
+            EcdsaJwsAlgorithm::Es256,
+            EcdsaJwsAlgorithm::Es384,
+            EcdsaJwsAlgorithm::Es512,
+            EcdsaJwsAlgorithm::Es256k,
         ] {
             let keypair = alg.generate_keypair()?;
 
@@ -587,22 +587,22 @@ mod tests {
         let input = b"abcde12345";
 
         for alg in &[
-            EcdsaJwsAlgorithm::ES256,
-            EcdsaJwsAlgorithm::ES384,
-            EcdsaJwsAlgorithm::ES512,
-            EcdsaJwsAlgorithm::ES256K,
+            EcdsaJwsAlgorithm::Es256,
+            EcdsaJwsAlgorithm::Es384,
+            EcdsaJwsAlgorithm::Es512,
+            EcdsaJwsAlgorithm::Es256k,
         ] {
             let private_key = load_file(match alg {
-                EcdsaJwsAlgorithm::ES256 => "jwk/EC_P-256_private.jwk",
-                EcdsaJwsAlgorithm::ES384 => "jwk/EC_P-384_private.jwk",
-                EcdsaJwsAlgorithm::ES512 => "jwk/EC_P-521_private.jwk",
-                EcdsaJwsAlgorithm::ES256K => "jwk/EC_secp256k1_private.jwk",
+                EcdsaJwsAlgorithm::Es256 => "jwk/EC_P-256_private.jwk",
+                EcdsaJwsAlgorithm::Es384 => "jwk/EC_P-384_private.jwk",
+                EcdsaJwsAlgorithm::Es512 => "jwk/EC_P-521_private.jwk",
+                EcdsaJwsAlgorithm::Es256k => "jwk/EC_secp256k1_private.jwk",
             })?;
             let public_key = load_file(match alg {
-                EcdsaJwsAlgorithm::ES256 => "jwk/EC_P-256_public.jwk",
-                EcdsaJwsAlgorithm::ES384 => "jwk/EC_P-384_public.jwk",
-                EcdsaJwsAlgorithm::ES512 => "jwk/EC_P-521_public.jwk",
-                EcdsaJwsAlgorithm::ES256K => "jwk/EC_secp256k1_public.jwk",
+                EcdsaJwsAlgorithm::Es256 => "jwk/EC_P-256_public.jwk",
+                EcdsaJwsAlgorithm::Es384 => "jwk/EC_P-384_public.jwk",
+                EcdsaJwsAlgorithm::Es512 => "jwk/EC_P-521_public.jwk",
+                EcdsaJwsAlgorithm::Es256k => "jwk/EC_secp256k1_public.jwk",
             })?;
 
             let signer = alg.signer_from_jwk(&Jwk::from_bytes(&private_key)?)?;
@@ -620,24 +620,24 @@ mod tests {
         let input = b"abcde12345";
 
         for alg in &[
-            EcdsaJwsAlgorithm::ES256,
-            EcdsaJwsAlgorithm::ES384,
-            EcdsaJwsAlgorithm::ES512,
-            EcdsaJwsAlgorithm::ES256K,
+            EcdsaJwsAlgorithm::Es256,
+            EcdsaJwsAlgorithm::Es384,
+            EcdsaJwsAlgorithm::Es512,
+            EcdsaJwsAlgorithm::Es256k,
         ] {
             println!("{}", alg);
 
             let private_key = load_file(match alg {
-                EcdsaJwsAlgorithm::ES256 => "pem/EC_P-256_private.pem",
-                EcdsaJwsAlgorithm::ES384 => "pem/EC_P-384_private.pem",
-                EcdsaJwsAlgorithm::ES512 => "pem/EC_P-521_private.pem",
-                EcdsaJwsAlgorithm::ES256K => "pem/EC_secp256k1_private.pem",
+                EcdsaJwsAlgorithm::Es256 => "pem/EC_P-256_private.pem",
+                EcdsaJwsAlgorithm::Es384 => "pem/EC_P-384_private.pem",
+                EcdsaJwsAlgorithm::Es512 => "pem/EC_P-521_private.pem",
+                EcdsaJwsAlgorithm::Es256k => "pem/EC_secp256k1_private.pem",
             })?;
             let public_key = load_file(match alg {
-                EcdsaJwsAlgorithm::ES256 => "pem/EC_P-256_public.pem",
-                EcdsaJwsAlgorithm::ES384 => "pem/EC_P-384_public.pem",
-                EcdsaJwsAlgorithm::ES512 => "pem/EC_P-521_public.pem",
-                EcdsaJwsAlgorithm::ES256K => "pem/EC_secp256k1_public.pem",
+                EcdsaJwsAlgorithm::Es256 => "pem/EC_P-256_public.pem",
+                EcdsaJwsAlgorithm::Es384 => "pem/EC_P-384_public.pem",
+                EcdsaJwsAlgorithm::Es512 => "pem/EC_P-521_public.pem",
+                EcdsaJwsAlgorithm::Es256k => "pem/EC_secp256k1_public.pem",
             })?;
 
             let signer = alg.signer_from_pem(&private_key)?;
@@ -655,22 +655,22 @@ mod tests {
         let input = b"abcde12345";
 
         for alg in &[
-            EcdsaJwsAlgorithm::ES256,
-            EcdsaJwsAlgorithm::ES384,
-            EcdsaJwsAlgorithm::ES512,
-            EcdsaJwsAlgorithm::ES256K,
+            EcdsaJwsAlgorithm::Es256,
+            EcdsaJwsAlgorithm::Es384,
+            EcdsaJwsAlgorithm::Es512,
+            EcdsaJwsAlgorithm::Es256k,
         ] {
             let private_key = load_file(match alg {
-                EcdsaJwsAlgorithm::ES256 => "der/EC_P-256_pkcs8_private.der",
-                EcdsaJwsAlgorithm::ES384 => "der/EC_P-384_pkcs8_private.der",
-                EcdsaJwsAlgorithm::ES512 => "der/EC_P-521_pkcs8_private.der",
-                EcdsaJwsAlgorithm::ES256K => "der/EC_secp256k1_pkcs8_private.der",
+                EcdsaJwsAlgorithm::Es256 => "der/EC_P-256_pkcs8_private.der",
+                EcdsaJwsAlgorithm::Es384 => "der/EC_P-384_pkcs8_private.der",
+                EcdsaJwsAlgorithm::Es512 => "der/EC_P-521_pkcs8_private.der",
+                EcdsaJwsAlgorithm::Es256k => "der/EC_secp256k1_pkcs8_private.der",
             })?;
             let public_key = load_file(match alg {
-                EcdsaJwsAlgorithm::ES256 => "der/EC_P-256_spki_public.der",
-                EcdsaJwsAlgorithm::ES384 => "der/EC_P-384_spki_public.der",
-                EcdsaJwsAlgorithm::ES512 => "der/EC_P-521_spki_public.der",
-                EcdsaJwsAlgorithm::ES256K => "der/EC_secp256k1_spki_public.der",
+                EcdsaJwsAlgorithm::Es256 => "der/EC_P-256_spki_public.der",
+                EcdsaJwsAlgorithm::Es384 => "der/EC_P-384_spki_public.der",
+                EcdsaJwsAlgorithm::Es512 => "der/EC_P-521_spki_public.der",
+                EcdsaJwsAlgorithm::Es256k => "der/EC_secp256k1_spki_public.der",
             })?;
 
             let signer = alg.signer_from_der(&private_key)?;

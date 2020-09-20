@@ -25,48 +25,34 @@ pub use crate::jwe::jwe_multi_encrypter::JweMultiEncrypter;
 
 pub use crate::jwe::alg::direct::DirectJweAlgorithm::Dir;
 
-pub use crate::jwe::alg::ecdh_es::EcdhEsJweAlgorithm::EcdhEs;
-pub use crate::jwe::alg::ecdh_es::EcdhEsJweAlgorithm::EcdhEsA128Kw;
-pub use crate::jwe::alg::ecdh_es::EcdhEsJweAlgorithm::EcdhEsA192Kw;
-pub use crate::jwe::alg::ecdh_es::EcdhEsJweAlgorithm::EcdhEsA256Kw;
-pub use EcdhEs as ECDH_ES;
-pub use EcdhEsA128Kw as ECDH_ES_A128KW;
-pub use EcdhEsA192Kw as ECDH_ES_A192KW;
-pub use EcdhEsA256Kw as ECDH_ES_A256KW;
+use crate::jwe::alg::ecdh_es::EcdhEsJweAlgorithm;
+pub use EcdhEsJweAlgorithm::EcdhEs as ECDH_ES;
+pub use EcdhEsJweAlgorithm::EcdhEsA128kw as ECDH_ES_A128KW;
+pub use EcdhEsJweAlgorithm::EcdhEsA192kw as ECDH_ES_A192KW;
+pub use EcdhEsJweAlgorithm::EcdhEsA256kw as ECDH_ES_A256KW;
 
-pub use crate::jwe::alg::aeskw::AeskwJweAlgorithm::A128Kw;
-pub use crate::jwe::alg::aeskw::AeskwJweAlgorithm::A192Kw;
-pub use crate::jwe::alg::aeskw::AeskwJweAlgorithm::A256Kw;
-pub use A128Kw as A128KW;
-pub use A192Kw as A192KW;
-pub use A256Kw as A256KW;
+use crate::jwe::alg::aeskw::AeskwJweAlgorithm;
+pub use AeskwJweAlgorithm::A128kw as A128KW;
+pub use AeskwJweAlgorithm::A192kw as A192KW;
+pub use AeskwJweAlgorithm::A256kw as A256KW;
 
-pub use crate::jwe::alg::aesgcmkw::AesgcmkwJweAlgorithm::A128GcmKw;
-pub use crate::jwe::alg::aesgcmkw::AesgcmkwJweAlgorithm::A192GcmKw;
-pub use crate::jwe::alg::aesgcmkw::AesgcmkwJweAlgorithm::A256GcmKw;
-pub use A128GcmKw as A128GCMKW;
-pub use A192GcmKw as A192GCMKW;
-pub use A256GcmKw as A256GCMKW;
+use crate::jwe::alg::aesgcmkw::AesgcmkwJweAlgorithm;
+pub use AesgcmkwJweAlgorithm::A128gcmkw as A128GCMKW;
+pub use AesgcmkwJweAlgorithm::A192gcmkw as A192GCMKW;
+pub use AesgcmkwJweAlgorithm::A256gcmkw as A256GCMKW;
 
-pub use crate::jwe::alg::pbes2_hmac_aeskw::Pbes2HmacAeskwJweAlgorithm::Pbes2HS256A128Kw;
-pub use crate::jwe::alg::pbes2_hmac_aeskw::Pbes2HmacAeskwJweAlgorithm::Pbes2HS384A192Kw;
-pub use crate::jwe::alg::pbes2_hmac_aeskw::Pbes2HmacAeskwJweAlgorithm::Pbes2HS512A256Kw;
-pub use Pbes2HS256A128Kw as PBES2_HS256_A128KW;
-pub use Pbes2HS384A192Kw as PBES2_HS384_A192KW;
-pub use Pbes2HS512A256Kw as PBES2_HS512_A256KW;
+use crate::jwe::alg::pbes2_hmac_aeskw::Pbes2HmacAeskwJweAlgorithm;
+pub use Pbes2HmacAeskwJweAlgorithm::Pbes2Hs256A128kw as PBES2_HS256_A128KW;
+pub use Pbes2HmacAeskwJweAlgorithm::Pbes2Hs384A192kw as PBES2_HS384_A192KW;
+pub use Pbes2HmacAeskwJweAlgorithm::Pbes2Hs512A256kw as PBES2_HS512_A256KW;
 
+use crate::jwe::alg::rsaes::RsaesJweAlgorithm;
 #[allow(deprecated)]
-pub use crate::jwe::alg::rsaes::RsaesJweAlgorithm::Rsa1_5;
-pub use crate::jwe::alg::rsaes::RsaesJweAlgorithm::RsaOaep;
-pub use crate::jwe::alg::rsaes::RsaesJweAlgorithm::RsaOaep256;
-pub use crate::jwe::alg::rsaes::RsaesJweAlgorithm::RsaOaep384;
-pub use crate::jwe::alg::rsaes::RsaesJweAlgorithm::RsaOaep512;
-#[allow(deprecated)]
-pub use Rsa1_5 as RSA1_5;
-pub use RsaOaep as RSA_OAEP;
-pub use RsaOaep256 as RSA_OAEP_256;
-pub use RsaOaep384 as RSA_OAEP_384;
-pub use RsaOaep512 as RSA_OAEP_512;
+pub use RsaesJweAlgorithm::Rsa1_5 as RSA1_5;
+pub use RsaesJweAlgorithm::RsaOaep as RSA_OAEP;
+pub use RsaesJweAlgorithm::RsaOaep256 as RSA_OAEP_256;
+pub use RsaesJweAlgorithm::RsaOaep384 as RSA_OAEP_384;
+pub use RsaesJweAlgorithm::RsaOaep512 as RSA_OAEP_512;
 
 static DEFAULT_CONTEXT: Lazy<JweContext> = Lazy::new(|| JweContext::new());
 

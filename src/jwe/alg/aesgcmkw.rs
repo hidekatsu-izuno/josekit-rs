@@ -14,11 +14,11 @@ use crate::{JoseError, JoseHeader};
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum AesgcmkwJweAlgorithm {
     /// Key wrapping with AES GCM using 128-bit key
-    A128GcmKw,
+    A128gcmkw,
     /// Key wrapping with AES GCM using 192-bit key
-    A192GcmKw,
+    A192gcmkw,
     /// Key wrapping with AES GCM using 256-bit key
-    A256GcmKw,
+    A256gcmkw,
 }
 
 impl AesgcmkwJweAlgorithm {
@@ -153,17 +153,17 @@ impl AesgcmkwJweAlgorithm {
 
     fn key_len(&self) -> usize {
         match self {
-            Self::A128GcmKw => 16,
-            Self::A192GcmKw => 24,
-            Self::A256GcmKw => 32,
+            Self::A128gcmkw => 16,
+            Self::A192gcmkw => 24,
+            Self::A256gcmkw => 32,
         }
     }
 
     fn cipher(&self) -> Cipher {
         match self {
-            Self::A128GcmKw => Cipher::aes_128_gcm(),
-            Self::A192GcmKw => Cipher::aes_192_gcm(),
-            Self::A256GcmKw => Cipher::aes_256_gcm(),
+            Self::A128gcmkw => Cipher::aes_128_gcm(),
+            Self::A192gcmkw => Cipher::aes_192_gcm(),
+            Self::A256gcmkw => Cipher::aes_256_gcm(),
         }
     }
 }
@@ -171,9 +171,9 @@ impl AesgcmkwJweAlgorithm {
 impl JweAlgorithm for AesgcmkwJweAlgorithm {
     fn name(&self) -> &str {
         match self {
-            Self::A128GcmKw => "A128GCMKW",
-            Self::A192GcmKw => "A192GCMKW",
-            Self::A256GcmKw => "A256GCMKW",
+            Self::A128gcmkw => "A128GCMKW",
+            Self::A192gcmkw => "A192GCMKW",
+            Self::A256gcmkw => "A256GCMKW",
         }
     }
 
@@ -369,9 +369,9 @@ mod tests {
         let enc = AescbcHmacJweEncryption::A128CbcHS256;
 
         for alg in vec![
-            AesgcmkwJweAlgorithm::A128GcmKw,
-            AesgcmkwJweAlgorithm::A192GcmKw,
-            AesgcmkwJweAlgorithm::A256GcmKw,
+            AesgcmkwJweAlgorithm::A128gcmkw,
+            AesgcmkwJweAlgorithm::A192gcmkw,
+            AesgcmkwJweAlgorithm::A256gcmkw,
         ] {
             let mut header = JweHeader::new();
             header.set_content_encryption(enc.name());

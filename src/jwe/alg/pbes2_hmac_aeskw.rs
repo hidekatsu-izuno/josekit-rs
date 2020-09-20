@@ -16,11 +16,11 @@ use crate::{HashAlgorithm, JoseError, JoseHeader};
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum Pbes2HmacAeskwJweAlgorithm {
     /// PBES2 with HMAC SHA-256 and "A128KW" wrapping
-    Pbes2HS256A128Kw,
+    Pbes2Hs256A128kw,
     /// PBES2 with HMAC SHA-384 and "A192KW" wrapping
-    Pbes2HS384A192Kw,
+    Pbes2Hs384A192kw,
     /// PBES2 with HMAC SHA-512 and "A256KW" wrapping
-    Pbes2HS512A256Kw,
+    Pbes2Hs512A256kw,
 }
 
 impl Pbes2HmacAeskwJweAlgorithm {
@@ -151,17 +151,17 @@ impl Pbes2HmacAeskwJweAlgorithm {
 
     fn hash_algorithm(&self) -> HashAlgorithm {
         match self {
-            Self::Pbes2HS256A128Kw => HashAlgorithm::Sha256,
-            Self::Pbes2HS384A192Kw => HashAlgorithm::Sha384,
-            Self::Pbes2HS512A256Kw => HashAlgorithm::Sha512,
+            Self::Pbes2Hs256A128kw => HashAlgorithm::Sha256,
+            Self::Pbes2Hs384A192kw => HashAlgorithm::Sha384,
+            Self::Pbes2Hs512A256kw => HashAlgorithm::Sha512,
         }
     }
 
     fn derived_key_len(&self) -> usize {
         match self {
-            Self::Pbes2HS256A128Kw => 16,
-            Self::Pbes2HS384A192Kw => 24,
-            Self::Pbes2HS512A256Kw => 32,
+            Self::Pbes2Hs256A128kw => 16,
+            Self::Pbes2Hs384A192kw => 24,
+            Self::Pbes2Hs512A256kw => 32,
         }
     }
 }
@@ -169,9 +169,9 @@ impl Pbes2HmacAeskwJweAlgorithm {
 impl JweAlgorithm for Pbes2HmacAeskwJweAlgorithm {
     fn name(&self) -> &str {
         match self {
-            Self::Pbes2HS256A128Kw => "PBES2-HS256+A128KW",
-            Self::Pbes2HS384A192Kw => "PBES2-HS384+A192KW",
-            Self::Pbes2HS512A256Kw => "PBES2-HS512+A256KW",
+            Self::Pbes2Hs256A128kw => "PBES2-HS256+A128KW",
+            Self::Pbes2Hs384A192kw => "PBES2-HS384+A192KW",
+            Self::Pbes2Hs512A256kw => "PBES2-HS512+A256KW",
         }
     }
 
@@ -438,9 +438,9 @@ mod tests {
         let enc = AescbcHmacJweEncryption::A128CbcHS256;
 
         for alg in vec![
-            Pbes2HmacAeskwJweAlgorithm::Pbes2HS256A128Kw,
-            Pbes2HmacAeskwJweAlgorithm::Pbes2HS384A192Kw,
-            Pbes2HmacAeskwJweAlgorithm::Pbes2HS512A256Kw,
+            Pbes2HmacAeskwJweAlgorithm::Pbes2Hs256A128kw,
+            Pbes2HmacAeskwJweAlgorithm::Pbes2Hs384A192kw,
+            Pbes2HmacAeskwJweAlgorithm::Pbes2Hs512A256kw,
         ] {
             let mut header = JweHeader::new();
             header.set_content_encryption(enc.name());

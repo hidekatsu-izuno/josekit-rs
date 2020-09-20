@@ -17,24 +17,29 @@ pub use crate::jws::jws_context::JwsContext;
 pub use crate::jws::jws_header::JwsHeader;
 pub use crate::jws::jws_multi_signer::JwsMultiSigner;
 
-pub use crate::jws::alg::hmac::HmacJwsAlgorithm::HS256;
-pub use crate::jws::alg::hmac::HmacJwsAlgorithm::HS384;
-pub use crate::jws::alg::hmac::HmacJwsAlgorithm::HS512;
+use crate::jws::alg::hmac::HmacJwsAlgorithm;
+pub use HmacJwsAlgorithm::Hs256 as HS256;
+pub use HmacJwsAlgorithm::Hs384 as HS384;
+pub use HmacJwsAlgorithm::Hs512 as HS512;
 
-pub use crate::jws::alg::rsassa::RsassaJwsAlgorithm::RS256;
-pub use crate::jws::alg::rsassa::RsassaJwsAlgorithm::RS384;
-pub use crate::jws::alg::rsassa::RsassaJwsAlgorithm::RS512;
+use crate::jws::alg::rsassa::RsassaJwsAlgorithm;
+pub use RsassaJwsAlgorithm::Rs256 as RS256;
+pub use RsassaJwsAlgorithm::Rs384 as RS384;
+pub use RsassaJwsAlgorithm::Rs512 as RS512;
 
-pub use crate::jws::alg::rsassa_pss::RsassaPssJwsAlgorithm::PS256;
-pub use crate::jws::alg::rsassa_pss::RsassaPssJwsAlgorithm::PS384;
-pub use crate::jws::alg::rsassa_pss::RsassaPssJwsAlgorithm::PS512;
+use crate::jws::alg::rsassa_pss::RsassaPssJwsAlgorithm;
+pub use RsassaPssJwsAlgorithm::Ps256 as PS256;
+pub use RsassaPssJwsAlgorithm::Ps384 as PS384;
+pub use RsassaPssJwsAlgorithm::Ps512 as PS512;
 
-pub use crate::jws::alg::ecdsa::EcdsaJwsAlgorithm::ES256;
-pub use crate::jws::alg::ecdsa::EcdsaJwsAlgorithm::ES256K;
-pub use crate::jws::alg::ecdsa::EcdsaJwsAlgorithm::ES384;
-pub use crate::jws::alg::ecdsa::EcdsaJwsAlgorithm::ES512;
+use crate::jws::alg::ecdsa::EcdsaJwsAlgorithm;
+pub use EcdsaJwsAlgorithm::Es256 as ES256;
+pub use EcdsaJwsAlgorithm::Es384 as ES384;
+pub use EcdsaJwsAlgorithm::Es512 as ES512;
+pub use EcdsaJwsAlgorithm::Es256k as ES256K;
 
-pub use crate::jws::alg::eddsa::EddsaJwsAlgorithm::EdDSA;
+use crate::jws::alg::eddsa::EddsaJwsAlgorithm;
+pub use EddsaJwsAlgorithm::Eddsa as EdDSA;
 
 static DEFAULT_CONTEXT: Lazy<JwsContext> = Lazy::new(|| JwsContext::new());
 

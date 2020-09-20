@@ -60,11 +60,11 @@ pub enum EcdhEsJweAlgorithm {
     /// Elliptic Curve Diffie-Hellman Ephemeral Static key agreement using Concat KDF
     EcdhEs,
     /// ECDH-ES using Concat KDF and CEK wrapped with "A128KW"
-    EcdhEsA128Kw,
+    EcdhEsA128kw,
     /// ECDH-ES using Concat KDF and CEK wrapped with "A192KW"
-    EcdhEsA192Kw,
+    EcdhEsA192kw,
     /// ECDH-ES using Concat KDF and CEK wrapped with "A256KW"
-    EcdhEsA256Kw,
+    EcdhEsA256kw,
 }
 
 impl EcdhEsJweAlgorithm {
@@ -213,7 +213,7 @@ impl EcdhEsJweAlgorithm {
                             "P-256" => EcCurve::P256,
                             "P-384" => EcCurve::P384,
                             "P-521" => EcCurve::P521,
-                            "secp256k1" => EcCurve::Secp256K1,
+                            "secp256k1" => EcCurve::Secp256k1,
                             val => bail!("EC key doesn't support the curve algorithm: {}", val),
                         };
                         let x = match jwk.parameter("x") {
@@ -379,7 +379,7 @@ impl EcdhEsJweAlgorithm {
                             "P-256" => EcCurve::P256,
                             "P-384" => EcCurve::P384,
                             "P-521" => EcCurve::P521,
-                            "secp256k1" => EcCurve::Secp256K1,
+                            "secp256k1" => EcCurve::Secp256k1,
                             val => bail!("EC key doesn't support the curve algorithm: {}", val),
                         };
                         let keypair = EcKeyPair::from_jwk(&jwk, Some(curve))?;
@@ -417,9 +417,9 @@ impl EcdhEsJweAlgorithm {
 
     fn key_len(&self) -> usize {
         match self {
-            Self::EcdhEsA128Kw => 16,
-            Self::EcdhEsA192Kw => 24,
-            Self::EcdhEsA256Kw => 32,
+            Self::EcdhEsA128kw => 16,
+            Self::EcdhEsA192kw => 24,
+            Self::EcdhEsA256kw => 32,
             _ => unreachable!(),
         }
     }
@@ -476,7 +476,7 @@ impl EcdhEsJweAlgorithm {
                         Ok(val) if val == *OID_PRIME256V1 => EcdhEsKeyType::Ec(EcCurve::P256),
                         Ok(val) if val == *OID_SECP384R1 => EcdhEsKeyType::Ec(EcCurve::P384),
                         Ok(val) if val == *OID_SECP521R1 => EcdhEsKeyType::Ec(EcCurve::P521),
-                        Ok(val) if val == *OID_SECP256K1 => EcdhEsKeyType::Ec(EcCurve::Secp256K1),
+                        Ok(val) if val == *OID_SECP256K1 => EcdhEsKeyType::Ec(EcCurve::Secp256k1),
                         _ => return None,
                     },
                     _ => return None,
@@ -545,9 +545,9 @@ impl JweAlgorithm for EcdhEsJweAlgorithm {
     fn name(&self) -> &str {
         match self {
             Self::EcdhEs => "ECDH-ES",
-            Self::EcdhEsA128Kw => "ECDH-ES+A128KW",
-            Self::EcdhEsA192Kw => "ECDH-ES+A192KW",
-            Self::EcdhEsA256Kw => "ECDH-ES+A256KW",
+            Self::EcdhEsA128kw => "ECDH-ES+A128KW",
+            Self::EcdhEsA192kw => "ECDH-ES+A192KW",
+            Self::EcdhEsA256kw => "ECDH-ES+A256KW",
         }
     }
 
@@ -984,15 +984,15 @@ mod tests {
 
         for alg in vec![
             EcdhEsJweAlgorithm::EcdhEs,
-            EcdhEsJweAlgorithm::EcdhEsA128Kw,
-            EcdhEsJweAlgorithm::EcdhEsA192Kw,
-            EcdhEsJweAlgorithm::EcdhEsA256Kw,
+            EcdhEsJweAlgorithm::EcdhEsA128kw,
+            EcdhEsJweAlgorithm::EcdhEsA192kw,
+            EcdhEsJweAlgorithm::EcdhEsA256kw,
         ] {
             for key in vec![
                 EcdhEsKeyType::Ec(EcCurve::P256),
                 EcdhEsKeyType::Ec(EcCurve::P384),
                 EcdhEsKeyType::Ec(EcCurve::P521),
-                EcdhEsKeyType::Ec(EcCurve::Secp256K1),
+                EcdhEsKeyType::Ec(EcCurve::Secp256k1),
                 EcdhEsKeyType::Ecx(EcxCurve::X25519),
                 EcdhEsKeyType::Ecx(EcxCurve::X448),
             ] {
@@ -1000,7 +1000,7 @@ mod tests {
                     EcdhEsKeyType::Ec(EcCurve::P256) => "der/EC_P-256_pkcs8_private.der",
                     EcdhEsKeyType::Ec(EcCurve::P384) => "der/EC_P-384_pkcs8_private.der",
                     EcdhEsKeyType::Ec(EcCurve::P521) => "der/EC_P-521_pkcs8_private.der",
-                    EcdhEsKeyType::Ec(EcCurve::Secp256K1) => "der/EC_secp256k1_pkcs8_private.der",
+                    EcdhEsKeyType::Ec(EcCurve::Secp256k1) => "der/EC_secp256k1_pkcs8_private.der",
                     EcdhEsKeyType::Ecx(EcxCurve::X25519) => "der/X25519_pkcs8_private.der",
                     EcdhEsKeyType::Ecx(EcxCurve::X448) => "der/X448_pkcs8_private.der",
                 })?;
@@ -1009,7 +1009,7 @@ mod tests {
                     EcdhEsKeyType::Ec(EcCurve::P256) => "der/EC_P-256_spki_public.der",
                     EcdhEsKeyType::Ec(EcCurve::P384) => "der/EC_P-384_spki_public.der",
                     EcdhEsKeyType::Ec(EcCurve::P521) => "der/EC_P-521_spki_public.der",
-                    EcdhEsKeyType::Ec(EcCurve::Secp256K1) => "der/EC_secp256k1_spki_public.der",
+                    EcdhEsKeyType::Ec(EcCurve::Secp256k1) => "der/EC_secp256k1_spki_public.der",
                     EcdhEsKeyType::Ecx(EcxCurve::X25519) => "der/X25519_spki_public.der",
                     EcdhEsKeyType::Ecx(EcxCurve::X448) => "der/X448_spki_public.der",
                 })?;
@@ -1037,15 +1037,15 @@ mod tests {
 
         for alg in vec![
             EcdhEsJweAlgorithm::EcdhEs,
-            EcdhEsJweAlgorithm::EcdhEsA128Kw,
-            EcdhEsJweAlgorithm::EcdhEsA192Kw,
-            EcdhEsJweAlgorithm::EcdhEsA256Kw,
+            EcdhEsJweAlgorithm::EcdhEsA128kw,
+            EcdhEsJweAlgorithm::EcdhEsA192kw,
+            EcdhEsJweAlgorithm::EcdhEsA256kw,
         ] {
             for key in vec![
                 EcdhEsKeyType::Ec(EcCurve::P256),
                 EcdhEsKeyType::Ec(EcCurve::P384),
                 EcdhEsKeyType::Ec(EcCurve::P521),
-                EcdhEsKeyType::Ec(EcCurve::Secp256K1),
+                EcdhEsKeyType::Ec(EcCurve::Secp256k1),
                 EcdhEsKeyType::Ecx(EcxCurve::X25519),
                 EcdhEsKeyType::Ecx(EcxCurve::X448),
             ] {
@@ -1053,7 +1053,7 @@ mod tests {
                     EcdhEsKeyType::Ec(EcCurve::P256) => "pem/EC_P-256_private.pem",
                     EcdhEsKeyType::Ec(EcCurve::P384) => "pem/EC_P-384_private.pem",
                     EcdhEsKeyType::Ec(EcCurve::P521) => "pem/EC_P-521_private.pem",
-                    EcdhEsKeyType::Ec(EcCurve::Secp256K1) => "pem/EC_secp256k1_private.pem",
+                    EcdhEsKeyType::Ec(EcCurve::Secp256k1) => "pem/EC_secp256k1_private.pem",
                     EcdhEsKeyType::Ecx(EcxCurve::X25519) => "pem/X25519_private.pem",
                     EcdhEsKeyType::Ecx(EcxCurve::X448) => "pem/X448_private.pem",
                 })?;
@@ -1062,7 +1062,7 @@ mod tests {
                     EcdhEsKeyType::Ec(EcCurve::P256) => "pem/EC_P-256_public.pem",
                     EcdhEsKeyType::Ec(EcCurve::P384) => "pem/EC_P-384_public.pem",
                     EcdhEsKeyType::Ec(EcCurve::P521) => "pem/EC_P-521_public.pem",
-                    EcdhEsKeyType::Ec(EcCurve::Secp256K1) => "pem/EC_secp256k1_public.pem",
+                    EcdhEsKeyType::Ec(EcCurve::Secp256k1) => "pem/EC_secp256k1_public.pem",
                     EcdhEsKeyType::Ecx(EcxCurve::X25519) => "pem/X25519_public.pem",
                     EcdhEsKeyType::Ecx(EcxCurve::X448) => "pem/X448_public.pem",
                 })?;
@@ -1090,15 +1090,15 @@ mod tests {
 
         for alg in vec![
             EcdhEsJweAlgorithm::EcdhEs,
-            EcdhEsJweAlgorithm::EcdhEsA128Kw,
-            EcdhEsJweAlgorithm::EcdhEsA192Kw,
-            EcdhEsJweAlgorithm::EcdhEsA256Kw,
+            EcdhEsJweAlgorithm::EcdhEsA128kw,
+            EcdhEsJweAlgorithm::EcdhEsA192kw,
+            EcdhEsJweAlgorithm::EcdhEsA256kw,
         ] {
             for key in vec![
                 EcdhEsKeyType::Ec(EcCurve::P256),
                 EcdhEsKeyType::Ec(EcCurve::P384),
                 EcdhEsKeyType::Ec(EcCurve::P521),
-                EcdhEsKeyType::Ec(EcCurve::Secp256K1),
+                EcdhEsKeyType::Ec(EcCurve::Secp256k1),
                 EcdhEsKeyType::Ecx(EcxCurve::X25519),
                 EcdhEsKeyType::Ecx(EcxCurve::X448),
             ] {
@@ -1106,7 +1106,7 @@ mod tests {
                     EcdhEsKeyType::Ec(EcCurve::P256) => "pem/EC_P-256_traditional_private.pem",
                     EcdhEsKeyType::Ec(EcCurve::P384) => "pem/EC_P-384_traditional_private.pem",
                     EcdhEsKeyType::Ec(EcCurve::P521) => "pem/EC_P-521_traditional_private.pem",
-                    EcdhEsKeyType::Ec(EcCurve::Secp256K1) => {
+                    EcdhEsKeyType::Ec(EcCurve::Secp256k1) => {
                         "pem/EC_secp256k1_traditional_private.pem"
                     }
                     EcdhEsKeyType::Ecx(EcxCurve::X25519) => "pem/X25519_traditional_private.pem",
@@ -1117,7 +1117,7 @@ mod tests {
                     EcdhEsKeyType::Ec(EcCurve::P256) => "pem/EC_P-256_public.pem",
                     EcdhEsKeyType::Ec(EcCurve::P384) => "pem/EC_P-384_public.pem",
                     EcdhEsKeyType::Ec(EcCurve::P521) => "pem/EC_P-521_public.pem",
-                    EcdhEsKeyType::Ec(EcCurve::Secp256K1) => "pem/EC_secp256k1_public.pem",
+                    EcdhEsKeyType::Ec(EcCurve::Secp256k1) => "pem/EC_secp256k1_public.pem",
                     EcdhEsKeyType::Ecx(EcxCurve::X25519) => "pem/X25519_public.pem",
                     EcdhEsKeyType::Ecx(EcxCurve::X448) => "pem/X448_public.pem",
                 })?;
@@ -1145,15 +1145,15 @@ mod tests {
 
         for alg in vec![
             EcdhEsJweAlgorithm::EcdhEs,
-            EcdhEsJweAlgorithm::EcdhEsA128Kw,
-            EcdhEsJweAlgorithm::EcdhEsA192Kw,
-            EcdhEsJweAlgorithm::EcdhEsA256Kw,
+            EcdhEsJweAlgorithm::EcdhEsA128kw,
+            EcdhEsJweAlgorithm::EcdhEsA192kw,
+            EcdhEsJweAlgorithm::EcdhEsA256kw,
         ] {
             for key in vec![
                 EcdhEsKeyType::Ec(EcCurve::P256),
                 EcdhEsKeyType::Ec(EcCurve::P384),
                 EcdhEsKeyType::Ec(EcCurve::P521),
-                EcdhEsKeyType::Ec(EcCurve::Secp256K1),
+                EcdhEsKeyType::Ec(EcCurve::Secp256k1),
                 EcdhEsKeyType::Ecx(EcxCurve::X25519),
                 EcdhEsKeyType::Ecx(EcxCurve::X448),
             ] {
@@ -1161,7 +1161,7 @@ mod tests {
                     EcdhEsKeyType::Ec(EcCurve::P256) => "jwk/EC_P-256_private.jwk",
                     EcdhEsKeyType::Ec(EcCurve::P384) => "jwk/EC_P-384_private.jwk",
                     EcdhEsKeyType::Ec(EcCurve::P521) => "jwk/EC_P-521_private.jwk",
-                    EcdhEsKeyType::Ec(EcCurve::Secp256K1) => "jwk/EC_secp256k1_private.jwk",
+                    EcdhEsKeyType::Ec(EcCurve::Secp256k1) => "jwk/EC_secp256k1_private.jwk",
                     EcdhEsKeyType::Ecx(EcxCurve::X25519) => "jwk/OKP_X25519_private.jwk",
                     EcdhEsKeyType::Ecx(EcxCurve::X448) => "jwk/OKP_X448_private.jwk",
                 })?;
@@ -1170,7 +1170,7 @@ mod tests {
                     EcdhEsKeyType::Ec(EcCurve::P256) => "jwk/EC_P-256_public.jwk",
                     EcdhEsKeyType::Ec(EcCurve::P384) => "jwk/EC_P-384_public.jwk",
                     EcdhEsKeyType::Ec(EcCurve::P521) => "jwk/EC_P-521_public.jwk",
-                    EcdhEsKeyType::Ec(EcCurve::Secp256K1) => "jwk/EC_secp256k1_public.jwk",
+                    EcdhEsKeyType::Ec(EcCurve::Secp256k1) => "jwk/EC_secp256k1_public.jwk",
                     EcdhEsKeyType::Ecx(EcxCurve::X25519) => "jwk/OKP_X25519_public.jwk",
                     EcdhEsKeyType::Ecx(EcxCurve::X448) => "jwk/OKP_X448_public.jwk",
                 })?;

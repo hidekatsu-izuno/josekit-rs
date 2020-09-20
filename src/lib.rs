@@ -17,6 +17,10 @@ pub use crate::hash_algorithm::HashAlgorithm;
 pub use crate::jose_error::JoseError;
 pub use crate::jose_header::JoseHeader;
 
+pub use HashAlgorithm::Sha256 as SHA_256;
+pub use HashAlgorithm::Sha384 as SHA_384;
+pub use HashAlgorithm::Sha512 as SHA_512;
+
 #[cfg(doctest)]
 use doc_comment::doctest;
 

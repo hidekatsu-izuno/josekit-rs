@@ -13,13 +13,11 @@ use crate::{HashAlgorithm, JoseError};
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum HmacJwsAlgorithm {
     /// HMAC using SHA-256
-    HS256,
-
+    Hs256,
     /// HMAC using SHA-384
-    HS384,
-
+    Hs384,
     /// HMAC using SHA-512
-    HS512,
+    Hs512,
 }
 
 impl HmacJwsAlgorithm {
@@ -201,9 +199,9 @@ impl HmacJwsAlgorithm {
 
     fn hash_algorithm(&self) -> HashAlgorithm {
         match self {
-            Self::HS256 => HashAlgorithm::Sha256,
-            Self::HS384 => HashAlgorithm::Sha384,
-            Self::HS512 => HashAlgorithm::Sha512,
+            Self::Hs256 => HashAlgorithm::Sha256,
+            Self::Hs384 => HashAlgorithm::Sha384,
+            Self::Hs512 => HashAlgorithm::Sha512,
         }
     }
 }
@@ -211,9 +209,9 @@ impl HmacJwsAlgorithm {
 impl JwsAlgorithm for HmacJwsAlgorithm {
     fn name(&self) -> &str {
         match self {
-            Self::HS256 => "HS256",
-            Self::HS384 => "HS384",
-            Self::HS512 => "HS512",
+            Self::Hs256 => "HS256",
+            Self::Hs384 => "HS384",
+            Self::Hs512 => "HS512",
         }
     }
 
@@ -367,9 +365,9 @@ mod tests {
         let input = b"12345abcde";
 
         for alg in &[
-            HmacJwsAlgorithm::HS256,
-            HmacJwsAlgorithm::HS384,
-            HmacJwsAlgorithm::HS512,
+            HmacJwsAlgorithm::Hs256,
+            HmacJwsAlgorithm::Hs384,
+            HmacJwsAlgorithm::Hs512,
         ] {
             let private_key = alg.to_jwk(&private_key);
 
@@ -388,9 +386,9 @@ mod tests {
         let input = b"abcde12345";
 
         for alg in &[
-            HmacJwsAlgorithm::HS256,
-            HmacJwsAlgorithm::HS384,
-            HmacJwsAlgorithm::HS512,
+            HmacJwsAlgorithm::Hs256,
+            HmacJwsAlgorithm::Hs384,
+            HmacJwsAlgorithm::Hs512,
         ] {
             let private_key = load_file("jwk/oct_512bit_private.jwk")?;
             let private_key = Jwk::from_bytes(&private_key)?;
@@ -411,9 +409,9 @@ mod tests {
         let input = b"abcde12345";
 
         for alg in &[
-            HmacJwsAlgorithm::HS256,
-            HmacJwsAlgorithm::HS384,
-            HmacJwsAlgorithm::HS512,
+            HmacJwsAlgorithm::Hs256,
+            HmacJwsAlgorithm::Hs384,
+            HmacJwsAlgorithm::Hs512,
         ] {
             let signer = alg.signer_from_bytes(&private_key)?;
             let signature = signer.sign(input)?;

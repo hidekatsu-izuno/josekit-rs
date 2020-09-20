@@ -14,11 +14,11 @@ use crate::JoseError;
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum AeskwJweAlgorithm {
     /// AES Key Wrap with default initial value using 128-bit key
-    A128Kw,
+    A128kw,
     /// AES Key Wrap with default initial value using 192-bit key
-    A192Kw,
+    A192kw,
     /// AES Key Wrap with default initial value using 256-bit key
-    A256Kw,
+    A256kw,
 }
 
 impl AeskwJweAlgorithm {
@@ -153,9 +153,9 @@ impl AeskwJweAlgorithm {
 
     fn key_len(&self) -> usize {
         match self {
-            Self::A128Kw => 16,
-            Self::A192Kw => 24,
-            Self::A256Kw => 32,
+            Self::A128kw => 16,
+            Self::A192kw => 24,
+            Self::A256kw => 32,
         }
     }
 }
@@ -163,9 +163,9 @@ impl AeskwJweAlgorithm {
 impl JweAlgorithm for AeskwJweAlgorithm {
     fn name(&self) -> &str {
         match self {
-            Self::A128Kw => "A128KW",
-            Self::A192Kw => "A192KW",
-            Self::A256Kw => "A256KW",
+            Self::A128kw => "A128KW",
+            Self::A192kw => "A192KW",
+            Self::A256kw => "A256KW",
         }
     }
 
@@ -349,9 +349,9 @@ mod tests {
         let enc = AescbcHmacJweEncryption::A128CbcHS256;
 
         for alg in vec![
-            AeskwJweAlgorithm::A128Kw,
-            AeskwJweAlgorithm::A192Kw,
-            AeskwJweAlgorithm::A256Kw,
+            AeskwJweAlgorithm::A128kw,
+            AeskwJweAlgorithm::A192kw,
+            AeskwJweAlgorithm::A256kw,
         ] {
             let mut header = JweHeader::new();
             header.set_content_encryption(enc.name());
