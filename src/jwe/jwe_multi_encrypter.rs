@@ -1,39 +1,39 @@
 use anyhow::bail;
 
-use crate::jws::{JwsHeader, JwsSigner};
+use crate::jwe::{JweHeader, JweEncrypter};
 use crate::{JoseError, JoseHeader};
 
 #[derive(Debug)]
-pub struct JwsMultiSigner<'a> {
-    signers: Vec<(
-        Option<&'a JwsHeader>,
-        Option<&'a JwsHeader>,
-        &'a dyn JwsSigner,
+pub struct JweMultiEncrypter<'a> {
+    encrypters: Vec<(
+        Option<&'a JweHeader>,
+        Option<&'a JweHeader>,
+        &'a dyn JweEncrypter,
     )>,
 }
 
-impl<'a> JwsMultiSigner<'a> {
+impl<'a> JweMultiEncrypter<'a> {
     pub fn new() -> Self {
-        JwsMultiSigner {
-            signers: Vec::new(),
+        JweMultiEncrypter {
+            encrypters: Vec::new(),
         }
     }
 
-    pub fn signers(
+    pub fn encrypters(
         &self,
     ) -> &Vec<(
-        Option<&'a JwsHeader>,
-        Option<&'a JwsHeader>,
-        &'a dyn JwsSigner,
+        Option<&'a JweHeader>,
+        Option<&'a JweHeader>,
+        &'a dyn JweEncrypter,
     )> {
-        &self.signers
+        &self.encrypters
     }
 
-    pub fn add_signer(
+    pub fn add_encrypter(
         &mut self,
-        protected: Option<&'a JwsHeader>,
-        header: Option<&'a JwsHeader>,
-        signer: &'a dyn JwsSigner,
+        protected: Option<&'a JweHeader>,
+        header: Option<&'a JweHeader>,
+        encrypter: &'a dyn JweEncrypter,
     ) -> Result<(), JoseError> {
         (|| -> anyhow::Result<()> {
             if let Some(protected) = protected {
@@ -47,11 +47,11 @@ impl<'a> JwsMultiSigner<'a> {
                     }
                 }
             }
-
-            self.signers.push((protected, header, signer));
+            
+            self.encrypters.push((protected, header, encrypter));
 
             Ok(())
         })()
-        .map_err(|err| JoseError::InvalidJwsFormat(err))
+        .map_err(|err| JoseError::InvalidJweFormat(err))
     }
 }

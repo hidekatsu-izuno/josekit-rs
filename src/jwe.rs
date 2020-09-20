@@ -7,6 +7,7 @@ mod jwe_compression;
 mod jwe_content_encryption;
 mod jwe_context;
 mod jwe_header;
+mod jwe_multi_encrypter;
 pub mod zip;
 
 use once_cell::sync::Lazy;
@@ -20,6 +21,7 @@ pub use crate::jwe::jwe_compression::JweCompression;
 pub use crate::jwe::jwe_content_encryption::JweContentEncryption;
 pub use crate::jwe::jwe_context::JweContext;
 pub use crate::jwe::jwe_header::JweHeader;
+pub use crate::jwe::jwe_multi_encrypter::JweMultiEncrypter;
 
 pub use crate::jwe::alg::direct::DirectJweAlgorithm::Dir;
 
