@@ -604,59 +604,9 @@ impl EcdhEsJweEncrypter {
     pub fn remove_key_id(&mut self) {
         self.key_id = None;
     }
-}
 
-impl JweEncrypter for EcdhEsJweEncrypter {
-    fn algorithm(&self) -> &dyn JweAlgorithm {
-        &self.algorithm
-    }
-
-    fn key_id(&self) -> Option<&str> {
-        match &self.key_id {
-            Some(val) => Some(val.as_ref()),
-            None => None,
-        }
-    }
-
-    fn encrypt(
-        &self,
-        header: &mut JweHeader,
-        key_len: usize,
-    ) -> Result<(Cow<[u8]>, Option<Vec<u8>>), JoseError> {
-        (|| -> anyhow::Result<(Cow<[u8]>, Option<Vec<u8>>)> {
-            let apu_vec;
-            let apu = match header.claim("apu") {
-                Some(Value::String(val)) => {
-                    apu_vec = base64::decode_config(val, base64::URL_SAFE_NO_PAD)?;
-                    Some(apu_vec.as_slice())
-                }
-                Some(_) => bail!("The apu header claim must be string."),
-                None => match &self.agreement_partyuinfo {
-                    Some(val) => {
-                        let apu_b64 = base64::encode_config(val, base64::URL_SAFE_NO_PAD);
-                        header.set_claim("apu", Some(Value::String(apu_b64)))?;
-                        Some(val.as_slice())
-                    }
-                    None => None,
-                },
-            };
-            let apv_vec;
-            let apv = match header.claim("apv") {
-                Some(Value::String(val)) => {
-                    apv_vec = base64::decode_config(val, base64::URL_SAFE_NO_PAD)?;
-                    Some(apv_vec.as_slice())
-                }
-                Some(_) => bail!("The apv header claim must be string."),
-                None => match &self.agreement_partyvinfo {
-                    Some(val) => {
-                        let apv_b64 = base64::encode_config(val, base64::URL_SAFE_NO_PAD);
-                        header.set_claim("apv", Some(Value::String(apv_b64)))?;
-                        Some(val.as_slice())
-                    }
-                    None => None,
-                },
-            };
-
+    fn compute_derived_key(&self, header: &mut JweHeader) -> Result<Vec<u8>, JoseError> {
+        (|| -> anyhow::Result<Vec<u8>> {
             let mut map = Map::new();
             map.insert(
                 "kty".to_string(),
@@ -706,6 +656,67 @@ impl JweEncrypter for EcdhEsJweEncrypter {
             let mut deriver = Deriver::new(&private_key)?;
             deriver.set_peer(&self.public_key)?;
             let derived_key = deriver.derive_to_vec()?;
+            Ok(derived_key)
+        })()
+        .map_err(|err| match err.downcast::<JoseError>() {
+            Ok(err) => err,
+            Err(err) => JoseError::InvalidKeyFormat(err),
+        })
+    }
+}
+
+impl JweEncrypter for EcdhEsJweEncrypter {
+    fn algorithm(&self) -> &dyn JweAlgorithm {
+        &self.algorithm
+    }
+
+    fn key_id(&self) -> Option<&str> {
+        match &self.key_id {
+            Some(val) => Some(val.as_ref()),
+            None => None,
+        }
+    }
+
+    fn encrypt(
+        &self,
+        header: &mut JweHeader,
+        key_len: usize,
+    ) -> Result<(Cow<[u8]>, Option<Vec<u8>>), JoseError> {
+        let derived_key = self.compute_derived_key(header)?;
+
+        (|| -> anyhow::Result<(Cow<[u8]>, Option<Vec<u8>>)> {
+            let apu_vec;
+            let apu = match header.claim("apu") {
+                Some(Value::String(val)) => {
+                    apu_vec = base64::decode_config(val, base64::URL_SAFE_NO_PAD)?;
+                    Some(apu_vec.as_slice())
+                }
+                Some(_) => bail!("The apu header claim must be string."),
+                None => match &self.agreement_partyuinfo {
+                    Some(val) => {
+                        let apu_b64 = base64::encode_config(val, base64::URL_SAFE_NO_PAD);
+                        header.set_claim("apu", Some(Value::String(apu_b64)))?;
+                        Some(val.as_slice())
+                    }
+                    None => None,
+                },
+            };
+            let apv_vec;
+            let apv = match header.claim("apv") {
+                Some(Value::String(val)) => {
+                    apv_vec = base64::decode_config(val, base64::URL_SAFE_NO_PAD)?;
+                    Some(apv_vec.as_slice())
+                }
+                Some(_) => bail!("The apv header claim must be string."),
+                None => match &self.agreement_partyvinfo {
+                    Some(val) => {
+                        let apv_b64 = base64::encode_config(val, base64::URL_SAFE_NO_PAD);
+                        header.set_claim("apv", Some(Value::String(apv_b64)))?;
+                        Some(val.as_slice())
+                    }
+                    None => None,
+                },
+            };
 
             if let EcdhEsJweAlgorithm::EcdhEs = self.algorithm {
                 let shared_key = self.algorithm.concat_kdf(
