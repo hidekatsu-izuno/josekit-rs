@@ -239,8 +239,6 @@ impl JweEncrypter for AesgcmkwJweEncrypter {
             let encrypted_key =
                 symm::encrypt_aead(cipher, &self.private_key, Some(&iv), b"", &key, &mut tag)?;
 
-            header.set_algorithm(self.algorithm.name());
-
             let iv = base64::encode_config(&iv, base64::URL_SAFE_NO_PAD);
             header.set_claim("iv", Some(Value::String(iv)))?;
 

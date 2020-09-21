@@ -219,7 +219,7 @@ impl JweEncrypter for AeskwJweEncrypter {
 
     fn encrypt(
         &self,
-        header: &mut JweHeader,
+        _header: &mut JweHeader,
         key_len: usize,
     ) -> Result<(Cow<[u8]>, Option<Vec<u8>>), JoseError> {
         (|| -> anyhow::Result<(Cow<[u8]>, Option<Vec<u8>>)> {
@@ -239,7 +239,6 @@ impl JweEncrypter for AeskwJweEncrypter {
                 Err(_) => bail!("Failed to wrap key."),
             }
 
-            header.set_algorithm(self.algorithm.name());
             Ok((Cow::Owned(key), Some(encrypted_key)))
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))

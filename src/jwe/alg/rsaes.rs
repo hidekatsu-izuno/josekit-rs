@@ -341,12 +341,10 @@ impl JweEncrypter for RsaesJweEncrypter {
     #[allow(deprecated)]
     fn encrypt(
         &self,
-        header: &mut JweHeader,
+        _header: &mut JweHeader,
         key_len: usize,
     ) -> Result<(Cow<[u8]>, Option<Vec<u8>>), JoseError> {
         (|| -> anyhow::Result<(Cow<[u8]>, Option<Vec<u8>>)> {
-            header.set_algorithm(self.algorithm.name());
-
             let mut key = vec![0; key_len];
             rand::rand_bytes(&mut key)?;
 

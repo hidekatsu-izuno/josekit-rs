@@ -657,8 +657,6 @@ impl JweEncrypter for EcdhEsJweEncrypter {
                 },
             };
 
-            header.set_algorithm(self.algorithm.name());
-
             let mut map = Map::new();
             map.insert(
                 "kty".to_string(),
@@ -1015,6 +1013,7 @@ mod tests {
                 })?;
 
                 let mut header = JweHeader::new();
+                header.set_algorithm(alg.name());
                 header.set_content_encryption(enc.name());
 
                 let encrypter = alg.encrypter_from_der(&public_key)?;
@@ -1068,6 +1067,7 @@ mod tests {
                 })?;
 
                 let mut header = JweHeader::new();
+                header.set_algorithm(alg.name());
                 header.set_content_encryption(enc.name());
 
                 let encrypter = alg.encrypter_from_pem(&public_key)?;
@@ -1123,6 +1123,7 @@ mod tests {
                 })?;
 
                 let mut header = JweHeader::new();
+                header.set_algorithm(alg.name());
                 header.set_content_encryption(enc.name());
 
                 let encrypter = alg.encrypter_from_pem(&public_key)?;
@@ -1176,6 +1177,7 @@ mod tests {
                 })?;
 
                 let mut header = JweHeader::new();
+                header.set_algorithm(alg.name());
                 header.set_content_encryption(enc.name());
 
                 let public_key = Jwk::from_bytes(&public_key)?;

@@ -173,7 +173,7 @@ impl JweEncrypter for DirectJweEncrypter {
 
     fn encrypt(
         &self,
-        header: &mut JweHeader,
+        _header: &mut JweHeader,
         key_len: usize,
     ) -> Result<(Cow<[u8]>, Option<Vec<u8>>), JoseError> {
         (|| -> anyhow::Result<(Cow<[u8]>, Option<Vec<u8>>)> {
@@ -182,7 +182,6 @@ impl JweEncrypter for DirectJweEncrypter {
                 bail!("The key size is expected to be {}: {}", key_len, actual_len);
             }
 
-            header.set_algorithm(self.algorithm.name());
             Ok((Cow::Borrowed(&self.cencryption_key), None))
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))

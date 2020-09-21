@@ -194,7 +194,7 @@ impl JweContext {
             };
 
             let mut header = header.clone();
-
+            header.set_algorithm(encrypter.algorithm().name());
             let (key, encrypted_key) = encrypter.encrypt(&mut header, cencryption.key_len())?;
             if let None = header.claim("kid") {
                 if let Some(key_id) = encrypter.key_id() {
@@ -579,6 +579,7 @@ impl JweContext {
                 payload
             };
 
+            protected.set_algorithm(encrypter.algorithm().name());
             let (key, encrypted_key) = encrypter.encrypt(&mut protected, cencryption.key_len())?;
             if let None = merged.claim("kid") {
                 if let Some(key_id) = encrypter.key_id() {
@@ -760,13 +761,14 @@ impl JweContext {
                 None => None,
             };
 
-            match merged.algorithm() {
-                Some(val) => {
+            match merged.claim("alg") {
+                Some(Value::String(val)) => {
                     let expected_alg = decrypter.algorithm().name();
                     if val != expected_alg {
                         bail!("The JWE alg header claim is not {}: {}", expected_alg, val);
                     }
                 }
+                Some(_) => bail!("A alg header claim must be a string."),
                 None => bail!("The JWE alg header claim is required."),
             }
 

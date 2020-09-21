@@ -299,7 +299,6 @@ impl JweEncrypter for Pbes2HmacAeskwJweEncrypter {
                 Err(_) => bail!("Failed to wrap a key."),
             }
 
-            header.set_algorithm(self.algorithm.name());
             Ok((Cow::Owned(key), Some(encrypted_key)))
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
