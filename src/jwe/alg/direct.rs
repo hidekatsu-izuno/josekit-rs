@@ -171,20 +171,28 @@ impl JweEncrypter for DirectJweEncrypter {
         }
     }
 
-    fn encrypt(
-        &self,
-        _header: &mut JweHeader,
-        key_len: usize,
-    ) -> Result<(Cow<[u8]>, Option<Vec<u8>>), JoseError> {
-        (|| -> anyhow::Result<(Cow<[u8]>, Option<Vec<u8>>)> {
+    fn compute_content_encryption_key(
+            &self,
+            _header: &mut JweHeader,
+            key_len: usize,
+        ) -> Result<Option<Cow<[u8]>>, JoseError> {
+        (|| -> anyhow::Result<Option<Cow<[u8]>>> {
             let actual_len = self.cencryption_key.len();
             if key_len != actual_len {
                 bail!("The key size is expected to be {}: {}", key_len, actual_len);
             }
 
-            Ok((Cow::Borrowed(&self.cencryption_key), None))
+            Ok(Some(Cow::Borrowed(&self.cencryption_key)))
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
+    }
+
+    fn encrypt(
+        &self,
+        _header: &mut JweHeader,
+        _key: &[u8],
+    ) -> Result<Option<Vec<u8>>, JoseError> {
+        Ok(None)
     }
 
     fn box_clone(&self) -> Box<dyn JweEncrypter> {
@@ -291,7 +299,9 @@ mod tests {
             header.set_content_encryption(enc.name());
 
             let encrypter = alg.encrypter_from_jwk(&jwk)?;
-            let (src_key, encrypted_key) = encrypter.encrypt(&mut header, enc.key_len())?;
+            let src_key = encrypter.compute_content_encryption_key(&mut header, enc.key_len())?;
+            let src_key = src_key.unwrap();
+            let encrypted_key = encrypter.encrypt(&mut header, &src_key)?;
             assert_eq!(encrypted_key, None);
 
             let decrypter = alg.decrypter_from_jwk(&jwk)?;

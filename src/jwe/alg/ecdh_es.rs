@@ -605,8 +605,41 @@ impl EcdhEsJweEncrypter {
         self.key_id = None;
     }
 
-    fn compute_derived_key(&self, header: &mut JweHeader) -> Result<Vec<u8>, JoseError> {
+    fn compute_shared_key(&self, header: &mut JweHeader, alg_key: &str, key_len: usize) -> Result<Vec<u8>, JoseError> {
         (|| -> anyhow::Result<Vec<u8>> {
+            let apu_vec;
+            let apu = match header.claim("apu") {
+                Some(Value::String(val)) => {
+                    apu_vec = base64::decode_config(val, base64::URL_SAFE_NO_PAD)?;
+                    Some(apu_vec.as_slice())
+                }
+                Some(_) => bail!("The apu header claim must be string."),
+                None => match &self.agreement_partyuinfo {
+                    Some(val) => {
+                        let apu_b64 = base64::encode_config(val, base64::URL_SAFE_NO_PAD);
+                        header.set_claim("apu", Some(Value::String(apu_b64)))?;
+                        Some(val.as_slice())
+                    }
+                    None => None,
+                },
+            };
+            let apv_vec;
+            let apv = match header.claim("apv") {
+                Some(Value::String(val)) => {
+                    apv_vec = base64::decode_config(val, base64::URL_SAFE_NO_PAD)?;
+                    Some(apv_vec.as_slice())
+                }
+                Some(_) => bail!("The apv header claim must be string."),
+                None => match &self.agreement_partyvinfo {
+                    Some(val) => {
+                        let apv_b64 = base64::encode_config(val, base64::URL_SAFE_NO_PAD);
+                        header.set_claim("apv", Some(Value::String(apv_b64)))?;
+                        Some(val.as_slice())
+                    }
+                    None => None,
+                },
+            };
+
             let mut map = Map::new();
             map.insert(
                 "kty".to_string(),
@@ -653,10 +686,25 @@ impl EcdhEsJweEncrypter {
 
             header.set_claim("epk", Some(Value::Object(map)))?;
 
+            let alg = match header.claim(alg_key) {
+                Some(Value::String(val)) => val,
+                Some(_) => bail!("The {} header claim must be string.", alg_key),
+                None => bail!("The {} header claim is required.", alg_key),
+            };
+
             let mut deriver = Deriver::new(&private_key)?;
             deriver.set_peer(&self.public_key)?;
             let derived_key = deriver.derive_to_vec()?;
-            Ok(derived_key)
+
+            let shared_key = self.algorithm.concat_kdf(
+                alg,
+                key_len,
+                &derived_key,
+                apu.as_deref(),
+                apv.as_deref(),
+            )?;
+
+            Ok(shared_key)
         })()
         .map_err(|err| match err.downcast::<JoseError>() {
             Ok(err) => err,
@@ -677,71 +725,42 @@ impl JweEncrypter for EcdhEsJweEncrypter {
         }
     }
 
-    fn encrypt(
+    fn compute_content_encryption_key(
         &self,
         header: &mut JweHeader,
         key_len: usize,
-    ) -> Result<(Cow<[u8]>, Option<Vec<u8>>), JoseError> {
-        let derived_key = self.compute_derived_key(header)?;
+    ) -> Result<Option<Cow<[u8]>>, JoseError> {
+        if let EcdhEsJweAlgorithm::EcdhEs = self.algorithm {
+            let shared_key = self.compute_shared_key(
+                header, 
+                "enc",
+                key_len,
+            )?;
+            Ok(Some(Cow::Owned(shared_key)))
+        } else {
+            Ok(None)
+        }
+    }
 
-        (|| -> anyhow::Result<(Cow<[u8]>, Option<Vec<u8>>)> {
-            let apu_vec;
-            let apu = match header.claim("apu") {
-                Some(Value::String(val)) => {
-                    apu_vec = base64::decode_config(val, base64::URL_SAFE_NO_PAD)?;
-                    Some(apu_vec.as_slice())
-                }
-                Some(_) => bail!("The apu header claim must be string."),
-                None => match &self.agreement_partyuinfo {
-                    Some(val) => {
-                        let apu_b64 = base64::encode_config(val, base64::URL_SAFE_NO_PAD);
-                        header.set_claim("apu", Some(Value::String(apu_b64)))?;
-                        Some(val.as_slice())
-                    }
-                    None => None,
-                },
-            };
-            let apv_vec;
-            let apv = match header.claim("apv") {
-                Some(Value::String(val)) => {
-                    apv_vec = base64::decode_config(val, base64::URL_SAFE_NO_PAD)?;
-                    Some(apv_vec.as_slice())
-                }
-                Some(_) => bail!("The apv header claim must be string."),
-                None => match &self.agreement_partyvinfo {
-                    Some(val) => {
-                        let apv_b64 = base64::encode_config(val, base64::URL_SAFE_NO_PAD);
-                        header.set_claim("apv", Some(Value::String(apv_b64)))?;
-                        Some(val.as_slice())
-                    }
-                    None => None,
-                },
-            };
-
+    fn encrypt(
+        &self,
+        header: &mut JweHeader,
+        key: &[u8],
+    ) -> Result<Option<Vec<u8>>, JoseError> {
+        (|| -> anyhow::Result<Option<Vec<u8>>> {
             if let EcdhEsJweAlgorithm::EcdhEs = self.algorithm {
-                let shared_key = self.algorithm.concat_kdf(
-                    header.content_encryption().unwrap(),
-                    key_len,
-                    &derived_key,
-                    apu.as_deref(),
-                    apv.as_deref(),
-                )?;
-                Ok((Cow::Owned(shared_key), None))
+                Ok(None)
             } else {
-                let shared_key = self.algorithm.concat_kdf(
-                    header.algorithm().unwrap(),
+                let shared_key = self.compute_shared_key(
+                    header, 
+                    "alg",
                     self.algorithm.key_len(),
-                    &derived_key,
-                    apu.as_deref(),
-                    apv.as_deref(),
                 )?;
-
                 let aes = match AesKey::new_encrypt(&shared_key) {
                     Ok(val) => val,
                     Err(_) => bail!("Failed to set encrypt key."),
                 };
 
-                let key = util::rand_bytes(key_len);
                 let mut encrypted_key = vec![0; key.len() + 8];
                 match aes::wrap_key(&aes, None, &mut encrypted_key, &key) {
                     Ok(len) => {
@@ -752,7 +771,7 @@ impl JweEncrypter for EcdhEsJweEncrypter {
                     Err(_) => bail!("Failed to wrap key."),
                 }
 
-                Ok((Cow::Owned(key), Some(encrypted_key)))
+                Ok(Some(encrypted_key))
             }
         })()
         .map_err(|err| match err.downcast::<JoseError>() {
@@ -979,6 +998,7 @@ mod tests {
     use anyhow::Result;
     use std::fs;
     use std::path::PathBuf;
+    use std::borrow::Cow;
 
     use super::{EcdhEsJweAlgorithm, EcdhEsKeyType};
     use crate::jwe::enc::aescbc_hmac::AescbcHmacJweEncryption;
@@ -986,6 +1006,7 @@ mod tests {
     use crate::jwe::JweHeader;
     use crate::jwk::alg::{ec::EcCurve, ecx::EcxCurve};
     use crate::jwk::Jwk;
+    use crate::util;
 
     #[test]
     fn encrypt_and_decrypt_ecdh_es_with_pkcs8_der() -> Result<()> {
@@ -1028,7 +1049,12 @@ mod tests {
                 header.set_content_encryption(enc.name());
 
                 let encrypter = alg.encrypter_from_der(&public_key)?;
-                let (src_key, encrypted_key) = encrypter.encrypt(&mut header, enc.key_len())?;
+                let key_len = enc.key_len();
+                let src_key = match encrypter.compute_content_encryption_key(&mut header, key_len)? {
+                    Some(val) => val,
+                    None => Cow::Owned(util::rand_bytes(key_len)),
+                };
+                let encrypted_key = encrypter.encrypt(&mut header, &src_key)?;
 
                 let decrypter = alg.decrypter_from_der(&private_key)?;
                 let dst_key =
@@ -1082,7 +1108,12 @@ mod tests {
                 header.set_content_encryption(enc.name());
 
                 let encrypter = alg.encrypter_from_pem(&public_key)?;
-                let (src_key, encrypted_key) = encrypter.encrypt(&mut header, enc.key_len())?;
+                let key_len = enc.key_len();
+                let src_key = match encrypter.compute_content_encryption_key(&mut header, key_len)? {
+                    Some(val) => val,
+                    None => Cow::Owned(util::rand_bytes(key_len)),
+                };
+                let encrypted_key = encrypter.encrypt(&mut header, &src_key)?;
 
                 let decrypter = alg.decrypter_from_pem(&private_key)?;
                 let dst_key =
@@ -1138,7 +1169,12 @@ mod tests {
                 header.set_content_encryption(enc.name());
 
                 let encrypter = alg.encrypter_from_pem(&public_key)?;
-                let (src_key, encrypted_key) = encrypter.encrypt(&mut header, enc.key_len())?;
+                let key_len = enc.key_len();
+                let src_key = match encrypter.compute_content_encryption_key(&mut header, key_len)? {
+                    Some(val) => val,
+                    None => Cow::Owned(util::rand_bytes(key_len)),
+                };
+                let encrypted_key = encrypter.encrypt(&mut header, &src_key)?;
 
                 let decrypter = alg.decrypter_from_pem(&private_key)?;
                 let dst_key =
@@ -1193,7 +1229,12 @@ mod tests {
 
                 let public_key = Jwk::from_bytes(&public_key)?;
                 let encrypter = alg.encrypter_from_jwk(&public_key)?;
-                let (src_key, encrypted_key) = encrypter.encrypt(&mut header, enc.key_len())?;
+                let key_len = enc.key_len();
+                let src_key = match encrypter.compute_content_encryption_key(&mut header, key_len)? {
+                    Some(val) => val,
+                    None => Cow::Owned(util::rand_bytes(key_len)),
+                };
+                let encrypted_key = encrypter.encrypt(&mut header, &src_key)?;
 
                 let private_key = Jwk::from_bytes(&private_key)?;
                 let decrypter = alg.decrypter_from_jwk(&private_key)?;

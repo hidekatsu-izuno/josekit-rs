@@ -34,6 +34,12 @@ pub trait JweEncrypter: Debug + Send + Sync {
     /// The default value is a value of kid parameter in JWK.
     fn key_id(&self) -> Option<&str>;
 
+    fn compute_content_encryption_key(
+        &self,
+        header: &mut JweHeader,
+        key_len: usize,
+    ) -> Result<Option<Cow<[u8]>>, JoseError>;
+
     /// Return a content encryption key and encypted data.
     /// # Arguments
     ///
@@ -42,8 +48,8 @@ pub trait JweEncrypter: Debug + Send + Sync {
     fn encrypt(
         &self,
         header: &mut JweHeader,
-        key_len: usize,
-    ) -> Result<(Cow<[u8]>, Option<Vec<u8>>), JoseError>;
+        key: &[u8],
+    ) -> Result<Option<Vec<u8>>, JoseError>;
 
     fn box_clone(&self) -> Box<dyn JweEncrypter>;
 }

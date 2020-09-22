@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::cmp::Eq;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Debug;
@@ -195,7 +196,13 @@ impl JweContext {
 
             let mut header = header.clone();
             header.set_algorithm(encrypter.algorithm().name());
-            let (key, encrypted_key) = encrypter.encrypt(&mut header, cencryption.key_len())?;
+            let key_len = cencryption.key_len();
+            let key = match encrypter.compute_content_encryption_key(&mut header, key_len)? {
+                Some(val) => val,
+                None => Cow::Owned(util::rand_bytes(key_len)),
+            };
+
+            let encrypted_key = encrypter.encrypt(&mut header, &key)?;
             if let None = header.claim("kid") {
                 if let Some(key_id) = encrypter.key_id() {
                     header.set_key_id(key_id);
@@ -580,7 +587,14 @@ impl JweContext {
             };
 
             protected.set_algorithm(encrypter.algorithm().name());
-            let (key, encrypted_key) = encrypter.encrypt(&mut protected, cencryption.key_len())?;
+
+            let key_len = cencryption.key_len();
+            let key = match encrypter.compute_content_encryption_key(&mut protected, key_len)? {
+                Some(val) => val,
+                None => Cow::Owned(util::rand_bytes(key_len)),
+            };
+
+            let encrypted_key = encrypter.encrypt(&mut protected, &key)?;
             if let None = merged.claim("kid") {
                 if let Some(key_id) = encrypter.key_id() {
                     protected.set_key_id(key_id);

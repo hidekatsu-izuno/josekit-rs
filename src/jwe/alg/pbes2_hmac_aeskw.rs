@@ -239,12 +239,20 @@ impl JweEncrypter for Pbes2HmacAeskwJweEncrypter {
         }
     }
 
+    fn compute_content_encryption_key(
+        &self,
+        _header: &mut JweHeader,
+        _key_len: usize,
+    ) -> Result<Option<Cow<[u8]>>, JoseError> {
+        Ok(None)
+    }
+
     fn encrypt(
         &self,
         header: &mut JweHeader,
-        key_len: usize,
-    ) -> Result<(Cow<[u8]>, Option<Vec<u8>>), JoseError> {
-        (|| -> anyhow::Result<(Cow<[u8]>, Option<Vec<u8>>)> {
+        key: &[u8],
+    ) -> Result<Option<Vec<u8>>, JoseError> {
+        (|| -> anyhow::Result<Option<Vec<u8>>> {
             let p2s = match header.claim("p2s") {
                 Some(Value::String(val)) => {
                     let p2s = base64::decode_config(val, base64::URL_SAFE_NO_PAD)?;
@@ -288,8 +296,7 @@ impl JweEncrypter for Pbes2HmacAeskwJweEncrypter {
                 Err(_) => bail!("Failed to set a encryption key."),
             };
 
-            let key = util::rand_bytes(key_len);
-            let mut encrypted_key = vec![0; key_len + 8];
+            let mut encrypted_key = vec![0; key.len() + 8];
             match aes::wrap_key(&aes, None, &mut encrypted_key, &key) {
                 Ok(val) => {
                     if val < encrypted_key.len() {
@@ -299,7 +306,7 @@ impl JweEncrypter for Pbes2HmacAeskwJweEncrypter {
                 Err(_) => bail!("Failed to wrap a key."),
             }
 
-            Ok((Cow::Owned(key), Some(encrypted_key)))
+            Ok(Some(encrypted_key))
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
@@ -455,13 +462,15 @@ mod tests {
             };
 
             let encrypter = alg.encrypter_from_jwk(&jwk)?;
-            let (src_key, encrypted_key) = encrypter.encrypt(&mut header, enc.key_len())?;
+            let key_len = enc.key_len();
+            let src_key = util::rand_bytes(key_len);
+            let encrypted_key = encrypter.encrypt(&mut header, &src_key)?;
 
             let decrypter = alg.decrypter_from_jwk(&jwk)?;
 
             let dst_key = decrypter.decrypt(&header, encrypted_key.as_deref(), enc.key_len())?;
 
-            assert_eq!(&src_key, &dst_key);
+            assert_eq!(&src_key as &[u8], &dst_key as &[u8]);
         }
 
         Ok(())

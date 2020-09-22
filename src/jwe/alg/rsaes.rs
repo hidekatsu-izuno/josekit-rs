@@ -5,7 +5,6 @@ use std::ops::Deref;
 use anyhow::bail;
 use openssl::pkey::{PKey, Private, Public};
 use openssl::hash::MessageDigest;
-use openssl::rand;
 use openssl::rsa::Padding;
 use serde_json::Value;
 
@@ -338,16 +337,21 @@ impl JweEncrypter for RsaesJweEncrypter {
         }
     }
 
+    fn compute_content_encryption_key(
+        &self,
+        _header: &mut JweHeader,
+        _key_len: usize,
+    ) -> Result<Option<Cow<[u8]>>, JoseError> {
+        Ok(None)
+    }
+
     #[allow(deprecated)]
     fn encrypt(
         &self,
         _header: &mut JweHeader,
-        key_len: usize,
-    ) -> Result<(Cow<[u8]>, Option<Vec<u8>>), JoseError> {
-        (|| -> anyhow::Result<(Cow<[u8]>, Option<Vec<u8>>)> {
-            let mut key = vec![0; key_len];
-            rand::rand_bytes(&mut key)?;
-
+        key: &[u8],
+    ) -> Result<Option<Vec<u8>>, JoseError> {
+        (|| -> anyhow::Result<Option<Vec<u8>>> {
             let rsa = self.public_key.rsa()?;
             let encrypted_key = match self.algorithm {
                 RsaesJweAlgorithm::Rsa1_5 => {
@@ -385,7 +389,7 @@ impl JweEncrypter for RsaesJweEncrypter {
                 }
             };
             
-            Ok((Cow::Owned(key), Some(encrypted_key)))
+            Ok(Some(encrypted_key))
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
@@ -514,6 +518,7 @@ mod tests {
     use crate::jwe::enc::aescbc_hmac::AescbcHmacJweEncryption;
     use crate::jwe::JweHeader;
     use crate::jwk::Jwk;
+    use crate::util;
 
     #[test]
     #[allow(deprecated)]
@@ -537,12 +542,14 @@ mod tests {
             header.set_content_encryption(enc.name());
 
             let encrypter = alg.encrypter_from_jwk(&public_key)?;
-            let (src_key, encrypted_key) = encrypter.encrypt(&mut header, enc.key_len())?;
+            let key_len = enc.key_len();
+            let src_key = util::rand_bytes(key_len);
+            let encrypted_key = encrypter.encrypt(&mut header, &src_key)?;
 
             let decrypter = alg.decrypter_from_jwk(&private_key)?;
             let dst_key = decrypter.decrypt(&header, encrypted_key.as_deref(), enc.key_len())?;
 
-            assert_eq!(&src_key, &dst_key);
+            assert_eq!(&src_key as &[u8], &dst_key as &[u8]);
         }
 
         Ok(())
