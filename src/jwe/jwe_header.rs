@@ -1,7 +1,7 @@
 use std::cmp::Eq;
 use std::convert::Into;
 use std::fmt::{Debug, Display};
-use std::ops::{Deref, DerefMut};
+use std::ops::Deref;
 
 use anyhow::bail;
 use serde_json::{Map, Value};
@@ -492,6 +492,26 @@ impl JweHeader {
         }
     }
 
+    /// Set a value for header claim of a specified key.
+    ///
+    /// # Arguments
+    ///
+    /// * `key` - a key name of header claim
+    /// * `value` - a typed value of header claim
+    pub fn set_claim(&mut self, key: &str, value: Option<Value>) -> Result<(), JoseError> {
+        match value {
+            Some(val) => {
+                Self::check_claim(key, &val)?;
+                self.claims.insert(key.to_string(), val);
+            }
+            None => {
+                self.claims.remove(key);
+            }
+        }
+
+        Ok(())
+    }
+
     fn check_claim(key: &str, value: &Value) -> Result<(), JoseError> {
         (|| -> anyhow::Result<()> {
             match key {
@@ -580,20 +600,6 @@ impl JoseHeader for JweHeader {
         &self.claims
     }
 
-    fn set_claim(&mut self, key: &str, value: Option<Value>) -> Result<(), JoseError> {
-        match value {
-            Some(val) => {
-                Self::check_claim(key, &val)?;
-                self.claims.insert(key.to_string(), val);
-            }
-            None => {
-                self.claims.remove(key);
-            }
-        }
-
-        Ok(())
-    }
-
     fn box_clone(&self) -> Box<dyn JoseHeader> {
         Box::new(self.clone())
     }
@@ -626,12 +632,6 @@ impl Deref for JweHeader {
     type Target = dyn JoseHeader;
 
     fn deref(&self) -> &Self::Target {
-        self
-    }
-}
-
-impl DerefMut for JweHeader {
-    fn deref_mut(&mut self) -> &mut Self::Target {
         self
     }
 }

@@ -28,14 +28,6 @@ pub trait JoseHeader: Display + Send + Sync {
     /// Return values for header claims set
     fn claims_set(&self) -> &Map<String, Value>;
 
-    /// Set a value for header claim of a specified key.
-    ///
-    /// # Arguments
-    ///
-    /// * `key` - a key name of header claim
-    /// * `value` - a typed value of header claim
-    fn set_claim(&mut self, key: &str, value: Option<Value>) -> Result<(), JoseError>;
-
     fn box_clone(&self) -> Box<dyn JoseHeader>;
 
     fn into_map(self) -> Map<String, Value>;
