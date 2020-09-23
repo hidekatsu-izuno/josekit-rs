@@ -4,6 +4,7 @@ pub mod alg;
 mod jws_algorithm;
 mod jws_context;
 mod jws_header;
+mod jws_header_set;
 
 use once_cell::sync::Lazy;
 
@@ -14,6 +15,7 @@ pub use crate::jws::jws_algorithm::JwsSigner;
 pub use crate::jws::jws_algorithm::JwsVerifier;
 pub use crate::jws::jws_context::JwsContext;
 pub use crate::jws::jws_header::JwsHeader;
+pub use crate::jws::jws_header_set::JwsHeaderSet;
 
 use crate::jws::alg::hmac::HmacJwsAlgorithm;
 pub use HmacJwsAlgorithm::Hs256 as HS256;

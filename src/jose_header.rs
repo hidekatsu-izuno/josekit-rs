@@ -1,6 +1,6 @@
 use std::fmt::Display;
 
-use serde_json::{Map, Value};
+use serde_json::Value;
 
 pub trait JoseHeader: Display + Send + Sync {
     // Return claim count.

@@ -210,7 +210,6 @@ mod tests {
 
     use crate::jwe::{self, Dir, JweAlgorithm, JweHeader};
     use crate::util;
-    use crate::JoseHeader;
 
     #[test]
     fn test_jwe_compact_serialization() -> Result<()> {
