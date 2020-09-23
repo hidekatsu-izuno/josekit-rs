@@ -242,7 +242,7 @@ impl JweDecrypter for DirectJweDecrypter {
     fn decrypt(
         &self,
         encrypted_key: Option<&[u8]>,
-        _key_len: usize,
+        _cencryption: &dyn JweContentEncryption,
         _header: &JweHeader,
     ) -> Result<Cow<[u8]>, JoseError> {
         (|| -> anyhow::Result<Cow<[u8]>> {
@@ -303,7 +303,7 @@ mod tests {
             assert_eq!(encrypted_key, None);
 
             let decrypter = alg.decrypter_from_jwk(&jwk)?;
-            let dst_key = decrypter.decrypt(encrypted_key.as_deref(), enc.key_len(), &out_header)?;
+            let dst_key = decrypter.decrypt(encrypted_key.as_deref(), &enc, &out_header)?;
 
             assert_eq!(&src_key, &dst_key);
         }

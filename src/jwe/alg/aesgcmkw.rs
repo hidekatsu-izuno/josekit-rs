@@ -307,7 +307,7 @@ impl JweDecrypter for AesgcmkwJweDecrypter {
     fn decrypt(
         &self,
         encrypted_key: Option<&[u8]>,
-        _key_len: usize,
+        _cencryption: &dyn JweContentEncryption,
         header: &JweHeader,
     ) -> Result<Cow<[u8]>, JoseError> {
         (|| -> anyhow::Result<Cow<[u8]>> {
@@ -396,7 +396,7 @@ mod tests {
             let encrypted_key = encrypter.encrypt(&src_key, &header, &mut out_header)?;
 
             let decrypter = alg.decrypter_from_jwk(&jwk)?;
-            let dst_key = decrypter.decrypt(encrypted_key.as_deref(), enc.key_len(), &out_header)?;
+            let dst_key = decrypter.decrypt(encrypted_key.as_deref(), &enc, &out_header)?;
 
             assert_eq!(&src_key as &[u8], &dst_key as &[u8]);
         }

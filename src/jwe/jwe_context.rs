@@ -882,7 +882,7 @@ impl JweContext {
                 None => {}
             }
 
-            let key = decrypter.decrypt(encrypted_key, cencryption.key_len(), &merged)?;
+            let key = decrypter.decrypt(encrypted_key, cencryption, &merged)?;
             if key.len() != cencryption.key_len() {
                 bail!("The key size is expected to be {}: {}", cencryption.key_len(), key.len());
             }
@@ -1140,7 +1140,7 @@ impl JweContext {
                     full_aad.push_str(&val);
                 }
 
-                let key = decrypter.decrypt(encrypted_key, cencryption.key_len(), &merged)?;
+                let key = decrypter.decrypt(encrypted_key, cencryption, &merged)?;
                 if key.len() != cencryption.key_len() {
                     bail!("The key size is expected to be {}: {}", cencryption.key_len(), key.len());
                 }

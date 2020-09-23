@@ -861,10 +861,6 @@ fn main() -> Result<(), JoseError> {
 }
 ```
 
-## ToDo
-
-- Supports multiple recipients jwe json serialization. 
-
 ## License
 
 Licensed under either of
