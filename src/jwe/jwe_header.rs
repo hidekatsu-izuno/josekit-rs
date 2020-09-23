@@ -617,7 +617,7 @@ impl Into<Map<String, Value>> for JweHeader {
 
 impl Display for JweHeader {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
-        let val = serde_json::to_string(self.claims_set()).map_err(|_e| std::fmt::Error {})?;
+        let val = serde_json::to_string(&self.claims).map_err(|_e| std::fmt::Error {})?;
         fmt.write_str(&val)
     }
 }
