@@ -32,9 +32,9 @@ pub use RsassaPssJwsAlgorithm::Ps512 as PS512;
 
 use crate::jws::alg::ecdsa::EcdsaJwsAlgorithm;
 pub use EcdsaJwsAlgorithm::Es256 as ES256;
+pub use EcdsaJwsAlgorithm::Es256k as ES256K;
 pub use EcdsaJwsAlgorithm::Es384 as ES384;
 pub use EcdsaJwsAlgorithm::Es512 as ES512;
-pub use EcdsaJwsAlgorithm::Es256k as ES256K;
 
 use crate::jws::alg::eddsa::EddsaJwsAlgorithm;
 pub use EddsaJwsAlgorithm::Eddsa as EdDSA;
@@ -84,11 +84,7 @@ where
 /// * `signers` - The JWS signer.
 pub fn serialize_general_json(
     payload: &[u8],
-    signers: &[(
-        Option<&JwsHeader>,
-        Option<&JwsHeader>,
-        &dyn JwsSigner,
-    )],
+    signers: &[(Option<&JwsHeader>, Option<&JwsHeader>, &dyn JwsSigner)],
 ) -> Result<String, JoseError> {
     DEFAULT_CONTEXT.serialize_general_json(payload, signers)
 }
@@ -102,10 +98,7 @@ pub fn serialize_general_json(
 /// * `selector` - a function for selecting the signing algorithm.
 pub fn serialize_general_json_with_selecter<'a, F>(
     payload: &[u8],
-    headers: &[(
-        Option<&JwsHeader>,
-        Option<&JwsHeader>,
-    )],
+    headers: &[(Option<&JwsHeader>, Option<&JwsHeader>)],
     selector: F,
 ) -> Result<String, JoseError>
 where
@@ -303,11 +296,27 @@ mod tests {
         src_header_3.set_token_type("JWT-3");
         let signer_3 = EdDSA.signer_from_pem(&private_key_3)?;
 
-        let json = jws::serialize_general_json(src_payload, vec![
-            (Some(&src_protected_1), Some(&src_header_1), &signer_1 as &dyn JwsSigner),
-            (Some(&src_protected_2), Some(&src_header_2), &signer_2 as &dyn JwsSigner),
-            (Some(&src_protected_3), Some(&src_header_3), &signer_3 as &dyn JwsSigner),
-        ].as_slice())?;
+        let json = jws::serialize_general_json(
+            src_payload,
+            vec![
+                (
+                    Some(&src_protected_1),
+                    Some(&src_header_1),
+                    &signer_1 as &dyn JwsSigner,
+                ),
+                (
+                    Some(&src_protected_2),
+                    Some(&src_header_2),
+                    &signer_2 as &dyn JwsSigner,
+                ),
+                (
+                    Some(&src_protected_3),
+                    Some(&src_header_3),
+                    &signer_3 as &dyn JwsSigner,
+                ),
+            ]
+            .as_slice(),
+        )?;
 
         let verifier = ES256.verifier_from_pem(&public_key)?;
         let (dst_payload, dst_header) = jws::deserialize_json(&json, &verifier)?;

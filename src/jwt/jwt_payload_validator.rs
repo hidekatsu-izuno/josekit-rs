@@ -240,9 +240,9 @@ impl JwtPayloadValidator {
 mod tests {
     use std::time::{Duration, SystemTime};
 
-    use serde_json::json;
     use anyhow::Result;
-    
+    use serde_json::json;
+
     use crate::jwt::{JwtPayload, JwtPayloadValidator};
 
     #[test]

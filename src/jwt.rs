@@ -182,8 +182,8 @@ mod tests {
 
     #[allow(deprecated)]
     use crate::jwe::{
-        A128GCMKW, A128KW, A192GCMKW, A192KW, A256GCMKW, A256KW, Dir, ECDH_ES, ECDH_ES_A128KW,
-        ECDH_ES_A192KW, ECDH_ES_A256KW, PBES2_HS256_A128KW, PBES2_HS384_A192KW, PBES2_HS512_A256KW, 
+        Dir, A128GCMKW, A128KW, A192GCMKW, A192KW, A256GCMKW, A256KW, ECDH_ES, ECDH_ES_A128KW,
+        ECDH_ES_A192KW, ECDH_ES_A256KW, PBES2_HS256_A128KW, PBES2_HS384_A192KW, PBES2_HS512_A256KW,
         RSA1_5, RSA_OAEP, RSA_OAEP_256,
     };
     use crate::jwk::Jwk;
@@ -542,10 +542,12 @@ mod tests {
                         "A256GCM" => "jwk/oct_256bit_private.jwk",
                         _ => unreachable!(),
                     })?;
-                    let external_jwt = load_file(&(match zip {
-                        Some(val) => format!("jwt/{}_{}_{}.jwt", alg.name(), enc, val),
-                        None => format!("jwt/{}_{}.jwt", alg.name(), enc),
-                    }))?;
+                    let external_jwt = load_file(
+                        &(match zip {
+                            Some(val) => format!("jwt/{}_{}_{}.jwt", alg.name(), enc, val),
+                            None => format!("jwt/{}_{}.jwt", alg.name(), enc),
+                        }),
+                    )?;
 
                     let jwk = Jwk::from_bytes(&jwk)?;
                     let decrypter = alg.decrypter_from_jwk(&jwk)?;
@@ -586,22 +588,20 @@ mod tests {
                             "X25519" => "jwk/OKP_X25519_private.jwk",
                             _ => unreachable!(),
                         })?;
-                        let external_jwt = load_file(&(match zip {
-                            Some(val) => format!("jwt/{}_{}_{}_{}.jwt",
-                            alg.name(),
-                            curve,
-                            enc, 
-                            val),
-                            None => format!("jwt/{}_{}_{}.jwt",
-                            alg.name(),
-                            curve,
-                            enc),
-                        }))?;
+                        let external_jwt = load_file(
+                            &(match zip {
+                                Some(val) => {
+                                    format!("jwt/{}_{}_{}_{}.jwt", alg.name(), curve, enc, val)
+                                }
+                                None => format!("jwt/{}_{}_{}.jwt", alg.name(), curve, enc),
+                            }),
+                        )?;
 
                         let jwk = Jwk::from_bytes(&jwk)?;
                         let decrypter = alg.decrypter_from_jwk(&jwk)?;
                         let jwt_string = String::from_utf8(external_jwt)?;
-                        let (payload, header) = jwt::decode_with_decrypter(&jwt_string, &decrypter)?;
+                        let (payload, header) =
+                            jwt::decode_with_decrypter(&jwt_string, &decrypter)?;
 
                         assert_eq!(header.algorithm(), Some(decrypter.algorithm().name()));
                         assert_eq!(header.content_encryption(), Some(enc));
@@ -635,10 +635,12 @@ mod tests {
                         A192KW => "jwk/oct_192bit_private.jwk",
                         A256KW => "jwk/oct_256bit_private.jwk",
                     })?;
-                    let external_jwt = load_file(&(match zip {
-                        Some(val) => format!("jwt/{}_{}_{}.jwt", alg.name(), enc, val),
-                        None => format!("jwt/{}_{}.jwt", alg.name(), enc),
-                    }))?;
+                    let external_jwt = load_file(
+                        &(match zip {
+                            Some(val) => format!("jwt/{}_{}_{}.jwt", alg.name(), enc, val),
+                            None => format!("jwt/{}_{}.jwt", alg.name(), enc),
+                        }),
+                    )?;
 
                     let jwk = Jwk::from_bytes(&jwk)?;
                     let decrypter = alg.decrypter_from_jwk(&jwk)?;
@@ -676,10 +678,12 @@ mod tests {
                         A192GCMKW => "jwk/oct_192bit_private.jwk",
                         A256GCMKW => "jwk/oct_256bit_private.jwk",
                     })?;
-                    let external_jwt = load_file(&(match zip {
-                        Some(val) => format!("jwt/{}_{}_{}.jwt", alg.name(), enc, val),
-                        None => format!("jwt/{}_{}.jwt", alg.name(), enc),
-                    }))?;
+                    let external_jwt = load_file(
+                        &(match zip {
+                            Some(val) => format!("jwt/{}_{}_{}.jwt", alg.name(), enc, val),
+                            None => format!("jwt/{}_{}.jwt", alg.name(), enc),
+                        }),
+                    )?;
 
                     let jwk = Jwk::from_bytes(&jwk)?;
                     let decrypter = alg.decrypter_from_jwk(&jwk)?;
@@ -717,10 +721,12 @@ mod tests {
                         PBES2_HS384_A192KW => "jwk/oct_128bit_private.jwk",
                         PBES2_HS512_A256KW => "jwk/oct_128bit_private.jwk",
                     })?;
-                    let external_jwt = load_file(&(match zip {
-                        Some(val) => format!("jwt/{}_{}_{}.jwt", alg.name(), enc, val),
-                        None => format!("jwt/{}_{}.jwt", alg.name(), enc),
-                    }))?;
+                    let external_jwt = load_file(
+                        &(match zip {
+                            Some(val) => format!("jwt/{}_{}_{}.jwt", alg.name(), enc, val),
+                            None => format!("jwt/{}_{}.jwt", alg.name(), enc),
+                        }),
+                    )?;
 
                     let jwk = Jwk::from_bytes(&jwk)?;
                     let decrypter = alg.decrypter_from_jwk(&jwk)?;
@@ -755,10 +761,12 @@ mod tests {
                     // println!("{} {}", alg.name(), enc);
 
                     let jwk = load_file("jwk/RSA_private.jwk")?;
-                    let external_jwt = load_file(&(match zip {
-                        Some(val) => format!("jwt/{}_{}_{}.jwt", alg.name(), enc, val),
-                        None => format!("jwt/{}_{}.jwt", alg.name(), enc),
-                    }))?;
+                    let external_jwt = load_file(
+                        &(match zip {
+                            Some(val) => format!("jwt/{}_{}_{}.jwt", alg.name(), enc, val),
+                            None => format!("jwt/{}_{}.jwt", alg.name(), enc),
+                        }),
+                    )?;
 
                     let jwk = Jwk::from_bytes(&jwk)?;
                     let decrypter = alg.decrypter_from_jwk(&jwk)?;

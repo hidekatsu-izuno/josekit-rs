@@ -7,9 +7,9 @@ use serde_json::Value;
 
 use crate::der::oid::OID_RSA_ENCRYPTION;
 use crate::der::{DerBuilder, DerReader, DerType};
-use crate::jwk::{Jwk, KeyPair, alg::rsapss::RsaPssKeyPair};
+use crate::jwk::{alg::rsapss::RsaPssKeyPair, Jwk, KeyPair};
 use crate::util;
-use crate::{JoseError, HashAlgorithm};
+use crate::{HashAlgorithm, JoseError};
 
 #[derive(Debug, Clone)]
 pub struct RsaKeyPair {
@@ -45,24 +45,15 @@ impl RsaKeyPair {
         mgf1_hash: HashAlgorithm,
         salt_len: u8,
     ) -> RsaPssKeyPair {
-        RsaPssKeyPair::from_private_key(
-            self.private_key,
-            self.key_len,
-            hash,
-            mgf1_hash,
-            salt_len
-        )
+        RsaPssKeyPair::from_private_key(self.private_key, self.key_len, hash, mgf1_hash, salt_len)
     }
 
-    pub(crate) fn from_private_key(
-        private_key: PKey<Private>,
-        key_len: u32,
-    ) -> Self {
+    pub(crate) fn from_private_key(private_key: PKey<Private>, key_len: u32) -> Self {
         Self {
             private_key,
             key_len,
             algorithm: None,
-            key_id: None
+            key_id: None,
         }
     }
 

@@ -14,7 +14,7 @@ use crate::der::oid::{
     OID_X448,
 };
 use crate::der::{DerReader, DerType};
-use crate::jwe::{JweAlgorithm, JweDecrypter, JweEncrypter, JweHeader, JweContentEncryption};
+use crate::jwe::{JweAlgorithm, JweContentEncryption, JweDecrypter, JweEncrypter, JweHeader};
 use crate::jwk::alg::{
     ec::{EcCurve, EcKeyPair},
     ecx::{EcxCurve, EcxKeyPair},
@@ -605,7 +605,12 @@ impl EcdhEsJweEncrypter {
         self.key_id = None;
     }
 
-    fn compute_shared_key(&self, header: &mut JweHeader, alg: &str, key_len: usize) -> Result<Vec<u8>, JoseError> {
+    fn compute_shared_key(
+        &self,
+        header: &mut JweHeader,
+        alg: &str,
+        key_len: usize,
+    ) -> Result<Vec<u8>, JoseError> {
         (|| -> anyhow::Result<Vec<u8>> {
             let apu_vec;
             let apu = match header.claim("apu") {
@@ -726,11 +731,8 @@ impl JweEncrypter for EcdhEsJweEncrypter {
         header: &mut JweHeader,
     ) -> Result<Option<Cow<[u8]>>, JoseError> {
         if let EcdhEsJweAlgorithm::EcdhEs = self.algorithm {
-            let shared_key = self.compute_shared_key(
-                header, 
-                cencryption.name(),
-                cencryption.key_len(),
-            )?;
+            let shared_key =
+                self.compute_shared_key(header, cencryption.name(), cencryption.key_len())?;
             Ok(Some(Cow::Owned(shared_key)))
         } else {
             Ok(None)
@@ -748,7 +750,7 @@ impl JweEncrypter for EcdhEsJweEncrypter {
                 Ok(None)
             } else {
                 let shared_key = self.compute_shared_key(
-                    header, 
+                    header,
                     self.algorithm().name(),
                     self.algorithm.key_len(),
                 )?;
@@ -992,9 +994,9 @@ impl Deref for EcdhEsJweDecrypter {
 #[cfg(test)]
 mod tests {
     use anyhow::Result;
+    use std::borrow::Cow;
     use std::fs;
     use std::path::PathBuf;
-    use std::borrow::Cow;
 
     use super::{EcdhEsJweAlgorithm, EcdhEsKeyType};
     use crate::jwe::enc::aescbc_hmac::AescbcHmacJweEncryption;
@@ -1045,7 +1047,11 @@ mod tests {
 
                 let encrypter = alg.encrypter_from_der(&public_key)?;
                 let mut out_header = header.clone();
-                let src_key = match encrypter.compute_content_encryption_key(&enc, &header, &mut out_header)? {
+                let src_key = match encrypter.compute_content_encryption_key(
+                    &enc,
+                    &header,
+                    &mut out_header,
+                )? {
                     Some(val) => val,
                     None => Cow::Owned(util::rand_bytes(enc.key_len())),
                 };
@@ -1053,8 +1059,7 @@ mod tests {
 
                 out_header.set_algorithm(alg.name());
                 let decrypter = alg.decrypter_from_der(&private_key)?;
-                let dst_key =
-                    decrypter.decrypt(encrypted_key.as_deref(), &enc, &out_header)?;
+                let dst_key = decrypter.decrypt(encrypted_key.as_deref(), &enc, &out_header)?;
 
                 assert_eq!(&src_key, &dst_key);
             }
@@ -1104,7 +1109,11 @@ mod tests {
 
                 let encrypter = alg.encrypter_from_pem(&public_key)?;
                 let mut out_header = header.clone();
-                let src_key = match encrypter.compute_content_encryption_key(&enc, &header, &mut out_header)? {
+                let src_key = match encrypter.compute_content_encryption_key(
+                    &enc,
+                    &header,
+                    &mut out_header,
+                )? {
                     Some(val) => val,
                     None => Cow::Owned(util::rand_bytes(enc.key_len())),
                 };
@@ -1112,8 +1121,7 @@ mod tests {
 
                 out_header.set_algorithm(alg.name());
                 let decrypter = alg.decrypter_from_pem(&private_key)?;
-                let dst_key =
-                    decrypter.decrypt(encrypted_key.as_deref(), &enc, &out_header)?;
+                let dst_key = decrypter.decrypt(encrypted_key.as_deref(), &enc, &out_header)?;
 
                 assert_eq!(&src_key, &dst_key);
             }
@@ -1165,16 +1173,19 @@ mod tests {
 
                 let encrypter = alg.encrypter_from_pem(&public_key)?;
                 let mut out_header = header.clone();
-                let src_key = match encrypter.compute_content_encryption_key(&enc, &header, &mut out_header)? {
+                let src_key = match encrypter.compute_content_encryption_key(
+                    &enc,
+                    &header,
+                    &mut out_header,
+                )? {
                     Some(val) => val,
                     None => Cow::Owned(util::rand_bytes(enc.key_len())),
                 };
                 let encrypted_key = encrypter.encrypt(&src_key, &header, &mut out_header)?;
-                
+
                 out_header.set_algorithm(alg.name());
                 let decrypter = alg.decrypter_from_pem(&private_key)?;
-                let dst_key =
-                    decrypter.decrypt(encrypted_key.as_deref(), &enc, &out_header)?;
+                let dst_key = decrypter.decrypt(encrypted_key.as_deref(), &enc, &out_header)?;
 
                 assert_eq!(&src_key, &dst_key);
             }
@@ -1225,7 +1236,11 @@ mod tests {
                 let public_key = Jwk::from_bytes(&public_key)?;
                 let encrypter = alg.encrypter_from_jwk(&public_key)?;
                 let mut out_header = header.clone();
-                let src_key = match encrypter.compute_content_encryption_key(&enc, &header, &mut out_header)? {
+                let src_key = match encrypter.compute_content_encryption_key(
+                    &enc,
+                    &header,
+                    &mut out_header,
+                )? {
                     Some(val) => val,
                     None => Cow::Owned(util::rand_bytes(enc.key_len())),
                 };
@@ -1234,8 +1249,7 @@ mod tests {
                 out_header.set_algorithm(alg.name());
                 let private_key = Jwk::from_bytes(&private_key)?;
                 let decrypter = alg.decrypter_from_jwk(&private_key)?;
-                let dst_key =
-                    decrypter.decrypt(encrypted_key.as_deref(), &enc, &out_header)?;
+                let dst_key = decrypter.decrypt(encrypted_key.as_deref(), &enc, &out_header)?;
 
                 assert_eq!(&src_key, &dst_key);
             }

@@ -9,7 +9,7 @@ use crate::der::{
     oid::{OID_MGF1, OID_RSASSA_PSS, OID_SHA256, OID_SHA384, OID_SHA512},
     DerBuilder, DerClass, DerReader, DerType,
 };
-use crate::jwk::{Jwk, KeyPair, alg::rsa::RsaKeyPair};
+use crate::jwk::{alg::rsa::RsaKeyPair, Jwk, KeyPair};
 use crate::util;
 use crate::{HashAlgorithm, JoseError};
 
@@ -44,13 +44,8 @@ impl RsaPssKeyPair {
         }
     }
 
-    pub fn into_rsa_keypair(
-        self,
-    ) -> RsaKeyPair {
-        RsaKeyPair::from_private_key(
-            self.private_key,
-            self.key_len,
-        )
+    pub fn into_rsa_keypair(self) -> RsaKeyPair {
+        RsaKeyPair::from_private_key(self.private_key, self.key_len)
     }
 
     pub(crate) fn from_private_key(
@@ -67,7 +62,7 @@ impl RsaPssKeyPair {
             mgf1_hash,
             salt_len,
             algorithm: None,
-            key_id: None
+            key_id: None,
         }
     }
 
@@ -119,62 +114,58 @@ impl RsaPssKeyPair {
         (|| -> anyhow::Result<Self> {
             let input = input.as_ref();
             let pkcs8_der_vec;
-            let (pkcs8_der, hash, mgf1_hash, salt_len) =
-                match Self::detect_pkcs8(input, false) {
-                    Some((hash2, mgf1_hash2, salt_len2)) => {
-                        let hash = match hash {
-                            Some(val) if val == hash2 => hash2,
-                            Some(_) => bail!("The hash algorithm is mismatched: {}", hash2),
-                            None => hash2,
-                        };
+            let (pkcs8_der, hash, mgf1_hash, salt_len) = match Self::detect_pkcs8(input, false) {
+                Some((hash2, mgf1_hash2, salt_len2)) => {
+                    let hash = match hash {
+                        Some(val) if val == hash2 => hash2,
+                        Some(_) => bail!("The hash algorithm is mismatched: {}", hash2),
+                        None => hash2,
+                    };
 
-                        let mgf1_hash = match mgf1_hash {
-                            Some(val) if val == mgf1_hash2 => mgf1_hash2,
-                            Some(_) => {
-                                bail!("The MGF1 hash algorithm is mismatched: {}", mgf1_hash2)
-                            }
-                            None => hash2,
-                        };
+                    let mgf1_hash = match mgf1_hash {
+                        Some(val) if val == mgf1_hash2 => mgf1_hash2,
+                        Some(_) => bail!("The MGF1 hash algorithm is mismatched: {}", mgf1_hash2),
+                        None => hash2,
+                    };
 
-                        let salt_len = match salt_len {
-                            Some(val) if val == salt_len2 => salt_len2,
-                            Some(_) => bail!("The salt length is mismatched: {}", salt_len2),
-                            None => salt_len2,
-                        };
+                    let salt_len = match salt_len {
+                        Some(val) if val == salt_len2 => salt_len2,
+                        Some(_) => bail!("The salt length is mismatched: {}", salt_len2),
+                        None => salt_len2,
+                    };
 
-                        (input, hash, mgf1_hash, salt_len)
-                    }
-                    None => {
-                        let hash = match hash {
-                            Some(val) => val,
-                            None => bail!("The hash algorithm is required."),
-                        };
+                    (input, hash, mgf1_hash, salt_len)
+                }
+                None => {
+                    let hash = match hash {
+                        Some(val) => val,
+                        None => bail!("The hash algorithm is required."),
+                    };
 
-                        let mgf1_hash = match mgf1_hash {
-                            Some(val) => val,
-                            None => bail!("The MGF1 hash algorithm is required."),
-                        };
+                    let mgf1_hash = match mgf1_hash {
+                        Some(val) => val,
+                        None => bail!("The MGF1 hash algorithm is required."),
+                    };
 
-                        let salt_len = match salt_len {
-                            Some(val) => val,
-                            None => bail!("The salt length is required."),
-                        };
+                    let salt_len = match salt_len {
+                        Some(val) => val,
+                        None => bail!("The salt length is required."),
+                    };
 
-                        let rsa_der_vec;
-                        let rsa_der = match RsaKeyPair::detect_pkcs8(input, false) {
-                            Some(_) => {
-                                let keypair = RsaKeyPair::from_der(input)?;
-                                rsa_der_vec = keypair.to_raw_private_key();
-                                &rsa_der_vec
-                            },
-                            None => input
-                        };
+                    let rsa_der_vec;
+                    let rsa_der = match RsaKeyPair::detect_pkcs8(input, false) {
+                        Some(_) => {
+                            let keypair = RsaKeyPair::from_der(input)?;
+                            rsa_der_vec = keypair.to_raw_private_key();
+                            &rsa_der_vec
+                        }
+                        None => input,
+                    };
 
-                        pkcs8_der_vec =
-                            Self::to_pkcs8(rsa_der, false, hash, mgf1_hash, salt_len);
-                        (pkcs8_der_vec.as_slice(), hash, mgf1_hash, salt_len)
-                    }
-                };
+                    pkcs8_der_vec = Self::to_pkcs8(rsa_der, false, hash, mgf1_hash, salt_len);
+                    (pkcs8_der_vec.as_slice(), hash, mgf1_hash, salt_len)
+                }
+            };
 
             let private_key = PKey::private_key_from_der(pkcs8_der)?;
             let rsa = private_key.rsa()?;

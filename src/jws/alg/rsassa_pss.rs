@@ -3,12 +3,12 @@ use std::ops::Deref;
 
 use anyhow::bail;
 use openssl::pkey::{PKey, Private, Public};
-use openssl::sign::{Signer, Verifier};
 use openssl::rsa::Rsa;
+use openssl::sign::{Signer, Verifier};
 use serde_json::Value;
 
 use crate::der::{DerBuilder, DerType};
-use crate::jwk::{alg::rsapss::RsaPssKeyPair, alg::rsa::RsaKeyPair, Jwk};
+use crate::jwk::{alg::rsa::RsaKeyPair, alg::rsapss::RsaPssKeyPair, Jwk};
 use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier};
 use crate::util;
 use crate::{HashAlgorithm, JoseError};
@@ -220,12 +220,12 @@ impl RsassaPssJwsAlgorithm {
                             let rsa = Rsa::public_key_from_der(input)?;
                             rsa_der_vec = rsa.public_key_to_der_pkcs1()?;
                             &rsa_der_vec
-                        },
-                        None => input
+                        }
+                        None => input,
                     };
-                    
+
                     spki_der_vec = RsaPssKeyPair::to_pkcs8(
-                        rsa_der, 
+                        rsa_der,
                         true,
                         self.hash_algorithm(),
                         self.hash_algorithm(),

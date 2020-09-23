@@ -2,24 +2,24 @@ use std::ops::Deref;
 
 use anyhow::bail;
 
-use crate::JoseError;
 use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier};
+use crate::JoseError;
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum UnsecuredJwsAlgorithm {
-    None
+    None,
 }
 
 impl UnsecuredJwsAlgorithm {
     pub fn signer(&self) -> UnsecuredJwsSigner {
         UnsecuredJwsSigner {
-            algorithm: self.clone()
+            algorithm: self.clone(),
         }
     }
 
     pub fn verifier(&self) -> UnsecuredJwsVerifier {
         UnsecuredJwsVerifier {
-            algorithm: self.clone()
+            algorithm: self.clone(),
         }
     }
 }
@@ -47,7 +47,7 @@ pub struct UnsecuredJwsSigner {
     algorithm: UnsecuredJwsAlgorithm,
 }
 
-impl JwsSigner for UnsecuredJwsSigner  {
+impl JwsSigner for UnsecuredJwsSigner {
     fn algorithm(&self) -> &dyn JwsAlgorithm {
         &self.algorithm
     }
@@ -82,7 +82,7 @@ pub struct UnsecuredJwsVerifier {
     algorithm: UnsecuredJwsAlgorithm,
 }
 
-impl JwsVerifier for UnsecuredJwsVerifier  {
+impl JwsVerifier for UnsecuredJwsVerifier {
     fn algorithm(&self) -> &dyn JwsAlgorithm {
         &self.algorithm
     }
@@ -94,14 +94,17 @@ impl JwsVerifier for UnsecuredJwsVerifier  {
     fn verify(&self, _message: &[u8], signature: &[u8]) -> Result<(), JoseError> {
         (|| -> anyhow::Result<()> {
             if signature.len() != 0 {
-                bail!("The length of none algorithm signature must be 0: {}", signature.len());
+                bail!(
+                    "The length of none algorithm signature must be 0: {}",
+                    signature.len()
+                );
             }
 
             Ok(())
         })()
         .map_err(|err| JoseError::InvalidSignature(err))
     }
-    
+
     fn box_clone(&self) -> Box<dyn JwsVerifier> {
         Box::new(self.clone())
     }

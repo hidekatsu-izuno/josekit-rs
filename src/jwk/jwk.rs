@@ -7,12 +7,12 @@ use serde::ser::SerializeMap;
 use serde::{Serialize, Serializer};
 use serde_json::{Map, Value};
 
+use crate::jwk::alg::ec::{EcCurve, EcKeyPair};
+use crate::jwk::alg::ecx::{EcxCurve, EcxKeyPair};
+use crate::jwk::alg::ed::{EdCurve, EdKeyPair};
+use crate::jwk::alg::rsa::RsaKeyPair;
 use crate::util;
 use crate::JoseError;
-use crate::jwk::alg::rsa::RsaKeyPair;
-use crate::jwk::alg::ec::{EcCurve, EcKeyPair};
-use crate::jwk::alg::ed::{EdCurve, EdKeyPair};
-use crate::jwk::alg::ecx::{EcxCurve, EcxKeyPair};
 
 /// Represents JWK object.
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -69,8 +69,8 @@ impl Jwk {
 
         let mut jwk = Self::new("oct");
         jwk.map.insert(
-            "k".to_string(), 
-            Value::String(base64::encode_config(&k, base64::URL_SAFE_NO_PAD))
+            "k".to_string(),
+            Value::String(base64::encode_config(&k, base64::URL_SAFE_NO_PAD)),
         );
         Ok(jwk)
     }
@@ -101,7 +101,7 @@ impl Jwk {
         let keypair = EdKeyPair::generate(curve)?;
         Ok(keypair.to_jwk_keypair())
     }
-    
+
     /// Generate a new Ecx type JWK.
     ///
     /// # Arguments
@@ -120,39 +120,42 @@ impl Jwk {
                     let mut jwk = Jwk::new("RSA");
                     match self.map.get("use") {
                         Some(Value::String(val)) => {
-                            jwk.map.insert("use".to_string(), Value::String(val.clone()));
-                        },
+                            jwk.map
+                                .insert("use".to_string(), Value::String(val.clone()));
+                        }
                         _ => {}
                     }
                     match self.map.get("e") {
                         Some(Value::String(val)) => {
                             jwk.map.insert("e".to_string(), Value::String(val.clone()));
-                        },
+                        }
                         Some(_) => bail!("The parameter 'x' must be a string."),
                         None => bail!("The key type 'RSA' must have parameter 'e'."),
                     }
                     match self.map.get("n") {
                         Some(Value::String(val)) => {
                             jwk.map.insert("n".to_string(), Value::String(val.clone()));
-                        },
+                        }
                         Some(_) => bail!("The parameter 'x' must be a string."),
                         None => bail!("The key type 'RSA' must have parameter 'n'."),
                     }
                     jwk
-                },
+                }
                 "EC" => {
                     let mut jwk = Jwk::new("EC");
                     match self.map.get("use") {
                         Some(Value::String(val)) => {
-                            jwk.map.insert("use".to_string(), Value::String(val.clone()));
-                        },
+                            jwk.map
+                                .insert("use".to_string(), Value::String(val.clone()));
+                        }
                         _ => {}
                     }
                     match self.map.get("crv") {
                         Some(Value::String(val)) => match val.as_str() {
                             "P-256" | "P-384" | "P-521" | "secp256k1" => {
-                                jwk.map.insert("crv".to_string(), Value::String(val.clone()));
-                            },
+                                jwk.map
+                                    .insert("crv".to_string(), Value::String(val.clone()));
+                            }
                             val => bail!("Unknown curve: {}", val),
                         },
                         Some(_) => bail!("The parameter 'crv' must be a string."),
@@ -161,32 +164,34 @@ impl Jwk {
                     match self.map.get("x") {
                         Some(Value::String(val)) => {
                             jwk.map.insert("x".to_string(), Value::String(val.clone()));
-                        },
+                        }
                         Some(_) => bail!("The parameter 'x' must be a string."),
                         None => bail!("The key type 'EC' must have parameter 'x'."),
                     }
                     match self.map.get("y") {
                         Some(Value::String(val)) => {
                             jwk.map.insert("y".to_string(), Value::String(val.clone()));
-                        },
+                        }
                         Some(_) => bail!("The parameter 'x' must be a string."),
                         None => bail!("The key type 'EC' must have parameter 'y'."),
                     }
                     jwk
-                },
+                }
                 "OKP" => {
                     let mut jwk = Jwk::new("OKP");
                     match self.map.get("use") {
                         Some(Value::String(val)) => {
-                            jwk.map.insert("use".to_string(), Value::String(val.clone()));
-                        },
+                            jwk.map
+                                .insert("use".to_string(), Value::String(val.clone()));
+                        }
                         _ => {}
                     }
                     match self.map.get("crv") {
                         Some(Value::String(val)) => match val.as_str() {
                             "Ed25519" | "Ed448" | "X25519" | "X448" => {
-                                jwk.map.insert("crv".to_string(), Value::String(val.clone()));
-                            },
+                                jwk.map
+                                    .insert("crv".to_string(), Value::String(val.clone()));
+                            }
                             val => bail!("Unknown curve: {}", val),
                         },
                         Some(_) => bail!("The parameter 'crv' must be a string."),
@@ -195,12 +200,12 @@ impl Jwk {
                     match self.map.get("x") {
                         Some(Value::String(val)) => {
                             jwk.map.insert("x".to_string(), Value::String(val.clone()));
-                        },
+                        }
                         Some(_) => bail!("The parameter 'x' must be a string."),
                         None => bail!("The key type 'OKP' must have parameter 'x'."),
                     }
                     jwk
-                },
+                }
                 val => bail!("Unknown key type: {}", val),
             };
             Ok(jwk)

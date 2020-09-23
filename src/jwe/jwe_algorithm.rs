@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 use std::fmt::Debug;
 
-use crate::jwe::{JweHeader, JweContentEncryption};
+use crate::jwe::{JweContentEncryption, JweHeader};
 use crate::JoseError;
 
 /// Represent a algorithm of JWE alg header claim.
@@ -35,9 +35,9 @@ pub trait JweEncrypter: Debug + Send + Sync {
     fn key_id(&self) -> Option<&str>;
 
     /// Compute a content encryption key.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `cencryption` - The content encryption method.
     /// * `in_header` - the input header
     /// * `out_header` - the output header
@@ -49,7 +49,7 @@ pub trait JweEncrypter: Debug + Send + Sync {
     ) -> Result<Option<Cow<[u8]>>, JoseError>;
 
     /// Return a encypted key.
-    /// 
+    ///
     /// # Arguments
     ///
     /// * `key` - The content encryption key

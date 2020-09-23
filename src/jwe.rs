@@ -2,12 +2,12 @@
 
 pub mod alg;
 pub mod enc;
-pub mod zip;
 mod jwe_algorithm;
 mod jwe_compression;
 mod jwe_content_encryption;
 mod jwe_context;
 mod jwe_header;
+pub mod zip;
 
 use once_cell::sync::Lazy;
 

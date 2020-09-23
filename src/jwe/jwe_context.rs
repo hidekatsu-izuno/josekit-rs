@@ -197,7 +197,11 @@ impl JweContext {
             let mut out_header = header.clone();
 
             let key_len = cencryption.key_len();
-            let key = match encrypter.compute_content_encryption_key(cencryption, &header, &mut out_header)? {
+            let key = match encrypter.compute_content_encryption_key(
+                cencryption,
+                &header,
+                &mut out_header,
+            )? {
                 Some(val) => val,
                 None => Cow::Owned(util::rand_bytes(key_len)),
             };
@@ -285,17 +289,15 @@ impl JweContext {
         payload: &[u8],
         protected: Option<&JweHeader>,
         unprotected: Option<&JweHeader>,
-        recipients: &[(
-            Option<&JweHeader>,
-            &dyn JweEncrypter,
-        )],
+        recipients: &[(Option<&JweHeader>, &dyn JweEncrypter)],
         aad: Option<&[u8]>,
     ) -> Result<String, JoseError> {
         self.serialize_general_json_with_selector(
             payload,
             protected,
             unprotected,
-            recipients.iter()
+            recipients
+                .iter()
                 .map(|(header, _)| header.as_deref())
                 .collect::<Vec<Option<&JweHeader>>>()
                 .as_slice(),
@@ -328,7 +330,10 @@ impl JweContext {
     {
         (|| -> anyhow::Result<String> {
             if recipients.len() == 0 {
-                bail!("A size of recipients must be 1 or more: {}", recipients.len());
+                bail!(
+                    "A size of recipients must be 1 or more: {}",
+                    recipients.len()
+                );
             }
 
             let mut merged_map = match protected {
@@ -342,7 +347,7 @@ impl JweContext {
                     Some(val) => {
                         compressed = val.compress(payload).unwrap();
                         &compressed
-                    },
+                    }
                     None => bail!("A compression algorithm is not registered: {}", val),
                 },
                 Some(_) => bail!("A zip header claim must be a string."),
@@ -361,8 +366,11 @@ impl JweContext {
             let protected_b64 = match protected {
                 Some(val) if val.len() > 0 => {
                     let protected_json = serde_json::to_vec(val.claims_set()).unwrap();
-                    Some(base64::encode_config(protected_json, base64::URL_SAFE_NO_PAD))
-                },
+                    Some(base64::encode_config(
+                        protected_json,
+                        base64::URL_SAFE_NO_PAD,
+                    ))
+                }
                 _ => None,
             };
 
@@ -383,7 +391,7 @@ impl JweContext {
                             merged_map.insert(key.clone(), value.clone());
                         }
                         merged_map
-                    },
+                    }
                     None => merged_map.clone(),
                 };
 
@@ -403,7 +411,7 @@ impl JweContext {
                         Some(val) => {
                             cencryption = Some(val);
                             val
-                        },
+                        }
                         None => bail!("A content encryption is not registered: {}", i_enc),
                     }
                 };
@@ -434,8 +442,8 @@ impl JweContext {
                             }
                         }
                         key = Some(val);
-                    },
-                    None => {},
+                    }
+                    None => {}
                 }
 
                 encrypter_list.push(encrypter);
@@ -461,7 +469,7 @@ impl JweContext {
 
             let aad_b64 = match aad {
                 Some(val) => Some(base64::encode_config(val, base64::URL_SAFE_NO_PAD)),
-                None => None
+                None => None,
             };
 
             let mut full_aad_capacity = 1;
@@ -480,12 +488,8 @@ impl JweContext {
                 full_aad.push_str(&val);
             }
 
-            let (ciphertext, tag) = cencryption.encrypt(
-                &key, 
-                iv.as_deref(),
-                content, 
-                full_aad.as_bytes()
-            )?;
+            let (ciphertext, tag) =
+                cencryption.encrypt(&key, iv.as_deref(), content, full_aad.as_bytes())?;
 
             let mut json = String::new();
             json.push_str("{\"protected\":\"");
@@ -493,7 +497,7 @@ impl JweContext {
                 json.push_str(val);
             }
             json.push_str("\"");
-            
+
             json.push_str(",\"unprotected\":");
             if let Some(val) = unprotected {
                 let unprotected_json = serde_json::to_string(val.claims_set()).unwrap();
@@ -673,7 +677,10 @@ impl JweContext {
             };
 
             let key = match encrypter.compute_content_encryption_key(
-                cencryption, &merged, &mut protected)? {
+                cencryption,
+                &merged,
+                &mut protected,
+            )? {
                 Some(val) => val,
                 None => Cow::Owned(util::rand_bytes(cencryption.key_len())),
             };
@@ -884,7 +891,11 @@ impl JweContext {
 
             let key = decrypter.decrypt(encrypted_key, cencryption, &merged)?;
             if key.len() != cencryption.key_len() {
-                bail!("The key size is expected to be {}: {}", cencryption.key_len(), key.len());
+                bail!(
+                    "The key size is expected to be {}: {}",
+                    cencryption.key_len(),
+                    key.len()
+                );
             }
 
             let content = cencryption.decrypt(&key, iv, &ciphertext, header_b64, tag)?;
@@ -1142,9 +1153,13 @@ impl JweContext {
 
                 let key = decrypter.decrypt(encrypted_key, cencryption, &merged)?;
                 if key.len() != cencryption.key_len() {
-                    bail!("The key size is expected to be {}: {}", cencryption.key_len(), key.len());
+                    bail!(
+                        "The key size is expected to be {}: {}",
+                        cencryption.key_len(),
+                        key.len()
+                    );
                 }
-                
+
                 let content =
                     cencryption.decrypt(&key, iv, &ciphertext, full_aad.as_bytes(), tag)?;
                 let content = match compression {

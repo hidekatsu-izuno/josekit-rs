@@ -150,18 +150,13 @@ impl JwsContext {
     pub fn serialize_general_json(
         &self,
         payload: &[u8],
-        signers: &[(
-            Option<&JwsHeader>,
-            Option<&JwsHeader>,
-            &dyn JwsSigner,
-        )],
+        signers: &[(Option<&JwsHeader>, Option<&JwsHeader>, &dyn JwsSigner)],
     ) -> Result<String, JoseError> {
         self.serialize_general_json_with_selecter(
             payload,
-            signers.iter()
-                .map(|(protected, header, _)| {
-                    (protected.as_deref(), header.as_deref())
-                })
+            signers
+                .iter()
+                .map(|(protected, header, _)| (protected.as_deref(), header.as_deref()))
                 .collect::<Vec<(Option<&JwsHeader>, Option<&JwsHeader>)>>()
                 .as_slice(),
             |i, _header| Some(signers[i].2),
@@ -178,10 +173,7 @@ impl JwsContext {
     pub fn serialize_general_json_with_selecter<'a, F>(
         &self,
         payload: &[u8],
-        headers: &[(
-            Option<&JwsHeader>,
-            Option<&JwsHeader>,
-        )],
+        headers: &[(Option<&JwsHeader>, Option<&JwsHeader>)],
         selector: F,
     ) -> Result<String, JoseError>
     where

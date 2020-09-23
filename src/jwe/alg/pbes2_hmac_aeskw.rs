@@ -8,7 +8,7 @@ use openssl::aes::{self, AesKey};
 use openssl::pkcs5;
 use serde_json::{Number, Value};
 
-use crate::jwe::{JweAlgorithm, JweDecrypter, JweEncrypter, JweHeader, JweContentEncryption};
+use crate::jwe::{JweAlgorithm, JweContentEncryption, JweDecrypter, JweEncrypter, JweHeader};
 use crate::jwk::Jwk;
 use crate::util;
 use crate::{HashAlgorithm, JoseError, JoseHeader};

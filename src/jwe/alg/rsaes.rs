@@ -3,13 +3,13 @@ use std::fmt::Display;
 use std::ops::Deref;
 
 use anyhow::bail;
-use openssl::pkey::{PKey, Private, Public};
 use openssl::hash::MessageDigest;
+use openssl::pkey::{PKey, Private, Public};
 use openssl::rsa::Padding;
 use serde_json::Value;
 
 use crate::der::{DerBuilder, DerType};
-use crate::jwe::{JweAlgorithm, JweDecrypter, JweEncrypter, JweHeader, JweContentEncryption};
+use crate::jwe::{JweAlgorithm, JweContentEncryption, JweDecrypter, JweEncrypter, JweHeader};
 use crate::jwk::{alg::rsa::RsaKeyPair, Jwk};
 use crate::util;
 use crate::JoseError;
@@ -368,29 +368,23 @@ impl JweEncrypter for RsaesJweEncrypter {
                     encrypted_key.truncate(len);
                     encrypted_key
                 }
-                RsaesJweAlgorithm::RsaOaep256 => {
-                    openssl_rsa_oaep::pkey_public_encrypt(
-                        &self.public_key,
-                        &key,
-                        MessageDigest::sha256()
-                    )?
-                }
-                RsaesJweAlgorithm::RsaOaep384 => {
-                    openssl_rsa_oaep::pkey_public_encrypt(
-                        &self.public_key,
-                        &key,
-                        MessageDigest::sha384()
-                    )?
-                }
-                RsaesJweAlgorithm::RsaOaep512 => {
-                    openssl_rsa_oaep::pkey_public_encrypt(
-                        &self.public_key,
-                        &key,
-                        MessageDigest::sha512()
-                    )?
-                }
+                RsaesJweAlgorithm::RsaOaep256 => openssl_rsa_oaep::pkey_public_encrypt(
+                    &self.public_key,
+                    &key,
+                    MessageDigest::sha256(),
+                )?,
+                RsaesJweAlgorithm::RsaOaep384 => openssl_rsa_oaep::pkey_public_encrypt(
+                    &self.public_key,
+                    &key,
+                    MessageDigest::sha384(),
+                )?,
+                RsaesJweAlgorithm::RsaOaep512 => openssl_rsa_oaep::pkey_public_encrypt(
+                    &self.public_key,
+                    &key,
+                    MessageDigest::sha512(),
+                )?,
             };
-            
+
             Ok(Some(encrypted_key))
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
@@ -465,27 +459,21 @@ impl JweDecrypter for RsaesJweDecrypter {
                     key.truncate(len);
                     key
                 }
-                RsaesJweAlgorithm::RsaOaep256 => {
-                    openssl_rsa_oaep::pkey_private_decrypt(
-                        &self.private_key,
-                        &encrypted_key,
-                        MessageDigest::sha256()
-                    )?
-                }
-                RsaesJweAlgorithm::RsaOaep384 => {
-                    openssl_rsa_oaep::pkey_private_decrypt(
-                        &self.private_key,
-                        &encrypted_key,
-                        MessageDigest::sha384()
-                    )?
-                }
-                RsaesJweAlgorithm::RsaOaep512 => {
-                    openssl_rsa_oaep::pkey_private_decrypt(
-                        &self.private_key,
-                        &encrypted_key,
-                        MessageDigest::sha512()
-                    )?
-                }
+                RsaesJweAlgorithm::RsaOaep256 => openssl_rsa_oaep::pkey_private_decrypt(
+                    &self.private_key,
+                    &encrypted_key,
+                    MessageDigest::sha256(),
+                )?,
+                RsaesJweAlgorithm::RsaOaep384 => openssl_rsa_oaep::pkey_private_decrypt(
+                    &self.private_key,
+                    &encrypted_key,
+                    MessageDigest::sha384(),
+                )?,
+                RsaesJweAlgorithm::RsaOaep512 => openssl_rsa_oaep::pkey_private_decrypt(
+                    &self.private_key,
+                    &encrypted_key,
+                    MessageDigest::sha512(),
+                )?,
             };
 
             Ok(Cow::Owned(key))
@@ -564,31 +552,24 @@ mod tests {
 }
 
 mod openssl_rsa_oaep {
+    use foreign_types::ForeignType;
+    use openssl::error::ErrorStack;
+    use openssl::hash::MessageDigest;
+    use openssl::pkey::{PKey, Private, Public};
+    use openssl_sys::{
+        EVP_PKEY_CTX_ctrl, EVP_PKEY_CTX_free, EVP_PKEY_CTX_new, EVP_PKEY_CTX_set_rsa_mgf1_md,
+        EVP_PKEY_CTX_set_rsa_padding, EVP_PKEY_decrypt, EVP_PKEY_decrypt_init, EVP_PKEY_encrypt,
+        EVP_PKEY_encrypt_init, EVP_MD, EVP_PKEY_ALG_CTRL, EVP_PKEY_CTX, EVP_PKEY_OP_TYPE_CRYPT,
+        EVP_PKEY_RSA, RSA_PKCS1_OAEP_PADDING,
+    };
     use std::os::raw::{c_int, c_void};
     use std::ptr;
-    use openssl_sys::{
-        EVP_PKEY_CTX,
-        EVP_MD,
-        EVP_PKEY_CTX_new,
-        EVP_PKEY_CTX_free,
-        EVP_PKEY_CTX_set_rsa_padding,
-        EVP_PKEY_CTX_set_rsa_mgf1_md,
-        EVP_PKEY_CTX_ctrl,
-        EVP_PKEY_encrypt_init,
-        EVP_PKEY_encrypt,
-        EVP_PKEY_decrypt_init,
-        EVP_PKEY_decrypt,
-        EVP_PKEY_RSA,
-        EVP_PKEY_OP_TYPE_CRYPT,
-        EVP_PKEY_ALG_CTRL,
-        RSA_PKCS1_OAEP_PADDING
-    };
-    use openssl::error::ErrorStack;
-    use openssl::pkey::{PKey, Public, Private};
-    use openssl::hash::MessageDigest;
-    use foreign_types::ForeignType;
 
-    pub(crate) fn pkey_public_encrypt(pkey: &PKey<Public>, input: &[u8], md: MessageDigest) -> Result<Vec<u8>, ErrorStack> {
+    pub(crate) fn pkey_public_encrypt(
+        pkey: &PKey<Public>,
+        input: &[u8],
+        md: MessageDigest,
+    ) -> Result<Vec<u8>, ErrorStack> {
         let mut output;
         unsafe {
             let k = pkey.as_ptr();
@@ -602,29 +583,34 @@ mod openssl_rsa_oaep {
             if EVP_PKEY_encrypt_init(ctx) <= 0
                 || EVP_PKEY_CTX_set_rsa_padding(ctx, RSA_PKCS1_OAEP_PADDING) <= 0
                 || EVP_PKEY_CTX_set_rsa_oaep_md(ctx, md as *mut _) <= 0
-                || EVP_PKEY_CTX_set_rsa_mgf1_md(ctx, md as *mut _) <= 0 {
+                || EVP_PKEY_CTX_set_rsa_mgf1_md(ctx, md as *mut _) <= 0
+            {
                 EVP_PKEY_CTX_free(ctx);
                 return Err(ErrorStack::get());
             }
 
             let mut outlen = 0;
-            if EVP_PKEY_encrypt(ctx, 
+            if EVP_PKEY_encrypt(
+                ctx,
                 ptr::null_mut(),
                 &mut outlen,
                 input.as_ptr(),
                 input.len(),
-            ) <= 0 {
+            ) <= 0
+            {
                 EVP_PKEY_CTX_free(ctx);
                 return Err(ErrorStack::get());
             };
 
             output = vec![0; outlen];
-            if EVP_PKEY_encrypt(ctx, 
+            if EVP_PKEY_encrypt(
+                ctx,
                 output.as_mut_ptr(),
                 &mut outlen,
                 input.as_ptr(),
                 input.len(),
-            ) <= 0 {
+            ) <= 0
+            {
                 EVP_PKEY_CTX_free(ctx);
                 return Err(ErrorStack::get());
             };
@@ -638,7 +624,11 @@ mod openssl_rsa_oaep {
         Ok(output)
     }
 
-    pub(crate) fn pkey_private_decrypt(pkey: &PKey<Private>, input: &[u8], md: MessageDigest) -> Result<Vec<u8>, ErrorStack> {
+    pub(crate) fn pkey_private_decrypt(
+        pkey: &PKey<Private>,
+        input: &[u8],
+        md: MessageDigest,
+    ) -> Result<Vec<u8>, ErrorStack> {
         let mut output;
         unsafe {
             let k = pkey.as_ptr();
@@ -652,29 +642,34 @@ mod openssl_rsa_oaep {
             if EVP_PKEY_decrypt_init(ctx) <= 0
                 || EVP_PKEY_CTX_set_rsa_padding(ctx, RSA_PKCS1_OAEP_PADDING) <= 0
                 || EVP_PKEY_CTX_set_rsa_oaep_md(ctx, md as *mut _) <= 0
-                || EVP_PKEY_CTX_set_rsa_mgf1_md(ctx, md as *mut _) <= 0 {
+                || EVP_PKEY_CTX_set_rsa_mgf1_md(ctx, md as *mut _) <= 0
+            {
                 EVP_PKEY_CTX_free(ctx);
                 return Err(ErrorStack::get());
             }
 
             let mut outlen = 0;
-            if EVP_PKEY_decrypt(ctx, 
+            if EVP_PKEY_decrypt(
+                ctx,
                 ptr::null_mut(),
                 &mut outlen,
                 input.as_ptr(),
                 input.len(),
-            ) <= 0 {
+            ) <= 0
+            {
                 EVP_PKEY_CTX_free(ctx);
                 return Err(ErrorStack::get());
             };
 
             output = vec![0; outlen];
-            if EVP_PKEY_decrypt(ctx, 
+            if EVP_PKEY_decrypt(
+                ctx,
                 output.as_mut_ptr(),
                 &mut outlen,
                 input.as_ptr(),
                 input.len(),
-            ) <= 0 {
+            ) <= 0
+            {
                 EVP_PKEY_CTX_free(ctx);
                 return Err(ErrorStack::get());
             };
@@ -694,7 +689,7 @@ mod openssl_rsa_oaep {
     unsafe fn EVP_PKEY_CTX_set_rsa_oaep_md(ctx: *mut EVP_PKEY_CTX, md: *mut EVP_MD) -> c_int {
         EVP_PKEY_CTX_ctrl(
             ctx,
-            EVP_PKEY_RSA, 
+            EVP_PKEY_RSA,
             EVP_PKEY_OP_TYPE_CRYPT,
             EVP_PKEY_CTRL_RSA_OAEP_MD,
             0,

@@ -5,7 +5,7 @@ use std::ops::Deref;
 use anyhow::bail;
 use serde_json::Value;
 
-use crate::jwe::{JweAlgorithm, JweDecrypter, JweEncrypter, JweHeader, JweContentEncryption};
+use crate::jwe::{JweAlgorithm, JweContentEncryption, JweDecrypter, JweEncrypter, JweHeader};
 use crate::jwk::Jwk;
 use crate::JoseError;
 
@@ -172,15 +172,19 @@ impl JweEncrypter for DirectJweEncrypter {
     }
 
     fn compute_content_encryption_key(
-            &self,
-            cencryption: &dyn JweContentEncryption,
-            _merged: &JweHeader,
-            _header: &mut JweHeader,
-        ) -> Result<Option<Cow<[u8]>>, JoseError> {
+        &self,
+        cencryption: &dyn JweContentEncryption,
+        _merged: &JweHeader,
+        _header: &mut JweHeader,
+    ) -> Result<Option<Cow<[u8]>>, JoseError> {
         (|| -> anyhow::Result<Option<Cow<[u8]>>> {
             let actual_len = self.cencryption_key.len();
             if cencryption.key_len() != actual_len {
-                bail!("The key size is expected to be {}: {}", cencryption.key_len(), actual_len);
+                bail!(
+                    "The key size is expected to be {}: {}",
+                    cencryption.key_len(),
+                    actual_len
+                );
             }
 
             Ok(Some(Cow::Borrowed(&self.cencryption_key)))
@@ -297,7 +301,8 @@ mod tests {
 
             let encrypter = alg.encrypter_from_jwk(&jwk)?;
             let mut out_header = header.clone();
-            let src_key = encrypter.compute_content_encryption_key(&enc, &header, &mut out_header)?;
+            let src_key =
+                encrypter.compute_content_encryption_key(&enc, &header, &mut out_header)?;
             let src_key = src_key.unwrap();
             let encrypted_key = encrypter.encrypt(&src_key, &header, &mut out_header)?;
             assert_eq!(encrypted_key, None);
