@@ -376,6 +376,16 @@ impl JwsHeader {
         Ok(())
     }
 
+    /// Return values for header claims set
+    pub fn claims_set(&self) -> &Map<String, Value> {
+        &self.claims
+    }
+    
+    /// Convert into map
+    pub fn into_map(self) -> Map<String, Value> {
+        self.claims
+    }
+
     fn check_claim(key: &str, value: &Value) -> Result<(), JoseError> {
         (|| -> anyhow::Result<()> {
             match key {
@@ -444,16 +454,12 @@ impl JoseHeader for JwsHeader {
         self.claims.len()
     }
 
-    fn claims_set(&self) -> &Map<String, Value> {
-        &self.claims
+    fn claim(&self, key: &str) -> Option<&Value> {
+        self.claims.get(key)
     }
 
     fn box_clone(&self) -> Box<dyn JoseHeader> {
         Box::new(self.clone())
-    }
-
-    fn into_map(self) -> Map<String, Value> {
-        self.claims
     }
 }
 

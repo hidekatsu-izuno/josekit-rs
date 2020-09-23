@@ -2,15 +2,13 @@ use std::fmt::Display;
 
 use serde_json::{Map, Value};
 
-use crate::JoseError;
-
 pub trait JoseHeader: Display + Send + Sync {
     // Return claim count.
     fn len(&self) -> usize;
 
     /// Return the value for algorithm header claim (alg).
     fn algorithm(&self) -> Option<&str> {
-        match self.claims_set().get("alg") {
+        match self.claim("alg") {
             Some(Value::String(val)) => Some(&val),
             _ => None,
         }
@@ -21,16 +19,9 @@ pub trait JoseHeader: Display + Send + Sync {
     /// # Arguments
     ///
     /// * `key` - a key name of header claim
-    fn claim(&self, key: &str) -> Option<&Value> {
-        self.claims_set().get(key)
-    }
-
-    /// Return values for header claims set
-    fn claims_set(&self) -> &Map<String, Value>;
+    fn claim(&self, key: &str) -> Option<&Value>;
 
     fn box_clone(&self) -> Box<dyn JoseHeader>;
-
-    fn into_map(self) -> Map<String, Value>;
 }
 
 impl Clone for Box<dyn JoseHeader> {
