@@ -194,21 +194,24 @@ impl JweContext {
                 None => None,
             };
 
-            let mut header = header.clone();
-            header.set_algorithm(encrypter.algorithm().name());
+            let mut out_header = header.clone();
+
             let key_len = cencryption.key_len();
-            let key = match encrypter.compute_content_encryption_key(&mut header, key_len)? {
+            let key = match encrypter.compute_content_encryption_key(cencryption, &header, &mut out_header)? {
                 Some(val) => val,
                 None => Cow::Owned(util::rand_bytes(key_len)),
             };
 
-            let encrypted_key = encrypter.encrypt(&mut header, &key)?;
+            let encrypted_key = encrypter.encrypt(&key, &header, &mut out_header)?;
             if let None = header.claim("kid") {
                 if let Some(key_id) = encrypter.key_id() {
-                    header.set_key_id(key_id);
+                    out_header.set_key_id(key_id);
                 }
             }
-            let header_bytes = serde_json::to_vec(header.claims_set())?;
+
+            out_header.set_algorithm(encrypter.algorithm().name());
+
+            let header_bytes = serde_json::to_vec(out_header.claims_set())?;
             let header_b64 = base64::encode_config(header_bytes, base64::URL_SAFE_NO_PAD);
 
             let compressed;
@@ -267,7 +270,7 @@ impl JweContext {
             Err(err) => JoseError::InvalidJweFormat(err),
         })
     }
-/*
+
     /// Return a representation of the data that is formatted by flattened json serialization.
     ///
     /// # Arguments
@@ -323,161 +326,244 @@ impl JweContext {
     where
         F: Fn(usize, &JweHeader) -> Option<&'a dyn JweEncrypter>,
     {
-        let mut merged_map = match protected {
-            Some(val) => val.claims_set().clone(),
-            None => Map::new(),
-        };
+        (|| -> anyhow::Result<String> {
+            if recipients.len() == 0 {
+                bail!("A size of recipients must be 1 or more: {}", recipients.len());
+            }
 
-        let compressed;
-        let content = match merged_map.get("zip") {
-            Some(Value::String(val)) => match self.get_compression(val) {
-                Some(val) => {
-                    compressed = val.compress(payload).unwrap();
-                    &compressed
+            let mut merged_map = match protected {
+                Some(val) => val.claims_set().clone(),
+                None => Map::new(),
+            };
+
+            let compressed;
+            let content = match merged_map.get("zip") {
+                Some(Value::String(val)) => match self.get_compression(val) {
+                    Some(val) => {
+                        compressed = val.compress(payload).unwrap();
+                        &compressed
+                    },
+                    None => bail!("A compression algorithm is not registered: {}", val),
                 },
-                None => bail!("A compression algorithm is not registered: {}", val),
-            },
-            Some(_) => bail!("A zip header claim must be a string."),
-            None => payload,
-        };
+                Some(_) => bail!("A zip header claim must be a string."),
+                None => payload,
+            };
 
-        if let Some(val) = unprotected {
-            for (key, value) in val.claims_set() {
-                if merged_map.contains_key(key) {
-                    bail!("Duplicate key exists: {}", key);
-                }
-                merged_map.insert(key.clone(), value.clone());
-            }
-        }
-
-        let cencryption = match merged_map.get("enc") {
-            Some(Value::String(val)) => match self.get_content_encryption(val) {
-                Some(val) => val,
-                None => bail!("A content encryption is not registered: {}", val),
-            },
-            Some(_) => bail!("A enc header claim must be a string."),
-            None => bail!("A enc header claim is required."),
-        };
-
-        let protected_b64 = match protected {
-            Some(val) if val.len() > 0 => {
-                let protected_json = serde_json::to_vec(val.claims_set()).unwrap();
-                Some(base64::encode_config(protected_json, base64::URL_SAFE_NO_PAD))
-            },
-            _ => None,
-        };
-
-        let iv = if cencryption.iv_len() > 0 {
-            Some(util::rand_bytes(cencryption.iv_len()))
-        } else {
-            None
-        };
-
-        let aad_b64 = match aad {
-            Some(val) => Some(base64::encode_config(val, base64::URL_SAFE_NO_PAD)),
-            None => None
-        };
-
-        let mut full_aad = String::with_capacity(1 + 
-            protected_b64.map_or(0, |val| val.len()) +
-            aad_b64.map_or(0, |val| val.len())
-        );
-        if let Some(val) = protected_b64 {
-            full_aad.push_str(&val);
-        }
-        full_aad.push_str(".");
-        if let Some(val) = aad_b64 {
-            full_aad.push_str(&val);
-        }
-
-        let (ciphertext, tag) = cencryption.encrypt(
-            &key, 
-            iv.map(|val| val.as_slice()),
-            content, 
-            full_aad.as_bytes()
-        )?;
-
-        let mut json = String::new();
-        json.push_str("{\"protected\":\"");
-        if let Some(val) = &protected_b64 {
-            json.push_str(val);
-        }
-        json.push_str("\"");
-        
-        json.push_str(",\"unprotected\":");
-        if let Some(val) = unprotected {
-            let unprotected_json = serde_json::to_string(val.claims_set()).unwrap();
-            json.push_str(&unprotected_json);
-        }
-
-        json.push_str(",\"recipients\":[");
-        for (i, header) in recipients.iter().enumerate() {
-            if i > 0 {
-                json.push_str(",");
-            }
-
-            let merged = match header {
-                Some(val) => {
-                    let mut merged_map = merged_map.clone();
-                    for (key, value) in val.claims_set() {
-                        if merged_map.contains_key(key) {
-                            bail!("Duplicate key exists: {}", key);
-                        }
-                        merged_map.insert(key.clone(), value.clone());
+            if let Some(val) = unprotected {
+                for (key, value) in val.claims_set() {
+                    if merged_map.contains_key(key) {
+                        bail!("Duplicate key exists: {}", key);
                     }
-                    JweHeader::from_map(merged_map)?
+                    merged_map.insert(key.clone(), value.clone());
+                }
+            }
+
+            let protected_b64 = match protected {
+                Some(val) if val.len() > 0 => {
+                    let protected_json = serde_json::to_vec(val.claims_set()).unwrap();
+                    Some(base64::encode_config(protected_json, base64::URL_SAFE_NO_PAD))
                 },
-                None => JweHeader::from_map(merged_map.clone())?,
+                _ => None,
             };
 
-            let encrypter = match selector(i, &merged) {
+            let mut encrypter_list = Vec::new();
+            let mut merged_list = Vec::new();
+            let mut header_list = Vec::new();
+
+            let mut cencryption: Option<&dyn JweContentEncryption> = None;
+            let mut key: Option<Cow<[u8]>> = None;
+            for (i, header) in recipients.iter().enumerate() {
+                let merged_map = match header {
+                    Some(val) => {
+                        let mut merged_map = merged_map.clone();
+                        for (key, value) in val.claims_set() {
+                            if merged_map.contains_key(key) {
+                                bail!("Duplicate key exists: {}", key);
+                            }
+                            merged_map.insert(key.clone(), value.clone());
+                        }
+                        merged_map
+                    },
+                    None => merged_map.clone(),
+                };
+
+                let i_enc = match merged_map.get("enc") {
+                    Some(Value::String(val)) => val,
+                    Some(_) => bail!("A enc header claim must be a string."),
+                    None => bail!("A enc header claim must be required."),
+                };
+
+                let i_cencryption = if let Some(val) = cencryption {
+                    if val.name() != i_enc {
+                        bail!("All of the enc header claim must be same.");
+                    }
+                    val
+                } else {
+                    match self.get_content_encryption(i_enc) {
+                        Some(val) => {
+                            cencryption = Some(val);
+                            val
+                        },
+                        None => bail!("A content encryption is not registered: {}", i_enc),
+                    }
+                };
+
+                let mut merged = JweHeader::from_map(merged_map)?;
+                let encrypter = match selector(i, &merged) {
+                    Some(val) => val,
+                    None => bail!("A encrypter is not found."),
+                };
+                merged.set_algorithm(encrypter.algorithm().name());
+
+                let mut header = match *header {
+                    Some(val) => val.clone(),
+                    None => JweHeader::new(),
+                };
+
+                let i_key = encrypter.compute_content_encryption_key(
+                    i_cencryption,
+                    &merged,
+                    &mut header,
+                )?;
+
+                match i_key {
+                    Some(val) => {
+                        if let Some(val2) = key {
+                            if val.as_ref() != val2.as_ref() {
+                                bail!("A content encryption key must be only one.");
+                            }
+                        }
+                        key = Some(val);
+                    },
+                    None => {},
+                }
+
+                encrypter_list.push(encrypter);
+                header_list.push(header);
+                merged_list.push(merged);
+            }
+
+            let cencryption = match cencryption {
                 Some(val) => val,
-                None => bail!("A encrypter is not found."),
+                None => bail!("A enc header claim is required."),
             };
 
-            let mut header = match header {
-                Some(val) => *val.clone(),
-                None => JweHeader::new(),
+            let key = match key {
+                Some(val) => val,
+                None => Cow::Owned(util::rand_bytes(cencryption.key_len())),
             };
-            header.set_algorithm(encrypter.algorithm().name());
-            let header_json = serde_json::to_string(header.claims_set()).unwrap();
 
-            json.push_str("{\"header\":\"");
-            json.push_str(&header_json);
+            let iv = if cencryption.iv_len() > 0 {
+                Some(util::rand_bytes(cencryption.iv_len()))
+            } else {
+                None
+            };
+
+            let aad_b64 = match aad {
+                Some(val) => Some(base64::encode_config(val, base64::URL_SAFE_NO_PAD)),
+                None => None
+            };
+
+            let mut full_aad_capacity = 1;
+            if let Some(val) = &protected_b64 {
+                full_aad_capacity += val.len();
+            }
+            if let Some(val) = &aad_b64 {
+                full_aad_capacity += val.len();
+            }
+            let mut full_aad = String::with_capacity(full_aad_capacity);
+            if let Some(val) = &protected_b64 {
+                full_aad.push_str(&val);
+            }
+            full_aad.push_str(".");
+            if let Some(val) = &aad_b64 {
+                full_aad.push_str(&val);
+            }
+
+            let (ciphertext, tag) = cencryption.encrypt(
+                &key, 
+                iv.as_deref(),
+                content, 
+                full_aad.as_bytes()
+            )?;
+
+            let mut json = String::new();
+            json.push_str("{\"protected\":\"");
+            if let Some(val) = &protected_b64 {
+                json.push_str(val);
+            }
+            json.push_str("\"");
+            
+            json.push_str(",\"unprotected\":");
+            if let Some(val) = unprotected {
+                let unprotected_json = serde_json::to_string(val.claims_set()).unwrap();
+                json.push_str(&unprotected_json);
+            }
+
+            json.push_str(",\"recipients\":[");
+            for i in 0..=recipients.len() {
+                if i > 0 {
+                    json.push_str(",");
+                }
+
+                let encrypter = encrypter_list[i];
+                let merged = &merged_list[i];
+                let mut header = &mut header_list[i];
+
+                let encrypted_key = encrypter.encrypt(&key, &merged, &mut header)?;
+
+                if let None = merged.claim("kid") {
+                    if let Some(key_id) = encrypter.key_id() {
+                        header.set_key_id(key_id);
+                    }
+                }
+                header.set_algorithm(encrypter.algorithm().name());
+
+                let header_json = serde_json::to_string(header_list[i].claims_set())?;
+                json.push_str("{\"header\":\"");
+                json.push_str(&header_json);
+                json.push_str("\"");
+
+                json.push_str(",\"encrypted_key\":\"");
+                if let Some(val) = encrypted_key {
+                    base64::encode_config_buf(&val, base64::URL_SAFE_NO_PAD, &mut json);
+                }
+                json.push_str("\"}");
+            }
+            json.push_str("]");
+
+            if let Some(val) = aad_b64 {
+                json.push_str(",\"aad\":\"");
+                json.push_str(&val);
+                json.push_str("\"");
+            }
+
+            json.push_str(",\"iv\":\"");
+            if let Some(val) = iv {
+                base64::encode_config_buf(&val, base64::URL_SAFE_NO_PAD, &mut json);
+            }
             json.push_str("\"");
 
-
-
-        }
-        json.push_str("]");
-
-        if let Some(val) = aad_b64 {
-            json.push_str(",\"aad\":\"");
-            json.push_str(&val);
+            json.push_str(",\"ciphertext\":\"");
+            base64::encode_config_buf(&ciphertext, base64::URL_SAFE_NO_PAD, &mut json);
             json.push_str("\"");
-        }
 
-        json.push_str(",\"iv\":\"");
-        if let Some(val) = iv {
-            base64::encode_config_buf(&val, base64::URL_SAFE_NO_PAD, &mut json);
-        }
-        json.push_str("\"");
+            json.push_str(",\"tag\":\"");
+            if let Some(val) = tag {
+                base64::encode_config_buf(&val, base64::URL_SAFE_NO_PAD, &mut json);
+            }
+            json.push_str("\"");
 
-        json.push_str(",\"ciphertext\":\"");
-        base64::encode_config_buf(&ciphertext, base64::URL_SAFE_NO_PAD, &mut json);
-        json.push_str("\"");
+            json.push_str("}");
 
-        json.push_str(",\"tag\":\"");
-        if let Some(val) = tag {
-            base64::encode_config_buf(&val, base64::URL_SAFE_NO_PAD, &mut json);
-        }
-        json.push_str("\"");
-
-        json.push_str("}");
-
-        Ok(json)
+            Ok(json)
+        })()
+        .map_err(|err| match err.downcast::<JoseError>() {
+            Ok(err) => err,
+            Err(err) => JoseError::InvalidJweFormat(err),
+        })
     }
-*/
+
     /// Return a representation of the data that is formatted by flattened json serialization.
     ///
     /// # Arguments
@@ -586,20 +672,21 @@ impl JweContext {
                 payload
             };
 
-            protected.set_algorithm(encrypter.algorithm().name());
-
-            let key_len = cencryption.key_len();
-            let key = match encrypter.compute_content_encryption_key(&mut protected, key_len)? {
+            let key = match encrypter.compute_content_encryption_key(
+                cencryption, &merged, &mut protected)? {
                 Some(val) => val,
-                None => Cow::Owned(util::rand_bytes(key_len)),
+                None => Cow::Owned(util::rand_bytes(cencryption.key_len())),
             };
 
-            let encrypted_key = encrypter.encrypt(&mut protected, &key)?;
+            let encrypted_key = encrypter.encrypt(&key, &merged, &mut protected)?;
+
             if let None = merged.claim("kid") {
                 if let Some(key_id) = encrypter.key_id() {
                     protected.set_key_id(key_id);
                 }
             }
+            protected.set_algorithm(encrypter.algorithm().name());
+
             let protected = serde_json::to_vec(protected.claims_set())?;
 
             let iv_vec;
@@ -795,7 +882,11 @@ impl JweContext {
                 None => {}
             }
 
-            let key = decrypter.decrypt(&merged, encrypted_key, cencryption.key_len())?;
+            let key = decrypter.decrypt(encrypted_key, cencryption.key_len(), &merged)?;
+            if key.len() != cencryption.key_len() {
+                bail!("The key size is expected to be {}: {}", cencryption.key_len(), key.len());
+            }
+
             let content = cencryption.decrypt(&key, iv, &ciphertext, header_b64, tag)?;
             let content = match compression {
                 Some(val) => val.decompress(&content)?,
@@ -1049,7 +1140,11 @@ impl JweContext {
                     full_aad.push_str(&val);
                 }
 
-                let key = decrypter.decrypt(&merged, encrypted_key, cencryption.key_len())?;
+                let key = decrypter.decrypt(encrypted_key, cencryption.key_len(), &merged)?;
+                if key.len() != cencryption.key_len() {
+                    bail!("The key size is expected to be {}: {}", cencryption.key_len(), key.len());
+                }
+                
                 let content =
                     cencryption.decrypt(&key, iv, &ciphertext, full_aad.as_bytes(), tag)?;
                 let content = match compression {

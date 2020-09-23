@@ -9,7 +9,7 @@ use openssl::rsa::Padding;
 use serde_json::Value;
 
 use crate::der::{DerBuilder, DerType};
-use crate::jwe::{JweAlgorithm, JweDecrypter, JweEncrypter, JweHeader};
+use crate::jwe::{JweAlgorithm, JweDecrypter, JweEncrypter, JweHeader, JweContentEncryption};
 use crate::jwk::{alg::rsa::RsaKeyPair, Jwk};
 use crate::util;
 use crate::JoseError;
@@ -339,8 +339,9 @@ impl JweEncrypter for RsaesJweEncrypter {
 
     fn compute_content_encryption_key(
         &self,
-        _header: &mut JweHeader,
-        _key_len: usize,
+        _cencryption: &dyn JweContentEncryption,
+        _in_header: &JweHeader,
+        _out_header: &mut JweHeader,
     ) -> Result<Option<Cow<[u8]>>, JoseError> {
         Ok(None)
     }
@@ -348,8 +349,9 @@ impl JweEncrypter for RsaesJweEncrypter {
     #[allow(deprecated)]
     fn encrypt(
         &self,
-        _header: &mut JweHeader,
         key: &[u8],
+        _in_header: &JweHeader,
+        _out_header: &mut JweHeader,
     ) -> Result<Option<Vec<u8>>, JoseError> {
         (|| -> anyhow::Result<Option<Vec<u8>>> {
             let rsa = self.public_key.rsa()?;
@@ -439,9 +441,9 @@ impl JweDecrypter for RsaesJweDecrypter {
     #[allow(deprecated)]
     fn decrypt(
         &self,
-        _header: &JweHeader,
         encrypted_key: Option<&[u8]>,
-        key_len: usize,
+        _key_len: usize,
+        _header: &JweHeader,
     ) -> Result<Cow<[u8]>, JoseError> {
         (|| -> anyhow::Result<Cow<[u8]>> {
             let encrypted_key = match encrypted_key {
@@ -485,10 +487,6 @@ impl JweDecrypter for RsaesJweDecrypter {
                     )?
                 }
             };
-
-            if key.len() != key_len {
-                bail!("The key size is expected to be {}: {}", key_len, key.len());
-            }
 
             Ok(Cow::Owned(key))
         })()
@@ -542,12 +540,12 @@ mod tests {
             header.set_content_encryption(enc.name());
 
             let encrypter = alg.encrypter_from_jwk(&public_key)?;
-            let key_len = enc.key_len();
-            let src_key = util::rand_bytes(key_len);
-            let encrypted_key = encrypter.encrypt(&mut header, &src_key)?;
+            let mut out_header = header.clone();
+            let src_key = util::rand_bytes(enc.key_len());
+            let encrypted_key = encrypter.encrypt(&src_key, &header, &mut out_header)?;
 
             let decrypter = alg.decrypter_from_jwk(&private_key)?;
-            let dst_key = decrypter.decrypt(&header, encrypted_key.as_deref(), enc.key_len())?;
+            let dst_key = decrypter.decrypt(encrypted_key.as_deref(), enc.key_len(), &out_header)?;
 
             assert_eq!(&src_key as &[u8], &dst_key as &[u8]);
         }

@@ -6,7 +6,7 @@ use anyhow::bail;
 use openssl::symm::{self, Cipher};
 use serde_json::Value;
 
-use crate::jwe::{JweAlgorithm, JweDecrypter, JweEncrypter, JweHeader};
+use crate::jwe::{JweAlgorithm, JweDecrypter, JweEncrypter, JweHeader, JweContentEncryption};
 use crate::jwk::Jwk;
 use crate::util;
 use crate::{JoseError, JoseHeader};
@@ -227,16 +227,18 @@ impl JweEncrypter for AesgcmkwJweEncrypter {
 
     fn compute_content_encryption_key(
         &self,
-        _header: &mut JweHeader,
-        _key_len: usize,
+        _cencryption: &dyn JweContentEncryption,
+        _in_header: &JweHeader,
+        _out_header: &mut JweHeader,
     ) -> Result<Option<Cow<[u8]>>, JoseError> {
         Ok(None)
     }
 
     fn encrypt(
         &self,
-        header: &mut JweHeader,
         key: &[u8],
+        _in_header: &JweHeader,
+        out_header: &mut JweHeader,
     ) -> Result<Option<Vec<u8>>, JoseError> {
         (|| -> anyhow::Result<Option<Vec<u8>>> {
             let iv = util::rand_bytes(32);
@@ -247,10 +249,10 @@ impl JweEncrypter for AesgcmkwJweEncrypter {
                 symm::encrypt_aead(cipher, &self.private_key, Some(&iv), b"", &key, &mut tag)?;
 
             let iv = base64::encode_config(&iv, base64::URL_SAFE_NO_PAD);
-            header.set_claim("iv", Some(Value::String(iv)))?;
+            out_header.set_claim("iv", Some(Value::String(iv)))?;
 
             let tag = base64::encode_config(&tag, base64::URL_SAFE_NO_PAD);
-            header.set_claim("tag", Some(Value::String(tag)))?;
+            out_header.set_claim("tag", Some(Value::String(tag)))?;
 
             Ok(Some(encrypted_key))
         })()
@@ -304,9 +306,9 @@ impl JweDecrypter for AesgcmkwJweDecrypter {
 
     fn decrypt(
         &self,
-        header: &JweHeader,
         encrypted_key: Option<&[u8]>,
-        key_len: usize,
+        _key_len: usize,
+        header: &JweHeader,
     ) -> Result<Cow<[u8]>, JoseError> {
         (|| -> anyhow::Result<Cow<[u8]>> {
             let encrypted_key = match encrypted_key {
@@ -335,9 +337,6 @@ impl JweDecrypter for AesgcmkwJweDecrypter {
                 encrypted_key,
                 &tag,
             )?;
-            if key.len() != key_len {
-                bail!("The key size is expected to be {}: {}", key_len, key.len());
-            }
 
             Ok(Cow::Owned(key))
         })()
@@ -392,12 +391,12 @@ mod tests {
             };
 
             let encrypter = alg.encrypter_from_jwk(&jwk)?;
-            let key_len = enc.key_len();
-            let src_key = util::rand_bytes(key_len);
-            let encrypted_key = encrypter.encrypt(&mut header, &src_key)?;
+            let src_key = util::rand_bytes(enc.key_len());
+            let mut out_header = header.clone();
+            let encrypted_key = encrypter.encrypt(&src_key, &header, &mut out_header)?;
 
             let decrypter = alg.decrypter_from_jwk(&jwk)?;
-            let dst_key = decrypter.decrypt(&header, encrypted_key.as_deref(), enc.key_len())?;
+            let dst_key = decrypter.decrypt(encrypted_key.as_deref(), enc.key_len(), &out_header)?;
 
             assert_eq!(&src_key as &[u8], &dst_key as &[u8]);
         }

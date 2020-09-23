@@ -8,7 +8,7 @@ use openssl::aes::{self, AesKey};
 use openssl::pkcs5;
 use serde_json::{Number, Value};
 
-use crate::jwe::{JweAlgorithm, JweDecrypter, JweEncrypter, JweHeader};
+use crate::jwe::{JweAlgorithm, JweDecrypter, JweEncrypter, JweHeader, JweContentEncryption};
 use crate::jwk::Jwk;
 use crate::util;
 use crate::{HashAlgorithm, JoseError, JoseHeader};
@@ -241,19 +241,21 @@ impl JweEncrypter for Pbes2HmacAeskwJweEncrypter {
 
     fn compute_content_encryption_key(
         &self,
-        _header: &mut JweHeader,
-        _key_len: usize,
+        _cencryption: &dyn JweContentEncryption,
+        _in_header: &JweHeader,
+        _out_header: &mut JweHeader,
     ) -> Result<Option<Cow<[u8]>>, JoseError> {
         Ok(None)
     }
 
     fn encrypt(
         &self,
-        header: &mut JweHeader,
         key: &[u8],
+        in_header: &JweHeader,
+        out_header: &mut JweHeader,
     ) -> Result<Option<Vec<u8>>, JoseError> {
         (|| -> anyhow::Result<Option<Vec<u8>>> {
-            let p2s = match header.claim("p2s") {
+            let p2s = match in_header.claim("p2s") {
                 Some(Value::String(val)) => {
                     let p2s = base64::decode_config(val, base64::URL_SAFE_NO_PAD)?;
                     if p2s.len() < 8 {
@@ -265,11 +267,11 @@ impl JweEncrypter for Pbes2HmacAeskwJweEncrypter {
                 None => {
                     let p2s = util::rand_bytes(self.salt_len);
                     let p2s_b64 = base64::encode_config(&p2s, base64::URL_SAFE_NO_PAD);
-                    header.set_claim("p2s", Some(Value::String(p2s_b64)))?;
+                    out_header.set_claim("p2s", Some(Value::String(p2s_b64)))?;
                     p2s
                 }
             };
-            let p2c = match header.claim("p2c") {
+            let p2c = match in_header.claim("p2c") {
                 Some(Value::Number(val)) => match val.as_u64() {
                     Some(val) => usize::try_from(val)?,
                     None => bail!("Overflow u64 value: {}", val),
@@ -277,7 +279,7 @@ impl JweEncrypter for Pbes2HmacAeskwJweEncrypter {
                 Some(_) => bail!("The apv header claim must be string."),
                 None => {
                     let p2c = self.iter_count;
-                    header.set_claim("p2c", Some(Value::Number(Number::from(p2c))))?;
+                    out_header.set_claim("p2c", Some(Value::Number(Number::from(p2c))))?;
                     p2c
                 }
             };
@@ -355,9 +357,9 @@ impl JweDecrypter for Pbes2HmacAeskwJweDecrypter {
 
     fn decrypt(
         &self,
-        header: &JweHeader,
         encrypted_key: Option<&[u8]>,
-        key_len: usize,
+        _key_len: usize,
+        header: &JweHeader,
     ) -> Result<Cow<[u8]>, JoseError> {
         (|| -> anyhow::Result<Cow<[u8]>> {
             let encrypted_key = match encrypted_key {
@@ -399,7 +401,7 @@ impl JweDecrypter for Pbes2HmacAeskwJweDecrypter {
                 Err(_) => bail!("Failed to set a decryption key."),
             };
 
-            let mut key = vec![0; key_len];
+            let mut key = vec![0; encrypted_key.len() - 8];
             match aes::unwrap_key(&aes, None, &mut key, &encrypted_key) {
                 Ok(val) => {
                     if val < key.len() {
@@ -462,13 +464,13 @@ mod tests {
             };
 
             let encrypter = alg.encrypter_from_jwk(&jwk)?;
-            let key_len = enc.key_len();
-            let src_key = util::rand_bytes(key_len);
-            let encrypted_key = encrypter.encrypt(&mut header, &src_key)?;
+            let mut out_header = header.clone();
+            let src_key = util::rand_bytes(enc.key_len());
+            let encrypted_key = encrypter.encrypt(&src_key, &header, &mut out_header)?;
 
             let decrypter = alg.decrypter_from_jwk(&jwk)?;
 
-            let dst_key = decrypter.decrypt(&header, encrypted_key.as_deref(), enc.key_len())?;
+            let dst_key = decrypter.decrypt(encrypted_key.as_deref(), enc.key_len(), &out_header)?;
 
             assert_eq!(&src_key as &[u8], &dst_key as &[u8]);
         }

@@ -5,7 +5,7 @@ use std::ops::Deref;
 use anyhow::bail;
 use serde_json::Value;
 
-use crate::jwe::{JweAlgorithm, JweDecrypter, JweEncrypter, JweHeader};
+use crate::jwe::{JweAlgorithm, JweDecrypter, JweEncrypter, JweHeader, JweContentEncryption};
 use crate::jwk::Jwk;
 use crate::JoseError;
 
@@ -173,13 +173,14 @@ impl JweEncrypter for DirectJweEncrypter {
 
     fn compute_content_encryption_key(
             &self,
+            cencryption: &dyn JweContentEncryption,
+            _merged: &JweHeader,
             _header: &mut JweHeader,
-            key_len: usize,
         ) -> Result<Option<Cow<[u8]>>, JoseError> {
         (|| -> anyhow::Result<Option<Cow<[u8]>>> {
             let actual_len = self.cencryption_key.len();
-            if key_len != actual_len {
-                bail!("The key size is expected to be {}: {}", key_len, actual_len);
+            if cencryption.key_len() != actual_len {
+                bail!("The key size is expected to be {}: {}", cencryption.key_len(), actual_len);
             }
 
             Ok(Some(Cow::Borrowed(&self.cencryption_key)))
@@ -189,8 +190,9 @@ impl JweEncrypter for DirectJweEncrypter {
 
     fn encrypt(
         &self,
-        _header: &mut JweHeader,
         _key: &[u8],
+        _merged: &JweHeader,
+        _header: &mut JweHeader,
     ) -> Result<Option<Vec<u8>>, JoseError> {
         Ok(None)
     }
@@ -239,18 +241,13 @@ impl JweDecrypter for DirectJweDecrypter {
 
     fn decrypt(
         &self,
-        _header: &JweHeader,
         encrypted_key: Option<&[u8]>,
-        key_len: usize,
+        _key_len: usize,
+        _header: &JweHeader,
     ) -> Result<Cow<[u8]>, JoseError> {
         (|| -> anyhow::Result<Cow<[u8]>> {
             if let Some(_) = encrypted_key {
                 bail!("The encrypted_key must not exist.");
-            }
-
-            let actual_len = self.cencryption_key.len();
-            if actual_len != key_len {
-                bail!("The key size is expected to be {}: {}", key_len, actual_len);
             }
 
             Ok(Cow::Borrowed(&self.cencryption_key))
@@ -299,13 +296,14 @@ mod tests {
             header.set_content_encryption(enc.name());
 
             let encrypter = alg.encrypter_from_jwk(&jwk)?;
-            let src_key = encrypter.compute_content_encryption_key(&mut header, enc.key_len())?;
+            let mut out_header = header.clone();
+            let src_key = encrypter.compute_content_encryption_key(&enc, &header, &mut out_header)?;
             let src_key = src_key.unwrap();
-            let encrypted_key = encrypter.encrypt(&mut header, &src_key)?;
+            let encrypted_key = encrypter.encrypt(&src_key, &header, &mut out_header)?;
             assert_eq!(encrypted_key, None);
 
             let decrypter = alg.decrypter_from_jwk(&jwk)?;
-            let dst_key = decrypter.decrypt(&header, encrypted_key.as_deref(), enc.key_len())?;
+            let dst_key = decrypter.decrypt(encrypted_key.as_deref(), enc.key_len(), &out_header)?;
 
             assert_eq!(&src_key, &dst_key);
         }

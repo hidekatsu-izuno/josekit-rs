@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 use std::fmt::Debug;
 
-use crate::jwe::JweHeader;
+use crate::jwe::{JweHeader, JweContentEncryption};
 use crate::JoseError;
 
 /// Represent a algorithm of JWE alg header claim.
@@ -36,8 +36,9 @@ pub trait JweEncrypter: Debug + Send + Sync {
 
     fn compute_content_encryption_key(
         &self,
-        header: &mut JweHeader,
-        key_len: usize,
+        cencryption: &dyn JweContentEncryption,
+        in_header: &JweHeader,
+        out_header: &mut JweHeader,
     ) -> Result<Option<Cow<[u8]>>, JoseError>;
 
     /// Return a content encryption key and encypted data.
@@ -47,8 +48,9 @@ pub trait JweEncrypter: Debug + Send + Sync {
     /// * `key_len` - the length of the content encryption key
     fn encrypt(
         &self,
-        header: &mut JweHeader,
         key: &[u8],
+        in_header: &JweHeader,
+        out_header: &mut JweHeader,
     ) -> Result<Option<Vec<u8>>, JoseError>;
 
     fn box_clone(&self) -> Box<dyn JweEncrypter>;
@@ -72,14 +74,14 @@ pub trait JweDecrypter: Debug + Send + Sync {
     ///
     /// # Arguments
     ///
-    /// * `header` - The header
     /// * `encrypted_key` - The encrypted key.
     /// * `key_len` - the length of the content encryption key
+    /// * `header` - The header
     fn decrypt(
         &self,
-        header: &JweHeader,
         encrypted_key: Option<&[u8]>,
         key_len: usize,
+        header: &JweHeader,
     ) -> Result<Cow<[u8]>, JoseError>;
 
     fn box_clone(&self) -> Box<dyn JweDecrypter>;
