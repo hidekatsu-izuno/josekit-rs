@@ -96,9 +96,9 @@ impl JwsHeader {
     ///
     /// * `value` - a JWK
     pub fn set_jwk(&mut self, value: Jwk) {
-        let key = "jwk".to_string();
+        let key = "jwk";
         let value: Map<String, Value> = value.into();
-        self.claims.insert(key.clone(), Value::Object(value));
+        self.claims.insert(key.to_string(), Value::Object(value));
     }
 
     /// Return the value for JWK header claim (jwk).
@@ -136,7 +136,7 @@ impl JwsHeader {
     ///
     /// * `values` - X.509 certificate chain
     pub fn set_x509_certificate_chain(&mut self, values: &Vec<impl AsRef<[u8]>>) {
-        let key = "x5c".to_string();
+        let key = "x5c";
         let mut vec = Vec::with_capacity(values.len());
         for val in values {
             vec.push(Value::String(base64::encode_config(
@@ -144,7 +144,7 @@ impl JwsHeader {
                 base64::URL_SAFE_NO_PAD,
             )));
         }
-        self.claims.insert(key.clone(), Value::Array(vec));
+        self.claims.insert(key.to_string(), Value::Array(vec));
     }
 
     /// Return values for a X.509 certificate chain header claim (x5c).
@@ -175,9 +175,9 @@ impl JwsHeader {
     ///
     /// * `value` - A X.509 certificate SHA-1 thumbprint
     pub fn set_x509_certificate_sha1_thumbprint(&mut self, value: impl AsRef<[u8]>) {
-        let key = "x5t".to_string();
+        let key = "x5t";
         let val = base64::encode_config(&value, base64::URL_SAFE_NO_PAD);
-        self.claims.insert(key.clone(), Value::String(val));
+        self.claims.insert(key.to_string(), Value::String(val));
     }
 
     /// Return the value for X.509 certificate SHA-1 thumbprint header claim (x5t).
@@ -197,9 +197,9 @@ impl JwsHeader {
     ///
     /// * `value` - A x509 certificate SHA-256 thumbprint
     pub fn set_x509_certificate_sha256_thumbprint(&mut self, value: impl AsRef<[u8]>) {
-        let key = "x5t#S256".to_string();
+        let key = "x5t#S256";
         let val = base64::encode_config(&value, base64::URL_SAFE_NO_PAD);
-        self.claims.insert(key.clone(), Value::String(val));
+        self.claims.insert(key.to_string(), Value::String(val));
     }
 
     /// Return the value for X.509 certificate SHA-256 thumbprint header claim (x5t#S256).
@@ -273,13 +273,11 @@ impl JwsHeader {
     ///
     /// * `values` - critical claim names
     pub fn set_critical(&mut self, values: &Vec<impl AsRef<str>>) {
-        let key = "crit".to_string();
-        let mut vec = Vec::with_capacity(values.len());
-        for val in values {
-            let val: String = val.as_ref().to_string();
-            vec.push(Value::String(val));
-        }
-        self.claims.insert(key.clone(), Value::Array(vec));
+        let key = "crit";
+        let vec = values.iter()
+            .map(|v| Value::String(v.as_ref().to_string()))
+            .collect();
+        self.claims.insert(key.to_string(), Value::Array(vec));
     }
 
     /// Return values for critical header claim (crit).
@@ -340,9 +338,9 @@ impl JwsHeader {
     ///
     /// * `value` - A nonce
     pub fn set_nonce(&mut self, value: impl AsRef<[u8]>) {
-        let key = "nonce".to_string();
+        let key = "nonce";
         let val = base64::encode_config(&value, base64::URL_SAFE_NO_PAD);
-        self.claims.insert(key.clone(), Value::String(val));
+        self.claims.insert(key.to_string(), Value::String(val));
     }
 
     /// Return the value for nonce header claim (nonce).
@@ -386,7 +384,7 @@ impl JwsHeader {
         self.claims
     }
 
-    fn check_claim(key: &str, value: &Value) -> Result<(), JoseError> {
+    pub(crate) fn check_claim(key: &str, value: &Value) -> Result<(), JoseError> {
         (|| -> anyhow::Result<()> {
             match key {
                 "alg" | "jku" | "x5u" | "kid" | "typ" | "cty" | "url" => match &value {

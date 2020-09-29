@@ -86,7 +86,7 @@ where
 /// * `signers` - The JWS signer.
 pub fn serialize_general_json(
     payload: &[u8],
-    signers: &[(Option<&JwsHeader>, Option<&JwsHeader>, &dyn JwsSigner)],
+    signers: &[(&JwsHeaderSet, &dyn JwsSigner)],
 ) -> Result<String, JoseError> {
     DEFAULT_CONTEXT.serialize_general_json(payload, signers)
 }
@@ -96,15 +96,15 @@ pub fn serialize_general_json(
 /// # Arguments
 ///
 /// * `payload` - The payload data.
-/// * `headers` - The JWS headers.
+/// * `headers` - The protected and unprotected header claims.
 /// * `selector` - a function for selecting the signing algorithm.
 pub fn serialize_general_json_with_selecter<'a, F>(
     payload: &[u8],
-    headers: &[(Option<&JwsHeader>, Option<&JwsHeader>)],
+    headers: &[&JwsHeaderSet],
     selector: F,
 ) -> Result<String, JoseError>
 where
-    F: Fn(usize, &JwsHeader) -> Option<&'a dyn JwsSigner>,
+    F: Fn(usize, &JwsHeaderSet) -> Option<&'a dyn JwsSigner>,
 {
     DEFAULT_CONTEXT.serialize_general_json_with_selecter(payload, headers, selector)
 }
@@ -114,16 +114,14 @@ where
 /// # Arguments
 ///
 /// * `payload` - The payload data.
-/// * `protected` - The JWS protected header claims.
-/// * `header` - The JWS unprotected header claims.
+/// * `header` - The JWS protected and unprotected header claims.
 /// * `signer` - The JWS signer.
 pub fn serialize_flattened_json(
     payload: &[u8],
-    protected: Option<&JwsHeader>,
-    header: Option<&JwsHeader>,
+    header: &JwsHeaderSet,
     signer: &dyn JwsSigner,
 ) -> Result<String, JoseError> {
-    DEFAULT_CONTEXT.serialize_flattened_json(payload, protected, header, signer)
+    DEFAULT_CONTEXT.serialize_flattened_json(payload, header, signer)
 }
 
 /// Return a representation of the data that is formatted by flatted json serialization.
@@ -131,19 +129,17 @@ pub fn serialize_flattened_json(
 /// # Arguments
 ///
 /// * `payload` - The payload data.
-/// * `protected` - The JWS protected header claims.
-/// * `header` - The JWS unprotected header claims.
+/// * `header` - The JWS protected and unprotected header claims.
 /// * `selector` - a function for selecting the signing algorithm.
 pub fn serialize_flattened_json_with_selector<'a, F>(
     payload: &[u8],
-    protected: Option<&JwsHeader>,
-    header: Option<&JwsHeader>,
+    header: &JwsHeaderSet,
     selector: F,
 ) -> Result<String, JoseError>
 where
-    F: Fn(&JwsHeader) -> Option<&'a dyn JwsSigner>,
+    F: Fn(&JwsHeaderSet) -> Option<&'a dyn JwsSigner>,
 {
-    DEFAULT_CONTEXT.serialize_flattened_json_with_selector(payload, protected, header, selector)
+    DEFAULT_CONTEXT.serialize_flattened_json_with_selector(payload, header, selector)
 }
 
 /// Deserialize the input that is formatted by compact serialization.
@@ -210,7 +206,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::jws::{self, EdDSA, JwsHeader, JwsSigner, ES256, RS256};
+    use crate::jws::{self, EdDSA, JwsHeader, JwsHeaderSet, JwsSigner, ES256, RS256};
     use anyhow::Result;
     use serde_json::Value;
     use std::fs;
@@ -247,23 +243,21 @@ mod tests {
         let public_key = load_file("pem/RSA_2048bit_public.pem")?;
 
         let src_payload = b"test payload!";
-        let mut src_protected = JwsHeader::new();
-        src_protected.set_key_id("xxx");
-        let mut src_header = JwsHeader::new();
-        src_header.set_token_type("JWT");
+        let mut src_header = JwsHeaderSet::new();
+        src_header.set_key_id("xxx", true);
+        src_header.set_token_type("JWT", false);
         let signer = alg.signer_from_pem(&private_key)?;
         let jwt = jws::serialize_flattened_json(
             src_payload,
-            Some(&src_protected),
-            Some(&src_header),
+            &src_header,
             &signer,
         )?;
 
         let verifier = alg.verifier_from_pem(&public_key)?;
         let (dst_payload, dst_header) = jws::deserialize_json(&jwt, &verifier)?;
 
-        src_header.set_claim("alg", Some(Value::String(alg.name().to_string())))?;
-        assert_eq!(src_protected.key_id(), dst_header.key_id());
+        src_header.set_algorithm(alg.name(), true);
+        assert_eq!(src_header.key_id(), dst_header.key_id());
         assert_eq!(src_header.token_type(), dst_header.token_type());
         assert_eq!(src_payload.to_vec(), dst_payload);
 
@@ -280,40 +274,34 @@ mod tests {
 
         let src_payload = b"test payload!";
 
-        let mut src_protected_1 = JwsHeader::new();
-        src_protected_1.set_key_id("xxx-1");
-        let mut src_header_1 = JwsHeader::new();
-        src_header_1.set_token_type("JWT-1");
+        let mut src_header_1 = JwsHeaderSet::new();
+        src_header_1.set_key_id("xxx-1", true);
+        src_header_1.set_token_type("JWT-1", false);
         let signer_1 = RS256.signer_from_pem(&private_key_1)?;
 
-        let mut src_protected_2 = JwsHeader::new();
-        src_protected_2.set_key_id("xxx-2");
-        let mut src_header_2 = JwsHeader::new();
-        src_header_2.set_token_type("JWT-2");
+        let mut src_header_2 = JwsHeaderSet::new();
+        src_header_2.set_key_id("xxx-2", true);
+        src_header_2.set_token_type("JWT-2", false);
         let signer_2 = ES256.signer_from_pem(&private_key_2)?;
 
-        let mut src_protected_3 = JwsHeader::new();
-        src_protected_3.set_key_id("xxx-3");
-        let mut src_header_3 = JwsHeader::new();
-        src_header_3.set_token_type("JWT-3");
+        let mut src_header_3 = JwsHeaderSet::new();
+        src_header_3.set_key_id("xxx-3", true);
+        src_header_3.set_token_type("JWT-3", false);
         let signer_3 = EdDSA.signer_from_pem(&private_key_3)?;
 
         let json = jws::serialize_general_json(
             src_payload,
             vec![
                 (
-                    Some(&src_protected_1),
-                    Some(&src_header_1),
+                    &src_header_1,
                     &signer_1 as &dyn JwsSigner,
                 ),
                 (
-                    Some(&src_protected_2),
-                    Some(&src_header_2),
+                    &src_header_2,
                     &signer_2 as &dyn JwsSigner,
                 ),
                 (
-                    Some(&src_protected_3),
-                    Some(&src_header_3),
+                    &src_header_3,
                     &signer_3 as &dyn JwsSigner,
                 ),
             ]
@@ -324,7 +312,7 @@ mod tests {
         let (dst_payload, dst_header) = jws::deserialize_json(&json, &verifier)?;
 
         assert_eq!(dst_header.algorithm(), Some("ES256"));
-        assert_eq!(src_protected_2.key_id(), dst_header.key_id());
+        assert_eq!(src_header_2.key_id(), dst_header.key_id());
         assert_eq!(src_header_2.token_type(), dst_header.token_type());
         assert_eq!(src_payload.to_vec(), dst_payload);
 

@@ -4,7 +4,7 @@ use std::fmt::Debug;
 use anyhow::bail;
 use serde_json::{Map, Value};
 
-use crate::jws::{JwsHeader, JwsSigner, JwsVerifier};
+use crate::jws::{JwsHeader, JwsHeaderSet, JwsSigner, JwsVerifier};
 use crate::util;
 use crate::JoseError;
 
@@ -150,16 +150,16 @@ impl JwsContext {
     pub fn serialize_general_json(
         &self,
         payload: &[u8],
-        signers: &[(Option<&JwsHeader>, Option<&JwsHeader>, &dyn JwsSigner)],
+        signers: &[(&JwsHeaderSet, &dyn JwsSigner)],
     ) -> Result<String, JoseError> {
         self.serialize_general_json_with_selecter(
             payload,
             signers
                 .iter()
-                .map(|(protected, header, _)| (protected.as_deref(), header.as_deref()))
-                .collect::<Vec<(Option<&JwsHeader>, Option<&JwsHeader>)>>()
+                .map(|signer| signer.0)
+                .collect::<Vec<&JwsHeaderSet>>()
                 .as_slice(),
-            |i, _header| Some(signers[i].2),
+            |i, _header| Some(signers[i].1),
         )
     }
 
@@ -173,78 +173,76 @@ impl JwsContext {
     pub fn serialize_general_json_with_selecter<'a, F>(
         &self,
         payload: &[u8],
-        headers: &[(Option<&JwsHeader>, Option<&JwsHeader>)],
+        headers: &[&JwsHeaderSet],
         selector: F,
     ) -> Result<String, JoseError>
     where
-        F: Fn(usize, &JwsHeader) -> Option<&'a dyn JwsSigner>,
+        F: Fn(usize, &JwsHeaderSet) -> Option<&'a dyn JwsSigner>,
     {
         (|| -> anyhow::Result<String> {
             let payload_b64 = base64::encode_config(payload, base64::URL_SAFE_NO_PAD);
 
-            let mut json = String::new();
-            json.push_str("{\"signatures\":[");
+            let mut result = String::new();
+            result.push_str("{\"signatures\":[");
 
-            for (i, (protected, header)) in headers.iter().enumerate() {
-                if i > 0 {
-                    json.push_str(",");
-                }
-
-                let mut merged_map = match protected {
-                    Some(val) => val.claims_set().clone(),
-                    None => Map::new(),
-                };
-                if let Some(val) = header {
-                    for (key, value) in val.claims_set() {
-                        if merged_map.contains_key(key) {
-                            bail!("Duplicate key exists: {}", key);
-                        }
-                        merged_map.insert(key.clone(), value.clone());
-                    }
-                }
-
-                let merged = JwsHeader::from_map(merged_map)?;
-                let signer = match selector(i, &merged) {
+            for (i, header) in headers.iter().enumerate() {
+                let signer = match selector(i, *header) {
                     Some(val) => val,
                     None => bail!("A signer is not found."),
                 };
 
-                let mut protected = match protected {
-                    Some(val) => val.claims_set().clone(),
-                    None => Map::new(),
-                };
-                protected.insert(
-                    "alg".to_string(),
-                    Value::String(signer.algorithm().name().to_string()),
-                );
+                let mut protected_map = header.claims_set(true).clone();
 
-                let protected_bytes = serde_json::to_vec(&protected)?;
+                match header.algorithm() {
+                    Some(val) if val == signer.algorithm().name() => {},
+                    Some(_) => bail!("A signer is unmatched."),
+                    None => {
+                        protected_map.insert(
+                            "alg".to_string(),
+                            Value::String(signer.algorithm().name().to_string()),
+                        );
+                    }
+                }
+
+                if let None = header.key_id() {
+                    if let Some(key_id) = signer.key_id() {
+                        protected_map.insert("kid".to_string(), Value::String(key_id.to_string()));
+                    }
+                }
+
+                if i > 0 {
+                    result.push_str(",");
+                }
+
+                let protected_bytes = serde_json::to_vec(&protected_map)?;
                 let protected_b64 =
                     base64::encode_config(&protected_bytes, base64::URL_SAFE_NO_PAD);
+
+                let unprotected_map = header.claims_set(false);
 
                 let message = format!("{}.{}", &protected_b64, &payload_b64);
                 let signature = signer.sign(message.as_bytes())?;
 
-                json.push_str("{\"protected\":\"");
-                json.push_str(&protected_b64);
-                json.push_str("\"");
+                result.push_str("{\"protected\":\"");
+                result.push_str(&protected_b64);
+                result.push_str("\"");
 
-                if let Some(val) = header {
-                    let header = serde_json::to_string(val.claims_set())?;
-                    json.push_str(",\"header\":");
-                    json.push_str(&header);
+                if unprotected_map.len() > 0 {
+                    let unprotected = serde_json::to_string(&unprotected_map)?;
+                    result.push_str(",\"header\":");
+                    result.push_str(&unprotected);
                 }
 
-                json.push_str(",\"signature\":\"");
-                base64::encode_config_buf(&signature, base64::URL_SAFE_NO_PAD, &mut json);
-                json.push_str("\"}");
+                result.push_str(",\"signature\":\"");
+                base64::encode_config_buf(&signature, base64::URL_SAFE_NO_PAD, &mut result);
+                result.push_str("\"}");
             }
 
-            json.push_str("],\"payload\":\"");
-            json.push_str(&payload_b64);
-            json.push_str("\"}");
+            result.push_str("],\"payload\":\"");
+            result.push_str(&payload_b64);
+            result.push_str("\"}");
 
-            Ok(json)
+            Ok(result)
         })()
         .map_err(|err| match err.downcast::<JoseError>() {
             Ok(err) => err,
@@ -257,17 +255,15 @@ impl JwsContext {
     /// # Arguments
     ///
     /// * `payload` - The payload data.
-    /// * `protected` - The JWS protected header claims.
-    /// * `header` - The JWS unprotected header claims.
+    /// * `header` - The JWS protected and unprotected header claims.
     /// * `signer` - The JWS signer.
     pub fn serialize_flattened_json(
         &self,
         payload: &[u8],
-        protected: Option<&JwsHeader>,
-        header: Option<&JwsHeader>,
+        header: &JwsHeaderSet,
         signer: &dyn JwsSigner,
     ) -> Result<String, JoseError> {
-        self.serialize_flattened_json_with_selector(payload, protected, header, |_header| {
+        self.serialize_flattened_json_with_selector(payload, header, |_header| {
             Some(signer)
         })
     }
@@ -277,53 +273,41 @@ impl JwsContext {
     /// # Arguments
     ///
     /// * `payload` - The payload data.
-    /// * `protected` - The JWS protected header claims.
-    /// * `header` - The JWS unprotected header claims.
+    /// * `header` - The JWS protected and unprotected header claims.
     /// * `selector` - a function for selecting the signing algorithm.
     pub fn serialize_flattened_json_with_selector<'a, F>(
         &self,
         payload: &[u8],
-        protected: Option<&JwsHeader>,
-        header: Option<&JwsHeader>,
+        header: &JwsHeaderSet,
         selector: F,
     ) -> Result<String, JoseError>
     where
-        F: Fn(&JwsHeader) -> Option<&'a dyn JwsSigner>,
+        F: Fn(&JwsHeaderSet) -> Option<&'a dyn JwsSigner>,
     {
         (|| -> anyhow::Result<String> {
+            let protected_map = header.claims_set(true);
             let mut b64 = true;
-
-            let mut protected_map = if let Some(val) = protected {
-                if let Some(vals) = val.critical() {
-                    if vals.contains(&"b64") {
-                        if let Some(val) = val.base64url_encode_payload() {
-                            b64 = val;
-                        }
+            match protected_map.get("crit") {
+                Some(Value::Array(vals)) => {
+                    if vals.iter().any(|val| match val {
+                        Value::String(val2) => val2 == "b64",
+                        _ => false
+                    }) {
+                        b64 = match protected_map.get("b64") {
+                            Some(Value::Bool(val3)) => *val3,
+                            _ => false
+                        };
                     }
-                }
-
-                val.claims_set().clone()
-            } else {
-                Map::new()
-            };
-
-            let mut map = protected_map.clone();
-
-            if let Some(val) = header {
-                for (key, value) in val.claims_set() {
-                    if map.contains_key(key) {
-                        bail!("Duplicate key exists: {}", key);
-                    }
-                    map.insert(key.clone(), value.clone());
-                }
+                },
+                _ => {}
             }
 
-            let combined = JwsHeader::from_map(map)?;
-            let signer = match selector(&combined) {
+            let signer = match selector(header) {
                 Some(val) => val,
                 None => bail!("A signer is not found."),
             };
 
+            let mut protected_map = protected_map.clone();
             protected_map.insert(
                 "alg".to_string(),
                 Value::String(signer.algorithm().name().to_string()),
@@ -351,10 +335,11 @@ impl JwsContext {
             json.push_str(&protected_b64);
             json.push_str("\"");
 
-            if let Some(val) = &header {
-                let header = serde_json::to_string(val.claims_set())?;
+            let unprotected = header.claims_set(false);
+            if unprotected.len() > 0 {
+                let unprotcted_json = serde_json::to_string(unprotected)?;
                 json.push_str(",\"header\":");
-                json.push_str(&header);
+                json.push_str(&unprotcted_json);
             }
 
             json.push_str(",\"payload\":\"");
@@ -568,32 +553,56 @@ impl JwsContext {
             for mut sig in signatures {
                 let header = sig.remove("header");
 
-                let (protected, protected_b64) = match sig.get("protected") {
-                    Some(Value::String(val)) => {
-                        let vec = base64::decode_config(&val, base64::URL_SAFE_NO_PAD)?;
-                        let json: Map<String, Value> = serde_json::from_slice(&vec)?;
-                        (json, val)
-                    }
+                let protected_b64 = match sig.get("protected") {
+                    Some(Value::String(val)) => val,
                     Some(_) => bail!("The protected field must be a string."),
                     None => bail!("The JWS alg header claim must be in protected."),
                 };
 
-                if let None = protected.get("alg") {
-                    bail!("The JWS alg header claim must be in protected.");
+                let protected_vec = base64::decode_config(&protected_b64, base64::URL_SAFE_NO_PAD)?;
+                let protected_map: Map<String, Value> = serde_json::from_slice(&protected_vec)?;
+
+                let mut b64 = true;
+                if let Some(Value::Array(vals)) = protected_map.get("critical") {
+                    for val in vals {
+                        match val {
+                            Value::String(name) => {
+                                if !self.is_acceptable_critical(name) {
+                                    bail!("The critical name '{}' is not supported.", name);
+                                }
+
+                                if name == "b64" {
+                                    match protected_map.get("b64") {
+                                        Some(Value::Bool(b64_val)) => {
+                                            b64 = *b64_val;
+                                        }
+                                        Some(_) => bail!("The JWS b64 header claim must be bool."),
+                                        None => {}
+                                    }
+                                }
+                            }
+                            _ => bail!("The JWS critical header claim must be a array of string."),
+                        }
+                    }
                 }
 
-                let mut merged = match header {
-                    Some(Value::Object(val)) => val,
+                let merged_map = match header {
+                    Some(Value::Object(mut val)) => {
+                        for (key, value) in protected_map {
+                            if val.contains_key(&key) {
+                                bail!("A duplicate key exists: {}", key);
+                            } else {
+                                val.insert(key.clone(), value.clone());
+                            }
+                        }
+                        val
+                    },
                     Some(_) => bail!("The protected field must be a object."),
-                    None => protected.clone(),
+                    None => protected_map.clone(),
                 };
-
-                for (key, value) in &protected {
-                    if merged.contains_key(key) {
-                        bail!("A duplicate key exists: {}", key);
-                    } else {
-                        merged.insert(key.clone(), value.clone());
-                    }
+                
+                if let None = merged_map.get("alg") {
+                    bail!("The JWS alg header claim must be in protected.");
                 }
 
                 let signature = match sig.get("signature") {
@@ -604,7 +613,7 @@ impl JwsContext {
                     None => bail!("The signature field is required."),
                 };
 
-                let merged = JwsHeader::from_map(merged)?;
+                let merged = JwsHeader::from_map(merged_map)?;
                 let verifier = match selector(&merged)? {
                     Some(val) => val,
                     None => continue,
@@ -628,30 +637,6 @@ impl JwsContext {
                         None => bail!("The JWS kid header claim is required."),
                     },
                     None => {}
-                }
-
-                let mut b64 = true;
-                if let Some(Value::Array(vals)) = protected.get("critical") {
-                    for val in vals {
-                        match val {
-                            Value::String(name) => {
-                                if !self.is_acceptable_critical(name) {
-                                    bail!("The critical name '{}' is not supported.", name);
-                                }
-
-                                if name == "b64" {
-                                    match protected.get("b64") {
-                                        Some(Value::Bool(b64_val)) => {
-                                            b64 = *b64_val;
-                                        }
-                                        Some(_) => bail!("The JWS b64 header claim must be bool."),
-                                        None => {}
-                                    }
-                                }
-                            }
-                            _ => bail!("The JWS critical header claim must be a array of string."),
-                        }
-                    }
                 }
 
                 let message = format!("{}.{}", &protected_b64, &payload_b64);
