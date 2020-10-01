@@ -248,7 +248,7 @@ mod tests {
     use anyhow::Result;
 
     use crate::jwe::{
-        self, Dir, JweAlgorithm, JweEncrypter, JweHeader, JweHeaderSet, ECDH_ES_A128KW,
+        self, Dir, JweAlgorithm, JweHeader, JweHeaderSet, ECDH_ES_A128KW,
         PBES2_HS256_A128KW, RSA_OAEP,
     };
     use crate::jwk::Jwk;
@@ -365,9 +365,9 @@ mod tests {
             src_payload,
             Some(&src_header),
             &vec![
-                (Some(&src_rheader_1), &encrypter_1 as &dyn JweEncrypter),
-                (Some(&src_rheader_2), &encrypter_2 as &dyn JweEncrypter),
-                (Some(&src_rheader_3), &encrypter_3 as &dyn JweEncrypter),
+                (Some(&src_rheader_1), &*encrypter_1),
+                (Some(&src_rheader_2), &*encrypter_2),
+                (Some(&src_rheader_3), &*encrypter_3),
             ],
             None,
         )?;

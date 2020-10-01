@@ -211,7 +211,7 @@ mod tests {
 
     use anyhow::Result;
 
-    use crate::jws::{self, EdDSA, JwsHeader, JwsHeaderSet, JwsSigner, ES256, RS256};
+    use crate::jws::{self, EdDSA, JwsHeader, JwsHeaderSet, ES256, RS256};
     use crate::Value;
 
     #[test]
@@ -290,9 +290,9 @@ mod tests {
         let json = jws::serialize_general_json(
             src_payload,
             &vec![
-                (&src_header_1, &signer_1 as &dyn JwsSigner),
-                (&src_header_2, &signer_2 as &dyn JwsSigner),
-                (&src_header_3, &signer_3 as &dyn JwsSigner),
+                (&src_header_1, &*signer_1),
+                (&src_header_2, &*signer_2),
+                (&src_header_3, &*signer_3),
             ],
         )?;
 
