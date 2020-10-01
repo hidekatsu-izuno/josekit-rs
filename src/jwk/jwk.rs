@@ -105,9 +105,9 @@ impl Jwk {
     ///
     /// # Arguments
     /// * `curve` - A Ecx curve algorithm
-    pub fn generate_ecx_key(curve: EcxCurve) -> Self {
-        let keypair = EcxKeyPair::generate(curve).unwrap();
-        keypair.to_jwk_keypair()
+    pub fn generate_ecx_key(curve: EcxCurve) -> Result<Self, JoseError> {
+        let keypair = EcxKeyPair::generate(curve)?;
+        Ok(keypair.to_jwk_keypair())
     }
 
     /// Generate private key from private key.
