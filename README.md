@@ -6,7 +6,7 @@ JOSE (Javascript Object Signing and Encryption: JWT, JWS, JWE, JWA, JWK) library
 
 ```toml
 [dependencies]
-josekit = "0.4.1"
+josekit = "0.5.0"
 ```
 
 This library depends on OpenSSL DLL. Read more about [Crate openssl](https://docs.rs/openssl/). 
@@ -33,17 +33,17 @@ cargo build --release
     <tr>
         <td>HS256</td>
         <td>HMAC using SHA-256</td>
-        <td>oct (size: 256 bits or more)</td>
+        <td>oct (size: 32 bytes or more)</td>
     </tr>
     <tr>
         <td>HS384</td>
         <td>HMAC using SHA-384</td>
-        <td>oct (size: 384 bits or more)</td>
+        <td>oct (size: 48 bytes or more)</td>
     </tr>
     <tr>
         <td>HS512</td>
         <td>HMAC using SHA-512</td>
-        <td>oct (size: 512 bits or more)</td>
+        <td>oct (size: 64 bytes or more)</td>
     </tr>
     <tr>
         <td>RS256</td>
@@ -149,37 +149,37 @@ cargo build --release
     <tr>
         <td>A128KW</td>
         <td>AES Key Wrap with default initial value using 128-bit key</td>
-        <td>oct (size: 128 bits)</td>
+        <td>oct (size: 16 bytes)</td>
     </tr>
     <tr>
         <td>A192KW</td>
         <td>AES Key Wrap with default initial value using 192-bit key</td>
-        <td>oct (size: 192 bits)</td>
+        <td>oct (size: 24 bytes)</td>
     </tr>
     <tr>
         <td>A256KW</td>
         <td>AES Key Wrap with default initial value using 256-bit key</td>
-        <td>oct (size: 256 bits)</td>
+        <td>oct (size: 32 bytes)</td>
     </tr>
     <tr>
         <td>A128GCMKW</td>
         <td>Key wrapping with AES GCM using 128-bit key</td>
-        <td>oct (size: 128 bits)</td>
+        <td>oct (size: 16 bytes)</td>
     </tr>
     <tr>
         <td>A192GCMKW</td>
         <td>Key wrapping with AES GCM using 192-bit key</td>
-        <td>oct (size: 192 bits)</td>
+        <td>oct (size: 24 bytes)</td>
     </tr>
     <tr>
         <td>A256GCMKW</td>
         <td>Key wrapping with AES GCM using 256-bit key</td>
-        <td>oct (size: 256 bits)</td>
+        <td>oct (size: 32 bytes)</td>
     </tr>
     <tr>
         <td>PBES2-HS256+A128KW</td>
         <td>PBES2 with HMAC SHA-256 and "A128KW" wrapping</td>
-        <td rowspan="3">oct (size: 1 or more)</td>
+        <td rowspan="3">oct (size: 1 bytes or more)</td>
     </tr>
     <tr>
         <td>PBES2-HS384+A192KW</td>
