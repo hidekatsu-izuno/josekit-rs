@@ -4,11 +4,10 @@ use std::ops::Deref;
 use anyhow::bail;
 use openssl::pkey::{PKey, Private};
 use openssl::sign::Signer;
-use serde_json::Value;
 
 use crate::jwk::Jwk;
 use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier};
-use crate::{HashAlgorithm, JoseError};
+use crate::{HashAlgorithm, JoseError, Value};
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum HmacJwsAlgorithm {

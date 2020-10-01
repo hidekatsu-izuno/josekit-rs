@@ -6,13 +6,12 @@ use anyhow::bail;
 use openssl::hash::MessageDigest;
 use openssl::pkey::{PKey, Private, Public};
 use openssl::rsa::Padding;
-use serde_json::Value;
 
 use crate::der::{DerBuilder, DerType};
 use crate::jwe::{JweAlgorithm, JweContentEncryption, JweDecrypter, JweEncrypter, JweHeader};
 use crate::jwk::{alg::rsa::RsaKeyPair, Jwk};
 use crate::util;
-use crate::JoseError;
+use crate::{JoseError, Value};
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum RsaesJweAlgorithm {

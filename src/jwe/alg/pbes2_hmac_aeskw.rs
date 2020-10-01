@@ -6,12 +6,11 @@ use std::ops::Deref;
 use anyhow::bail;
 use openssl::aes::{self, AesKey};
 use openssl::pkcs5;
-use serde_json::{Number, Value};
 
 use crate::jwe::{JweAlgorithm, JweContentEncryption, JweDecrypter, JweEncrypter, JweHeader};
 use crate::jwk::Jwk;
 use crate::util;
-use crate::{HashAlgorithm, JoseError, JoseHeader};
+use crate::{HashAlgorithm, JoseError, JoseHeader, Number, Value};
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum Pbes2HmacAeskwJweAlgorithm {

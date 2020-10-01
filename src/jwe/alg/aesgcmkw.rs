@@ -4,12 +4,11 @@ use std::ops::Deref;
 
 use anyhow::bail;
 use openssl::symm::{self, Cipher};
-use serde_json::Value;
 
 use crate::jwe::{JweAlgorithm, JweContentEncryption, JweDecrypter, JweEncrypter, JweHeader};
 use crate::jwk::Jwk;
 use crate::util;
-use crate::{JoseError, JoseHeader};
+use crate::{JoseError, JoseHeader, Value};
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum AesgcmkwJweAlgorithm {

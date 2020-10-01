@@ -1,21 +1,19 @@
 use std::fmt::{Debug, Display};
 use std::ops::Deref;
 
-use serde_json::{Map, Value};
-
+use crate::jwe::JweHeader;
 use crate::jwk::Jwk;
-use crate::jws::JwsHeader;
-use crate::{JoseError, JoseHeader};
+use crate::{JoseError, JoseHeader, Map, Value};
 
-/// Represent JWS protected and unprotected header claims
+/// Represent JWE protected and unprotected header claims
 #[derive(Debug, Eq, PartialEq, Clone)]
-pub struct JwsHeaderSet {
+pub struct JweHeaderSet {
     protected: Map<String, Value>,
     unprotected: Map<String, Value>,
 }
 
-impl JwsHeaderSet {
-    /// Return a JwsHeader instance.
+impl JweHeaderSet {
+    /// Return a JweHeader instance.
     pub fn new() -> Self {
         Self {
             protected: Map::new(),
@@ -46,6 +44,52 @@ impl JwsHeaderSet {
     pub fn algorithm(&self) -> Option<&str> {
         match self.claim("alg") {
             Some(Value::String(val)) => Some(&val),
+            _ => None,
+        }
+    }
+
+    /// Set a value for content encryption header claim (enc).
+    ///
+    /// # Arguments
+    ///
+    /// * `value` - a content encryption
+    /// * `protection` - If it dosen't need protection, set false.
+    pub fn set_content_encryption(&mut self, value: impl Into<String>, protection: bool) {
+        let key = "enc";
+        let value: String = value.into();
+        if protection {
+            self.unprotected.remove(key);
+            self.protected.insert(key.to_string(), Value::String(value));
+        } else {
+            self.protected.remove(key);
+            self.unprotected
+                .insert(key.to_string(), Value::String(value));
+        }
+    }
+
+    /// Return the value for content encryption header claim (enc).
+    pub fn content_encryption(&self) -> Option<&str> {
+        match self.claim("enc") {
+            Some(Value::String(val)) => Some(val),
+            _ => None,
+        }
+    }
+
+    /// Set a value for compression header claim (zip).
+    ///
+    /// # Arguments
+    ///
+    /// * `value` - a encryption
+    pub fn set_compression(&mut self, value: impl Into<String>) {
+        let value: String = value.into();
+        self.protected
+            .insert("zip".to_string(), Value::String(value));
+    }
+
+    /// Return the value for compression header claim (zip).
+    pub fn compression(&self) -> Option<&str> {
+        match self.protected.get("zip") {
+            Some(Value::String(val)) => Some(val),
             _ => None,
         }
     }
@@ -349,25 +393,6 @@ impl JwsHeaderSet {
         }
     }
 
-    /// Set a value for base64url-encode payload header claim (b64).
-    ///
-    /// # Arguments
-    ///
-    /// * `value` - is base64url-encode payload
-    pub fn set_base64url_encode_payload(&mut self, value: bool) {
-        let key = "b64";
-        self.unprotected.remove(key);
-        self.protected.insert(key.to_string(), Value::Bool(value));
-    }
-
-    /// Return the value for base64url-encode payload header claim (b64).
-    pub fn base64url_encode_payload(&self) -> Option<bool> {
-        match self.claim("b64") {
-            Some(Value::Bool(val)) => Some(*val),
-            _ => None,
-        }
-    }
-
     /// Set a value for url header claim (url).
     ///
     /// # Arguments
@@ -423,6 +448,172 @@ impl JwsHeaderSet {
         }
     }
 
+    /// Set a value for a agreement PartyUInfo header claim (apu).
+    ///
+    /// # Arguments
+    ///
+    /// * `value` - A agreement PartyUInfo
+    pub fn set_agreement_partyuinfo(&mut self, value: impl AsRef<[u8]>, protection: bool) {
+        let key = "apu";
+        let value = base64::encode_config(&value, base64::URL_SAFE_NO_PAD);
+        if protection {
+            self.unprotected.remove(key);
+            self.protected.insert(key.to_string(), Value::String(value));
+        } else {
+            self.protected.remove(key);
+            self.unprotected
+                .insert(key.to_string(), Value::String(value));
+        }
+    }
+
+    /// Return the value for agreement PartyUInfo header claim (apu).
+    pub fn agreement_partyuinfo(&self) -> Option<Vec<u8>> {
+        match self.claim("apu") {
+            Some(Value::String(val)) => match base64::decode_config(val, base64::URL_SAFE_NO_PAD) {
+                Ok(val2) => Some(val2),
+                Err(_) => None,
+            },
+            _ => None,
+        }
+    }
+
+    /// Set a value for a agreement PartyVInfo header claim (apv).
+    ///
+    /// # Arguments
+    ///
+    /// * `value` - A agreement PartyVInfo
+    pub fn set_agreement_partyvinfo(&mut self, value: impl AsRef<[u8]>, protection: bool) {
+        let key = "apv";
+        let value = base64::encode_config(&value, base64::URL_SAFE_NO_PAD);
+        if protection {
+            self.unprotected.remove(key);
+            self.protected.insert(key.to_string(), Value::String(value));
+        } else {
+            self.protected.remove(key);
+            self.unprotected
+                .insert(key.to_string(), Value::String(value));
+        }
+    }
+
+    /// Return the value for agreement PartyVInfo header claim (apv).
+    pub fn agreement_partyvinfo(&self) -> Option<Vec<u8>> {
+        match self.claim("apv") {
+            Some(Value::String(val)) => match base64::decode_config(val, base64::URL_SAFE_NO_PAD) {
+                Ok(val2) => Some(val2),
+                Err(_) => None,
+            },
+            _ => None,
+        }
+    }
+
+    /// Set a value for issuer header claim (iss).
+    ///
+    /// # Arguments
+    ///
+    /// * `value` - a issuer
+    pub fn set_issuer(&mut self, value: impl Into<String>, protection: bool) {
+        let key = "iss";
+        let value: String = value.into();
+        if protection {
+            self.unprotected.remove(key);
+            self.protected.insert(key.to_string(), Value::String(value));
+        } else {
+            self.protected.remove(key);
+            self.unprotected
+                .insert(key.to_string(), Value::String(value));
+        }
+    }
+
+    /// Return the value for issuer header claim (iss).
+    pub fn issuer(&self) -> Option<&str> {
+        match self.claim("iss") {
+            Some(Value::String(val)) => Some(val),
+            _ => None,
+        }
+    }
+
+    /// Set a value for subject header claim (sub).
+    ///
+    /// # Arguments
+    ///
+    /// * `value` - a subject
+    pub fn set_subject(&mut self, value: impl Into<String>, protection: bool) {
+        let key = "sub";
+        let value: String = value.into();
+        if protection {
+            self.unprotected.remove(key);
+            self.protected.insert(key.to_string(), Value::String(value));
+        } else {
+            self.protected.remove(key);
+            self.unprotected
+                .insert(key.to_string(), Value::String(value));
+        }
+    }
+
+    /// Return the value for subject header claim (sub).
+    pub fn subject(&self) -> Option<&str> {
+        match self.claim("sub") {
+            Some(Value::String(val)) => Some(val),
+            _ => None,
+        }
+    }
+
+    /// Set values for audience header claim (aud).
+    ///
+    /// # Arguments
+    ///
+    /// * `values` - a list of audiences
+    pub fn set_audience(&mut self, values: Vec<impl Into<String>>, protection: bool) {
+        let key = "aud";
+        if values.len() == 1 {
+            for val in values {
+                let value = val.into();
+                if protection {
+                    self.unprotected.remove(key);
+                    self.protected.insert(key.to_string(), Value::String(value));
+                } else {
+                    self.protected.remove(key);
+                    self.unprotected
+                        .insert(key.to_string(), Value::String(value));
+                }
+                break;
+            }
+        } else if values.len() > 1 {
+            let mut vec = Vec::with_capacity(values.len());
+            for val in values {
+                let val: String = val.into();
+                vec.push(Value::String(val.clone()));
+            }
+            if protection {
+                self.unprotected.remove(key);
+                self.protected.insert(key.to_string(), Value::Array(vec));
+            } else {
+                self.protected.remove(key);
+                self.unprotected.insert(key.to_string(), Value::Array(vec));
+            }
+        }
+    }
+
+    /// Return values for audience header claim (aud).
+    pub fn audience(&self) -> Option<Vec<&str>> {
+        match self.claim("aud") {
+            Some(Value::Array(vals)) => {
+                let mut vec = Vec::with_capacity(vals.len());
+                for val in vals {
+                    match val {
+                        Value::String(val2) => {
+                            vec.push(val2.as_str());
+                        }
+                        _ => return None,
+                    }
+                }
+                Some(vec)
+            }
+            Some(Value::String(val)) => Some(vec![val]),
+            _ => None,
+        }
+    }
+
     pub fn set_claim(
         &mut self,
         key: &str,
@@ -431,7 +622,7 @@ impl JwsHeaderSet {
     ) -> Result<(), JoseError> {
         match value {
             Some(val) => {
-                JwsHeader::check_claim(key, &val)?;
+                JweHeader::check_claim(key, &val)?;
                 if protection {
                     self.unprotected.remove(key);
                     self.protected.insert(key.to_string(), val);
@@ -467,7 +658,7 @@ impl JwsHeaderSet {
     }
 }
 
-impl JoseHeader for JwsHeaderSet {
+impl JoseHeader for JweHeaderSet {
     fn len(&self) -> usize {
         self.protected.len() + self.unprotected.len()
     }
@@ -485,7 +676,7 @@ impl JoseHeader for JwsHeaderSet {
     }
 }
 
-impl Display for JwsHeaderSet {
+impl Display for JweHeaderSet {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
         let protected = serde_json::to_string(&self.protected).map_err(|_e| std::fmt::Error {})?;
         let unprotected =
@@ -499,7 +690,7 @@ impl Display for JwsHeaderSet {
     }
 }
 
-impl Deref for JwsHeaderSet {
+impl Deref for JweHeaderSet {
     type Target = dyn JoseHeader;
 
     fn deref(&self) -> &Self::Target {

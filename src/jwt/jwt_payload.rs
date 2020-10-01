@@ -2,10 +2,8 @@ use std::convert::Into;
 use std::fmt::Display;
 use std::time::{Duration, SystemTime};
 
+use crate::{JoseError, Map, Number, Value};
 use anyhow::bail;
-use serde_json::{Map, Number, Value};
-
-use crate::JoseError;
 
 #[derive(Debug, Eq, PartialEq, Clone, Default)]
 pub struct JwtPayload {

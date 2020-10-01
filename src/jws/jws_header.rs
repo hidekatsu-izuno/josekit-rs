@@ -2,11 +2,10 @@ use std::fmt::{Debug, Display};
 use std::ops::Deref;
 
 use anyhow::bail;
-use serde_json::{Map, Value};
 
 use crate::jwk::Jwk;
 use crate::util;
-use crate::{JoseError, JoseHeader};
+use crate::{JoseError, JoseHeader, Map, Value};
 
 /// Represent JWS header claims
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -70,6 +69,14 @@ impl JwsHeader {
     pub fn set_algorithm(&mut self, value: impl Into<String>) {
         let value: String = value.into();
         self.claims.insert("alg".to_string(), Value::String(value));
+    }
+
+    /// Return the value for algorithm header claim (alg).
+    pub fn algorithm(&self) -> Option<&str> {
+        match self.claim("alg") {
+            Some(Value::String(val)) => Some(&val),
+            _ => None,
+        }
     }
 
     /// Set a value for JWK set URL header claim (jku).
@@ -274,7 +281,8 @@ impl JwsHeader {
     /// * `values` - critical claim names
     pub fn set_critical(&mut self, values: &Vec<impl AsRef<str>>) {
         let key = "crit";
-        let vec = values.iter()
+        let vec = values
+            .iter()
             .map(|v| Value::String(v.as_ref().to_string()))
             .collect();
         self.claims.insert(key.to_string(), Value::Array(vec));
@@ -378,7 +386,7 @@ impl JwsHeader {
     pub fn claims_set(&self) -> &Map<String, Value> {
         &self.claims
     }
-    
+
     /// Convert into map
     pub fn into_map(self) -> Map<String, Value> {
         self.claims

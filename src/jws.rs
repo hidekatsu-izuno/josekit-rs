@@ -104,7 +104,7 @@ pub fn serialize_general_json_with_selecter<'a, F>(
     selector: F,
 ) -> Result<String, JoseError>
 where
-    F: Fn(usize, &JwsHeaderSet) -> Option<&'a dyn JwsSigner>,
+    F: Fn(usize, &JwsHeader) -> Option<&'a dyn JwsSigner>,
 {
     DEFAULT_CONTEXT.serialize_general_json_with_selecter(payload, headers, selector)
 }
@@ -137,7 +137,7 @@ pub fn serialize_flattened_json_with_selector<'a, F>(
     selector: F,
 ) -> Result<String, JoseError>
 where
-    F: Fn(&JwsHeaderSet) -> Option<&'a dyn JwsSigner>,
+    F: Fn(&JwsHeader) -> Option<&'a dyn JwsSigner>,
 {
     DEFAULT_CONTEXT.serialize_flattened_json_with_selector(payload, header, selector)
 }
@@ -206,11 +206,13 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::jws::{self, EdDSA, JwsHeader, JwsHeaderSet, JwsSigner, ES256, RS256};
-    use anyhow::Result;
-    use serde_json::Value;
     use std::fs;
     use std::path::PathBuf;
+
+    use anyhow::Result;
+
+    use crate::jws::{self, EdDSA, JwsHeader, JwsHeaderSet, JwsSigner, ES256, RS256};
+    use crate::Value;
 
     #[test]
     fn test_jws_compact_serialization() -> Result<()> {
@@ -247,11 +249,7 @@ mod tests {
         src_header.set_key_id("xxx", true);
         src_header.set_token_type("JWT", false);
         let signer = alg.signer_from_pem(&private_key)?;
-        let jwt = jws::serialize_flattened_json(
-            src_payload,
-            &src_header,
-            &signer,
-        )?;
+        let jwt = jws::serialize_flattened_json(src_payload, &src_header, &signer)?;
 
         let verifier = alg.verifier_from_pem(&public_key)?;
         let (dst_payload, dst_header) = jws::deserialize_json(&jwt, &verifier)?;
@@ -291,21 +289,11 @@ mod tests {
 
         let json = jws::serialize_general_json(
             src_payload,
-            vec![
-                (
-                    &src_header_1,
-                    &signer_1 as &dyn JwsSigner,
-                ),
-                (
-                    &src_header_2,
-                    &signer_2 as &dyn JwsSigner,
-                ),
-                (
-                    &src_header_3,
-                    &signer_3 as &dyn JwsSigner,
-                ),
-            ]
-            .as_slice(),
+            &vec![
+                (&src_header_1, &signer_1 as &dyn JwsSigner),
+                (&src_header_2, &signer_2 as &dyn JwsSigner),
+                (&src_header_3, &signer_3 as &dyn JwsSigner),
+            ],
         )?;
 
         let verifier = ES256.verifier_from_pem(&public_key)?;

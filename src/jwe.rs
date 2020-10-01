@@ -7,6 +7,7 @@ mod jwe_compression;
 mod jwe_content_encryption;
 mod jwe_context;
 mod jwe_header;
+mod jwe_header_set;
 pub mod zip;
 
 use once_cell::sync::Lazy;
@@ -20,6 +21,7 @@ pub use crate::jwe::jwe_compression::JweCompression;
 pub use crate::jwe::jwe_content_encryption::JweContentEncryption;
 pub use crate::jwe::jwe_context::JweContext;
 pub use crate::jwe::jwe_header::JweHeader;
+pub use crate::jwe::jwe_header_set::JweHeaderSet;
 
 pub use crate::jwe::alg::direct::DirectJweAlgorithm::Dir;
 
@@ -91,27 +93,64 @@ where
 ///
 /// # Arguments
 ///
-/// * `protected` - The JWE protected header claims.
-/// * `header` - The JWE unprotected header claims.
+/// * `payload` - The payload data.
+/// * `header` - The JWE shared protected and unprotected header claims.
+/// * `recipients` - The JWE header claims and the JWE encrypter pair for recipients.
+/// * `aad` - The JWE additional authenticated data.
+pub fn serialize_general_json(
+    payload: &[u8],
+    header: Option<&JweHeaderSet>,
+    recipients: &[(Option<&JweHeader>, &dyn JweEncrypter)],
+    aad: Option<&[u8]>,
+) -> Result<String, JoseError> {
+    DEFAULT_CONTEXT.serialize_general_json(payload, header, recipients, aad)
+}
+
+/// Return a representation of the data that is formatted by flattened json serialization.
+///
+/// # Arguments
+///
+/// * `payload` - The payload data.
+/// * `header` - The JWS shared protected and unprotected header claims.
+/// * `recipient_headers` - The JWE unprotected header claims for recipients.
+/// * `aad` - The JWE additional authenticated data.
+/// * `selector` - a function for selecting the encrypting algorithm.
+pub fn serialize_general_json_with_selector<'a, F>(
+    payload: &[u8],
+    header: Option<&JweHeaderSet>,
+    recipient_headers: &[Option<&JweHeader>],
+    aad: Option<&[u8]>,
+    selector: F,
+) -> Result<String, JoseError>
+where
+    F: Fn(usize, &JweHeader) -> Option<&'a dyn JweEncrypter>,
+{
+    DEFAULT_CONTEXT.serialize_general_json_with_selector(
+        payload,
+        header,
+        recipient_headers,
+        aad,
+        selector,
+    )
+}
+
+/// Return a representation of the data that is formatted by flattened json serialization.
+///
+/// # Arguments
+///
+/// * `header` - The JWE shared protected and unprotected header claims.
+/// * `recipient_header` - The JWE unprotected header claims.
 /// * `aad` - The JWE additional authenticated data.
 /// * `payload` - The payload data.
 /// * `encrypter` - The JWS encrypter.
 pub fn serialize_flattened_json(
     payload: &[u8],
-    protected: Option<&JweHeader>,
-    unprotected: Option<&JweHeader>,
-    header: Option<&JweHeader>,
+    header: Option<&JweHeaderSet>,
+    recipient_header: Option<&JweHeader>,
     aad: Option<&[u8]>,
     encrypter: &dyn JweEncrypter,
 ) -> Result<String, JoseError> {
-    DEFAULT_CONTEXT.serialize_flattened_json(
-        payload,
-        protected,
-        unprotected,
-        header,
-        aad,
-        encrypter,
-    )
+    DEFAULT_CONTEXT.serialize_flattened_json(payload, header, recipient_header, aad, encrypter)
 }
 
 /// Return a representation of the data that is formatted by flatted json serialization.
@@ -119,15 +158,14 @@ pub fn serialize_flattened_json(
 /// # Arguments
 ///
 /// * `payload` - The payload data.
-/// * `protected` - The JWS protected header claims.
-/// * `header` - The JWS unprotected header claims.
+/// * `header` - The JWS shared protected and unprotected header claims.
+/// * `recipient_header` - The JWS unprotected header claims.
 /// * `aad` - The JWE additional authenticated data.
 /// * `selector` - a function for selecting the encrypting algorithm.
 pub fn serialize_flattened_json_with_selector<'a, F>(
     payload: &[u8],
-    protected: Option<&JweHeader>,
-    unprotected: Option<&JweHeader>,
-    header: Option<&JweHeader>,
+    header: Option<&JweHeaderSet>,
+    recipient_header: Option<&JweHeader>,
     aad: Option<&[u8]>,
     selector: F,
 ) -> Result<String, JoseError>
@@ -136,9 +174,8 @@ where
 {
     DEFAULT_CONTEXT.serialize_flattened_json_with_selector(
         payload,
-        protected,
-        unprotected,
         header,
+        recipient_header,
         aad,
         selector,
     )
@@ -205,11 +242,18 @@ where
 
 #[cfg(test)]
 mod tests {
-    use anyhow::Result;
-    use serde_json::Value;
+    use std::fs;
+    use std::path::PathBuf;
 
-    use crate::jwe::{self, Dir, JweAlgorithm, JweHeader};
+    use anyhow::Result;
+
+    use crate::jwe::{
+        self, Dir, JweAlgorithm, JweEncrypter, JweHeader, JweHeaderSet, ECDH_ES_A128KW,
+        PBES2_HS256_A128KW, RSA_OAEP,
+    };
+    use crate::jwk::Jwk;
     use crate::util;
+    use crate::Value;
 
     #[test]
     fn test_jwe_compact_serialization() -> Result<()> {
@@ -250,5 +294,101 @@ mod tests {
         }
 
         Ok(())
+    }
+
+    #[test]
+    fn test_jwe_json_serialization() -> Result<()> {
+        let alg = RSA_OAEP;
+
+        let private_key = load_file("pem/RSA_2048bit_private.pem")?;
+        let public_key = load_file("pem/RSA_2048bit_public.pem")?;
+
+        let src_payload = b"test payload!";
+        let mut src_header = JweHeaderSet::new();
+        src_header.set_key_id("xxx", true);
+        src_header.set_token_type("JWT", false);
+        let mut src_rheader = JweHeader::new();
+        src_rheader.set_content_encryption("A128GCM");
+
+        let encrypter = alg.encrypter_from_pem(&public_key)?;
+        let jwt = jwe::serialize_flattened_json(
+            src_payload,
+            Some(&src_header),
+            Some(&src_rheader),
+            None,
+            &encrypter,
+        )?;
+
+        let decrypter = alg.decrypter_from_pem(&private_key)?;
+        let (dst_payload, dst_header) = jwe::deserialize_json(&jwt, &decrypter)?;
+
+        src_header.set_algorithm(alg.name(), true);
+        assert_eq!(
+            src_rheader.content_encryption(),
+            dst_header.content_encryption()
+        );
+        assert_eq!(src_header.key_id(), dst_header.key_id());
+        assert_eq!(src_header.token_type(), dst_header.token_type());
+        assert_eq!(src_payload.to_vec(), dst_payload);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_jwe_general_json_serialization() -> Result<()> {
+        let public_key_1 = load_file("pem/RSA_2048bit_public.pem")?;
+        let public_key_2 = load_file("der/EC_P-256_spki_public.der")?;
+        let public_key_3 = load_file("jwk/oct_128bit_private.jwk")?;
+
+        let private_key = load_file("der/EC_P-256_pkcs8_private.der")?;
+
+        let src_payload = b"test payload!";
+
+        let mut src_header = JweHeaderSet::new();
+        src_header.set_content_encryption("A128CBC-HS256", true);
+        src_header.set_token_type("JWT-1", false);
+
+        let mut src_rheader_1 = JweHeader::new();
+        src_rheader_1.set_key_id("xxx-1");
+        let encrypter_1 = RSA_OAEP.encrypter_from_pem(&public_key_1)?;
+
+        let mut src_rheader_2 = JweHeader::new();
+        src_rheader_2.set_key_id("xxx-2");
+        let encrypter_2 = ECDH_ES_A128KW.encrypter_from_der(&public_key_2)?;
+
+        let mut src_rheader_3 = JweHeader::new();
+        src_rheader_3.set_key_id("xxx-3");
+        let encrypter_3 =
+            PBES2_HS256_A128KW.encrypter_from_jwk(&Jwk::from_bytes(&public_key_3)?)?;
+
+        let json = jwe::serialize_general_json(
+            src_payload,
+            Some(&src_header),
+            &vec![
+                (Some(&src_rheader_1), &encrypter_1 as &dyn JweEncrypter),
+                (Some(&src_rheader_2), &encrypter_2 as &dyn JweEncrypter),
+                (Some(&src_rheader_3), &encrypter_3 as &dyn JweEncrypter),
+            ],
+            None,
+        )?;
+
+        let decrypter = ECDH_ES_A128KW.decrypter_from_der(&private_key)?;
+        let (dst_payload, dst_header) = jwe::deserialize_json(&json, &decrypter)?;
+
+        assert_eq!(dst_header.algorithm(), Some("ECDH-ES+A128KW"));
+        assert_eq!(src_header.token_type(), dst_header.token_type());
+        assert_eq!(src_rheader_2.key_id(), dst_header.key_id());
+        assert_eq!(src_payload.to_vec(), dst_payload);
+
+        Ok(())
+    }
+
+    fn load_file(path: &str) -> Result<Vec<u8>> {
+        let mut pb = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        pb.push("data");
+        pb.push(path);
+
+        let data = fs::read(&pb)?;
+        Ok(data)
     }
 }

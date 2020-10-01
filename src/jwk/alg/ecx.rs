@@ -3,13 +3,12 @@ use std::ops::Deref;
 
 use anyhow::bail;
 use openssl::pkey::{PKey, Private};
-use serde_json::Value;
 
 use crate::der::oid::{ObjectIdentifier, OID_X25519, OID_X448};
 use crate::der::{DerBuilder, DerReader, DerType};
 use crate::jwk::{Jwk, KeyPair};
 use crate::util;
-use crate::JoseError;
+use crate::{JoseError, Value};
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum EcxCurve {

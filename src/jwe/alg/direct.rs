@@ -3,11 +3,10 @@ use std::fmt::Display;
 use std::ops::Deref;
 
 use anyhow::bail;
-use serde_json::Value;
 
 use crate::jwe::{JweAlgorithm, JweContentEncryption, JweDecrypter, JweEncrypter, JweHeader};
 use crate::jwk::Jwk;
-use crate::JoseError;
+use crate::{JoseError, Value};
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum DirectJweAlgorithm {

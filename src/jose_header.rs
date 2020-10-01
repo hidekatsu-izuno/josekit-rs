@@ -1,18 +1,8 @@
-use std::fmt::Display;
+use crate::Value;
 
-use serde_json::Value;
-
-pub trait JoseHeader: Display + Send + Sync {
+pub trait JoseHeader: Send + Sync {
     // Return claim count.
     fn len(&self) -> usize;
-
-    /// Return the value for algorithm header claim (alg).
-    fn algorithm(&self) -> Option<&str> {
-        match self.claim("alg") {
-            Some(Value::String(val)) => Some(&val),
-            _ => None,
-        }
-    }
 
     /// Return the value for header claim of a specified key.
     ///

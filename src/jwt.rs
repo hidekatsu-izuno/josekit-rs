@@ -175,7 +175,7 @@ where
 #[cfg(test)]
 mod tests {
     use anyhow::Result;
-    use serde_json::json;
+    use serde_json::{json, Value};
     use std::fs;
     use std::path::PathBuf;
     use std::time::{Duration, SystemTime};
@@ -199,7 +199,10 @@ mod tests {
         let data = load_file("jwt/RS256.jwt")?;
         let data = String::from_utf8(data)?;
         let header = jwt::decode_header(&data)?;
-        assert!(matches!(header.algorithm(), Some("RS256")));
+        assert_eq!(
+            header.claim("alg"),
+            Some(&Value::String("RS256".to_string()))
+        );
 
         Ok(())
     }

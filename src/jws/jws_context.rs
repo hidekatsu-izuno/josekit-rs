@@ -177,7 +177,7 @@ impl JwsContext {
         selector: F,
     ) -> Result<String, JoseError>
     where
-        F: Fn(usize, &JwsHeaderSet) -> Option<&'a dyn JwsSigner>,
+        F: Fn(usize, &JwsHeader) -> Option<&'a dyn JwsSigner>,
     {
         (|| -> anyhow::Result<String> {
             let payload_b64 = base64::encode_config(payload, base64::URL_SAFE_NO_PAD);
@@ -186,15 +186,17 @@ impl JwsContext {
             result.push_str("{\"signatures\":[");
 
             for (i, header) in headers.iter().enumerate() {
-                let signer = match selector(i, *header) {
+                let merged_map = header.to_map();
+                let merged = JwsHeader::from_map(merged_map)?;
+                let signer = match selector(i, &merged) {
                     Some(val) => val,
                     None => bail!("A signer is not found."),
                 };
 
                 let mut protected_map = header.claims_set(true).clone();
 
-                match header.algorithm() {
-                    Some(val) if val == signer.algorithm().name() => {},
+                match merged.algorithm() {
+                    Some(val) if val == signer.algorithm().name() => {}
                     Some(_) => bail!("A signer is unmatched."),
                     None => {
                         protected_map.insert(
@@ -204,7 +206,7 @@ impl JwsContext {
                     }
                 }
 
-                if let None = header.key_id() {
+                if let None = merged.key_id() {
                     if let Some(key_id) = signer.key_id() {
                         protected_map.insert("kid".to_string(), Value::String(key_id.to_string()));
                     }
@@ -263,9 +265,7 @@ impl JwsContext {
         header: &JwsHeaderSet,
         signer: &dyn JwsSigner,
     ) -> Result<String, JoseError> {
-        self.serialize_flattened_json_with_selector(payload, header, |_header| {
-            Some(signer)
-        })
+        self.serialize_flattened_json_with_selector(payload, header, |_header| Some(signer))
     }
 
     /// Return a representation of the data that is formatted by flatted json serialization.
@@ -282,7 +282,7 @@ impl JwsContext {
         selector: F,
     ) -> Result<String, JoseError>
     where
-        F: Fn(&JwsHeaderSet) -> Option<&'a dyn JwsSigner>,
+        F: Fn(&JwsHeader) -> Option<&'a dyn JwsSigner>,
     {
         (|| -> anyhow::Result<String> {
             let protected_map = header.claims_set(true);
@@ -291,29 +291,41 @@ impl JwsContext {
                 Some(Value::Array(vals)) => {
                     if vals.iter().any(|val| match val {
                         Value::String(val2) => val2 == "b64",
-                        _ => false
+                        _ => false,
                     }) {
                         b64 = match protected_map.get("b64") {
                             Some(Value::Bool(val3)) => *val3,
-                            _ => false
+                            _ => false,
                         };
                     }
-                },
+                }
                 _ => {}
             }
 
-            let signer = match selector(header) {
+            let merged_map = header.to_map();
+            let merged = JwsHeader::from_map(merged_map)?;
+            let signer = match selector(&merged) {
                 Some(val) => val,
                 None => bail!("A signer is not found."),
             };
 
             let mut protected_map = protected_map.clone();
-            protected_map.insert(
-                "alg".to_string(),
-                Value::String(signer.algorithm().name().to_string()),
-            );
-            if let Some(key_id) = signer.key_id() {
-                protected_map.insert("kid".to_string(), Value::String(key_id.to_string()));
+
+            match merged.algorithm() {
+                Some(val) if val == signer.algorithm().name() => {}
+                Some(_) => bail!("A signer is unmatched."),
+                None => {
+                    protected_map.insert(
+                        "alg".to_string(),
+                        Value::String(signer.algorithm().name().to_string()),
+                    );
+                }
+            }
+
+            if let None = merged.key_id() {
+                if let Some(key_id) = signer.key_id() {
+                    protected_map.insert("kid".to_string(), Value::String(key_id.to_string()));
+                }
             }
 
             let protected_json = serde_json::to_string(&protected_map)?;
@@ -596,11 +608,11 @@ impl JwsContext {
                             }
                         }
                         val
-                    },
+                    }
                     Some(_) => bail!("The protected field must be a object."),
                     None => protected_map.clone(),
                 };
-                
+
                 if let None = merged_map.get("alg") {
                     bail!("The JWS alg header claim must be in protected.");
                 }

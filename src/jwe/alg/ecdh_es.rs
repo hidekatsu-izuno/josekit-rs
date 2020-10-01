@@ -7,7 +7,6 @@ use openssl::aes::{self, AesKey};
 use openssl::derive::Deriver;
 use openssl::hash::{Hasher, MessageDigest};
 use openssl::pkey::{PKey, Private, Public};
-use serde_json::{Map, Value};
 
 use crate::der::oid::{
     OID_ID_EC_PUBLIC_KEY, OID_PRIME256V1, OID_SECP256K1, OID_SECP384R1, OID_SECP521R1, OID_X25519,
@@ -21,7 +20,7 @@ use crate::jwk::alg::{
 };
 use crate::jwk::Jwk;
 use crate::util;
-use crate::{JoseError, JoseHeader};
+use crate::{JoseError, JoseHeader, Map, Value};
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 enum EcdhEsKeyType {

@@ -1,7 +1,6 @@
 use anyhow::bail;
 use serde::ser::SerializeMap;
 use serde::{Serialize, Serializer};
-use serde_json::{Map, Value};
 use std::collections::BTreeMap;
 use std::io::Read;
 use std::ops::Bound::Included;
@@ -9,7 +8,7 @@ use std::string::ToString;
 use std::sync::Arc;
 
 use crate::jwk::Jwk;
-use crate::JoseError;
+use crate::{JoseError, Map, Value};
 
 /// Represents JWK set.
 #[derive(Debug, Eq, PartialEq, Clone)]

@@ -3,10 +3,9 @@ use std::time::SystemTime;
 
 use anyhow::bail;
 use chrono::{DateTime, Utc};
-use serde_json::{Map, Value};
 
 use crate::jwt::JwtPayload;
-use crate::JoseError;
+use crate::{JoseError, Map, Value};
 
 /// Represents JWT payload validator.
 #[derive(Debug, Eq, PartialEq)]

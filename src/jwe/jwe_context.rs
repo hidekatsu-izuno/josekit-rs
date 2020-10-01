@@ -4,13 +4,14 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Debug;
 
 use anyhow::bail;
-use serde_json::{Map, Value};
 
 use crate::jwe::enc::{A128CBC_HS256, A128GCM, A192CBC_HS384, A192GCM, A256CBC_HS512, A256GCM};
 use crate::jwe::zip::Def;
-use crate::jwe::{JweCompression, JweContentEncryption, JweDecrypter, JweEncrypter, JweHeader};
+use crate::jwe::{
+    JweCompression, JweContentEncryption, JweDecrypter, JweEncrypter, JweHeader, JweHeaderSet,
+};
 use crate::util;
-use crate::{JoseError, JoseHeader};
+use crate::{JoseError, JoseHeader, Map, Value};
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct JweContext {
@@ -280,22 +281,19 @@ impl JweContext {
     /// # Arguments
     ///
     /// * `payload` - The payload data.
-    /// * `protected` - The JWS protected header claims.
-    /// * `unprotected` - The JWS unprotected header claims.
+    /// * `header` - The JWE shared protected and unprotected header claims.
     /// * `recipients` - The JWE header claims and the JWE encrypter pair for recipients.
     /// * `aad` - The JWE additional authenticated data.
     pub fn serialize_general_json(
         &self,
         payload: &[u8],
-        protected: Option<&JweHeader>,
-        unprotected: Option<&JweHeader>,
+        header: Option<&JweHeaderSet>,
         recipients: &[(Option<&JweHeader>, &dyn JweEncrypter)],
         aad: Option<&[u8]>,
     ) -> Result<String, JoseError> {
         self.serialize_general_json_with_selector(
             payload,
-            protected,
-            unprotected,
+            header,
             recipients
                 .iter()
                 .map(|(header, _)| header.as_deref())
@@ -311,17 +309,15 @@ impl JweContext {
     /// # Arguments
     ///
     /// * `payload` - The payload data.
-    /// * `protected` - The JWS protected header claims.
-    /// * `unprotected` - The JWS unprotected header claims.
-    /// * `recipients` - The JWE header claims for recipients.
+    /// * `header` - The JWS shared protected and unprotected header claims.
+    /// * `recipient_headers` - The JWE unprotected header claims for recipients.
     /// * `aad` - The JWE additional authenticated data.
     /// * `selector` - a function for selecting the encrypting algorithm.
     pub fn serialize_general_json_with_selector<'a, F>(
         &self,
         payload: &[u8],
-        protected: Option<&JweHeader>,
-        unprotected: Option<&JweHeader>,
-        recipients: &[Option<&JweHeader>],
+        header: Option<&JweHeaderSet>,
+        recipient_headers: &[Option<&JweHeader>],
         aad: Option<&[u8]>,
         selector: F,
     ) -> Result<String, JoseError>
@@ -329,135 +325,124 @@ impl JweContext {
         F: Fn(usize, &JweHeader) -> Option<&'a dyn JweEncrypter>,
     {
         (|| -> anyhow::Result<String> {
-            if recipients.len() == 0 {
+            if recipient_headers.len() == 0 {
                 bail!(
                     "A size of recipients must be 1 or more: {}",
-                    recipients.len()
+                    recipient_headers.len()
                 );
             }
 
-            let mut merged_map = match protected {
-                Some(val) => val.claims_set().clone(),
+            let mut compression = None;
+            if let Some(header) = header {
+                match header.claims_set(true).get("zip") {
+                    Some(Value::String(val)) => match self.get_compression(val) {
+                        Some(val) => {
+                            compression = Some(val);
+                        }
+                        None => bail!("A compression algorithm is not registered: {}", val),
+                    },
+                    Some(_) => bail!("A zip header claim must be a string."),
+                    None => {}
+                }
+            };
+
+            let merged_map = match header {
+                Some(val) => val.to_map(),
                 None => Map::new(),
             };
 
-            let compressed;
-            let content = match merged_map.get("zip") {
-                Some(Value::String(val)) => match self.get_compression(val) {
-                    Some(val) => {
-                        compressed = val.compress(payload).unwrap();
-                        &compressed
-                    }
-                    None => bail!("A compression algorithm is not registered: {}", val),
-                },
-                Some(_) => bail!("A zip header claim must be a string."),
-                None => payload,
-            };
-
-            if let Some(val) = unprotected {
-                for (key, value) in val.claims_set() {
-                    if merged_map.contains_key(key) {
-                        bail!("Duplicate key exists: {}", key);
-                    }
-                    merged_map.insert(key.clone(), value.clone());
-                }
-            }
-
-            let protected_b64 = match protected {
-                Some(val) if val.len() > 0 => {
-                    let protected_json = serde_json::to_vec(val.claims_set()).unwrap();
-                    Some(base64::encode_config(
-                        protected_json,
-                        base64::URL_SAFE_NO_PAD,
-                    ))
-                }
-                _ => None,
-            };
-
-            let mut encrypter_list = Vec::new();
             let mut merged_list = Vec::new();
-            let mut header_list = Vec::new();
+            let mut recipient_header_list = Vec::new();
+            let mut encrypter_list = Vec::new();
 
-            let mut cencryption: Option<&dyn JweContentEncryption> = None;
-            let mut key: Option<Cow<[u8]>> = None;
-            for (i, header) in recipients.iter().enumerate() {
-                let merged_map = match header {
-                    Some(val) => {
-                        let mut merged_map = merged_map.clone();
-                        for (key, value) in val.claims_set() {
-                            if merged_map.contains_key(key) {
-                                bail!("Duplicate key exists: {}", key);
+            let mut selected_cencryption: Option<&dyn JweContentEncryption> = None;
+            let mut selected_key: Option<Cow<[u8]>> = None;
+            for (i, recipient_header) in recipient_headers.iter().enumerate() {
+                let mut merged_map = merged_map.clone();
+
+                if let Some(val) = recipient_header {
+                    for (key, value) in val.claims_set() {
+                        if merged_map.contains_key(key) {
+                            bail!("Duplicate key exists: {}", key);
+                        }
+                        merged_map.insert(key.clone(), value.clone());
+                    }
+                }
+
+                let merged = JweHeader::from_map(merged_map)?;
+
+                let cencryption = match merged.claim("enc") {
+                    Some(Value::String(enc)) => {
+                        if let Some(selected_cencryption) = selected_cencryption {
+                            if enc.as_str() != selected_cencryption.name() {
+                                bail!("A content encryption must be same for all recipients.");
+                            } else {
+                                selected_cencryption
                             }
-                            merged_map.insert(key.clone(), value.clone());
+                        } else {
+                            match self.get_content_encryption(enc) {
+                                Some(val) => {
+                                    selected_cencryption = Some(val);
+                                    val
+                                }
+                                None => bail!("A content encryption is not registered: {}", enc),
+                            }
                         }
-                        merged_map
                     }
-                    None => merged_map.clone(),
-                };
-
-                let i_enc = match merged_map.get("enc") {
-                    Some(Value::String(val)) => val,
                     Some(_) => bail!("A enc header claim must be a string."),
-                    None => bail!("A enc header claim must be required."),
+                    None => bail!("A enc header claim is required."),
                 };
 
-                let i_cencryption = if let Some(val) = cencryption {
-                    if val.name() != i_enc {
-                        bail!("All of the enc header claim must be same.");
-                    }
-                    val
-                } else {
-                    match self.get_content_encryption(i_enc) {
-                        Some(val) => {
-                            cencryption = Some(val);
-                            val
-                        }
-                        None => bail!("A content encryption is not registered: {}", i_enc),
-                    }
-                };
-
-                let mut merged = JweHeader::from_map(merged_map)?;
                 let encrypter = match selector(i, &merged) {
                     Some(val) => val,
                     None => bail!("A encrypter is not found."),
                 };
-                merged.set_algorithm(encrypter.algorithm().name());
 
-                let mut header = match *header {
-                    Some(val) => val.clone(),
+                let mut recipient_header = match recipient_header {
+                    Some(val) => (*val).clone(),
                     None => JweHeader::new(),
                 };
 
-                let i_key = encrypter.compute_content_encryption_key(
-                    i_cencryption,
+                if let Some(key) = encrypter.compute_content_encryption_key(
+                    cencryption,
                     &merged,
-                    &mut header,
-                )?;
-
-                match i_key {
-                    Some(val) => {
-                        if let Some(val2) = key {
-                            if val.as_ref() != val2.as_ref() {
-                                bail!("A content encryption key must be only one.");
-                            }
+                    &mut recipient_header,
+                )? {
+                    if let Some(selected_key) = &selected_key {
+                        if key.as_ref() != selected_key.as_ref() {
+                            bail!("A content encryption key must be only one.");
                         }
-                        key = Some(val);
+                    } else {
+                        selected_key = Some(key);
                     }
-                    None => {}
+                };
+
+                match merged.algorithm() {
+                    Some(val) if val == encrypter.algorithm().name() => {}
+                    Some(_) => bail!("A signer is unmatched."),
+                    None => {
+                        recipient_header.set_algorithm(encrypter.algorithm().name().to_string());
+                    }
                 }
 
-                encrypter_list.push(encrypter);
-                header_list.push(header);
+                if let None = merged.key_id() {
+                    if let Some(key_id) = encrypter.key_id() {
+                        recipient_header.set_key_id(key_id.to_string());
+                    }
+                }
+
                 merged_list.push(merged);
+                recipient_header_list.push(recipient_header);
+                encrypter_list.push(encrypter);
             }
 
-            let cencryption = match cencryption {
+            let cencryption = match selected_cencryption {
                 Some(val) => val,
                 None => bail!("A enc header claim is required."),
             };
 
-            let key = match key {
-                Some(val) => val,
+            let key = match &selected_key {
+                Some(val) => Cow::Borrowed(val.as_ref()),
                 None => Cow::Owned(util::rand_bytes(cencryption.key_len())),
             };
 
@@ -467,19 +452,36 @@ impl JweContext {
                 None
             };
 
+            let protected_b64 = match header {
+                Some(header) => {
+                    let protected_map = header.claims_set(true);
+                    if protected_map.len() > 0 {
+                        let protected_json = serde_json::to_vec(header.claims_set(true))?;
+                        let protected_b64 =
+                            base64::encode_config(protected_json, base64::URL_SAFE_NO_PAD);
+                        Some(protected_b64)
+                    } else {
+                        None
+                    }
+                }
+                _ => None,
+            };
+
             let aad_b64 = match aad {
                 Some(val) => Some(base64::encode_config(val, base64::URL_SAFE_NO_PAD)),
                 None => None,
             };
 
-            let mut full_aad_capacity = 1;
-            if let Some(val) = &protected_b64 {
-                full_aad_capacity += val.len();
-            }
-            if let Some(val) = &aad_b64 {
-                full_aad_capacity += val.len();
-            }
-            let mut full_aad = String::with_capacity(full_aad_capacity);
+            let mut full_aad = String::with_capacity({
+                let mut full_aad_capacity = 1;
+                if let Some(val) = &protected_b64 {
+                    full_aad_capacity += val.len();
+                }
+                if let Some(val) = &aad_b64 {
+                    full_aad_capacity += val.len();
+                }
+                full_aad_capacity
+            });
             if let Some(val) = &protected_b64 {
                 full_aad.push_str(&val);
             }
@@ -488,47 +490,60 @@ impl JweContext {
                 full_aad.push_str(&val);
             }
 
+            let compressed;
+            let content = if let Some(compression) = compression {
+                compressed = compression.compress(payload)?;
+                &compressed
+            } else {
+                payload
+            };
+
             let (ciphertext, tag) =
                 cencryption.encrypt(&key, iv.as_deref(), content, full_aad.as_bytes())?;
 
+            let mut writed = false;
             let mut json = String::new();
-            json.push_str("{\"protected\":\"");
-            if let Some(val) = &protected_b64 {
-                json.push_str(val);
-            }
-            json.push_str("\"");
-
-            json.push_str(",\"unprotected\":");
-            if let Some(val) = unprotected {
-                let unprotected_json = serde_json::to_string(val.claims_set()).unwrap();
-                json.push_str(&unprotected_json);
+            if let Some(val) = protected_b64 {
+                json.push_str("{\"protected\":\"");
+                json.push_str(&val);
+                json.push_str("\"");
+                writed = true;
             }
 
-            json.push_str(",\"recipients\":[");
-            for i in 0..=recipients.len() {
+            if let Some(val) = header {
+                let unprotected_map = val.claims_set(false);
+                if unprotected_map.len() > 0 {
+                    let unprotected = serde_json::to_string(unprotected_map)?;
+                    json.push_str(if writed { "," } else { "{" });
+                    json.push_str("\"unprotected\":");
+                    json.push_str(&unprotected);
+                    writed = true;
+                }
+            }
+
+            json.push_str(if writed { "," } else { "{" });
+            json.push_str("\"recipients\":[");
+            for i in 0..recipient_headers.len() {
                 if i > 0 {
                     json.push_str(",");
                 }
 
-                let encrypter = encrypter_list[i];
                 let merged = &merged_list[i];
-                let mut header = &mut header_list[i];
+                let mut header = &mut recipient_header_list[i];
+                let encrypter = encrypter_list[i];
 
                 let encrypted_key = encrypter.encrypt(&key, &merged, &mut header)?;
 
-                if let None = merged.claim("kid") {
-                    if let Some(key_id) = encrypter.key_id() {
-                        header.set_key_id(key_id);
-                    }
+                let mut writed = false;
+                if header.len() > 0 {
+                    let header_json = serde_json::to_string(header.claims_set())?;
+                    json.push_str("{\"header\":");
+                    json.push_str(&header_json);
+                    writed = true;
                 }
-                header.set_algorithm(encrypter.algorithm().name());
 
-                let header_json = serde_json::to_string(header_list[i].claims_set())?;
-                json.push_str("{\"header\":\"");
-                json.push_str(&header_json);
-                json.push_str("\"");
-
-                json.push_str(",\"encrypted_key\":\"");
+                json.push_str(if writed { "," } else { "{" });
+                json.push_str("\"encrypted_key\":\"");
                 if let Some(val) = encrypted_key {
                     base64::encode_config_buf(&val, base64::URL_SAFE_NO_PAD, &mut json);
                 }
@@ -572,26 +587,23 @@ impl JweContext {
     ///
     /// # Arguments
     ///
-    /// * `protected` - The JWE protected header claims.
-    /// * `unprotected` - The JWE unprotected header claims.
-    /// * `header` - The JWE unprotected header claims per recipient.
-    /// * `aad` - The JWE additional authenticated data.
     /// * `payload` - The payload data.
+    /// * `header` - The JWE shared protected and unprotected header claims.
+    /// * `recipient_header` - The JWE unprotected header claims per recipient.
+    /// * `aad` - The JWE additional authenticated data.
     /// * `encrypter` - The JWS encrypter.
     pub fn serialize_flattened_json(
         &self,
         payload: &[u8],
-        protected: Option<&JweHeader>,
-        unprotected: Option<&JweHeader>,
-        header: Option<&JweHeader>,
+        header: Option<&JweHeaderSet>,
+        recipient_header: Option<&JweHeader>,
         aad: Option<&[u8]>,
         encrypter: &dyn JweEncrypter,
     ) -> Result<String, JoseError> {
         self.serialize_flattened_json_with_selector(
             payload,
-            protected,
-            unprotected,
             header,
+            recipient_header,
             aad,
             |_header| Some(encrypter),
         )
@@ -602,17 +614,15 @@ impl JweContext {
     /// # Arguments
     ///
     /// * `payload` - The payload data.
-    /// * `protected` - The JWS protected header claims.
-    /// * `unprotected` - The JWE unprotected header claims.
-    /// * `header` - The JWE unprotected header claims per recipient.
+    /// * `header` - The JWE shared protected and unprotected header claims.
+    /// * `recipient_header` - The JWE unprotected header claims per recipient.
     /// * `aad` - The JWE additional authenticated data.
     /// * `selector` - a function for selecting the encrypting algorithm.
     pub fn serialize_flattened_json_with_selector<'a, F>(
         &self,
         payload: &[u8],
-        protected: Option<&JweHeader>,
-        unprotected: Option<&JweHeader>,
-        header: Option<&JweHeader>,
+        header: Option<&JweHeaderSet>,
+        recipient_header: Option<&JweHeader>,
         aad: Option<&[u8]>,
         selector: F,
     ) -> Result<String, JoseError>
@@ -620,23 +630,26 @@ impl JweContext {
         F: Fn(&JweHeader) -> Option<&'a dyn JweEncrypter>,
     {
         (|| -> anyhow::Result<String> {
-            let mut protected = match protected {
-                Some(val) => val.clone(),
-                None => JweHeader::new(),
+            let mut compression = None;
+            if let Some(header) = header {
+                match header.claims_set(true).get("zip") {
+                    Some(Value::String(val)) => match self.get_compression(val) {
+                        Some(val) => {
+                            compression = Some(val);
+                        }
+                        None => bail!("A compression algorithm is not registered: {}", val),
+                    },
+                    Some(_) => bail!("A zip header claim must be a string."),
+                    None => {}
+                }
             };
 
-            let mut merged_map = protected.claims_set().clone();
+            let mut merged_map = match header {
+                Some(val) => val.to_map(),
+                None => Map::new(),
+            };
 
-            if let Some(val) = unprotected {
-                for (key, value) in val.claims_set() {
-                    if merged_map.contains_key(key) {
-                        bail!("Duplicate key exists: {}", key);
-                    }
-                    merged_map.insert(key.clone(), value.clone());
-                }
-            }
-
-            if let Some(val) = header {
+            if let Some(val) = recipient_header {
                 for (key, value) in val.claims_set() {
                     if merged_map.contains_key(key) {
                         bail!("Duplicate key exists: {}", key);
@@ -647,20 +660,13 @@ impl JweContext {
 
             let merged = JweHeader::from_map(merged_map)?;
 
-            let cencryption = match merged.content_encryption() {
-                Some(enc) => match self.get_content_encryption(enc) {
+            let cencryption = match merged.claim("enc") {
+                Some(Value::String(enc)) => match self.get_content_encryption(enc) {
                     Some(val) => val,
                     None => bail!("A content encryption is not registered: {}", enc),
                 },
+                Some(_) => bail!("A enc header claim must be a string."),
                 None => bail!("A enc header claim is required."),
-            };
-
-            let compression = match merged.compression() {
-                Some(zip) => match self.get_compression(zip) {
-                    Some(val) => Some(val),
-                    None => bail!("A compression algorithm is not registered: {}", zip),
-                },
-                None => None,
             };
 
             let encrypter = match selector(&merged) {
@@ -668,12 +674,9 @@ impl JweContext {
                 None => bail!("A encrypter is not found."),
             };
 
-            let compressed;
-            let content = if let Some(compression) = compression {
-                compressed = compression.compress(payload)?;
-                &compressed
-            } else {
-                payload
+            let mut protected = match header {
+                Some(val) => JweHeader::from_map(val.claims_set(true).clone())?,
+                None => JweHeader::new(),
             };
 
             let key = match encrypter.compute_content_encryption_key(
@@ -687,14 +690,19 @@ impl JweContext {
 
             let encrypted_key = encrypter.encrypt(&key, &merged, &mut protected)?;
 
-            if let None = merged.claim("kid") {
-                if let Some(key_id) = encrypter.key_id() {
-                    protected.set_key_id(key_id);
+            match merged.algorithm() {
+                Some(val) if val == encrypter.algorithm().name() => {}
+                Some(_) => bail!("A signer is unmatched."),
+                None => {
+                    protected.set_algorithm(encrypter.algorithm().name().to_string());
                 }
             }
-            protected.set_algorithm(encrypter.algorithm().name());
 
-            let protected = serde_json::to_vec(protected.claims_set())?;
+            if let None = merged.key_id() {
+                if let Some(key_id) = encrypter.key_id() {
+                    protected.set_key_id(key_id.to_string());
+                }
+            }
 
             let iv_vec;
             let iv = if cencryption.iv_len() > 0 {
@@ -704,31 +712,75 @@ impl JweContext {
                 None
             };
 
-            let protected_b64 = base64::encode_config(protected, base64::URL_SAFE_NO_PAD);
-            let (full_aad, aad_b64) = if let Some(val) = aad {
-                let aad_b64 = base64::encode_config(val, base64::URL_SAFE_NO_PAD);
-                (format!("{}.{}", &protected_b64, &aad_b64), Some(aad_b64))
+            let protected_b64 = if protected.len() > 0 {
+                let protected_json = serde_json::to_vec(protected.claims_set())?;
+                let protected_b64 = base64::encode_config(protected_json, base64::URL_SAFE_NO_PAD);
+                Some(protected_b64)
             } else {
-                (format!("{}.", &protected_b64), None)
+                None
+            };
+
+            let aad_b64 = match aad {
+                Some(val) => Some(base64::encode_config(val, base64::URL_SAFE_NO_PAD)),
+                None => None,
+            };
+
+            let mut full_aad = String::with_capacity({
+                let mut full_aad_capacity = 1;
+                if let Some(val) = &protected_b64 {
+                    full_aad_capacity += val.len();
+                }
+                if let Some(val) = &aad_b64 {
+                    full_aad_capacity += val.len();
+                }
+                full_aad_capacity
+            });
+            if let Some(val) = &protected_b64 {
+                full_aad.push_str(&val);
+            }
+            full_aad.push_str(".");
+            if let Some(val) = &aad_b64 {
+                full_aad.push_str(&val);
+            }
+
+            let compressed;
+            let content = if let Some(compression) = compression {
+                compressed = compression.compress(payload)?;
+                &compressed
+            } else {
+                payload
             };
 
             let (ciphertext, tag) = cencryption.encrypt(&key, iv, content, full_aad.as_bytes())?;
 
+            let mut writed = false;
             let mut json = String::new();
-            json.push_str("{\"protected\":\"");
-            json.push_str(&protected_b64);
-            json.push_str("\"");
-
-            if let Some(val) = unprotected {
-                let unprotected = serde_json::to_string(val.claims_set())?;
-                json.push_str(",\"unprotected\":");
-                json.push_str(&unprotected);
+            if let Some(val) = protected_b64 {
+                json.push_str("{\"protected\":\"");
+                json.push_str(&val);
+                json.push_str("\"");
+                writed = true;
             }
 
             if let Some(val) = header {
-                let header = serde_json::to_string(val.claims_set())?;
-                json.push_str(",\"header\":");
-                json.push_str(&header);
+                let unprotected_map = val.claims_set(false);
+                if unprotected_map.len() > 0 {
+                    let unprotected = serde_json::to_string(unprotected_map)?;
+                    json.push_str(if writed { "," } else { "{" });
+                    json.push_str("\"unprotected\":");
+                    json.push_str(&unprotected);
+                    writed = true;
+                }
+            }
+
+            if let Some(val) = recipient_header {
+                let header_map = val.claims_set();
+                if header_map.len() > 0 {
+                    let header = serde_json::to_string(header_map)?;
+                    json.push_str(if writed { "," } else { "{" });
+                    json.push_str("\"header\":");
+                    json.push_str(&header);
+                }
             }
 
             json.push_str(",\"encrypted_key\":\"");
@@ -973,29 +1025,29 @@ impl JweContext {
                     let json: Map<String, Value> = serde_json::from_slice(&vec)?;
                     (Some(json), Some(val))
                 }
-                Some(_) => bail!("The protected field must be string."),
+                Some(_) => bail!("The protected field must be a string."),
                 None => (None, None),
             };
             let unprotected = match map.remove("unprotected") {
-                Some(Value::String(val)) => {
+                Some(Value::Object(val)) => {
                     if val.len() == 0 {
                         bail!("The unprotected field must be empty.");
                     }
-                    let json: Map<String, Value> = serde_json::from_str(&val)?;
-                    Some(json)
+                    Some(val)
                 }
-                Some(_) => bail!("The unprotected field must be string."),
+                Some(_) => bail!("The JWE unprotected field must be string."),
                 None => None,
             };
             let aad_b64 = match map.remove("aad") {
                 Some(Value::String(val)) => {
                     if val.len() == 0 {
-                        bail!("The aad field must be empty.");
+                        bail!("The JWE aad field must be empty.");
+                    } else if !util::is_base64_url_safe_nopad(&val) {
+                        bail!("The JWE aad field must be a base64 string.");
                     }
-                    base64::decode_config(&val, base64::URL_SAFE_NO_PAD)?;
                     Some(val)
                 }
-                Some(_) => bail!("The aad field must be string."),
+                Some(_) => bail!("The JWE aad field must be string."),
                 None => None,
             };
             let iv_vec;
@@ -1146,8 +1198,8 @@ impl JweContext {
                     Some(val) => val,
                     None => String::new(),
                 };
+                full_aad.push_str(".");
                 if let Some(val) = aad_b64 {
-                    full_aad.push_str(".");
                     full_aad.push_str(&val);
                 }
 

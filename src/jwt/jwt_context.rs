@@ -1,11 +1,10 @@
 use anyhow::bail;
-use serde_json::{Map, Value};
 
 use crate::jwe::{JweContext, JweDecrypter, JweEncrypter, JweHeader};
 use crate::jwk::{Jwk, JwkSet};
 use crate::jws::{JwsContext, JwsHeader, JwsSigner, JwsVerifier};
 use crate::jwt::{self, JwtPayload};
-use crate::{JoseError, JoseHeader};
+use crate::{JoseError, JoseHeader, Map, Value};
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct JwtContext {

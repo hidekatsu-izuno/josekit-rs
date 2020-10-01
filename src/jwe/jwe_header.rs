@@ -4,11 +4,10 @@ use std::fmt::{Debug, Display};
 use std::ops::Deref;
 
 use anyhow::bail;
-use serde_json::{Map, Value};
 
 use crate::jwk::Jwk;
 use crate::util;
-use crate::{JoseError, JoseHeader};
+use crate::{JoseError, JoseHeader, Map, Value};
 
 /// Represent JWE header claims
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -62,6 +61,14 @@ impl JweHeader {
         self.claims.insert("alg".to_string(), Value::String(value));
     }
 
+    /// Return the value for algorithm header claim (alg).
+    pub fn algorithm(&self) -> Option<&str> {
+        match self.claim("alg") {
+            Some(Value::String(val)) => Some(&val),
+            _ => None,
+        }
+    }
+
     /// Set a value for content encryption header claim (enc).
     ///
     /// # Arguments
@@ -76,8 +83,7 @@ impl JweHeader {
     pub fn content_encryption(&self) -> Option<&str> {
         match self.claims.get("enc") {
             Some(Value::String(val)) => Some(val),
-            None => None,
-            _ => unreachable!(),
+            _ => None,
         }
     }
 
@@ -95,8 +101,7 @@ impl JweHeader {
     pub fn compression(&self) -> Option<&str> {
         match self.claims.get("zip") {
             Some(Value::String(val)) => Some(val),
-            None => None,
-            _ => unreachable!(),
+            _ => None,
         }
     }
 
@@ -124,9 +129,9 @@ impl JweHeader {
     ///
     /// * `value` - a JWK
     pub fn set_jwk(&mut self, value: Jwk) {
-        let key = "jwk".to_string();
+        let key = "jwk";
         let value: Map<String, Value> = value.into();
-        self.claims.insert(key.clone(), Value::Object(value));
+        self.claims.insert(key.to_string(), Value::Object(value));
     }
 
     /// Return the value for JWK header claim (jwk).
@@ -164,7 +169,7 @@ impl JweHeader {
     ///
     /// * `values` - X.509 certificate chain
     pub fn set_x509_certificate_chain(&mut self, values: &Vec<impl AsRef<[u8]>>) {
-        let key = "x5c".to_string();
+        let key = "x5c";
         let mut vec = Vec::with_capacity(values.len());
         for val in values {
             vec.push(Value::String(base64::encode_config(
@@ -172,7 +177,7 @@ impl JweHeader {
                 base64::URL_SAFE_NO_PAD,
             )));
         }
-        self.claims.insert(key.clone(), Value::Array(vec));
+        self.claims.insert(key.to_string(), Value::Array(vec));
     }
 
     /// Return values for a X.509 certificate chain header claim (x5c).
@@ -203,9 +208,9 @@ impl JweHeader {
     ///
     /// * `value` - A X.509 certificate SHA-1 thumbprint
     pub fn set_x509_certificate_sha1_thumbprint(&mut self, value: impl AsRef<[u8]>) {
-        let key = "x5t".to_string();
+        let key = "x5t";
         let val = base64::encode_config(&value, base64::URL_SAFE_NO_PAD);
-        self.claims.insert(key.clone(), Value::String(val));
+        self.claims.insert(key.to_string(), Value::String(val));
     }
 
     /// Return the value for X.509 certificate SHA-1 thumbprint header claim (x5t).
@@ -225,9 +230,9 @@ impl JweHeader {
     ///
     /// * `value` - A x509 certificate SHA-256 thumbprint
     pub fn set_x509_certificate_sha256_thumbprint(&mut self, value: impl AsRef<[u8]>) {
-        let key = "x5t#S256".to_string();
+        let key = "x5t#S256";
         let val = base64::encode_config(&value, base64::URL_SAFE_NO_PAD);
-        self.claims.insert(key.clone(), Value::String(val));
+        self.claims.insert(key.to_string(), Value::String(val));
     }
 
     /// Return the value for X.509 certificate SHA-256 thumbprint header claim (x5t#S256).
@@ -301,13 +306,12 @@ impl JweHeader {
     ///
     /// * `values` - critical claim names
     pub fn set_critical(&mut self, values: &Vec<impl AsRef<str>>) {
-        let key = "crit".to_string();
-        let mut vec = Vec::with_capacity(values.len());
-        for val in values {
-            let val: String = val.as_ref().to_string();
-            vec.push(Value::String(val));
-        }
-        self.claims.insert(key.clone(), Value::Array(vec));
+        let key = "crit";
+        let vec = values
+            .iter()
+            .map(|v| Value::String(v.as_ref().to_string()))
+            .collect();
+        self.claims.insert(key.to_string(), Value::Array(vec));
     }
 
     /// Return values for critical header claim (crit).
@@ -351,9 +355,9 @@ impl JweHeader {
     ///
     /// * `value` - A nonce
     pub fn set_nonce(&mut self, value: impl AsRef<[u8]>) {
-        let key = "nonce".to_string();
+        let key = "nonce";
         let val = base64::encode_config(&value, base64::URL_SAFE_NO_PAD);
-        self.claims.insert(key.clone(), Value::String(val));
+        self.claims.insert(key.to_string(), Value::String(val));
     }
 
     /// Return the value for nonce header claim (nonce).
@@ -373,9 +377,9 @@ impl JweHeader {
     ///
     /// * `value` - A agreement PartyUInfo
     pub fn set_agreement_partyuinfo(&mut self, value: impl AsRef<[u8]>) {
-        let key = "apu".to_string();
+        let key = "apu";
         let val = base64::encode_config(&value, base64::URL_SAFE_NO_PAD);
-        self.claims.insert(key.clone(), Value::String(val));
+        self.claims.insert(key.to_string(), Value::String(val));
     }
 
     /// Return the value for agreement PartyUInfo header claim (apu).
@@ -395,9 +399,9 @@ impl JweHeader {
     ///
     /// * `value` - A agreement PartyVInfo
     pub fn set_agreement_partyvinfo(&mut self, value: impl AsRef<[u8]>) {
-        let key = "apv".to_string();
+        let key = "apv";
         let val = base64::encode_config(&value, base64::URL_SAFE_NO_PAD);
-        self.claims.insert(key.clone(), Value::String(val));
+        self.claims.insert(key.to_string(), Value::String(val));
     }
 
     /// Return the value for agreement PartyVInfo header claim (apv).
@@ -417,8 +421,9 @@ impl JweHeader {
     ///
     /// * `value` - a issuer
     pub fn set_issuer(&mut self, value: impl Into<String>) {
+        let key = "iss";
         let value: String = value.into();
-        self.claims.insert("iss".to_string(), Value::String(value));
+        self.claims.insert(key.to_string(), Value::String(value));
     }
 
     /// Return the value for issuer header claim (iss).
@@ -435,8 +440,9 @@ impl JweHeader {
     ///
     /// * `value` - a subject
     pub fn set_subject(&mut self, value: impl Into<String>) {
+        let key = "sub";
         let value: String = value.into();
-        self.claims.insert("sub".to_string(), Value::String(value));
+        self.claims.insert(key.to_string(), Value::String(value));
     }
 
     /// Return the value for subject header claim (sub).
@@ -461,14 +467,12 @@ impl JweHeader {
                 break;
             }
         } else if values.len() > 1 {
-            let mut vec1 = Vec::with_capacity(values.len());
-            let mut vec2 = Vec::with_capacity(values.len());
+            let mut vec = Vec::with_capacity(values.len());
             for val in values {
                 let val: String = val.into();
-                vec1.push(Value::String(val.clone()));
-                vec2.push(val);
+                vec.push(Value::String(val.clone()));
             }
-            self.claims.insert(key.clone(), Value::Array(vec1));
+            self.claims.insert(key.clone(), Value::Array(vec));
         }
     }
 
@@ -522,7 +526,7 @@ impl JweHeader {
         self.claims
     }
 
-    fn check_claim(key: &str, value: &Value) -> Result<(), JoseError> {
+    pub(crate) fn check_claim(key: &str, value: &Value) -> Result<(), JoseError> {
         (|| -> anyhow::Result<()> {
             match key {
                 "alg" | "enc" | "zip" | "jku" | "x5u" | "kid" | "typ" | "cty" | "url" | "iss"

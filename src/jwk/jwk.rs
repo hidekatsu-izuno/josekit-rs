@@ -5,14 +5,13 @@ use std::string::ToString;
 use anyhow::bail;
 use serde::ser::SerializeMap;
 use serde::{Serialize, Serializer};
-use serde_json::{Map, Value};
 
 use crate::jwk::alg::ec::{EcCurve, EcKeyPair};
 use crate::jwk::alg::ecx::{EcxCurve, EcxKeyPair};
 use crate::jwk::alg::ed::{EdCurve, EdKeyPair};
 use crate::jwk::alg::rsa::RsaKeyPair;
 use crate::util;
-use crate::JoseError;
+use crate::{JoseError, Map, Value};
 
 /// Represents JWK object.
 #[derive(Debug, Eq, PartialEq, Clone)]
