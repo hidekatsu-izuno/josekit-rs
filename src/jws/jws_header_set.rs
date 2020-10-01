@@ -1,11 +1,9 @@
 use std::fmt::{Debug, Display};
 use std::ops::Deref;
 
-use serde_json::{Map, Value};
-
 use crate::jwk::Jwk;
 use crate::jws::JwsHeader;
-use crate::{JoseError, JoseHeader};
+use crate::{JoseError, JoseHeader, Map, Value};
 
 /// Represent JWS protected and unprotected header claims
 #[derive(Debug, Eq, PartialEq, Clone)]

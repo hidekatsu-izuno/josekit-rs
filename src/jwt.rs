@@ -174,11 +174,12 @@ where
 
 #[cfg(test)]
 mod tests {
-    use anyhow::Result;
-    use serde_json::{json, Value};
     use std::fs;
     use std::path::PathBuf;
     use std::time::{Duration, SystemTime};
+    
+    use anyhow::Result;
+    use serde_json::json;
 
     #[allow(deprecated)]
     use crate::jwe::{
@@ -193,6 +194,7 @@ mod tests {
     };
     use crate::jwt::{self, JwtPayload};
     use crate::util;
+    use crate::Value;
 
     #[test]
     fn test_decode_header() -> Result<()> {

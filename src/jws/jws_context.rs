@@ -2,11 +2,10 @@ use std::collections::BTreeSet;
 use std::fmt::Debug;
 
 use anyhow::bail;
-use serde_json::{Map, Value};
 
 use crate::jws::{JwsHeader, JwsHeaderSet, JwsSigner, JwsVerifier};
 use crate::util;
-use crate::JoseError;
+use crate::{JoseError, Map, Value};
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct JwsContext {
