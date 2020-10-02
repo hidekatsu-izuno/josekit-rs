@@ -441,6 +441,28 @@ impl Jwk {
         }
     }
 
+    /// Set a value for a key value parameter (k) of a oct type.
+    ///
+    /// # Arguments
+    /// * `value` - A curve
+    pub fn set_key_value(&mut self, value: impl AsRef<[u8]>) {
+        self.map.insert(
+            "k".to_string(),
+            Value::String(base64::encode_config(&value, base64::URL_SAFE_NO_PAD)),
+        );
+    }
+
+    /// Return a value for a key value parameter (k) of a oct type.
+    pub fn key_value(&self) -> Option<Vec<u8>> {
+        match self.map.get("k") {
+            Some(Value::String(val)) => match base64::decode_config(val, base64::URL_SAFE_NO_PAD) {
+                Ok(val) => Some(val),
+                Err(_) => None,
+            },
+            _ => None,
+        }
+    }
+
     /// Set a value for a parameter of a specified key.
     ///
     /// # Arguments
