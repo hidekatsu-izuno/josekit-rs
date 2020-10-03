@@ -33,15 +33,15 @@ impl RsaesJweAlgorithm {
     ///
     /// # Arguments
     /// * `bits` - RSA key length
-    pub fn generate_keypair(&self, bits: u32) -> Result<RsaKeyPair, JoseError> {
+    pub fn generate_key_pair(&self, bits: u32) -> Result<RsaKeyPair, JoseError> {
         (|| -> anyhow::Result<RsaKeyPair> {
             if bits < 2048 {
                 bail!("key length must be 2048 or more.");
             }
 
-            let mut keypair = RsaKeyPair::generate(bits)?;
-            keypair.set_algorithm(Some(self.name()));
-            Ok(keypair)
+            let mut key_pair = RsaKeyPair::generate(bits)?;
+            key_pair.set_algorithm(Some(self.name()));
+            Ok(key_pair)
         })()
         .map_err(|err| match err.downcast::<JoseError>() {
             Ok(err) => err,
@@ -53,16 +53,16 @@ impl RsaesJweAlgorithm {
     ///
     /// # Arguments
     /// * `input` - A private key that is a DER encoded PKCS#8 PrivateKeyInfo or PKCS#1 RSAPrivateKey.
-    pub fn keypair_from_der(&self, input: impl AsRef<[u8]>) -> Result<RsaKeyPair, JoseError> {
+    pub fn key_pair_from_der(&self, input: impl AsRef<[u8]>) -> Result<RsaKeyPair, JoseError> {
         (|| -> anyhow::Result<RsaKeyPair> {
-            let mut keypair = RsaKeyPair::from_der(input)?;
+            let mut key_pair = RsaKeyPair::from_der(input)?;
 
-            if keypair.key_len() * 8 < 2048 {
+            if key_pair.key_len() * 8 < 2048 {
                 bail!("key length must be 2048 or more.");
             }
 
-            keypair.set_algorithm(Some(self.name()));
-            Ok(keypair)
+            key_pair.set_algorithm(Some(self.name()));
+            Ok(key_pair)
         })()
         .map_err(|err| match err.downcast::<JoseError>() {
             Ok(err) => err,
@@ -80,16 +80,16 @@ impl RsaesJweAlgorithm {
     ///
     /// # Arguments
     /// * `input` - A private key of common or traditinal PEM format.
-    pub fn keypair_from_pem(&self, input: impl AsRef<[u8]>) -> Result<RsaKeyPair, JoseError> {
+    pub fn key_pair_from_pem(&self, input: impl AsRef<[u8]>) -> Result<RsaKeyPair, JoseError> {
         (|| -> anyhow::Result<RsaKeyPair> {
-            let mut keypair = RsaKeyPair::from_pem(input.as_ref())?;
+            let mut key_pair = RsaKeyPair::from_pem(input.as_ref())?;
 
-            if keypair.key_len() * 8 < 2048 {
+            if key_pair.key_len() * 8 < 2048 {
                 bail!("key length must be 2048 or more.");
             }
 
-            keypair.set_algorithm(Some(self.name()));
-            Ok(keypair)
+            key_pair.set_algorithm(Some(self.name()));
+            Ok(key_pair)
         })()
         .map_err(|err| match err.downcast::<JoseError>() {
             Ok(err) => err,
@@ -222,10 +222,10 @@ impl RsaesJweAlgorithm {
         &self,
         input: impl AsRef<[u8]>,
     ) -> Result<RsaesJweDecrypter, JoseError> {
-        let keypair = self.keypair_from_der(input.as_ref())?;
+        let key_pair = self.key_pair_from_der(input.as_ref())?;
         Ok(RsaesJweDecrypter {
             algorithm: self.clone(),
-            private_key: keypair.into_private_key(),
+            private_key: key_pair.into_private_key(),
             key_id: None,
         })
     }
@@ -234,10 +234,10 @@ impl RsaesJweAlgorithm {
         &self,
         input: impl AsRef<[u8]>,
     ) -> Result<RsaesJweDecrypter, JoseError> {
-        let keypair = self.keypair_from_pem(input.as_ref())?;
+        let key_pair = self.key_pair_from_pem(input.as_ref())?;
         Ok(RsaesJweDecrypter {
             algorithm: self.clone(),
-            private_key: keypair.into_private_key(),
+            private_key: key_pair.into_private_key(),
             key_id: None,
         })
     }
@@ -258,12 +258,12 @@ impl RsaesJweAlgorithm {
                 Some(val) => bail!("A parameter alg must be {} but {}", self.name(), val),
             }
 
-            let keypair = RsaKeyPair::from_jwk(&jwk)?;
-            if keypair.key_len() * 8 < 2048 {
+            let key_pair = RsaKeyPair::from_jwk(&jwk)?;
+            if key_pair.key_len() * 8 < 2048 {
                 bail!("key length must be 2048 or more.");
             }
 
-            let private_key = keypair.into_private_key();
+            let private_key = key_pair.into_private_key();
             let key_id = jwk.key_id().map(|val| val.to_string());
 
             Ok(RsaesJweDecrypter {

@@ -20,24 +20,24 @@ pub enum EddsaJwsAlgorithm {
 }
 
 impl EddsaJwsAlgorithm {
-    /// Generate a EdDSA keypair
+    /// Generate a EdDSA key pair
     ///
     /// # Arguments
     /// * `curve` - EdDSA curve algorithm
-    pub fn generate_keypair(&self, curve: EdCurve) -> Result<EdKeyPair, JoseError> {
-        let mut keypair = EdKeyPair::generate(curve)?;
-        keypair.set_algorithm(Some(self.name()));
-        Ok(keypair)
+    pub fn generate_key_pair(&self, curve: EdCurve) -> Result<EdKeyPair, JoseError> {
+        let mut key_pair = EdKeyPair::generate(curve)?;
+        key_pair.set_algorithm(Some(self.name()));
+        Ok(key_pair)
     }
 
     /// Create a EdDSA key pair from a private key that is a DER encoded PKCS#8 PrivateKeyInfo.
     ///
     /// # Arguments
     /// * `input` - A private key that is a DER encoded PKCS#8 PrivateKeyInfo.
-    pub fn keypair_from_der(&self, input: impl AsRef<[u8]>) -> Result<EdKeyPair, JoseError> {
-        let mut keypair = EdKeyPair::from_der(input, None)?;
-        keypair.set_algorithm(Some(self.name()));
-        Ok(keypair)
+    pub fn key_pair_from_der(&self, input: impl AsRef<[u8]>) -> Result<EdKeyPair, JoseError> {
+        let mut key_pair = EdKeyPair::from_der(input, None)?;
+        key_pair.set_algorithm(Some(self.name()));
+        Ok(key_pair)
     }
 
     /// Create a EdDSA key pair from a private key of common or traditinal PEM format.
@@ -50,10 +50,10 @@ impl EddsaJwsAlgorithm {
     ///
     /// # Arguments
     /// * `input` - A private key of common or traditinal PEM format.
-    pub fn keypair_from_pem(&self, input: impl AsRef<[u8]>) -> Result<EdKeyPair, JoseError> {
-        let mut keypair = EdKeyPair::from_pem(input.as_ref(), None)?;
-        keypair.set_algorithm(Some(self.name()));
-        Ok(keypair)
+    pub fn key_pair_from_pem(&self, input: impl AsRef<[u8]>) -> Result<EdKeyPair, JoseError> {
+        let mut key_pair = EdKeyPair::from_pem(input.as_ref(), None)?;
+        key_pair.set_algorithm(Some(self.name()));
+        Ok(key_pair)
     }
 
     /// Return a signer from a private key that is a DER encoded PKCS#8 PrivateKeyInfo.
@@ -61,11 +61,11 @@ impl EddsaJwsAlgorithm {
     /// # Arguments
     /// * `input` - A private key that is a DER encoded PKCS#8 PrivateKeyInfo.
     pub fn signer_from_der(&self, input: impl AsRef<[u8]>) -> Result<EddsaJwsSigner, JoseError> {
-        let keypair = self.keypair_from_der(input.as_ref())?;
+        let key_pair = self.key_pair_from_der(input.as_ref())?;
         Ok(EddsaJwsSigner {
             algorithm: self.clone(),
-            curve: keypair.curve(),
-            private_key: keypair.into_private_key(),
+            curve: key_pair.curve(),
+            private_key: key_pair.into_private_key(),
             key_id: None,
         })
     }
@@ -81,11 +81,11 @@ impl EddsaJwsAlgorithm {
     /// # Arguments
     /// * `input` - A private key of common or traditinal PEM format.
     pub fn signer_from_pem(&self, input: impl AsRef<[u8]>) -> Result<EddsaJwsSigner, JoseError> {
-        let keypair = self.keypair_from_pem(input.as_ref())?;
+        let key_pair = self.key_pair_from_pem(input.as_ref())?;
         Ok(EddsaJwsSigner {
             algorithm: self.clone(),
-            curve: keypair.curve(),
-            private_key: keypair.into_private_key(),
+            curve: key_pair.curve(),
+            private_key: key_pair.into_private_key(),
             key_id: None,
         })
     }
@@ -110,9 +110,9 @@ impl EddsaJwsAlgorithm {
                 Some(val) => bail!("A parameter alg must be {} but {}", self.name(), val),
             }
 
-            let keypair = EdKeyPair::from_jwk(jwk, None)?;
-            let curve = keypair.curve();
-            let private_key = keypair.into_private_key();
+            let key_pair = EdKeyPair::from_jwk(jwk, None)?;
+            let curve = key_pair.curve();
+            let private_key = key_pair.into_private_key();
             let key_id = jwk.key_id().map(|val| val.to_string());
 
             Ok(EddsaJwsSigner {
@@ -383,12 +383,12 @@ mod tests {
 
         for curve in vec![EdCurve::Ed25519, EdCurve::Ed448] {
             let alg = EddsaJwsAlgorithm::Eddsa;
-            let keypair = alg.generate_keypair(curve)?;
+            let key_pair = alg.generate_key_pair(curve)?;
 
-            let signer = alg.signer_from_der(&keypair.to_der_private_key())?;
+            let signer = alg.signer_from_der(&key_pair.to_der_private_key())?;
             let signature = signer.sign(input)?;
 
-            let verifier = alg.verifier_from_der(&keypair.to_der_public_key())?;
+            let verifier = alg.verifier_from_der(&key_pair.to_der_public_key())?;
             verifier.verify(input, &signature)?;
         }
 
@@ -401,12 +401,12 @@ mod tests {
 
         for curve in vec![EdCurve::Ed25519, EdCurve::Ed448] {
             let alg = EddsaJwsAlgorithm::Eddsa;
-            let keypair = alg.generate_keypair(curve)?;
+            let key_pair = alg.generate_key_pair(curve)?;
 
-            let signer = alg.signer_from_pem(&keypair.to_pem_private_key())?;
+            let signer = alg.signer_from_pem(&key_pair.to_pem_private_key())?;
             let signature = signer.sign(input)?;
 
-            let verifier = alg.verifier_from_pem(&keypair.to_pem_public_key())?;
+            let verifier = alg.verifier_from_pem(&key_pair.to_pem_public_key())?;
             verifier.verify(input, &signature)?;
         }
 
@@ -419,12 +419,12 @@ mod tests {
 
         for curve in vec![EdCurve::Ed25519, EdCurve::Ed448] {
             let alg = EddsaJwsAlgorithm::Eddsa;
-            let keypair = alg.generate_keypair(curve)?;
+            let key_pair = alg.generate_key_pair(curve)?;
 
-            let signer = alg.signer_from_pem(&keypair.to_traditional_pem_private_key())?;
+            let signer = alg.signer_from_pem(&key_pair.to_traditional_pem_private_key())?;
             let signature = signer.sign(input)?;
 
-            let verifier = alg.verifier_from_pem(&keypair.to_pem_public_key())?;
+            let verifier = alg.verifier_from_pem(&key_pair.to_pem_public_key())?;
             verifier.verify(input, &signature)?;
         }
 
@@ -437,12 +437,12 @@ mod tests {
 
         for curve in vec![EdCurve::Ed25519, EdCurve::Ed448] {
             let alg = EddsaJwsAlgorithm::Eddsa;
-            let keypair = alg.generate_keypair(curve)?;
+            let key_pair = alg.generate_key_pair(curve)?;
 
-            let signer = alg.signer_from_jwk(&keypair.to_jwk_private_key())?;
+            let signer = alg.signer_from_jwk(&key_pair.to_jwk_private_key())?;
             let signature = signer.sign(input)?;
 
-            let verifier = alg.verifier_from_jwk(&keypair.to_jwk_public_key())?;
+            let verifier = alg.verifier_from_jwk(&key_pair.to_jwk_public_key())?;
             verifier.verify(input, &signature)?;
         }
 

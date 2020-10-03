@@ -38,7 +38,7 @@ impl RsaKeyPair {
         }
     }
 
-    pub fn into_rsa_pss_keypair(
+    pub fn into_rsa_pss_key_pair(
         self,
         hash: HashAlgorithm,
         mgf1_hash: HashAlgorithm,
@@ -418,7 +418,7 @@ impl KeyPair for RsaKeyPair {
         self.to_jwk(false, true)
     }
 
-    fn to_jwk_keypair(&self) -> Jwk {
+    fn to_jwk_key_pair(&self) -> Jwk {
         self.to_jwk(true, true)
     }
 
@@ -444,15 +444,15 @@ mod tests {
     #[test]
     fn test_rsa_jwt() -> Result<()> {
         for bits in vec![1024, 2048, 4096] {
-            let keypair1 = RsaKeyPair::generate(bits)?;
-            let der_private1 = keypair1.to_der_private_key();
-            let der_public1 = keypair1.to_der_public_key();
+            let key_pair_1 = RsaKeyPair::generate(bits)?;
+            let der_private1 = key_pair_1.to_der_private_key();
+            let der_public1 = key_pair_1.to_der_public_key();
 
-            let jwk_keypair1 = keypair1.to_jwk_keypair();
+            let jwk_key_pair_1 = key_pair_1.to_jwk_key_pair();
 
-            let keypair2 = RsaKeyPair::from_jwk(&jwk_keypair1)?;
-            let der_private2 = keypair2.to_der_private_key();
-            let der_public2 = keypair2.to_der_public_key();
+            let key_pair_2 = RsaKeyPair::from_jwk(&jwk_key_pair_1)?;
+            let der_private2 = key_pair_2.to_der_private_key();
+            let der_public2 = key_pair_2.to_der_public_key();
 
             assert_eq!(der_private1, der_private2);
             assert_eq!(der_public1, der_public2);

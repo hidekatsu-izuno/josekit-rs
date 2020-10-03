@@ -28,15 +28,15 @@ impl RsassaJwsAlgorithm {
     ///
     /// # Arguments
     /// * `bits` - RSA key length
-    pub fn generate_keypair(&self, bits: u32) -> Result<RsaKeyPair, JoseError> {
+    pub fn generate_key_pair(&self, bits: u32) -> Result<RsaKeyPair, JoseError> {
         (|| -> anyhow::Result<RsaKeyPair> {
             if bits < 2048 {
                 bail!("key length must be 2048 or more.");
             }
 
-            let mut keypair = RsaKeyPair::generate(bits)?;
-            keypair.set_algorithm(Some(self.name()));
-            Ok(keypair)
+            let mut key_pair = RsaKeyPair::generate(bits)?;
+            key_pair.set_algorithm(Some(self.name()));
+            Ok(key_pair)
         })()
         .map_err(|err| match err.downcast::<JoseError>() {
             Ok(err) => err,
@@ -48,16 +48,16 @@ impl RsassaJwsAlgorithm {
     ///
     /// # Arguments
     /// * `input` - A private key that is a DER encoded PKCS#8 PrivateKeyInfo or PKCS#1 RSAPrivateKey.
-    pub fn keypair_from_der(&self, input: impl AsRef<[u8]>) -> Result<RsaKeyPair, JoseError> {
+    pub fn key_pair_from_der(&self, input: impl AsRef<[u8]>) -> Result<RsaKeyPair, JoseError> {
         (|| -> anyhow::Result<RsaKeyPair> {
-            let mut keypair = RsaKeyPair::from_der(input)?;
+            let mut key_pair = RsaKeyPair::from_der(input)?;
 
-            if keypair.key_len() * 8 < 2048 {
+            if key_pair.key_len() * 8 < 2048 {
                 bail!("key length must be 2048 or more.");
             }
 
-            keypair.set_algorithm(Some(self.name()));
-            Ok(keypair)
+            key_pair.set_algorithm(Some(self.name()));
+            Ok(key_pair)
         })()
         .map_err(|err| match err.downcast::<JoseError>() {
             Ok(err) => err,
@@ -75,16 +75,16 @@ impl RsassaJwsAlgorithm {
     ///
     /// # Arguments
     /// * `input` - A private key of common or traditinal PEM format.
-    pub fn keypair_from_pem(&self, input: impl AsRef<[u8]>) -> Result<RsaKeyPair, JoseError> {
+    pub fn key_pair_from_pem(&self, input: impl AsRef<[u8]>) -> Result<RsaKeyPair, JoseError> {
         (|| -> anyhow::Result<RsaKeyPair> {
-            let mut keypair = RsaKeyPair::from_pem(input.as_ref())?;
+            let mut key_pair = RsaKeyPair::from_pem(input.as_ref())?;
 
-            if keypair.key_len() * 8 < 2048 {
+            if key_pair.key_len() * 8 < 2048 {
                 bail!("key length must be 2048 or more.");
             }
 
-            keypair.set_algorithm(Some(self.name()));
-            Ok(keypair)
+            key_pair.set_algorithm(Some(self.name()));
+            Ok(key_pair)
         })()
         .map_err(|err| match err.downcast::<JoseError>() {
             Ok(err) => err,
@@ -97,10 +97,10 @@ impl RsassaJwsAlgorithm {
     /// # Arguments
     /// * `input` - A private key that is a DER encoded PKCS#8 PrivateKeyInfo or PKCS#1 RSAPrivateKey.
     pub fn signer_from_der(&self, input: impl AsRef<[u8]>) -> Result<RsassaJwsSigner, JoseError> {
-        let keypair = self.keypair_from_der(input.as_ref())?;
+        let key_pair = self.key_pair_from_der(input.as_ref())?;
         Ok(RsassaJwsSigner {
             algorithm: self.clone(),
-            private_key: keypair.into_private_key(),
+            private_key: key_pair.into_private_key(),
             key_id: None,
         })
     }
@@ -116,10 +116,10 @@ impl RsassaJwsAlgorithm {
     /// # Arguments
     /// * `input` - A private key of common or traditinal PEM format.
     pub fn signer_from_pem(&self, input: impl AsRef<[u8]>) -> Result<RsassaJwsSigner, JoseError> {
-        let keypair = self.keypair_from_pem(input.as_ref())?;
+        let key_pair = self.key_pair_from_pem(input.as_ref())?;
         Ok(RsassaJwsSigner {
             algorithm: self.clone(),
-            private_key: keypair.into_private_key(),
+            private_key: key_pair.into_private_key(),
             key_id: None,
         })
     }
@@ -144,12 +144,12 @@ impl RsassaJwsAlgorithm {
                 Some(val) => bail!("A parameter alg must be {} but {}", self.name(), val),
             }
 
-            let keypair = RsaKeyPair::from_jwk(jwk)?;
-            if keypair.key_len() * 8 < 2048 {
+            let key_pair = RsaKeyPair::from_jwk(jwk)?;
+            if key_pair.key_len() * 8 < 2048 {
                 bail!("key length must be 2048 or more.");
             }
 
-            let private_key = keypair.into_private_key();
+            let private_key = key_pair.into_private_key();
             let key_id = jwk.key_id().map(|val| val.to_string());
 
             Ok(RsassaJwsSigner {
@@ -468,12 +468,12 @@ mod tests {
             RsassaJwsAlgorithm::Rs384,
             RsassaJwsAlgorithm::Rs512,
         ] {
-            let keypair = alg.generate_keypair(2048)?;
+            let key_pair = alg.generate_key_pair(2048)?;
 
-            let signer = alg.signer_from_der(&keypair.to_der_private_key())?;
+            let signer = alg.signer_from_der(&key_pair.to_der_private_key())?;
             let signature = signer.sign(input)?;
 
-            let verifier = alg.verifier_from_der(&keypair.to_der_public_key())?;
+            let verifier = alg.verifier_from_der(&key_pair.to_der_public_key())?;
             verifier.verify(input, &signature)?;
         }
 
@@ -489,12 +489,12 @@ mod tests {
             RsassaJwsAlgorithm::Rs384,
             RsassaJwsAlgorithm::Rs512,
         ] {
-            let keypair = alg.generate_keypair(2048)?;
+            let key_pair = alg.generate_key_pair(2048)?;
 
-            let signer = alg.signer_from_der(&keypair.to_raw_private_key())?;
+            let signer = alg.signer_from_der(&key_pair.to_raw_private_key())?;
             let signature = signer.sign(input)?;
 
-            let verifier = alg.verifier_from_der(&keypair.to_raw_public_key())?;
+            let verifier = alg.verifier_from_der(&key_pair.to_raw_public_key())?;
             verifier.verify(input, &signature)?;
         }
 
@@ -510,12 +510,12 @@ mod tests {
             RsassaJwsAlgorithm::Rs384,
             RsassaJwsAlgorithm::Rs512,
         ] {
-            let keypair = alg.generate_keypair(2048)?;
+            let key_pair = alg.generate_key_pair(2048)?;
 
-            let signer = alg.signer_from_pem(&keypair.to_pem_private_key())?;
+            let signer = alg.signer_from_pem(&key_pair.to_pem_private_key())?;
             let signature = signer.sign(input)?;
 
-            let verifier = alg.verifier_from_pem(&keypair.to_pem_public_key())?;
+            let verifier = alg.verifier_from_pem(&key_pair.to_pem_public_key())?;
             verifier.verify(input, &signature)?;
         }
 
@@ -531,12 +531,12 @@ mod tests {
             RsassaJwsAlgorithm::Rs384,
             RsassaJwsAlgorithm::Rs512,
         ] {
-            let keypair = alg.generate_keypair(2048)?;
+            let key_pair = alg.generate_key_pair(2048)?;
 
-            let signer = alg.signer_from_pem(&keypair.to_traditional_pem_private_key())?;
+            let signer = alg.signer_from_pem(&key_pair.to_traditional_pem_private_key())?;
             let signature = signer.sign(input)?;
 
-            let verifier = alg.verifier_from_pem(&keypair.to_traditional_pem_public_key())?;
+            let verifier = alg.verifier_from_pem(&key_pair.to_traditional_pem_public_key())?;
             verifier.verify(input, &signature)?;
         }
 
@@ -552,12 +552,12 @@ mod tests {
             RsassaJwsAlgorithm::Rs384,
             RsassaJwsAlgorithm::Rs512,
         ] {
-            let keypair = alg.generate_keypair(2048)?;
+            let key_pair = alg.generate_key_pair(2048)?;
 
-            let signer = alg.signer_from_jwk(&keypair.to_jwk_private_key())?;
+            let signer = alg.signer_from_jwk(&key_pair.to_jwk_private_key())?;
             let signature = signer.sign(input)?;
 
-            let verifier = alg.verifier_from_jwk(&keypair.to_jwk_public_key())?;
+            let verifier = alg.verifier_from_jwk(&key_pair.to_jwk_public_key())?;
             verifier.verify(input, &signature)?;
         }
 

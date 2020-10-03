@@ -68,37 +68,37 @@ pub enum EcdhEsJweAlgorithm {
 
 impl EcdhEsJweAlgorithm {
     /// Generate EC key pair for ECDH.
-    pub fn generate_ec_keypair(&self, curve: EcCurve) -> Result<EcKeyPair, JoseError> {
-        let mut keypair = EcKeyPair::generate(curve)?;
-        keypair.set_algorithm(Some(self.name()));
-        Ok(keypair)
+    pub fn generate_ec_key_pair(&self, curve: EcCurve) -> Result<EcKeyPair, JoseError> {
+        let mut key_pair = EcKeyPair::generate(curve)?;
+        key_pair.set_algorithm(Some(self.name()));
+        Ok(key_pair)
     }
 
     /// Generate ECx key pair for ECDH.
-    pub fn generate_ecx_keypair(&self, curve: EcxCurve) -> Result<EcxKeyPair, JoseError> {
-        let mut keypair = EcxKeyPair::generate(curve)?;
-        keypair.set_algorithm(Some(self.name()));
-        Ok(keypair)
+    pub fn generate_ecx_key_pair(&self, curve: EcxCurve) -> Result<EcxKeyPair, JoseError> {
+        let mut key_pair = EcxKeyPair::generate(curve)?;
+        key_pair.set_algorithm(Some(self.name()));
+        Ok(key_pair)
     }
 
     /// Create a EC key pair for ECDH from a private key that is a DER encoded PKCS#8 PrivateKeyInfo or ECPrivateKey.
     ///
     /// # Arguments
     /// * `input` - A private key that is a DER encoded PKCS#8 PrivateKeyInfo or ECPrivateKey.
-    pub fn keypair_from_ec_der(&self, input: impl AsRef<[u8]>) -> Result<EcKeyPair, JoseError> {
-        let mut keypair = EcKeyPair::from_der(input, None)?;
-        keypair.set_algorithm(Some(self.name()));
-        Ok(keypair)
+    pub fn key_pair_from_ec_der(&self, input: impl AsRef<[u8]>) -> Result<EcKeyPair, JoseError> {
+        let mut key_pair = EcKeyPair::from_der(input, None)?;
+        key_pair.set_algorithm(Some(self.name()));
+        Ok(key_pair)
     }
 
     /// Create a ECx key pair for ECDH from a private key that is a DER encoded PKCS#8 PrivateKeyInfo.
     ///
     /// # Arguments
     /// * `input` - A private key that is a DER encoded PKCS#8 PrivateKeyInfo.
-    pub fn keypair_from_ecx_der(&self, input: impl AsRef<[u8]>) -> Result<EcxKeyPair, JoseError> {
-        let mut keypair = EcxKeyPair::from_der(input, None)?;
-        keypair.set_algorithm(Some(self.name()));
-        Ok(keypair)
+    pub fn key_pair_from_ecx_der(&self, input: impl AsRef<[u8]>) -> Result<EcxKeyPair, JoseError> {
+        let mut key_pair = EcxKeyPair::from_der(input, None)?;
+        key_pair.set_algorithm(Some(self.name()));
+        Ok(key_pair)
     }
 
     /// Create a EC key pair for ECDH from a private key of common or traditinal PEM format.
@@ -111,10 +111,10 @@ impl EcdhEsJweAlgorithm {
     ///
     /// # Arguments
     /// * `input` - A private key of common or traditinal PEM format.
-    pub fn keypair_from_ec_pem(&self, input: impl AsRef<[u8]>) -> Result<EcKeyPair, JoseError> {
-        let mut keypair = EcKeyPair::from_pem(input.as_ref(), None)?;
-        keypair.set_algorithm(Some(self.name()));
-        Ok(keypair)
+    pub fn key_pair_from_ec_pem(&self, input: impl AsRef<[u8]>) -> Result<EcKeyPair, JoseError> {
+        let mut key_pair = EcKeyPair::from_pem(input.as_ref(), None)?;
+        key_pair.set_algorithm(Some(self.name()));
+        Ok(key_pair)
     }
 
     /// Create a ECx key pair for ECDH from a private key of common or traditinal PEM format.
@@ -127,10 +127,10 @@ impl EcdhEsJweAlgorithm {
     ///
     /// # Arguments
     /// * `input` - A private key of common or traditinal PEM format.
-    pub fn keypair_from_ecx_pem(&self, input: impl AsRef<[u8]>) -> Result<EcxKeyPair, JoseError> {
-        let mut keypair = EcxKeyPair::from_pem(input.as_ref(), None)?;
-        keypair.set_algorithm(Some(self.name()));
-        Ok(keypair)
+    pub fn key_pair_from_ecx_pem(&self, input: impl AsRef<[u8]>) -> Result<EcxKeyPair, JoseError> {
+        let mut key_pair = EcxKeyPair::from_pem(input.as_ref(), None)?;
+        key_pair.set_algorithm(Some(self.name()));
+        Ok(key_pair)
     }
 
     pub fn encrypter_from_der(
@@ -381,8 +381,8 @@ impl EcdhEsJweAlgorithm {
                             "secp256k1" => EcCurve::Secp256k1,
                             val => bail!("EC key doesn't support the curve algorithm: {}", val),
                         };
-                        let keypair = EcKeyPair::from_jwk(&jwk, Some(curve))?;
-                        let private_key = keypair.into_private_key();
+                        let key_pair = EcKeyPair::from_jwk(&jwk, Some(curve))?;
+                        let private_key = key_pair.into_private_key();
 
                         (private_key, EcdhEsKeyType::Ec(curve))
                     }
@@ -392,8 +392,8 @@ impl EcdhEsJweAlgorithm {
                             "X448" => EcxCurve::X448,
                             val => bail!("OKP key doesn't support the curve algorithm: {}", val),
                         };
-                        let keypair = EcxKeyPair::from_jwk(&jwk, Some(curve))?;
-                        let private_key = keypair.into_private_key();
+                        let key_pair = EcxKeyPair::from_jwk(&jwk, Some(curve))?;
+                        let private_key = key_pair.into_private_key();
 
                         (private_key, EcdhEsKeyType::Ecx(curve))
                     }
@@ -655,8 +655,8 @@ impl EcdhEsJweEncrypter {
             );
             let private_key = match self.key_type {
                 EcdhEsKeyType::Ec(curve) => {
-                    let keypair = EcKeyPair::generate(curve)?;
-                    let mut jwk: Map<String, Value> = keypair.to_jwk_public_key().into();
+                    let key_pair = EcKeyPair::generate(curve)?;
+                    let mut jwk: Map<String, Value> = key_pair.to_jwk_public_key().into();
 
                     match jwk.remove("x") {
                         Some(val) => {
@@ -671,11 +671,11 @@ impl EcdhEsJweEncrypter {
                         None => unreachable!(),
                     }
 
-                    keypair.into_private_key()
+                    key_pair.into_private_key()
                 }
                 EcdhEsKeyType::Ecx(curve) => {
-                    let keypair = EcxKeyPair::generate(curve)?;
-                    let mut jwk: Map<String, Value> = keypair.to_jwk_public_key().into();
+                    let key_pair = EcxKeyPair::generate(curve)?;
+                    let mut jwk: Map<String, Value> = key_pair.to_jwk_public_key().into();
 
                     match jwk.remove("x") {
                         Some(val) => {
@@ -684,7 +684,7 @@ impl EcdhEsJweEncrypter {
                         None => unreachable!(),
                     }
 
-                    keypair.into_private_key()
+                    key_pair.into_private_key()
                 }
             };
 

@@ -79,8 +79,8 @@ impl Jwk {
     /// # Arguments
     /// * `bits` - A key bits size
     pub fn generate_rsa_key(bits: u32) -> Result<Self, JoseError> {
-        let keypair = RsaKeyPair::generate(bits)?;
-        Ok(keypair.to_jwk_keypair())
+        let key_pair = RsaKeyPair::generate(bits)?;
+        Ok(key_pair.to_jwk_key_pair())
     }
 
     /// Generate a new EC type JWK.
@@ -88,8 +88,8 @@ impl Jwk {
     /// # Arguments
     /// * `curve` - A EC curve algorithm
     pub fn generate_ec_key(curve: EcCurve) -> Result<Self, JoseError> {
-        let keypair = EcKeyPair::generate(curve)?;
-        Ok(keypair.to_jwk_keypair())
+        let key_pair = EcKeyPair::generate(curve)?;
+        Ok(key_pair.to_jwk_key_pair())
     }
 
     /// Generate a new Ed type JWK.
@@ -97,8 +97,8 @@ impl Jwk {
     /// # Arguments
     /// * `curve` - A Ed curve algorithm
     pub fn generate_ed_key(curve: EdCurve) -> Result<Self, JoseError> {
-        let keypair = EdKeyPair::generate(curve)?;
-        Ok(keypair.to_jwk_keypair())
+        let key_pair = EdKeyPair::generate(curve)?;
+        Ok(key_pair.to_jwk_key_pair())
     }
 
     /// Generate a new Ecx type JWK.
@@ -106,8 +106,8 @@ impl Jwk {
     /// # Arguments
     /// * `curve` - A Ecx curve algorithm
     pub fn generate_ecx_key(curve: EcxCurve) -> Result<Self, JoseError> {
-        let keypair = EcxKeyPair::generate(curve)?;
-        Ok(keypair.to_jwk_keypair())
+        let key_pair = EcxKeyPair::generate(curve)?;
+        Ok(key_pair.to_jwk_key_pair())
     }
 
     /// Generate private key from private key.

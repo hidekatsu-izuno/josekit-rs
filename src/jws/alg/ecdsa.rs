@@ -28,20 +28,20 @@ pub enum EcdsaJwsAlgorithm {
 
 impl EcdsaJwsAlgorithm {
     /// Generate ECDSA key pair.
-    pub fn generate_keypair(&self) -> Result<EcKeyPair, JoseError> {
-        let mut keypair = EcKeyPair::generate(self.curve())?;
-        keypair.set_algorithm(Some(self.name()));
-        Ok(keypair)
+    pub fn generate_key_pair(&self) -> Result<EcKeyPair, JoseError> {
+        let mut key_pair = EcKeyPair::generate(self.curve())?;
+        key_pair.set_algorithm(Some(self.name()));
+        Ok(key_pair)
     }
 
     /// Create a EcDSA key pair from a private key that is a DER encoded PKCS#8 PrivateKeyInfo or ECPrivateKey.
     ///
     /// # Arguments
     /// * `input` - A private key that is a DER encoded PKCS#8 PrivateKeyInfo or ECPrivateKey.
-    pub fn keypair_from_der(&self, input: impl AsRef<[u8]>) -> Result<EcKeyPair, JoseError> {
-        let mut keypair = EcKeyPair::from_der(input, Some(self.curve()))?;
-        keypair.set_algorithm(Some(self.name()));
-        Ok(keypair)
+    pub fn key_pair_from_der(&self, input: impl AsRef<[u8]>) -> Result<EcKeyPair, JoseError> {
+        let mut key_pair = EcKeyPair::from_der(input, Some(self.curve()))?;
+        key_pair.set_algorithm(Some(self.name()));
+        Ok(key_pair)
     }
 
     /// Create a EcDSA key pair from a private key of common or traditinal PEM format.
@@ -54,10 +54,10 @@ impl EcdsaJwsAlgorithm {
     ///
     /// # Arguments
     /// * `input` - A private key of common or traditinal PEM format.
-    pub fn keypair_from_pem(&self, input: impl AsRef<[u8]>) -> Result<EcKeyPair, JoseError> {
-        let mut keypair = EcKeyPair::from_pem(input.as_ref(), Some(self.curve()))?;
-        keypair.set_algorithm(Some(self.name()));
-        Ok(keypair)
+    pub fn key_pair_from_pem(&self, input: impl AsRef<[u8]>) -> Result<EcKeyPair, JoseError> {
+        let mut key_pair = EcKeyPair::from_pem(input.as_ref(), Some(self.curve()))?;
+        key_pair.set_algorithm(Some(self.name()));
+        Ok(key_pair)
     }
 
     /// Return a signer from a private key that is a DER encoded PKCS#8 PrivateKeyInfo or ECPrivateKey.
@@ -65,10 +65,10 @@ impl EcdsaJwsAlgorithm {
     /// # Arguments
     /// * `input` - A private key that is a DER encoded PKCS#8 PrivateKeyInfo or ECPrivateKey.
     pub fn signer_from_der(&self, input: impl AsRef<[u8]>) -> Result<EcdsaJwsSigner, JoseError> {
-        let keypair = self.keypair_from_der(input.as_ref())?;
+        let key_pair = self.key_pair_from_der(input.as_ref())?;
         Ok(EcdsaJwsSigner {
             algorithm: self.clone(),
-            private_key: keypair.into_private_key(),
+            private_key: key_pair.into_private_key(),
             key_id: None,
         })
     }
@@ -84,10 +84,10 @@ impl EcdsaJwsAlgorithm {
     /// # Arguments
     /// * `input` - A private key of common or traditinal PEM format.
     pub fn signer_from_pem(&self, input: impl AsRef<[u8]>) -> Result<EcdsaJwsSigner, JoseError> {
-        let keypair = self.keypair_from_pem(input.as_ref())?;
+        let key_pair = self.key_pair_from_pem(input.as_ref())?;
         Ok(EcdsaJwsSigner {
             algorithm: self.clone(),
-            private_key: keypair.into_private_key(),
+            private_key: key_pair.into_private_key(),
             key_id: None,
         })
     }
@@ -112,8 +112,8 @@ impl EcdsaJwsAlgorithm {
                 Some(val) => bail!("A parameter alg must be {} but {}", self.name(), val),
             }
 
-            let keypair = EcKeyPair::from_jwk(jwk, Some(self.curve()))?;
-            let private_key = keypair.into_private_key();
+            let key_pair = EcKeyPair::from_jwk(jwk, Some(self.curve()))?;
+            let private_key = key_pair.into_private_key();
             let key_id = jwk.key_id().map(|val| val.to_string());
 
             Ok(EcdsaJwsSigner {
@@ -481,12 +481,12 @@ mod tests {
             EcdsaJwsAlgorithm::Es512,
             EcdsaJwsAlgorithm::Es256k,
         ] {
-            let keypair = alg.generate_keypair()?;
+            let key_pair = alg.generate_key_pair()?;
 
-            let signer = alg.signer_from_der(&keypair.to_der_private_key())?;
+            let signer = alg.signer_from_der(&key_pair.to_der_private_key())?;
             let signature = signer.sign(input)?;
 
-            let verifier = alg.verifier_from_der(&keypair.to_der_public_key())?;
+            let verifier = alg.verifier_from_der(&key_pair.to_der_public_key())?;
             verifier.verify(input, &signature)?;
         }
 
@@ -503,12 +503,12 @@ mod tests {
             EcdsaJwsAlgorithm::Es512,
             EcdsaJwsAlgorithm::Es256k,
         ] {
-            let keypair = alg.generate_keypair()?;
+            let key_pair = alg.generate_key_pair()?;
 
-            let signer = alg.signer_from_der(&keypair.to_raw_private_key())?;
+            let signer = alg.signer_from_der(&key_pair.to_raw_private_key())?;
             let signature = signer.sign(input)?;
 
-            let verifier = alg.verifier_from_der(&keypair.to_der_public_key())?;
+            let verifier = alg.verifier_from_der(&key_pair.to_der_public_key())?;
             verifier.verify(input, &signature)?;
         }
 
@@ -525,12 +525,12 @@ mod tests {
             EcdsaJwsAlgorithm::Es512,
             EcdsaJwsAlgorithm::Es256k,
         ] {
-            let keypair = alg.generate_keypair()?;
+            let key_pair = alg.generate_key_pair()?;
 
-            let signer = alg.signer_from_pem(&keypair.to_pem_private_key())?;
+            let signer = alg.signer_from_pem(&key_pair.to_pem_private_key())?;
             let signature = signer.sign(input)?;
 
-            let verifier = alg.verifier_from_pem(&keypair.to_pem_public_key())?;
+            let verifier = alg.verifier_from_pem(&key_pair.to_pem_public_key())?;
             verifier.verify(input, &signature)?;
         }
 
@@ -547,12 +547,12 @@ mod tests {
             EcdsaJwsAlgorithm::Es512,
             EcdsaJwsAlgorithm::Es256k,
         ] {
-            let keypair = alg.generate_keypair()?;
+            let key_pair = alg.generate_key_pair()?;
 
-            let signer = alg.signer_from_pem(&keypair.to_traditional_pem_private_key())?;
+            let signer = alg.signer_from_pem(&key_pair.to_traditional_pem_private_key())?;
             let signature = signer.sign(input)?;
 
-            let verifier = alg.verifier_from_pem(&keypair.to_pem_public_key())?;
+            let verifier = alg.verifier_from_pem(&key_pair.to_pem_public_key())?;
             verifier.verify(input, &signature)?;
         }
 
@@ -569,12 +569,12 @@ mod tests {
             EcdsaJwsAlgorithm::Es512,
             EcdsaJwsAlgorithm::Es256k,
         ] {
-            let keypair = alg.generate_keypair()?;
+            let key_pair = alg.generate_key_pair()?;
 
-            let signer = alg.signer_from_jwk(&keypair.to_jwk_private_key())?;
+            let signer = alg.signer_from_jwk(&key_pair.to_jwk_private_key())?;
             let signature = signer.sign(input)?;
 
-            let verifier = alg.verifier_from_jwk(&keypair.to_jwk_public_key())?;
+            let verifier = alg.verifier_from_jwk(&key_pair.to_jwk_public_key())?;
             verifier.verify(input, &signature)?;
         }
 

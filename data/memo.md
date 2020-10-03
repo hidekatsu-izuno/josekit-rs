@@ -174,7 +174,7 @@ RSAPublicKey ::= SEQUENCE {
     publicExponent    INTEGER   -- e
 }
 
-const keypair = await window.crypto.subtle.generateKey(
+const key_pair = await window.crypto.subtle.generateKey(
     {
         name: "RSA-OAEP",
         modulusLength: 2048, // 1024, 2048 or 4096
@@ -184,5 +184,5 @@ const keypair = await window.crypto.subtle.generateKey(
     true,
     ["encrypt", "decrypt"]
 );
-btoa(String.fromCharCode(...new Uint8Array(await window.crypto.subtle.exportKey("pkcs8", keypair.privateKey))));
+btoa(String.fromCharCode(...new Uint8Array(await window.crypto.subtle.exportKey("pkcs8", key_pair.privateKey))));
 btoa(String.fromCharCode(...new Uint8Array(await window.crypto.subtle.exportKey("spki", result.publicKey))));

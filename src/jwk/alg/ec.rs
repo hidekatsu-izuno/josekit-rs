@@ -529,7 +529,7 @@ impl KeyPair for EcKeyPair {
         self.to_jwk(false, true)
     }
 
-    fn to_jwk_keypair(&self) -> Jwk {
+    fn to_jwk_key_pair(&self) -> Jwk {
         self.to_jwk(true, true)
     }
 
@@ -560,15 +560,15 @@ mod tests {
             EcCurve::P521,
             EcCurve::Secp256k1,
         ] {
-            let keypair1 = EcKeyPair::generate(curve)?;
-            let der_private1 = keypair1.to_der_private_key();
-            let der_public1 = keypair1.to_der_public_key();
+            let key_pair_1 = EcKeyPair::generate(curve)?;
+            let der_private1 = key_pair_1.to_der_private_key();
+            let der_public1 = key_pair_1.to_der_public_key();
 
-            let jwk_keypair1 = keypair1.to_jwk_keypair();
+            let jwk_key_pair_1 = key_pair_1.to_jwk_key_pair();
 
-            let keypair2 = EcKeyPair::from_jwk(&jwk_keypair1, Some(curve))?;
-            let der_private2 = keypair2.to_der_private_key();
-            let der_public2 = keypair2.to_der_public_key();
+            let key_pair_2 = EcKeyPair::from_jwk(&jwk_key_pair_1, Some(curve))?;
+            let der_private2 = key_pair_2.to_der_private_key();
+            let der_public2 = key_pair_2.to_der_public_key();
 
             assert_eq!(der_private1, der_private2);
             assert_eq!(der_public1, der_public2);

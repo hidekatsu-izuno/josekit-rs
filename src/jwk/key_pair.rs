@@ -15,7 +15,7 @@ pub trait KeyPair: Debug + Send + Sync {
     fn to_pem_public_key(&self) -> Vec<u8>;
     fn to_jwk_private_key(&self) -> Jwk;
     fn to_jwk_public_key(&self) -> Jwk;
-    fn to_jwk_keypair(&self) -> Jwk;
+    fn to_jwk_key_pair(&self) -> Jwk;
 
     fn box_clone(&self) -> Box<dyn KeyPair>;
 }

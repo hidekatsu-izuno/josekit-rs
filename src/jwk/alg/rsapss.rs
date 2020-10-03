@@ -43,7 +43,7 @@ impl RsaPssKeyPair {
         }
     }
 
-    pub fn into_rsa_keypair(self) -> RsaKeyPair {
+    pub fn into_rsa_key_pair(self) -> RsaKeyPair {
         RsaKeyPair::from_private_key(self.private_key, self.key_len)
     }
 
@@ -154,8 +154,8 @@ impl RsaPssKeyPair {
                     let rsa_der_vec;
                     let rsa_der = match RsaKeyPair::detect_pkcs8(input, false) {
                         Some(_) => {
-                            let keypair = RsaKeyPair::from_der(input)?;
-                            rsa_der_vec = keypair.to_raw_private_key();
+                            let key_pair = RsaKeyPair::from_der(input)?;
+                            rsa_der_vec = key_pair.to_raw_private_key();
                             &rsa_der_vec
                         }
                         None => input,
@@ -715,7 +715,7 @@ impl KeyPair for RsaPssKeyPair {
         self.to_jwk(false, true)
     }
 
-    fn to_jwk_keypair(&self) -> Jwk {
+    fn to_jwk_key_pair(&self) -> Jwk {
         self.to_jwk(true, true)
     }
 
@@ -747,15 +747,15 @@ mod tests {
                 HashAlgorithm::Sha384,
                 HashAlgorithm::Sha512,
             ] {
-                let keypair1 = RsaPssKeyPair::generate(bits, hash, hash, 20)?;
-                let der_private1 = keypair1.to_der_private_key();
-                let der_public1 = keypair1.to_der_public_key();
+                let key_pair_1 = RsaPssKeyPair::generate(bits, hash, hash, 20)?;
+                let der_private1 = key_pair_1.to_der_private_key();
+                let der_public1 = key_pair_1.to_der_public_key();
 
-                let jwk_keypair1 = keypair1.to_jwk_keypair();
+                let jwk_key_pair_1 = key_pair_1.to_jwk_key_pair();
 
-                let keypair2 = RsaPssKeyPair::from_jwk(&jwk_keypair1, hash, hash, 20)?;
-                let der_private2 = keypair2.to_der_private_key();
-                let der_public2 = keypair2.to_der_public_key();
+                let key_pair_2 = RsaPssKeyPair::from_jwk(&jwk_key_pair_1, hash, hash, 20)?;
+                let der_private2 = key_pair_2.to_der_private_key();
+                let der_public2 = key_pair_2.to_der_public_key();
 
                 assert_eq!(der_private1, der_private2);
                 assert_eq!(der_public1, der_public2);
