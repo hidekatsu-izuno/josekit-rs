@@ -110,7 +110,7 @@ impl EddsaJwsAlgorithm {
                 Some(val) => bail!("A parameter alg must be {} but {}", self.name(), val),
             }
 
-            let key_pair = EdKeyPair::from_jwk(jwk, None)?;
+            let key_pair = EdKeyPair::from_jwk(jwk)?;
             let curve = key_pair.curve();
             let private_key = key_pair.into_private_key();
             let key_id = jwk.key_id().map(|val| val.to_string());

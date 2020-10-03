@@ -108,11 +108,16 @@ impl EcdsaJwsAlgorithm {
             }
             match jwk.algorithm() {
                 Some(val) if val == self.name() => {}
-                None => {}
                 Some(val) => bail!("A parameter alg must be {} but {}", self.name(), val),
+                None => {}
+            }
+            match jwk.curve() {
+                Some(val) if val == self.curve().name() => {}
+                Some(val) => bail!("A parameter crv must be {} but {}", self.name(), val),
+                None => bail!("A parameter crv is required."),
             }
 
-            let key_pair = EcKeyPair::from_jwk(jwk, Some(self.curve()))?;
+            let key_pair = EcKeyPair::from_jwk(jwk)?;
             let private_key = key_pair.into_private_key();
             let key_id = jwk.key_id().map(|val| val.to_string());
 

@@ -199,22 +199,17 @@ impl EdKeyPair {
     ///
     /// # Arguments
     /// * `jwk` - A private key that is formatted by a JWK of OKP type.
-    /// * `curve` - EdDSA curve
-    pub fn from_jwk(jwk: &Jwk, curve: Option<EdCurve>) -> Result<Self, JoseError> {
+    pub fn from_jwk(jwk: &Jwk) -> Result<Self, JoseError> {
         (|| -> anyhow::Result<Self> {
             match jwk.key_type() {
                 val if val == "OKP" => {}
                 val => bail!("A parameter kty must be OKP: {}", val),
             }
             let curve = match jwk.parameter("crv") {
-                Some(Value::String(val)) => match curve {
-                    Some(val2) if val2.name() == val => val2,
-                    Some(val2) => bail!("The curve is mismatched: {}", val2),
-                    None => match val.as_str() {
-                        "Ed25519" => EdCurve::Ed25519,
-                        "Ed448" => EdCurve::Ed448,
-                        _ => bail!("A parameter crv is unrecognized: {}", val),
-                    },
+                Some(Value::String(val)) => match val.as_str() {
+                    "Ed25519" => EdCurve::Ed25519,
+                    "Ed448" => EdCurve::Ed448,
+                    _ => bail!("A parameter crv is unrecognized: {}", val),
                 },
                 Some(_) => bail!("A parameter crv must be a string."),
                 None => bail!("A parameter crv is required."),
@@ -520,7 +515,7 @@ mod tests {
 
             let jwk_key_pair_1 = key_pair_1.to_jwk_key_pair();
 
-            let key_pair_2 = EdKeyPair::from_jwk(&jwk_key_pair_1, Some(curve))?;
+            let key_pair_2 = EdKeyPair::from_jwk(&jwk_key_pair_1)?;
             let der_private2 = key_pair_2.to_der_private_key();
             let der_public2 = key_pair_2.to_der_public_key();
 

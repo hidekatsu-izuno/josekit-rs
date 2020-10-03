@@ -381,7 +381,12 @@ impl EcdhEsJweAlgorithm {
                             "secp256k1" => EcCurve::Secp256k1,
                             val => bail!("EC key doesn't support the curve algorithm: {}", val),
                         };
-                        let key_pair = EcKeyPair::from_jwk(&jwk, Some(curve))?;
+                        match jwk.curve() {
+                            Some(val) if val == curve.name() => {}
+                            Some(val) => bail!("A parameter crv must be {} but {}", self.name(), val),
+                            None => bail!("A parameter crv is required."),
+                        }
+                        let key_pair = EcKeyPair::from_jwk(&jwk)?;
                         let private_key = key_pair.into_private_key();
 
                         (private_key, EcdhEsKeyType::Ec(curve))
@@ -392,7 +397,12 @@ impl EcdhEsJweAlgorithm {
                             "X448" => EcxCurve::X448,
                             val => bail!("OKP key doesn't support the curve algorithm: {}", val),
                         };
-                        let key_pair = EcxKeyPair::from_jwk(&jwk, Some(curve))?;
+                        match jwk.curve() {
+                            Some(val) if val == curve.name() => {}
+                            Some(val) => bail!("A parameter crv must be {} but {}", self.name(), val),
+                            None => bail!("A parameter crv is required."),
+                        }
+                        let key_pair = EcxKeyPair::from_jwk(&jwk)?;
                         let private_key = key_pair.into_private_key();
 
                         (private_key, EcdhEsKeyType::Ecx(curve))
