@@ -4,17 +4,17 @@ use openssl::bn::BigNumRef;
 use openssl::rand;
 use regex::{self, bytes};
 
-pub fn rand_bytes(len: usize) -> Vec<u8> {
+pub fn random_bytes(len: usize) -> Vec<u8> {
     let mut vec = vec![0; len];
     rand::rand_bytes(&mut vec).unwrap();
     vec
 }
 
-pub fn ceiling(len: usize, div: usize) -> usize {
+pub(crate) fn ceiling(len: usize, div: usize) -> usize {
     (len + (div - 1)) / div
 }
 
-pub fn is_base64_url_safe_nopad(input: &str) -> bool {
+pub(crate) fn is_base64_url_safe_nopad(input: &str) -> bool {
     static RE_BASE64: Lazy<regex::Regex> = Lazy::new(|| {
         regex::Regex::new(
             r"^(?:[A-Za-z0-9+/_-]{4})*(?:[A-Za-z0-9+/_-]{2}(==)?|[A-Za-z0-9+/_-]{3}=?)?$",
@@ -25,7 +25,7 @@ pub fn is_base64_url_safe_nopad(input: &str) -> bool {
     RE_BASE64.is_match(input)
 }
 
-pub fn parse_pem(input: &[u8]) -> anyhow::Result<(String, Vec<u8>)> {
+pub(crate) fn parse_pem(input: &[u8]) -> anyhow::Result<(String, Vec<u8>)> {
     static RE_PEM: Lazy<bytes::Regex> = Lazy::new(|| {
         bytes::Regex::new(concat!(
             r"^",
@@ -56,7 +56,7 @@ pub fn parse_pem(input: &[u8]) -> anyhow::Result<(String, Vec<u8>)> {
     Ok(result)
 }
 
-pub fn num_to_vec(num: &BigNumRef, len: usize) -> Vec<u8> {
+pub(crate) fn num_to_vec(num: &BigNumRef, len: usize) -> Vec<u8> {
     let vec = num.to_vec();
     if vec.len() < len {
         let mut tmp = Vec::with_capacity(len);

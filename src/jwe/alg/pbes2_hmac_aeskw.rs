@@ -264,7 +264,7 @@ impl JweEncrypter for Pbes2HmacAeskwJweEncrypter {
                 }
                 Some(_) => bail!("The p2s header claim must be string."),
                 None => {
-                    let p2s = util::rand_bytes(self.salt_len);
+                    let p2s = util::random_bytes(self.salt_len);
                     let p2s_b64 = base64::encode_config(&p2s, base64::URL_SAFE_NO_PAD);
                     out_header.set_claim("p2s", Some(Value::String(p2s_b64)))?;
                     p2s
@@ -453,7 +453,7 @@ mod tests {
             header.set_content_encryption(enc.name());
 
             let jwk = {
-                let key = util::rand_bytes(8);
+                let key = util::random_bytes(8);
                 let key = base64::encode_config(&key, base64::URL_SAFE_NO_PAD);
 
                 let mut jwk = Jwk::new("oct");
@@ -464,7 +464,7 @@ mod tests {
 
             let encrypter = alg.encrypter_from_jwk(&jwk)?;
             let mut out_header = header.clone();
-            let src_key = util::rand_bytes(enc.key_len());
+            let src_key = util::random_bytes(enc.key_len());
             let encrypted_key = encrypter.encrypt(&src_key, &header, &mut out_header)?;
 
             let decrypter = alg.decrypter_from_jwk(&jwk)?;

@@ -64,7 +64,7 @@ impl Jwk {
     /// # Arguments
     /// * `key_len` - A key byte length
     pub fn generate_oct_key(key_len: u8) -> Result<Self, JoseError> {
-        let k = util::rand_bytes(key_len as usize);
+        let k = util::random_bytes(key_len as usize);
 
         let mut jwk = Self::new("oct");
         jwk.map.insert(

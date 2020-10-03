@@ -6,12 +6,12 @@ pub mod jwe;
 pub mod jwk;
 pub mod jws;
 pub mod jwt;
+pub mod util;
 
 mod der;
 mod hash_algorithm;
 mod jose_error;
 mod jose_header;
-mod util;
 
 pub use crate::hash_algorithm::HashAlgorithm;
 pub use crate::jose_error::JoseError;

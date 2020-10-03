@@ -360,7 +360,7 @@ mod tests {
 
     #[test]
     fn sign_and_verify_hmac_generated_jwk() -> Result<()> {
-        let private_key = util::rand_bytes(64);
+        let private_key = util::random_bytes(64);
         let input = b"12345abcde";
 
         for alg in &[
@@ -404,7 +404,7 @@ mod tests {
 
     #[test]
     fn sign_and_verify_hmac_bytes() -> Result<()> {
-        let private_key = util::rand_bytes(64);
+        let private_key = util::random_bytes(64);
         let input = b"abcde12345";
 
         for alg in &[

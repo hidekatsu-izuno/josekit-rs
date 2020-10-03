@@ -528,7 +528,7 @@ mod tests {
 
             let encrypter = alg.encrypter_from_jwk(&public_key)?;
             let mut out_header = header.clone();
-            let src_key = util::rand_bytes(enc.key_len());
+            let src_key = util::random_bytes(enc.key_len());
             let encrypted_key = encrypter.encrypt(&src_key, &header, &mut out_header)?;
 
             let decrypter = alg.decrypter_from_jwk(&private_key)?;

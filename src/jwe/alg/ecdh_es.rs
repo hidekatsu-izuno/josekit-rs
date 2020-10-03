@@ -1052,7 +1052,7 @@ mod tests {
                     &mut out_header,
                 )? {
                     Some(val) => val,
-                    None => Cow::Owned(util::rand_bytes(enc.key_len())),
+                    None => Cow::Owned(util::random_bytes(enc.key_len())),
                 };
                 let encrypted_key = encrypter.encrypt(&src_key, &header, &mut out_header)?;
 
@@ -1114,7 +1114,7 @@ mod tests {
                     &mut out_header,
                 )? {
                     Some(val) => val,
-                    None => Cow::Owned(util::rand_bytes(enc.key_len())),
+                    None => Cow::Owned(util::random_bytes(enc.key_len())),
                 };
                 let encrypted_key = encrypter.encrypt(&src_key, &header, &mut out_header)?;
 
@@ -1178,7 +1178,7 @@ mod tests {
                     &mut out_header,
                 )? {
                     Some(val) => val,
-                    None => Cow::Owned(util::rand_bytes(enc.key_len())),
+                    None => Cow::Owned(util::random_bytes(enc.key_len())),
                 };
                 let encrypted_key = encrypter.encrypt(&src_key, &header, &mut out_header)?;
 
@@ -1241,7 +1241,7 @@ mod tests {
                     &mut out_header,
                 )? {
                     Some(val) => val,
-                    None => Cow::Owned(util::rand_bytes(enc.key_len())),
+                    None => Cow::Owned(util::random_bytes(enc.key_len())),
                 };
                 let encrypted_key = encrypter.encrypt(&src_key, &header, &mut out_header)?;
 
