@@ -102,15 +102,10 @@ impl EdKeyPair {
     ///
     /// # Arguments
     /// * `input` - A private key that is a DER encoded PKCS#8 PrivateKeyInfo.
-    /// * `curve` - EC curve
-    pub fn from_der(input: impl AsRef<[u8]>, curve: Option<EdCurve>) -> Result<Self, JoseError> {
+    pub fn from_der(input: impl AsRef<[u8]>) -> Result<Self, JoseError> {
         (|| -> anyhow::Result<Self> {
             let (pkcs8_der, curve) = match Self::detect_pkcs8(input.as_ref(), false) {
-                Some(val) => match curve {
-                    Some(val2) if val2 == val => (input.as_ref(), val),
-                    Some(val2) => bail!("The curve is mismatched: {}", val2),
-                    None => (input.as_ref(), val),
-                },
+                Some(val) => (input.as_ref(), val),
                 None => bail!("The EdDSA private key must be wrapped by PKCS#8 format."),
             };
 
@@ -139,45 +134,22 @@ impl EdKeyPair {
     ///
     /// # Arguments
     /// * `input` - A private key of common or traditinal PEM format.
-    /// * `curve` - EC curve
-    pub fn from_pem(input: impl AsRef<[u8]>, curve: Option<EdCurve>) -> Result<Self, JoseError> {
+    pub fn from_pem(input: impl AsRef<[u8]>) -> Result<Self, JoseError> {
         (|| -> anyhow::Result<Self> {
             let (alg, data) = util::parse_pem(input.as_ref())?;
             let (pkcs8_der, curve) = match alg.as_str() {
                 "PRIVATE KEY" => match EdKeyPair::detect_pkcs8(&data, false) {
-                    Some(val) => match curve {
-                        Some(val2) if val2 == val => (data.as_slice(), val),
-                        Some(val2) => bail!("The curve is mismatched: {}", val2),
-                        None => (data.as_slice(), val),
-                    },
+                    Some(val) => (data.as_slice(), val),
                     None => bail!("The EdDSA private key must be wrapped by PKCS#8 format."),
                 },
                 "ED25519 PRIVATE KEY" => match EdKeyPair::detect_pkcs8(&data, false) {
-                    Some(val) => {
-                        if val == EdCurve::Ed25519 {
-                            match curve {
-                                Some(val2) if val2 == val => (data.as_slice(), val),
-                                Some(val2) => bail!("The curve is mismatched: {}", val2),
-                                None => (data.as_slice(), val),
-                            }
-                        } else {
-                            bail!("The EdDSA curve is mismatched: {}", val.name());
-                        }
-                    }
+                    Some(val) if val == EdCurve::Ed25519 => (data.as_slice(), val),
+                    Some(val) => bail!("The EdDSA curve is mismatched: {}", val.name()),
                     None => bail!("The EdDSA private key must be wrapped by PKCS#8 format."),
                 },
                 "ED448 PRIVATE KEY" => match EdKeyPair::detect_pkcs8(&data, false) {
-                    Some(val) => {
-                        if val == EdCurve::Ed448 {
-                            match curve {
-                                Some(val2) if val2 == val => (data.as_slice(), val),
-                                Some(val2) => bail!("The curve is mismatched: {}", val2),
-                                None => (data.as_slice(), val),
-                            }
-                        } else {
-                            bail!("The EdDSA curve is mismatched: {}", val.name());
-                        }
-                    }
+                    Some(val) if val == EdCurve::Ed448 => (data.as_slice(), val),
+                    Some(val) => bail!("The EdDSA curve is mismatched: {}", val.name()),
                     None => bail!("The EdDSA private key must be wrapped by PKCS#8 format."),
                 },
                 alg => bail!("Inappropriate algorithm: {}", alg),

@@ -35,7 +35,7 @@ impl EddsaJwsAlgorithm {
     /// # Arguments
     /// * `input` - A private key that is a DER encoded PKCS#8 PrivateKeyInfo.
     pub fn key_pair_from_der(&self, input: impl AsRef<[u8]>) -> Result<EdKeyPair, JoseError> {
-        let mut key_pair = EdKeyPair::from_der(input, None)?;
+        let mut key_pair = EdKeyPair::from_der(input)?;
         key_pair.set_algorithm(Some(self.name()));
         Ok(key_pair)
     }
@@ -51,7 +51,7 @@ impl EddsaJwsAlgorithm {
     /// # Arguments
     /// * `input` - A private key of common or traditinal PEM format.
     pub fn key_pair_from_pem(&self, input: impl AsRef<[u8]>) -> Result<EdKeyPair, JoseError> {
-        let mut key_pair = EdKeyPair::from_pem(input.as_ref(), None)?;
+        let mut key_pair = EdKeyPair::from_pem(input.as_ref())?;
         key_pair.set_algorithm(Some(self.name()));
         Ok(key_pair)
     }

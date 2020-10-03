@@ -95,16 +95,11 @@ impl EcxKeyPair {
     ///
     /// # Arguments
     /// * `input` - A private key that is a DER encoded PKCS#8 PrivateKeyInfo.
-    /// * `curve` - Montgomery curve
-    pub fn from_der(input: impl AsRef<[u8]>, curve: Option<EcxCurve>) -> Result<Self, JoseError> {
+    pub fn from_der(input: impl AsRef<[u8]>) -> Result<Self, JoseError> {
         (|| -> anyhow::Result<Self> {
             let input = input.as_ref();
             let (pkcs8_der, curve) = match Self::detect_pkcs8(input, false) {
-                Some(val) => match curve {
-                    Some(val2) if val2 == val => (input, val),
-                    Some(val2) => bail!("The curve is mismatched: {}", val2),
-                    None => (input, val),
-                },
+                Some(val) => (input, val),
                 None => bail!("The Montgomery curve private key must be wrapped by PKCS#8 format."),
             };
 
@@ -133,49 +128,26 @@ impl EcxKeyPair {
     ///
     /// # Arguments
     /// * `input` - A private key of common or traditinal PEM format.
-    /// * `curve` - Montgomery curve
-    pub fn from_pem(input: impl AsRef<[u8]>, curve: Option<EcxCurve>) -> Result<Self, JoseError> {
+    pub fn from_pem(input: impl AsRef<[u8]>) -> Result<Self, JoseError> {
         (|| -> anyhow::Result<Self> {
             let (alg, data) = util::parse_pem(input.as_ref())?;
             let (pkcs8_der, curve) = match alg.as_str() {
                 "PRIVATE KEY" => match EcxKeyPair::detect_pkcs8(&data, false) {
-                    Some(val) => match curve {
-                        Some(val2) if val2 == val => (data.as_slice(), val),
-                        Some(val2) => bail!("The curve is mismatched: {}", val2),
-                        None => (data.as_slice(), val),
-                    },
+                    Some(val) => (data.as_slice(), val),
                     None => {
                         bail!("The Montgomery curve private key must be wrapped by PKCS#8 format.")
                     }
                 },
                 "X25519 PRIVATE KEY" => match EcxKeyPair::detect_pkcs8(&data, false) {
-                    Some(val) => {
-                        if val == EcxCurve::X25519 {
-                            match curve {
-                                Some(val2) if val2 == val => (data.as_slice(), val),
-                                Some(val2) => bail!("The curve is mismatched: {}", val2),
-                                None => (data.as_slice(), val),
-                            }
-                        } else {
-                            bail!("The Montgomery curve is mismatched: {}", val.name());
-                        }
-                    }
+                    Some(val) if val == EcxCurve::X25519 => (data.as_slice(), val),
+                    Some(val) => bail!("The EdDSA curve is mismatched: {}", val.name()),
                     None => {
                         bail!("The Montgomery curve private key must be wrapped by PKCS#8 format.")
                     }
                 },
                 "X448 PRIVATE KEY" => match EcxKeyPair::detect_pkcs8(&data, false) {
-                    Some(val) => {
-                        if val == EcxCurve::X448 {
-                            match curve {
-                                Some(val2) if val2 == val => (data.as_slice(), val),
-                                Some(val2) => bail!("The curve is mismatched: {}", val2),
-                                None => (data.as_slice(), val),
-                            }
-                        } else {
-                            bail!("The Montgomery curve is unrecognized: {}", val.name());
-                        }
-                    }
+                    Some(val) if val == EcxCurve::X448 => (data.as_slice(), val),
+                    Some(val) => bail!("The EdDSA curve is mismatched: {}", val.name()),
                     None => {
                         bail!("The Montgomery curve private key must be wrapped by PKCS#8 format.")
                     }
@@ -535,7 +507,7 @@ mod tests {
                 EcxCurve::X448 => "der/X448_spki_public.der",
             })?;
 
-            let key_pair_1 = EcxKeyPair::from_der(private_key, Some(curve))?;
+            let key_pair_1 = EcxKeyPair::from_der(private_key)?;
             let der_private1 = key_pair_1.to_der_private_key();
             let der_public1 = key_pair_1.to_der_public_key();
 
