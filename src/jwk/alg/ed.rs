@@ -2,20 +2,13 @@ use std::fmt::Display;
 use std::ops::Deref;
 
 use anyhow::bail;
-use once_cell::sync::Lazy;
 use openssl::pkey::{PKey, Private};
 
-use crate::der::oid::ObjectIdentifier;
+use crate::der::oid::{ObjectIdentifier, OID_ED25519, OID_ED448};
 use crate::der::{DerBuilder, DerReader, DerType};
 use crate::jwk::{Jwk, KeyPair};
 use crate::util;
 use crate::{JoseError, Value};
-
-static OID_ED25519: Lazy<ObjectIdentifier> =
-    Lazy::new(|| ObjectIdentifier::from_slice(&[1, 3, 101, 112]));
-
-static OID_ED448: Lazy<ObjectIdentifier> =
-    Lazy::new(|| ObjectIdentifier::from_slice(&[1, 3, 101, 113]));
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum EdCurve {

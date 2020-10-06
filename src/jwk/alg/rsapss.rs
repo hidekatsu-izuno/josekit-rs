@@ -201,42 +201,63 @@ impl RsaPssKeyPair {
     /// * `salt_len` A salt length
     pub fn from_pem(
         input: impl AsRef<[u8]>,
-        hash: HashAlgorithm,
-        mgf1_hash: HashAlgorithm,
-        salt_len: u8,
+        hash: Option<HashAlgorithm>,
+        mgf1_hash: Option<HashAlgorithm>,
+        salt_len: Option<u8>,
     ) -> Result<Self, JoseError> {
         (|| -> anyhow::Result<Self> {
-            let (alg, data) = util::parse_pem(input.as_ref())?;
+            let input = input.as_ref();
+            let (alg, data) = util::parse_pem(input)?;
 
-            let private_key = match alg.as_str() {
+            let pkcs8_der_vec;
+            let (pkcs8_der, hash, mgf1_hash, salt_len) = match alg.as_str() {
                 "PRIVATE KEY" | "RSA-PSS PRIVATE KEY" => match Self::detect_pkcs8(&data, false) {
                     Some((hash2, mgf1_hash2, salt_len2)) => {
-                        if hash2 != hash {
-                            bail!("The message digest parameter is mismatched: {}", hash2);
-                        }
+                        let hash = match hash {
+                            Some(val) if val == hash2 => hash2,
+                            Some(_) => bail!("The hash algorithm is mismatched: {}", hash2),
+                            None => hash2,
+                        };
+    
+                        let mgf1_hash = match mgf1_hash {
+                            Some(val) if val == mgf1_hash2 => mgf1_hash2,
+                            Some(_) => bail!("The MGF1 hash algorithm is mismatched: {}", mgf1_hash2),
+                            None => hash2,
+                        };
+    
+                        let salt_len = match salt_len {
+                            Some(val) if val == salt_len2 => salt_len2,
+                            Some(_) => bail!("The salt length is mismatched: {}", salt_len2),
+                            None => salt_len2,
+                        };
 
-                        if mgf1_hash2 != mgf1_hash {
-                            bail!(
-                                "The mgf1 message digest parameter is mismatched: {}",
-                                mgf1_hash2
-                            );
-                        }
-
-                        if salt_len2 != salt_len {
-                            bail!("The salt size is mismatched: {}", salt_len2);
-                        }
-
-                        PKey::private_key_from_der(&data)?
+                        (input, hash, mgf1_hash, salt_len)
                     }
                     None => bail!("Invalid PEM contents."),
                 },
                 "RSA PRIVATE KEY" => {
-                    let pkcs8 = Self::to_pkcs8(&data, false, hash, mgf1_hash, salt_len);
-                    PKey::private_key_from_der(&pkcs8)?
+                    let hash = match hash {
+                        Some(val) => val,
+                        None => bail!("The hash algorithm is required."),
+                    };
+
+                    let mgf1_hash = match mgf1_hash {
+                        Some(val) => val,
+                        None => bail!("The MGF1 hash algorithm is required."),
+                    };
+
+                    let salt_len = match salt_len {
+                        Some(val) => val,
+                        None => bail!("The salt length is required."),
+                    };
+
+                    pkcs8_der_vec = Self::to_pkcs8(input, false, hash, mgf1_hash, salt_len);
+                    (pkcs8_der_vec.as_slice(), hash, mgf1_hash, salt_len)
                 }
                 alg => bail!("Inappropriate algorithm: {}", alg),
             };
 
+            let private_key = PKey::private_key_from_der(pkcs8_der)?;
             let rsa = private_key.rsa()?;
             let key_len = rsa.size();
 

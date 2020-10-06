@@ -88,9 +88,9 @@ impl RsassaPssJwsAlgorithm {
         (|| -> anyhow::Result<RsaPssKeyPair> {
             let mut key_pair = RsaPssKeyPair::from_pem(
                 input.as_ref(),
-                self.hash_algorithm(),
-                self.hash_algorithm(),
-                self.salt_len(),
+                Some(self.hash_algorithm()),
+                Some(self.hash_algorithm()),
+                Some(self.salt_len()),
             )?;
 
             if key_pair.key_len() * 8 < 2048 {

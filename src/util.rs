@@ -1,8 +1,8 @@
 use anyhow::bail;
 use once_cell::sync::Lazy;
+use regex::{self, bytes};
 use openssl::bn::BigNumRef;
 use openssl::rand;
-use regex::{self, bytes};
 
 pub fn random_bytes(len: usize) -> Vec<u8> {
     let mut vec = vec![0; len];
