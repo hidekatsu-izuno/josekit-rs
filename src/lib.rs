@@ -8,7 +8,6 @@ pub mod jws;
 pub mod jwt;
 pub mod util;
 
-mod der;
 mod hash_algorithm;
 mod jose_error;
 mod jose_header;

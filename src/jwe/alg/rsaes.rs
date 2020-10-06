@@ -7,11 +7,11 @@ use openssl::hash::MessageDigest;
 use openssl::pkey::{PKey, Private, Public};
 use openssl::rsa::Padding;
 
-use crate::der::{DerBuilder, DerType};
+use crate::{JoseError, Value};
 use crate::jwe::{JweAlgorithm, JweContentEncryption, JweDecrypter, JweEncrypter, JweHeader};
 use crate::jwk::{alg::rsa::RsaKeyPair, Jwk};
 use crate::util;
-use crate::{JoseError, Value};
+use crate::util::der::{DerBuilder, DerType};
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum RsaesJweAlgorithm {

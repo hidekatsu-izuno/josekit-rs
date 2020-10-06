@@ -5,7 +5,7 @@ use anyhow::bail;
 use openssl::pkey::{PKey, Private};
 
 use crate::util::oid::{ObjectIdentifier, OID_ED25519, OID_ED448};
-use crate::der::{DerBuilder, DerReader, DerType};
+use crate::util::der::{DerBuilder, DerReader, DerType};
 use crate::jwk::{Jwk, KeyPair};
 use crate::util;
 use crate::{JoseError, Value};

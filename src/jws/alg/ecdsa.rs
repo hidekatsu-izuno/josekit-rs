@@ -5,13 +5,13 @@ use anyhow::bail;
 use openssl::pkey::{PKey, Private, Public};
 use openssl::sign::{Signer, Verifier};
 
-use crate::der::{DerBuilder, DerReader, DerType};
 use crate::jwk::{
     alg::ec::{EcCurve, EcKeyPair},
     Jwk,
 };
 use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier};
 use crate::util;
+use crate::util::der::{DerBuilder, DerReader, DerType};
 use crate::{HashAlgorithm, JoseError, Value};
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]

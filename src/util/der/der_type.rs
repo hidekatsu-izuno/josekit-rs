@@ -1,6 +1,6 @@
 use std::fmt;
 
-use crate::der::der_class::DerClass;
+use crate::util::der::DerClass;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DerType {

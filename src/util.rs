@@ -1,4 +1,5 @@
 pub mod oid;
+pub mod der;
 
 use anyhow::bail;
 use once_cell::sync::Lazy;

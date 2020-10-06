@@ -6,10 +6,10 @@ use openssl::pkey::{PKey, Private, Public};
 use openssl::rsa::Rsa;
 use openssl::sign::{Signer, Verifier};
 
-use crate::der::{DerBuilder, DerType};
 use crate::jwk::{alg::rsa::RsaKeyPair, alg::rsapss::RsaPssKeyPair, Jwk};
 use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier};
 use crate::util;
+use crate::util::der::{DerBuilder, DerType};
 use crate::{HashAlgorithm, JoseError, Value};
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]

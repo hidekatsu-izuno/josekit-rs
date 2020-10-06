@@ -11,7 +11,7 @@ use crate::util::oid::{
     ObjectIdentifier, OID_ID_EC_PUBLIC_KEY, OID_PRIME256V1, OID_SECP256K1, OID_SECP384R1,
     OID_SECP521R1,
 };
-use crate::der::{DerBuilder, DerClass, DerReader, DerType};
+use crate::util::der::{DerBuilder, DerClass, DerReader, DerType};
 use crate::jwk::{Jwk, KeyPair};
 use crate::util;
 use crate::{JoseError, Value};

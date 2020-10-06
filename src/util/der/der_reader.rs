@@ -3,7 +3,7 @@
 use std::io::{Bytes, Read};
 
 use crate::util::oid::ObjectIdentifier;
-use crate::der::{DerClass, DerError, DerType};
+use crate::util::der::{DerClass, DerError, DerType};
 
 pub struct DerReader<R> {
     input: Bytes<R>,
