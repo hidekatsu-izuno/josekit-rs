@@ -1,11 +1,11 @@
-use anyhow::bail;
-use serde::ser::SerializeMap;
-use serde::{Serialize, Serializer};
+use std::fmt::Display;
 use std::collections::BTreeMap;
 use std::io::Read;
 use std::ops::Bound::Included;
 use std::string::ToString;
 use std::sync::Arc;
+
+use anyhow::bail;
 
 use crate::jwk::Jwk;
 use crate::{JoseError, Map, Value};
@@ -145,22 +145,23 @@ impl Into<Map<String, Value>> for JwkSet {
     }
 }
 
-impl Serialize for JwkSet {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let mut map = serializer.serialize_map(Some(self.params.len()))?;
-        for (k, v) in &self.params {
-            map.serialize_entry(k, v)?;
-        }
-        map.end()
-    }
-}
+impl Display for JwkSet {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+        fmt.write_str("{\"keys\":[")?;
 
-impl ToString for JwkSet {
-    fn to_string(&self) -> String {
-        serde_json::to_string(&self).unwrap()
+        for (i, jwk) in self.keys.iter().enumerate() {
+            if i > 0 {
+                fmt.write_str(",")?;
+            }
+
+            let map: &Map<String, Value> = &jwk.as_ref().as_ref();
+            let val = serde_json::to_string(map).map_err(|_e| std::fmt::Error {})?;
+            fmt.write_str(&val)?;
+        }
+
+        fmt.write_str("]}")?;
+
+        Ok(())
     }
 }
 
@@ -179,6 +180,8 @@ mod tests {
         assert_eq!(jwks.get("1").len(), 1);
         let key_id = jwks.get("1")[0].key_id();
         assert!(matches!(key_id, Some("1")));
+
+        println!("{}", &jwks);
 
         Ok(())
     }

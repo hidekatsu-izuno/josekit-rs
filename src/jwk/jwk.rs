@@ -3,8 +3,6 @@ use std::io::Read;
 use std::string::ToString;
 
 use anyhow::bail;
-use serde::ser::SerializeMap;
-use serde::{Serialize, Serializer};
 
 use crate::jwk::alg::ec::{EcCurve, EcKeyPair};
 use crate::jwk::alg::ecx::{EcxCurve, EcxKeyPair};
@@ -583,22 +581,9 @@ impl Into<Map<String, Value>> for Jwk {
     }
 }
 
-impl Serialize for Jwk {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let mut map = serializer.serialize_map(Some(self.map.len()))?;
-        for (k, v) in &self.map {
-            map.serialize_entry(k, v)?;
-        }
-        map.end()
-    }
-}
-
 impl Display for Jwk {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
-        let val = serde_json::to_string(&self).map_err(|_e| std::fmt::Error {})?;
+        let val = serde_json::to_string(&self.map).map_err(|_e| std::fmt::Error {})?;
         fmt.write_str(&val)
     }
 }
