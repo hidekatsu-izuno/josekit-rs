@@ -231,7 +231,7 @@ impl RsaPssKeyPair {
                             None => salt_len2,
                         };
 
-                        (input, hash, mgf1_hash, salt_len)
+                        (data.as_ref(), hash, mgf1_hash, salt_len)
                     }
                     None => bail!("Invalid PEM contents."),
                 },
