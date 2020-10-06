@@ -8,7 +8,7 @@ use openssl::derive::Deriver;
 use openssl::hash::{Hasher, MessageDigest};
 use openssl::pkey::{PKey, Private, Public};
 
-use crate::der::oid::{
+use crate::util::oid::{
     OID_ID_EC_PUBLIC_KEY, OID_PRIME256V1, OID_SECP256K1, OID_SECP384R1, OID_SECP521R1, OID_X25519,
     OID_X448,
 };

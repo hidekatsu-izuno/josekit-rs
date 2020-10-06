@@ -7,7 +7,7 @@ use openssl::ec::{EcGroup, EcKey};
 use openssl::nid::Nid;
 use openssl::pkey::{PKey, Private};
 
-use crate::der::oid::{
+use crate::util::oid::{
     ObjectIdentifier, OID_ID_EC_PUBLIC_KEY, OID_PRIME256V1, OID_SECP256K1, OID_SECP384R1,
     OID_SECP521R1,
 };

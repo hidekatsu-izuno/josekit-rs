@@ -8,7 +8,6 @@ mod key_pair;
 
 use anyhow::bail;
 
-use crate::der::oid::{OID_RSA_ENCRYPTION, OID_RSASSA_PSS, OID_ID_EC_PUBLIC_KEY, OID_ED25519, OID_ED448, OID_X25519, OID_X448};
 use crate::der::{DerReader, DerType};
 use crate::JoseError;
 use crate::jwk::alg::rsa::RsaKeyPair;
@@ -17,6 +16,7 @@ use crate::jwk::alg::ec::EcKeyPair;
 use crate::jwk::alg::ed::EdKeyPair;
 use crate::jwk::alg::ecx::EcxKeyPair;
 use crate::util;
+use crate::util::oid::{OID_RSA_ENCRYPTION, OID_RSASSA_PSS, OID_ID_EC_PUBLIC_KEY, OID_ED25519, OID_ED448, OID_X25519, OID_X448};
 
 pub use crate::jwk::jwk::Jwk;
 pub use crate::jwk::jwk_set::JwkSet;

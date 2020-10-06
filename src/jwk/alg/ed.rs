@@ -4,7 +4,7 @@ use std::ops::Deref;
 use anyhow::bail;
 use openssl::pkey::{PKey, Private};
 
-use crate::der::oid::{ObjectIdentifier, OID_ED25519, OID_ED448};
+use crate::util::oid::{ObjectIdentifier, OID_ED25519, OID_ED448};
 use crate::der::{DerBuilder, DerReader, DerType};
 use crate::jwk::{Jwk, KeyPair};
 use crate::util;

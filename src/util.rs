@@ -1,3 +1,5 @@
+pub mod oid;
+
 use anyhow::bail;
 use once_cell::sync::Lazy;
 use regex::{self, bytes};

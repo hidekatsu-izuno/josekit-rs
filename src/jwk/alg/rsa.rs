@@ -4,7 +4,7 @@ use anyhow::bail;
 use openssl::pkey::{PKey, Private};
 use openssl::rsa::Rsa;
 
-use crate::der::oid::OID_RSA_ENCRYPTION;
+use crate::util::oid::OID_RSA_ENCRYPTION;
 use crate::der::{DerBuilder, DerReader, DerType};
 use crate::jwk::{alg::rsapss::RsaPssKeyPair, Jwk, KeyPair};
 use crate::util;
