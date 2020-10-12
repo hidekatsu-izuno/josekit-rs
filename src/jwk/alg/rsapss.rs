@@ -441,9 +441,9 @@ impl RsaPssKeyPair {
         input: impl AsRef<[u8]>,
         is_public: bool,
     ) -> Option<(HashAlgorithm, HashAlgorithm, u8)> {
-        let md;
-        let mgf1_md;
-        let salt_len;
+        let mut hash = HashAlgorithm::Sha1;
+        let mut mgf1_hash = HashAlgorithm::Sha1;
+        let mut salt_len = 20;
         let mut reader = DerReader::from_reader(input.as_ref());
 
         match reader.next() {
@@ -485,123 +485,102 @@ impl RsaPssKeyPair {
                     _ => return None,
                 }
 
-                match reader.next() {
-                    Ok(Some(DerType::Sequence)) => {}
-                    _ => return None,
-                }
-
-                {
-                    match reader.next() {
-                        Ok(Some(DerType::Other(DerClass::ContextSpecific, 0))) => {}
-                        _ => return None,
-                    }
-                    {
-                        match reader.next() {
-                            Ok(Some(DerType::Sequence)) => {}
-                            _ => return None,
-                        }
-                        {
-                            md = match reader.next() {
-                                Ok(Some(DerType::ObjectIdentifier)) => {
-                                    match reader.to_object_identifier() {
-                                        Ok(val) if val == *OID_SHA256 => HashAlgorithm::Sha256,
-                                        Ok(val) if val == *OID_SHA384 => HashAlgorithm::Sha384,
-                                        Ok(val) if val == *OID_SHA512 => HashAlgorithm::Sha512,
-                                        _ => return None,
-                                    }
-                                }
-                                _ => return None,
-                            }
-                        }
-                        match reader.next() {
-                            Ok(Some(DerType::EndOfContents)) => {}
-                            _ => return None,
-                        }
-                    }
-                    match reader.next() {
-                        Ok(Some(DerType::EndOfContents)) => {}
-                        _ => return None,
-                    }
-
-                    match reader.next() {
-                        Ok(Some(DerType::Other(DerClass::ContextSpecific, 1))) => {}
-                        _ => return None,
-                    }
-                    {
-                        match reader.next() {
-                            Ok(Some(DerType::Sequence)) => {}
-                            _ => return None,
-                        }
-
-                        {
+                if let Ok(Some(DerType::Sequence)) = reader.next() {
+                    while let Ok(Some(DerType::Other(DerClass::ContextSpecific, i))) = reader.next() {
+                        if i == 0 {
                             match reader.next() {
-                                Ok(Some(DerType::ObjectIdentifier)) => {
-                                    match reader.to_object_identifier() {
-                                        Ok(val) => {
-                                            if val != *OID_MGF1 {
-                                                return None;
-                                            }
-                                        }
-                                        _ => return None,
-                                    }
-                                }
-                                _ => return None,
+                                Ok(Some(DerType::Sequence)) => {},
+                                _ => break,
                             }
-
+        
                             match reader.next() {
-                                Ok(Some(DerType::Sequence)) => {}
-                                _ => return None,
-                            }
-                            {
-                                mgf1_md = match reader.next() {
-                                    Ok(Some(DerType::ObjectIdentifier)) => {
-                                        match reader.to_object_identifier() {
-                                            Ok(val) if val == *OID_SHA256 => HashAlgorithm::Sha256,
-                                            Ok(val) if val == *OID_SHA384 => HashAlgorithm::Sha384,
-                                            Ok(val) if val == *OID_SHA512 => HashAlgorithm::Sha512,
-                                            _ => return None,
-                                        }
-                                    }
+                                Ok(Some(DerType::ObjectIdentifier)) => match reader.to_object_identifier() {
+                                    Ok(val) if val == *OID_SHA1 => { hash = HashAlgorithm::Sha1 },
+                                    Ok(val) if val == *OID_SHA256 => { hash = HashAlgorithm::Sha256 },
+                                    Ok(val) if val == *OID_SHA384 => { hash = HashAlgorithm::Sha384 },
+                                    Ok(val) if val == *OID_SHA512 => { hash = HashAlgorithm::Sha512 },
                                     _ => return None,
-                                }
+                                },
+                                _ => break,
                             }
+        
                             match reader.next() {
-                                Ok(Some(DerType::EndOfContents)) => {}
-                                _ => return None,
+                                Ok(Some(DerType::EndOfContents)) => {},
+                                _ => break,
+                            }
+        
+                            match reader.next() {
+                                Ok(Some(DerType::EndOfContents)) => {},
+                                _ => break,
+                            }
+                        } else if i == 1 {
+                            match reader.next() {
+                                Ok(Some(DerType::Sequence)) => {},
+                                _ => break,
+                            }
+                            
+                            match reader.next() {
+                                Ok(Some(DerType::ObjectIdentifier)) => match reader.to_object_identifier() {
+                                    Ok(val) if val == *OID_MGF1 => {},
+                                    _ => break,
+                                },
+                                _ => break,
+                            }
+        
+                            match reader.next() {
+                                Ok(Some(DerType::Sequence)) => {},
+                                _ => break,
+                            }
+        
+                            match reader.next() {
+                                Ok(Some(DerType::ObjectIdentifier)) => match reader.to_object_identifier() {
+                                    Ok(val) if val == *OID_SHA1 => { mgf1_hash = HashAlgorithm::Sha1 },
+                                    Ok(val) if val == *OID_SHA256 => { mgf1_hash = HashAlgorithm::Sha256 },
+                                    Ok(val) if val == *OID_SHA384 => { mgf1_hash = HashAlgorithm::Sha384 },
+                                    Ok(val) if val == *OID_SHA512 => { mgf1_hash = HashAlgorithm::Sha512 },
+                                    _ => return None,
+                                },
+                                _ => break,
+                            }
+        
+                            match reader.next() {
+                                Ok(Some(DerType::EndOfContents)) => {},
+                                _ => break,
+                            }
+                            
+                            match reader.next() {
+                                Ok(Some(DerType::EndOfContents)) => {},
+                                _ => break,
+                            }
+        
+                            match reader.next() {
+                                Ok(Some(DerType::EndOfContents)) => {},
+                                _ => break,
+                            }
+                        } else if i == 2 {
+                            match reader.next() {
+                                Ok(Some(DerType::Integer)) => match reader.to_u8() {
+                                    Ok(val) => { salt_len = val },
+                                    _ => return None,
+                                },
+                                _ => break,
+                            }
+        
+                            match reader.next() {
+                                Ok(Some(DerType::EndOfContents)) => {},
+                                _ => break,
+                            }
+                        } else {
+                            match reader.skip_contents() {
+                                _ => break,
                             }
                         }
-                        match reader.next() {
-                            Ok(Some(DerType::EndOfContents)) => {}
-                            _ => return None,
-                        }
                     }
-                    match reader.next() {
-                        Ok(Some(DerType::EndOfContents)) => {}
-                        _ => return None,
-                    }
-
-                    match reader.next() {
-                        Ok(Some(DerType::Other(DerClass::ContextSpecific, 2))) => {}
-                        _ => return None,
-                    }
-                    {
-                        salt_len = match reader.next() {
-                            Ok(Some(DerType::Integer)) => match reader.to_u8() {
-                                Ok(val) => val,
-                                _ => return None,
-                            },
-                            _ => return None,
-                        }
-                    }
-                    match reader.next() {
-                        Ok(Some(DerType::EndOfContents)) => {}
-                        _ => return None,
-                    }
-                }
+                }        
             }
         }
 
-        Some((md, mgf1_md, salt_len))
+        Some((hash, mgf1_hash, salt_len))
     }
 
     pub(crate) fn to_pkcs8(
