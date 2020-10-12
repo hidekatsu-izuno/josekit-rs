@@ -5,9 +5,14 @@ use std::io::{Bytes, Read};
 use crate::util::oid::ObjectIdentifier;
 use crate::util::der::{DerClass, DerError, DerType};
 
-pub struct DerReader<R> {
+struct DerStackItem {
+    len: Option<usize>,
+    parsed_len: usize,
+}
+
+pub struct DerReader<R: Read> {
     input: Bytes<R>,
-    stack: Vec<Option<usize>>,
+    stack: Vec<DerStackItem>,
     der_type: DerType,
     constructed: bool,
     contents: Option<Vec<u8>>,
@@ -33,18 +38,25 @@ impl<R: Read> DerReader<R> {
     }
 
     pub fn next(&mut self) -> Result<Option<DerType>, DerError> {
-        let depth = self.stack.len();
+        let mut depth = self.stack.len();
         let mut is_indefinite_parent = false;
         if depth > 0 {
-            match self.stack[depth - 1] {
+            match self.stack[depth - 1].len {
+                Some(val) => {
+                    if val == self.stack[depth - 1].parsed_len {
+                        self.stack.pop();
+
+                        depth = self.stack.len();
+                        if depth > 0 {
+                            self.stack[depth - 1].parsed_len += val;
+                        }
+                        
+                        return Ok(Some(DerType::EndOfContents));
+                    }
+                }
                 None => {
                     is_indefinite_parent = true;
                 }
-                Some(0) => {
-                    self.stack.pop();
-                    return Ok(Some(DerType::EndOfContents));
-                }
-                _ => {}
             }
         }
 
@@ -95,8 +107,11 @@ impl<R: Read> DerReader<R> {
                 }
 
                 let olength = self.get_length()?;
-
-                self.stack.push(olength);
+                let offset = self.read_count - start_read_count;
+                self.stack.push(DerStackItem {
+                    len: olength.map(|val| val + offset),
+                    parsed_len: offset,
+                });
 
                 self.der_type = der_type;
                 self.constructed = true;
@@ -128,9 +143,8 @@ impl<R: Read> DerReader<R> {
                 }
 
                 if depth > 0 {
-                    if let Some(val) = self.stack[depth - 1] {
-                        self.stack[depth - 1] = Some(val - (self.read_count - start_read_count));
-                    }
+                    let offset = self.read_count - start_read_count;
+                    self.stack[depth - 1].parsed_len += offset;
                 }
 
                 self.der_type = der_type;
@@ -140,6 +154,30 @@ impl<R: Read> DerReader<R> {
         }
 
         Ok(Some(self.der_type))
+    }
+
+    pub fn skip_contents(&mut self) -> Result<(), DerError> {
+        if self.constructed {
+            let mut depth = 1;
+            loop {
+                match self.next()? {
+                    Some(DerType::EndOfContents) => {
+                        depth -= 1;
+                        if depth == 0 {
+                            break;
+                        }
+                    },
+                    Some(_) => {
+                        if self.constructed {
+                            depth += 1;
+                        }
+                    },
+                    None => break,
+                }
+            }
+        }
+
+        Ok(())
     }
 
     pub fn is_constructed(&self) -> bool {
@@ -527,6 +565,8 @@ mod tests {
     use std::fs::File;
     use std::path::PathBuf;
 
+    use crate::util::der::DerBuilder;
+
     #[test]
     fn parse_der() -> Result<()> {
         let bytes = load_file("der/RSA_2048bit_raw_public.der")?;
@@ -549,6 +589,30 @@ mod tests {
         assert!(matches!(parser.next()?, Some(DerType::Integer)));
         assert!(matches!(parser.next()?, Some(DerType::Integer)));
         assert!(matches!(parser.next()?, Some(DerType::EndOfContents)));
+        Ok(())
+    }
+
+    #[test]
+    fn parse_der_3() -> Result<()> {
+        let mut builder = DerBuilder::new();
+        builder.begin(DerType::Sequence);
+        {
+            builder.begin(DerType::Sequence);
+            {
+                builder.append_integer_from_u8(1);
+            }
+            builder.end();
+        }
+        builder.end();
+
+        let input = builder.build();
+        let mut parser = DerReader::from_bytes(&input);
+        assert!(matches!(parser.next()?, Some(DerType::Sequence)));
+        assert!(matches!(parser.next()?, Some(DerType::Sequence)));
+        assert!(matches!(parser.next()?, Some(DerType::Integer)));
+        assert!(matches!(parser.next()?, Some(DerType::EndOfContents)));
+        assert!(matches!(parser.next()?, Some(DerType::EndOfContents)));
+
         Ok(())
     }
 

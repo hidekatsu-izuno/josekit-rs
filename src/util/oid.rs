@@ -6,6 +6,9 @@ pub static OID_RSA_ENCRYPTION: Lazy<ObjectIdentifier> =
 pub static OID_RSASSA_PSS: Lazy<ObjectIdentifier> =
     Lazy::new(|| ObjectIdentifier::from_slice(&[1, 2, 840, 113549, 1, 1, 10]));
 
+pub static OID_SHA1: Lazy<ObjectIdentifier> =
+    Lazy::new(|| ObjectIdentifier::from_slice(&[1, 3, 14, 3, 2, 26]));
+
 pub static OID_SHA256: Lazy<ObjectIdentifier> =
     Lazy::new(|| ObjectIdentifier::from_slice(&[2, 16, 840, 1, 101, 3, 4, 2, 1]));
 

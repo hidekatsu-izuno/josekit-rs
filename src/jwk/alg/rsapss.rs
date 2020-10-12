@@ -4,7 +4,7 @@ use anyhow::bail;
 use openssl::pkey::{PKey, Private};
 use openssl::rsa::Rsa;
 
-use crate::util::oid::{OID_MGF1, OID_RSASSA_PSS, OID_SHA256, OID_SHA384, OID_SHA512};
+use crate::util::oid::{OID_MGF1, OID_RSASSA_PSS, OID_SHA1, OID_SHA256, OID_SHA384, OID_SHA512};
 use crate::util::der::{DerBuilder, DerClass, DerReader, DerType};
 use crate::jwk::{alg::rsa::RsaKeyPair, Jwk, KeyPair};
 use crate::util;
@@ -495,63 +495,13 @@ impl RsaPssKeyPair {
                         Ok(Some(DerType::Other(DerClass::ContextSpecific, 0))) => {}
                         _ => return None,
                     }
-
-                    match reader.next() {
-                        Ok(Some(DerType::Sequence)) => {}
-                        _ => return None,
-                    }
-
                     {
-                        md = match reader.next() {
-                            Ok(Some(DerType::ObjectIdentifier)) => {
-                                match reader.to_object_identifier() {
-                                    Ok(val) if val == *OID_SHA256 => HashAlgorithm::Sha256,
-                                    Ok(val) if val == *OID_SHA384 => HashAlgorithm::Sha384,
-                                    Ok(val) if val == *OID_SHA512 => HashAlgorithm::Sha512,
-                                    _ => return None,
-                                }
-                            }
-                            _ => return None,
-                        }
-                    }
-
-                    match reader.next() {
-                        Ok(Some(DerType::EndOfContents)) => {}
-                        _ => return None,
-                    }
-
-                    match reader.next() {
-                        Ok(Some(DerType::Other(DerClass::ContextSpecific, 1))) => {}
-                        _ => return None,
-                    }
-
-                    match reader.next() {
-                        Ok(Some(DerType::Sequence)) => {}
-                        _ => return None,
-                    }
-
-                    {
-                        match reader.next() {
-                            Ok(Some(DerType::ObjectIdentifier)) => {
-                                match reader.to_object_identifier() {
-                                    Ok(val) => {
-                                        if val != *OID_MGF1 {
-                                            return None;
-                                        }
-                                    }
-                                    _ => return None,
-                                }
-                            }
-                            _ => return None,
-                        }
-
                         match reader.next() {
                             Ok(Some(DerType::Sequence)) => {}
                             _ => return None,
                         }
-
                         {
-                            mgf1_md = match reader.next() {
+                            md = match reader.next() {
                                 Ok(Some(DerType::ObjectIdentifier)) => {
                                     match reader.to_object_identifier() {
                                         Ok(val) if val == *OID_SHA256 => HashAlgorithm::Sha256,
@@ -563,8 +513,68 @@ impl RsaPssKeyPair {
                                 _ => return None,
                             }
                         }
+                        match reader.next() {
+                            Ok(Some(DerType::EndOfContents)) => {}
+                            _ => return None,
+                        }
+                    }
+                    match reader.next() {
+                        Ok(Some(DerType::EndOfContents)) => {}
+                        _ => return None,
                     }
 
+                    match reader.next() {
+                        Ok(Some(DerType::Other(DerClass::ContextSpecific, 1))) => {}
+                        _ => return None,
+                    }
+                    {
+                        match reader.next() {
+                            Ok(Some(DerType::Sequence)) => {}
+                            _ => return None,
+                        }
+
+                        {
+                            match reader.next() {
+                                Ok(Some(DerType::ObjectIdentifier)) => {
+                                    match reader.to_object_identifier() {
+                                        Ok(val) => {
+                                            if val != *OID_MGF1 {
+                                                return None;
+                                            }
+                                        }
+                                        _ => return None,
+                                    }
+                                }
+                                _ => return None,
+                            }
+
+                            match reader.next() {
+                                Ok(Some(DerType::Sequence)) => {}
+                                _ => return None,
+                            }
+                            {
+                                mgf1_md = match reader.next() {
+                                    Ok(Some(DerType::ObjectIdentifier)) => {
+                                        match reader.to_object_identifier() {
+                                            Ok(val) if val == *OID_SHA256 => HashAlgorithm::Sha256,
+                                            Ok(val) if val == *OID_SHA384 => HashAlgorithm::Sha384,
+                                            Ok(val) if val == *OID_SHA512 => HashAlgorithm::Sha512,
+                                            _ => return None,
+                                        }
+                                    }
+                                    _ => return None,
+                                }
+                            }
+                            match reader.next() {
+                                Ok(Some(DerType::EndOfContents)) => {}
+                                _ => return None,
+                            }
+                        }
+                        match reader.next() {
+                            Ok(Some(DerType::EndOfContents)) => {}
+                            _ => return None,
+                        }
+                    }
                     match reader.next() {
                         Ok(Some(DerType::EndOfContents)) => {}
                         _ => return None,
@@ -574,12 +584,17 @@ impl RsaPssKeyPair {
                         Ok(Some(DerType::Other(DerClass::ContextSpecific, 2))) => {}
                         _ => return None,
                     }
-
-                    salt_len = match reader.next() {
-                        Ok(Some(DerType::Integer)) => match reader.to_u8() {
-                            Ok(val) => val,
+                    {
+                        salt_len = match reader.next() {
+                            Ok(Some(DerType::Integer)) => match reader.to_u8() {
+                                Ok(val) => val,
+                                _ => return None,
+                            },
                             _ => return None,
-                        },
+                        }
+                    }
+                    match reader.next() {
+                        Ok(Some(DerType::EndOfContents)) => {}
                         _ => return None,
                     }
                 }
@@ -613,6 +628,7 @@ impl RsaPssKeyPair {
                         builder.begin(DerType::Sequence);
                         {
                             builder.append_object_identifier(match hash {
+                                HashAlgorithm::Sha1 => &OID_SHA1,
                                 HashAlgorithm::Sha256 => &OID_SHA256,
                                 HashAlgorithm::Sha384 => &OID_SHA384,
                                 HashAlgorithm::Sha512 => &OID_SHA512,
@@ -630,6 +646,7 @@ impl RsaPssKeyPair {
                             builder.begin(DerType::Sequence);
                             {
                                 builder.append_object_identifier(match mgf1_hash {
+                                    HashAlgorithm::Sha1 => &OID_SHA1,
                                     HashAlgorithm::Sha256 => &OID_SHA256,
                                     HashAlgorithm::Sha384 => &OID_SHA384,
                                     HashAlgorithm::Sha512 => &OID_SHA512,

@@ -18,6 +18,7 @@ pub use crate::jose_header::JoseHeader;
 
 pub use serde_json::{Map, Number, Value};
 
+pub use HashAlgorithm::Sha1 as SHA_1;
 pub use HashAlgorithm::Sha256 as SHA_256;
 pub use HashAlgorithm::Sha384 as SHA_384;
 pub use HashAlgorithm::Sha512 as SHA_512;

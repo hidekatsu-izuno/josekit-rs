@@ -1,16 +1,20 @@
+use crate::HashAlgorithm;
 use crate::jwk::Jwk;
 use crate::jwk::alg::ec::EcCurve;
 use crate::jwk::alg::ed::EdCurve;
 use crate::jwk::alg::ecx::EcxCurve;
 use crate::util;
 use crate::util::oid::{OID_RSA_ENCRYPTION, OID_RSASSA_PSS, OID_ID_EC_PUBLIC_KEY, OID_PRIME256V1, OID_SECP256K1, OID_SECP384R1,
-    OID_SECP521R1, OID_ED25519, OID_ED448, OID_X25519, OID_X448};
-use crate::util::der::{DerReader, DerType, DerClass};
+    OID_SECP521R1, OID_ED25519, OID_ED448, OID_X25519, OID_X448, OID_MGF1, OID_SHA1, OID_SHA256, OID_SHA384, OID_SHA512};
+use crate::util::der::{DerReader, DerType, DerClass, DerError};
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum KeyAlg {
-    Rsa {
-        pss: bool,
+    Rsa,
+    RsaPss {
+        hash: Option<HashAlgorithm>,
+        mgf1_hash: Option<HashAlgorithm>,
+        salt_len: Option<u8>,
     },
     Ec {
         curve: Option<EcCurve>,
@@ -84,7 +88,7 @@ impl KeyInfo {
                     "RSA PRIVATE KEY" => {
                         let key_info = Self::detect_from_der(&data)?;
                         if key_info.is_public_key() || 
-                            !matches!(key_info.alg(), Some(KeyAlg::Rsa { pss: false })) {
+                            !matches!(key_info.alg(), Some(KeyAlg::Rsa)) {
                             return None;
                         }
 
@@ -99,7 +103,11 @@ impl KeyInfo {
                     "RSA-PSS PRIVATE KEY" => {
                         let key_info = Self::detect_from_der(&data)?;
                         if key_info.is_public_key() || 
-                            !matches!(key_info.alg(), Some(KeyAlg::Rsa { pss: true })) {
+                            !matches!(key_info.alg(), Some(KeyAlg::RsaPss {
+                                hash: _,
+                                mgf1_hash: _,
+                                salt_len: _,
+                            })) {
                             return None;
                         }
 
@@ -211,7 +219,7 @@ impl KeyInfo {
                     "RSA PUBLIC KEY" => {
                         let key_info = Self::detect_from_der(&data)?;
                         if !key_info.is_public_key() ||
-                            !matches!(key_info.alg(), Some(KeyAlg::Rsa { pss: false })) {
+                            !matches!(key_info.alg(), Some(KeyAlg::Rsa)) {
                             return None;
                         }
 
@@ -242,9 +250,7 @@ impl KeyInfo {
 
                         KeyInfo {
                             format: KeyFormat::Jwk,
-                            alg: Some(KeyAlg::Rsa {
-                                pss: false
-                            }),
+                            alg: Some(KeyAlg::Rsa),
                             is_public_key: is_public_key,
                         }
                     },
@@ -330,19 +336,21 @@ impl KeyInfo {
                             format: KeyFormat::Der {
                                 raw: false
                             },
-                            alg: Some(KeyAlg::Rsa {
-                                pss: false
-                            }),
+                            alg: Some(KeyAlg::Rsa),
                             is_public_key: true,
                         }
                     },
                     val if val == *OID_RSASSA_PSS => {
+                        let (hash, mgf1_hash, salt_len) = Self::parse_rsa_pss_params(&mut reader).ok()?;
+
                         KeyInfo {
                             format: KeyFormat::Der {
                                 raw: false
                             },
-                            alg: Some(KeyAlg::Rsa {
-                                pss: true
+                            alg: Some(KeyAlg::RsaPss {
+                                hash,
+                                mgf1_hash,
+                                salt_len
                             }),
                             is_public_key: true,
                         }
@@ -433,19 +441,21 @@ impl KeyInfo {
                                 format: KeyFormat::Der {
                                     raw: false
                                 },
-                                alg: Some(KeyAlg::Rsa {
-                                    pss: false
-                                }),
+                                alg: Some(KeyAlg::Rsa),
                                 is_public_key: false,
                             }
                         },
                         val if val == *OID_RSASSA_PSS => {
+                            let (hash, mgf1_hash, salt_len) = Self::parse_rsa_pss_params(&mut reader).ok()?;
+                            
                             KeyInfo {
                                 format: KeyFormat::Der {
                                     raw: false
                                 },
-                                alg: Some(KeyAlg::Rsa {
-                                    pss: true
+                                alg: Some(KeyAlg::RsaPss {
+                                    hash,
+                                    mgf1_hash,
+                                    salt_len
                                 }),
                                 is_public_key: false,
                             }
@@ -526,9 +536,7 @@ impl KeyInfo {
                             format: KeyFormat::Der {
                                 raw: true
                             },
-                            alg: Some(KeyAlg::Rsa {
-                                pss: false
-                            }),
+                            alg: Some(KeyAlg::Rsa),
                             is_public_key: true,
                         }
                     } else {
@@ -536,9 +544,7 @@ impl KeyInfo {
                             format: KeyFormat::Der {
                                 raw: true
                             },
-                            alg: Some(KeyAlg::Rsa {
-                                pss: false
-                            }),
+                            alg: Some(KeyAlg::Rsa),
                             is_public_key: false,
                         }
                     }
@@ -575,6 +581,104 @@ impl KeyInfo {
 
         Some(key_info)
     }
+
+    fn parse_rsa_pss_params(reader: &mut DerReader<&[u8]>) -> Result<(Option<HashAlgorithm>, Option<HashAlgorithm>, Option<u8>), DerError> {
+        let mut hash = Some(HashAlgorithm::Sha1);
+        let mut mgf1_hash = Some(HashAlgorithm::Sha1);
+        let mut salt_len = Some(20);
+
+        if let Some(DerType::Sequence) = reader.next()? {
+            while let Some(DerType::Other(DerClass::ContextSpecific, i)) = reader.next()? {
+                if i == 0 {
+                    match reader.next()? {
+                        Some(DerType::Sequence) => {},
+                        _ => break,
+                    }
+
+                    match reader.next()? {
+                        Some(DerType::ObjectIdentifier) => match reader.to_object_identifier()? {
+                            val if val == *OID_SHA1 => { hash = Some(HashAlgorithm::Sha1) },
+                            val if val == *OID_SHA256 => { hash = Some(HashAlgorithm::Sha256) },
+                            val if val == *OID_SHA384 => { hash = Some(HashAlgorithm::Sha384) },
+                            val if val == *OID_SHA512 => { hash = Some(HashAlgorithm::Sha512) },
+                            _ => { hash = None },
+                        },
+                        _ => break,
+                    }
+
+                    match reader.next()? {
+                        Some(DerType::EndOfContents) => {},
+                        _ => break,
+                    }
+
+                    match reader.next()? {
+                        Some(DerType::EndOfContents) => {},
+                        _ => break,
+                    }
+                } else if i == 1 {
+                    match reader.next()? {
+                        Some(DerType::Sequence) => {},
+                        _ => break,
+                    }
+                    
+                    match reader.next()? {
+                        Some(DerType::ObjectIdentifier) => match reader.to_object_identifier()? {
+                            val if val == *OID_MGF1 => {},
+                            _ => break,
+                        },
+                        _ => break,
+                    }
+
+                    match reader.next()? {
+                        Some(DerType::Sequence) => {},
+                        _ => break,
+                    }
+
+                    match reader.next()? {
+                        Some(DerType::ObjectIdentifier) => match reader.to_object_identifier()? {
+                            val if val == *OID_SHA1 => { mgf1_hash = Some(HashAlgorithm::Sha1) },
+                            val if val == *OID_SHA256 => { mgf1_hash = Some(HashAlgorithm::Sha256) },
+                            val if val == *OID_SHA384 => { mgf1_hash = Some(HashAlgorithm::Sha384) },
+                            val if val == *OID_SHA512 => { mgf1_hash = Some(HashAlgorithm::Sha512) },
+                            _ => { mgf1_hash = None },
+                        },
+                        _ => break,
+                    }
+
+                    match reader.next()? {
+                        Some(DerType::EndOfContents) => {},
+                        _ => break,
+                    }
+                    
+                    match reader.next()? {
+                        Some(DerType::EndOfContents) => {},
+                        _ => break,
+                    }
+
+                    match reader.next()? {
+                        Some(DerType::EndOfContents) => {},
+                        _ => break,
+                    }
+                } else if i == 2 {
+                    match reader.next()? {
+                        Some(DerType::Integer) => match reader.to_u8()? {
+                            val => { salt_len = Some(val) },
+                        },
+                        _ => break,
+                    }
+
+                    match reader.next()? {
+                        Some(DerType::EndOfContents) => {},
+                        _ => break,
+                    }
+                } else {
+                    reader.skip_contents()?;
+                }
+            }
+        }
+
+        Ok((hash, mgf1_hash, salt_len))
+    }
 }
 
 #[cfg(test)]
@@ -593,9 +697,7 @@ mod tests {
         assert_eq!(key_info.format(), KeyFormat::Der {
             raw: false
         });
-        assert_eq!(key_info.alg(), Some(KeyAlg::Rsa {
-            pss: false
-        }));
+        assert_eq!(key_info.alg(), Some(KeyAlg::Rsa));
         assert_eq!(key_info.is_public_key(), false);
 
         Ok(())
@@ -609,9 +711,7 @@ mod tests {
         assert_eq!(key_info.format(), KeyFormat::Der {
             raw: false
         });
-        assert_eq!(key_info.alg(), Some(KeyAlg::Rsa {
-            pss: false
-        }));
+        assert_eq!(key_info.alg(), Some(KeyAlg::Rsa));
         assert_eq!(key_info.is_public_key(), true);
 
         Ok(())
@@ -625,9 +725,7 @@ mod tests {
         assert_eq!(key_info.format(), KeyFormat::Der {
             raw: true
         });
-        assert_eq!(key_info.alg(), Some(KeyAlg::Rsa {
-            pss: false
-        }));
+        assert_eq!(key_info.alg(), Some(KeyAlg::Rsa));
         assert_eq!(key_info.is_public_key(), false);
 
         Ok(())
@@ -641,9 +739,7 @@ mod tests {
         assert_eq!(key_info.format(), KeyFormat::Der {
             raw: true
         });
-        assert_eq!(key_info.alg(), Some(KeyAlg::Rsa {
-            pss: false
-        }));
+        assert_eq!(key_info.alg(), Some(KeyAlg::Rsa));
         assert_eq!(key_info.is_public_key(), true);
 
         Ok(())
@@ -657,9 +753,7 @@ mod tests {
         assert_eq!(key_info.format(), KeyFormat::Pem {
             traditional: false
         });
-        assert_eq!(key_info.alg(), Some(KeyAlg::Rsa {
-            pss: false
-        }));
+        assert_eq!(key_info.alg(), Some(KeyAlg::Rsa));
         assert_eq!(key_info.is_public_key(), false);
 
         Ok(())
@@ -673,9 +767,7 @@ mod tests {
         assert_eq!(key_info.format(), KeyFormat::Pem {
             traditional: false
         });
-        assert_eq!(key_info.alg(), Some(KeyAlg::Rsa {
-            pss: false
-        }));
+        assert_eq!(key_info.alg(), Some(KeyAlg::Rsa));
         assert_eq!(key_info.is_public_key(), true);
 
         Ok(())
@@ -689,9 +781,7 @@ mod tests {
         assert_eq!(key_info.format(), KeyFormat::Pem {
             traditional: true
         });
-        assert_eq!(key_info.alg(), Some(KeyAlg::Rsa {
-            pss: false
-        }));
+        assert_eq!(key_info.alg(), Some(KeyAlg::Rsa));
         assert_eq!(key_info.is_public_key(), false);
 
         Ok(())
@@ -705,9 +795,7 @@ mod tests {
         assert_eq!(key_info.format(), KeyFormat::Pem {
             traditional: true
         });
-        assert_eq!(key_info.alg(), Some(KeyAlg::Rsa {
-            pss: false
-        }));
+        assert_eq!(key_info.alg(), Some(KeyAlg::Rsa));
         assert_eq!(key_info.is_public_key(), true);
 
         Ok(())
@@ -719,9 +807,7 @@ mod tests {
 
         let key_info = KeyInfo::detect(&input).unwrap();
         assert_eq!(key_info.format(), KeyFormat::Jwk);
-        assert_eq!(key_info.alg(), Some(KeyAlg::Rsa {
-            pss: false
-        }));
+        assert_eq!(key_info.alg(), Some(KeyAlg::Rsa));
         assert_eq!(key_info.is_public_key(), false);
 
         Ok(())
@@ -733,9 +819,7 @@ mod tests {
 
         let key_info = KeyInfo::detect(&input).unwrap();
         assert_eq!(key_info.format(), KeyFormat::Jwk);
-        assert_eq!(key_info.alg(), Some(KeyAlg::Rsa {
-            pss: false
-        }));
+        assert_eq!(key_info.alg(), Some(KeyAlg::Rsa));
         assert_eq!(key_info.is_public_key(), true);
 
         Ok(())
@@ -749,8 +833,10 @@ mod tests {
         assert_eq!(key_info.format(), KeyFormat::Der {
             raw: false
         });
-        assert_eq!(key_info.alg(), Some(KeyAlg::Rsa {
-            pss: true
+        assert_eq!(key_info.alg(), Some(KeyAlg::RsaPss {
+            hash: Some(HashAlgorithm::Sha256),
+            mgf1_hash: Some(HashAlgorithm::Sha256),
+            salt_len: Some(32)
         }));
         assert_eq!(key_info.is_public_key(), false);
 
@@ -765,8 +851,10 @@ mod tests {
         assert_eq!(key_info.format(), KeyFormat::Der {
             raw: false
         });
-        assert_eq!(key_info.alg(), Some(KeyAlg::Rsa {
-            pss: true
+        assert_eq!(key_info.alg(), Some(KeyAlg::RsaPss {
+            hash: Some(HashAlgorithm::Sha256),
+            mgf1_hash: Some(HashAlgorithm::Sha256),
+            salt_len: Some(32)
         }));
         assert_eq!(key_info.is_public_key(), true);
 
@@ -781,8 +869,10 @@ mod tests {
         assert_eq!(key_info.format(), KeyFormat::Pem {
             traditional: false
         });
-        assert_eq!(key_info.alg(), Some(KeyAlg::Rsa {
-            pss: true
+        assert_eq!(key_info.alg(), Some(KeyAlg::RsaPss {
+            hash: Some(HashAlgorithm::Sha256),
+            mgf1_hash: Some(HashAlgorithm::Sha256),
+            salt_len: Some(32)
         }));
         assert_eq!(key_info.is_public_key(), false);
 
@@ -797,8 +887,10 @@ mod tests {
         assert_eq!(key_info.format(), KeyFormat::Pem {
             traditional: false
         });
-        assert_eq!(key_info.alg(), Some(KeyAlg::Rsa {
-            pss: true
+        assert_eq!(key_info.alg(), Some(KeyAlg::RsaPss {
+            hash: Some(HashAlgorithm::Sha256),
+            mgf1_hash: Some(HashAlgorithm::Sha256),
+            salt_len: Some(32)
         }));
         assert_eq!(key_info.is_public_key(), true);
 
@@ -813,8 +905,10 @@ mod tests {
         assert_eq!(key_info.format(), KeyFormat::Pem {
             traditional: true
         });
-        assert_eq!(key_info.alg(), Some(KeyAlg::Rsa {
-            pss: true
+        assert_eq!(key_info.alg(), Some(KeyAlg::RsaPss {
+            hash: Some(HashAlgorithm::Sha256),
+            mgf1_hash: Some(HashAlgorithm::Sha256),
+            salt_len: Some(32)
         }));
         assert_eq!(key_info.is_public_key(), false);
 
