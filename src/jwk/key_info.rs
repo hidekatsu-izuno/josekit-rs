@@ -1,9 +1,9 @@
-use crate::HashAlgorithm;
 use crate::jwk::Jwk;
 use crate::jwk::alg::ec::EcCurve;
 use crate::jwk::alg::ed::EdCurve;
 use crate::jwk::alg::ecx::EcxCurve;
 use crate::util;
+use crate::util::HashAlgorithm;
 use crate::util::oid::{OID_RSA_ENCRYPTION, OID_RSASSA_PSS, OID_ID_EC_PUBLIC_KEY, OID_PRIME256V1, OID_SECP256K1, OID_SECP384R1,
     OID_SECP521R1, OID_ED25519, OID_ED448, OID_X25519, OID_X448, OID_MGF1, OID_SHA1, OID_SHA256, OID_SHA384, OID_SHA512};
 use crate::util::der::{DerReader, DerType, DerClass, DerError};

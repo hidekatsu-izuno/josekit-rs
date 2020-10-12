@@ -10,9 +10,9 @@ use crate::jwk::{
     Jwk,
 };
 use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier};
-use crate::util;
+use crate::util::{self, HashAlgorithm};
 use crate::util::der::{DerBuilder, DerReader, DerType};
-use crate::{HashAlgorithm, JoseError, Value};
+use crate::{JoseError, Value};
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum EcdsaJwsAlgorithm {

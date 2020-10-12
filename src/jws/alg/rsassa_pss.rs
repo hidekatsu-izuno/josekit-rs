@@ -8,9 +8,9 @@ use openssl::sign::{Signer, Verifier};
 
 use crate::jwk::{alg::rsa::RsaKeyPair, alg::rsapss::RsaPssKeyPair, Jwk};
 use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier};
-use crate::util;
+use crate::util::{self, HashAlgorithm};
 use crate::util::der::{DerBuilder, DerType};
-use crate::{HashAlgorithm, JoseError, Value};
+use crate::{JoseError, Value};
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum RsassaPssJwsAlgorithm {

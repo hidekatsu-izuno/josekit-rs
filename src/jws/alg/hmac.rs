@@ -7,7 +7,8 @@ use openssl::sign::Signer;
 
 use crate::jwk::Jwk;
 use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier};
-use crate::{HashAlgorithm, JoseError, Value};
+use crate::util::HashAlgorithm;
+use crate::{JoseError, Value};
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum HmacJwsAlgorithm {

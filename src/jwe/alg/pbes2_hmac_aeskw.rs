@@ -9,8 +9,8 @@ use openssl::pkcs5;
 
 use crate::jwe::{JweAlgorithm, JweContentEncryption, JweDecrypter, JweEncrypter, JweHeader};
 use crate::jwk::Jwk;
-use crate::util;
-use crate::{HashAlgorithm, JoseError, JoseHeader, Number, Value};
+use crate::util::{self, HashAlgorithm};
+use crate::{JoseError, JoseHeader, Number, Value};
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum Pbes2HmacAeskwJweAlgorithm {

@@ -1,11 +1,19 @@
 pub mod oid;
 pub mod der;
+pub mod hash_algorithm;
 
 use anyhow::bail;
 use once_cell::sync::Lazy;
 use regex::{self, bytes};
 use openssl::bn::BigNumRef;
 use openssl::rand;
+
+pub use crate::util::hash_algorithm::HashAlgorithm;
+
+pub use HashAlgorithm::Sha1 as SHA_1;
+pub use HashAlgorithm::Sha256 as SHA_256;
+pub use HashAlgorithm::Sha384 as SHA_384;
+pub use HashAlgorithm::Sha512 as SHA_512;
 
 pub fn random_bytes(len: usize) -> Vec<u8> {
     let mut vec = vec![0; len];

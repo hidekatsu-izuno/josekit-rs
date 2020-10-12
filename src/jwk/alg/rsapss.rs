@@ -7,8 +7,8 @@ use openssl::rsa::Rsa;
 use crate::util::oid::{OID_MGF1, OID_RSASSA_PSS, OID_SHA1, OID_SHA256, OID_SHA384, OID_SHA512};
 use crate::util::der::{DerBuilder, DerClass, DerReader, DerType};
 use crate::jwk::{alg::rsa::RsaKeyPair, Jwk, KeyPair};
-use crate::util;
-use crate::{HashAlgorithm, JoseError, Value};
+use crate::util::{self, HashAlgorithm};
+use crate::{JoseError, Value};
 
 #[derive(Debug, Clone)]
 pub struct RsaPssKeyPair {
@@ -752,7 +752,7 @@ mod tests {
     use anyhow::Result;
 
     use super::RsaPssKeyPair;
-    use crate::HashAlgorithm;
+    use crate::util::HashAlgorithm;
 
     #[test]
     fn test_rsa_jwt() -> Result<()> {

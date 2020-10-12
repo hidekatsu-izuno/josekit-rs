@@ -7,8 +7,8 @@ use openssl::rsa::Rsa;
 use crate::util::oid::OID_RSA_ENCRYPTION;
 use crate::util::der::{DerBuilder, DerReader, DerType};
 use crate::jwk::{alg::rsapss::RsaPssKeyPair, Jwk, KeyPair};
-use crate::util;
-use crate::{HashAlgorithm, JoseError, Value};
+use crate::util::{self, HashAlgorithm};
+use crate::{JoseError, Value};
 
 #[derive(Debug, Clone)]
 pub struct RsaKeyPair {
