@@ -248,8 +248,8 @@ mod tests {
     use anyhow::Result;
 
     use crate::jwe::{
-        self, Dir, JweAlgorithm, JweHeader, JweHeaderSet, ECDH_ES_A128KW,
-        PBES2_HS256_A128KW, RSA_OAEP,
+        self, Dir, JweAlgorithm, JweHeader, JweHeaderSet, ECDH_ES_A128KW, PBES2_HS256_A128KW,
+        RSA_OAEP,
     };
     use crate::jwk::Jwk;
     use crate::util;

@@ -177,7 +177,7 @@ mod tests {
     use std::fs;
     use std::path::PathBuf;
     use std::time::{Duration, SystemTime};
-    
+
     use anyhow::Result;
     use serde_json::json;
 

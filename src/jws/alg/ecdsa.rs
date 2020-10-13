@@ -10,8 +10,8 @@ use crate::jwk::{
     Jwk,
 };
 use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier};
-use crate::util::{self, HashAlgorithm};
 use crate::util::der::{DerBuilder, DerReader, DerType};
+use crate::util::{self, HashAlgorithm};
 use crate::{JoseError, Value};
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]

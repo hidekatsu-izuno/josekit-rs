@@ -8,11 +8,6 @@ use openssl::derive::Deriver;
 use openssl::hash::{Hasher, MessageDigest};
 use openssl::pkey::{PKey, Private, Public};
 
-use crate::util::oid::{
-    OID_ID_EC_PUBLIC_KEY, OID_PRIME256V1, OID_SECP256K1, OID_SECP384R1, OID_SECP521R1, OID_X25519,
-    OID_X448,
-};
-use crate::util::der::{DerReader, DerType};
 use crate::jwe::{JweAlgorithm, JweContentEncryption, JweDecrypter, JweEncrypter, JweHeader};
 use crate::jwk::alg::{
     ec::{EcCurve, EcKeyPair},
@@ -20,6 +15,11 @@ use crate::jwk::alg::{
 };
 use crate::jwk::Jwk;
 use crate::util;
+use crate::util::der::{DerReader, DerType};
+use crate::util::oid::{
+    OID_ID_EC_PUBLIC_KEY, OID_PRIME256V1, OID_SECP256K1, OID_SECP384R1, OID_SECP521R1, OID_X25519,
+    OID_X448,
+};
 use crate::{JoseError, JoseHeader, Map, Value};
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
@@ -383,7 +383,9 @@ impl EcdhEsJweAlgorithm {
                         };
                         match jwk.curve() {
                             Some(val) if val == curve.name() => {}
-                            Some(val) => bail!("A parameter crv must be {} but {}", self.name(), val),
+                            Some(val) => {
+                                bail!("A parameter crv must be {} but {}", self.name(), val)
+                            }
                             None => bail!("A parameter crv is required."),
                         }
                         let key_pair = EcKeyPair::from_jwk(&jwk)?;
@@ -399,7 +401,9 @@ impl EcdhEsJweAlgorithm {
                         };
                         match jwk.curve() {
                             Some(val) if val == curve.name() => {}
-                            Some(val) => bail!("A parameter crv must be {} but {}", self.name(), val),
+                            Some(val) => {
+                                bail!("A parameter crv must be {} but {}", self.name(), val)
+                            }
                             None => bail!("A parameter crv is required."),
                         }
                         let key_pair = EcxKeyPair::from_jwk(&jwk)?;

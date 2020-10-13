@@ -1,7 +1,7 @@
 #![allow(unused)]
 
-use crate::util::oid::ObjectIdentifier;
 use crate::util::der::DerType;
+use crate::util::oid::ObjectIdentifier;
 
 pub struct DerBuilder {
     stack: Vec<Vec<u8>>,

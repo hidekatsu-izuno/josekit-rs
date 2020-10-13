@@ -2,8 +2,8 @@
 
 use std::io::{Bytes, Read};
 
-use crate::util::oid::ObjectIdentifier;
 use crate::util::der::{DerClass, DerError, DerType};
+use crate::util::oid::ObjectIdentifier;
 
 struct DerStackItem {
     len: Option<usize>,
@@ -50,7 +50,7 @@ impl<R: Read> DerReader<R> {
                         if depth > 0 {
                             self.stack[depth - 1].parsed_len += val;
                         }
-                        
+
                         return Ok(Some(DerType::EndOfContents));
                     }
                 }
@@ -166,12 +166,12 @@ impl<R: Read> DerReader<R> {
                         if depth == 0 {
                             break;
                         }
-                    },
+                    }
                     Some(_) => {
                         if self.constructed {
                             depth += 1;
                         }
-                    },
+                    }
                     None => break,
                 }
             }

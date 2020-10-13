@@ -4,9 +4,9 @@ use anyhow::bail;
 use openssl::pkey::{PKey, Private};
 use openssl::rsa::Rsa;
 
-use crate::util::oid::{OID_MGF1, OID_RSASSA_PSS, OID_SHA1, OID_SHA256, OID_SHA384, OID_SHA512};
-use crate::util::der::{DerBuilder, DerClass, DerReader, DerType};
 use crate::jwk::{alg::rsa::RsaKeyPair, Jwk, KeyPair};
+use crate::util::der::{DerBuilder, DerClass, DerReader, DerType};
+use crate::util::oid::{OID_MGF1, OID_RSASSA_PSS, OID_SHA1, OID_SHA256, OID_SHA384, OID_SHA512};
 use crate::util::{self, HashAlgorithm};
 use crate::{JoseError, Value};
 
@@ -216,13 +216,15 @@ impl RsaPssKeyPair {
                             Some(_) => bail!("The hash algorithm is mismatched: {}", hash2),
                             None => hash2,
                         };
-    
+
                         let mgf1_hash = match mgf1_hash {
                             Some(val) if val == mgf1_hash2 => mgf1_hash2,
-                            Some(_) => bail!("The MGF1 hash algorithm is mismatched: {}", mgf1_hash2),
+                            Some(_) => {
+                                bail!("The MGF1 hash algorithm is mismatched: {}", mgf1_hash2)
+                            }
                             None => hash2,
                         };
-    
+
                         let salt_len = match salt_len {
                             Some(val) if val == salt_len2 => salt_len2,
                             Some(_) => bail!("The salt length is mismatched: {}", salt_len2),
@@ -486,88 +488,101 @@ impl RsaPssKeyPair {
                 }
 
                 if let Ok(Some(DerType::Sequence)) = reader.next() {
-                    while let Ok(Some(DerType::Other(DerClass::ContextSpecific, i))) = reader.next() {
+                    while let Ok(Some(DerType::Other(DerClass::ContextSpecific, i))) = reader.next()
+                    {
                         if i == 0 {
                             match reader.next() {
-                                Ok(Some(DerType::Sequence)) => {},
+                                Ok(Some(DerType::Sequence)) => {}
                                 _ => break,
                             }
-        
+
                             match reader.next() {
-                                Ok(Some(DerType::ObjectIdentifier)) => match reader.to_object_identifier() {
-                                    Ok(val) if val == *OID_SHA1 => { hash = HashAlgorithm::Sha1 },
-                                    Ok(val) if val == *OID_SHA256 => { hash = HashAlgorithm::Sha256 },
-                                    Ok(val) if val == *OID_SHA384 => { hash = HashAlgorithm::Sha384 },
-                                    Ok(val) if val == *OID_SHA512 => { hash = HashAlgorithm::Sha512 },
+                                Ok(Some(DerType::ObjectIdentifier)) => match reader
+                                    .to_object_identifier()
+                                {
+                                    Ok(val) if val == *OID_SHA1 => hash = HashAlgorithm::Sha1,
+                                    Ok(val) if val == *OID_SHA256 => hash = HashAlgorithm::Sha256,
+                                    Ok(val) if val == *OID_SHA384 => hash = HashAlgorithm::Sha384,
+                                    Ok(val) if val == *OID_SHA512 => hash = HashAlgorithm::Sha512,
                                     _ => return None,
                                 },
                                 _ => break,
                             }
-        
+
                             match reader.next() {
-                                Ok(Some(DerType::EndOfContents)) => {},
+                                Ok(Some(DerType::EndOfContents)) => {}
                                 _ => break,
                             }
-        
+
                             match reader.next() {
-                                Ok(Some(DerType::EndOfContents)) => {},
+                                Ok(Some(DerType::EndOfContents)) => {}
                                 _ => break,
                             }
                         } else if i == 1 {
                             match reader.next() {
-                                Ok(Some(DerType::Sequence)) => {},
+                                Ok(Some(DerType::Sequence)) => {}
                                 _ => break,
                             }
-                            
+
                             match reader.next() {
-                                Ok(Some(DerType::ObjectIdentifier)) => match reader.to_object_identifier() {
-                                    Ok(val) if val == *OID_MGF1 => {},
-                                    _ => break,
-                                },
+                                Ok(Some(DerType::ObjectIdentifier)) => {
+                                    match reader.to_object_identifier() {
+                                        Ok(val) if val == *OID_MGF1 => {}
+                                        _ => break,
+                                    }
+                                }
                                 _ => break,
                             }
-        
+
                             match reader.next() {
-                                Ok(Some(DerType::Sequence)) => {},
+                                Ok(Some(DerType::Sequence)) => {}
                                 _ => break,
                             }
-        
+
                             match reader.next() {
-                                Ok(Some(DerType::ObjectIdentifier)) => match reader.to_object_identifier() {
-                                    Ok(val) if val == *OID_SHA1 => { mgf1_hash = HashAlgorithm::Sha1 },
-                                    Ok(val) if val == *OID_SHA256 => { mgf1_hash = HashAlgorithm::Sha256 },
-                                    Ok(val) if val == *OID_SHA384 => { mgf1_hash = HashAlgorithm::Sha384 },
-                                    Ok(val) if val == *OID_SHA512 => { mgf1_hash = HashAlgorithm::Sha512 },
+                                Ok(Some(DerType::ObjectIdentifier)) => match reader
+                                    .to_object_identifier()
+                                {
+                                    Ok(val) if val == *OID_SHA1 => mgf1_hash = HashAlgorithm::Sha1,
+                                    Ok(val) if val == *OID_SHA256 => {
+                                        mgf1_hash = HashAlgorithm::Sha256
+                                    }
+                                    Ok(val) if val == *OID_SHA384 => {
+                                        mgf1_hash = HashAlgorithm::Sha384
+                                    }
+                                    Ok(val) if val == *OID_SHA512 => {
+                                        mgf1_hash = HashAlgorithm::Sha512
+                                    }
                                     _ => return None,
                                 },
                                 _ => break,
                             }
-        
+
                             match reader.next() {
-                                Ok(Some(DerType::EndOfContents)) => {},
+                                Ok(Some(DerType::EndOfContents)) => {}
                                 _ => break,
                             }
-                            
+
                             match reader.next() {
-                                Ok(Some(DerType::EndOfContents)) => {},
+                                Ok(Some(DerType::EndOfContents)) => {}
                                 _ => break,
                             }
-        
+
                             match reader.next() {
-                                Ok(Some(DerType::EndOfContents)) => {},
+                                Ok(Some(DerType::EndOfContents)) => {}
                                 _ => break,
                             }
                         } else if i == 2 {
                             match reader.next() {
                                 Ok(Some(DerType::Integer)) => match reader.to_u8() {
-                                    Ok(val) => { salt_len = val },
+                                    Ok(val) => salt_len = val,
                                     _ => return None,
                                 },
                                 _ => break,
                             }
-        
+
                             match reader.next() {
-                                Ok(Some(DerType::EndOfContents)) => {},
+                                Ok(Some(DerType::EndOfContents)) => {}
                                 _ => break,
                             }
                         } else {
@@ -576,7 +591,7 @@ impl RsaPssKeyPair {
                             }
                         }
                     }
-                }        
+                }
             }
         }
 

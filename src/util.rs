@@ -1,12 +1,12 @@
-pub mod oid;
 pub mod der;
 pub mod hash_algorithm;
+pub mod oid;
 
 use anyhow::bail;
 use once_cell::sync::Lazy;
-use regex::{self, bytes};
 use openssl::bn::BigNumRef;
 use openssl::rand;
+use regex::{self, bytes};
 
 pub use crate::util::hash_algorithm::HashAlgorithm;
 

@@ -4,10 +4,10 @@ use std::ops::Deref;
 use anyhow::bail;
 use openssl::pkey::{PKey, Private};
 
-use crate::util::oid::{ObjectIdentifier, OID_ED25519, OID_ED448};
-use crate::util::der::{DerBuilder, DerReader, DerType};
 use crate::jwk::{Jwk, KeyPair};
 use crate::util;
+use crate::util::der::{DerBuilder, DerReader, DerType};
+use crate::util::oid::{ObjectIdentifier, OID_ED25519, OID_ED448};
 use crate::{JoseError, Value};
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
