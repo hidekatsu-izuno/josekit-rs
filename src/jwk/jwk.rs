@@ -42,7 +42,7 @@ impl Jwk {
         })()
         .map_err(|err| match err.downcast::<JoseError>() {
             Ok(err) => err,
-            Err(err) => JoseError::InvalidJwtFormat(err),
+            Err(err) => JoseError::InvalidJwkFormat(err),
         })
     }
 
@@ -53,7 +53,7 @@ impl Jwk {
         })()
         .map_err(|err| match err.downcast::<JoseError>() {
             Ok(err) => err,
-            Err(err) => JoseError::InvalidJwtFormat(err),
+            Err(err) => JoseError::InvalidJwkFormat(err),
         })
     }
 

@@ -134,7 +134,7 @@ impl JwsContext {
         })()
         .map_err(|err| match err.downcast::<JoseError>() {
             Ok(err) => err,
-            Err(err) => JoseError::InvalidJwtFormat(err),
+            Err(err) => JoseError::InvalidJwsFormat(err),
         })
     }
 
@@ -247,7 +247,7 @@ impl JwsContext {
         })()
         .map_err(|err| match err.downcast::<JoseError>() {
             Ok(err) => err,
-            Err(err) => JoseError::InvalidJwtFormat(err),
+            Err(err) => JoseError::InvalidJwsFormat(err),
         })
     }
 
@@ -365,7 +365,7 @@ impl JwsContext {
         })()
         .map_err(|err| match err.downcast::<JoseError>() {
             Ok(err) => err,
-            Err(err) => JoseError::InvalidJwtFormat(err),
+            Err(err) => JoseError::InvalidJwsFormat(err),
         })
     }
 
@@ -477,7 +477,7 @@ impl JwsContext {
         })()
         .map_err(|err| match err.downcast::<JoseError>() {
             Ok(err) => err,
-            Err(err) => JoseError::InvalidJwtFormat(err),
+            Err(err) => JoseError::InvalidJwsFormat(err),
         })
     }
 
@@ -666,7 +666,7 @@ impl JwsContext {
         })()
         .map_err(|err| match err.downcast::<JoseError>() {
             Ok(err) => err,
-            Err(err) => JoseError::InvalidJwtFormat(err),
+            Err(err) => JoseError::InvalidJwsFormat(err),
         })
     }
 }
