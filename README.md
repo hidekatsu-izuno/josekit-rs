@@ -1,6 +1,6 @@
 # josekit
 
-JOSE (Javascript Object Signing and Encryption: JWT, JWS, JWE, JWA, JWK) library for Rust.
+JOSE (Javascript Object Signing and Encryption: JWT, JWS, JWE, JWA, JWK) library based on OpenSSL for Rust.
 
 ## Install
 
@@ -9,7 +9,7 @@ JOSE (Javascript Object Signing and Encryption: JWT, JWS, JWE, JWA, JWK) library
 josekit = "0.6.0"
 ```
 
-This library depends on OpenSSL DLL. Read more about [Crate openssl](https://docs.rs/openssl/). 
+This library depends on OpenSSL 1.1.1 DLL. Read more about [Crate openssl](https://docs.rs/openssl/). 
 
 ## Build
 
