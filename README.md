@@ -24,7 +24,9 @@ cargo build --release
 
 ```sh
 cargo test
-cargo --dry-run
+git tag vX.X.X
+git push origin --tags
+cargo publish --dry-run
 cargo publish
 ```
 -->
