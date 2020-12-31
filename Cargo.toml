@@ -21,8 +21,7 @@ serde_json = { version = "1", features = ["preserve_order"] }
 base64 = "0.12"
 flate2 = "1.0"
 chrono = "0.4"
-openssl = "0.10"
-openssl-sys = "0.9"
+openssl = "0.10.32"
 foreign-types = "0.3.1"
 
 [dev-dependencies]

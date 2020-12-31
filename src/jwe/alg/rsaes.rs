@@ -551,75 +551,28 @@ mod tests {
 }
 
 mod openssl_rsa_oaep {
-    use foreign_types::ForeignType;
     use openssl::error::ErrorStack;
     use openssl::hash::MessageDigest;
     use openssl::pkey::{PKey, Private, Public};
-    use openssl_sys::{
-        EVP_PKEY_CTX_ctrl, EVP_PKEY_CTX_free, EVP_PKEY_CTX_new, EVP_PKEY_CTX_set_rsa_mgf1_md,
-        EVP_PKEY_CTX_set_rsa_padding, EVP_PKEY_decrypt, EVP_PKEY_decrypt_init, EVP_PKEY_encrypt,
-        EVP_PKEY_encrypt_init, EVP_MD, EVP_PKEY_ALG_CTRL, EVP_PKEY_CTX, EVP_PKEY_OP_TYPE_CRYPT,
-        EVP_PKEY_RSA, RSA_PKCS1_OAEP_PADDING,
+    use openssl::{
+        encrypt::{Decrypter, Encrypter},
+        rsa::Padding,
     };
-    use std::os::raw::{c_int, c_void};
-    use std::ptr;
 
     pub(crate) fn pkey_public_encrypt(
         pkey: &PKey<Public>,
         input: &[u8],
         md: MessageDigest,
     ) -> Result<Vec<u8>, ErrorStack> {
-        let mut output;
-        unsafe {
-            let k = pkey.as_ptr();
-            let md = md.as_ptr();
+        let mut encrypter = Encrypter::new(pkey)?;
+        encrypter.set_rsa_padding(Padding::PKCS1_OAEP)?;
+        encrypter.set_rsa_oaep_md(md)?;
+        encrypter.set_rsa_mgf1_md(md)?;
 
-            let ctx = match EVP_PKEY_CTX_new(k, ptr::null_mut()) {
-                val if val.is_null() => return Err(ErrorStack::get()),
-                val => val,
-            };
-
-            if EVP_PKEY_encrypt_init(ctx) <= 0
-                || EVP_PKEY_CTX_set_rsa_padding(ctx, RSA_PKCS1_OAEP_PADDING) <= 0
-                || EVP_PKEY_CTX_set_rsa_oaep_md(ctx, md as *mut _) <= 0
-                || EVP_PKEY_CTX_set_rsa_mgf1_md(ctx, md as *mut _) <= 0
-            {
-                EVP_PKEY_CTX_free(ctx);
-                return Err(ErrorStack::get());
-            }
-
-            let mut outlen = 0;
-            if EVP_PKEY_encrypt(
-                ctx,
-                ptr::null_mut(),
-                &mut outlen,
-                input.as_ptr(),
-                input.len(),
-            ) <= 0
-            {
-                EVP_PKEY_CTX_free(ctx);
-                return Err(ErrorStack::get());
-            };
-
-            output = vec![0; outlen];
-            if EVP_PKEY_encrypt(
-                ctx,
-                output.as_mut_ptr(),
-                &mut outlen,
-                input.as_ptr(),
-                input.len(),
-            ) <= 0
-            {
-                EVP_PKEY_CTX_free(ctx);
-                return Err(ErrorStack::get());
-            };
-            if outlen < output.len() {
-                output.truncate(outlen);
-            }
-
-            EVP_PKEY_CTX_free(ctx);
-        }
-
+        let outlen = encrypter.encrypt_len(input)?;
+        let mut output = vec![0; outlen];
+        let outlen = encrypter.encrypt(input, &mut output)?;
+        output.truncate(outlen);
         Ok(output)
     }
 
@@ -628,71 +581,15 @@ mod openssl_rsa_oaep {
         input: &[u8],
         md: MessageDigest,
     ) -> Result<Vec<u8>, ErrorStack> {
-        let mut output;
-        unsafe {
-            let k = pkey.as_ptr();
-            let md = md.as_ptr();
+        let mut decrypter = Decrypter::new(pkey)?;
+        decrypter.set_rsa_padding(Padding::PKCS1_OAEP)?;
+        decrypter.set_rsa_oaep_md(md)?;
+        decrypter.set_rsa_mgf1_md(md)?;
 
-            let ctx = match EVP_PKEY_CTX_new(k, ptr::null_mut()) {
-                val if val.is_null() => return Err(ErrorStack::get()),
-                val => val,
-            };
-
-            if EVP_PKEY_decrypt_init(ctx) <= 0
-                || EVP_PKEY_CTX_set_rsa_padding(ctx, RSA_PKCS1_OAEP_PADDING) <= 0
-                || EVP_PKEY_CTX_set_rsa_oaep_md(ctx, md as *mut _) <= 0
-                || EVP_PKEY_CTX_set_rsa_mgf1_md(ctx, md as *mut _) <= 0
-            {
-                EVP_PKEY_CTX_free(ctx);
-                return Err(ErrorStack::get());
-            }
-
-            let mut outlen = 0;
-            if EVP_PKEY_decrypt(
-                ctx,
-                ptr::null_mut(),
-                &mut outlen,
-                input.as_ptr(),
-                input.len(),
-            ) <= 0
-            {
-                EVP_PKEY_CTX_free(ctx);
-                return Err(ErrorStack::get());
-            };
-
-            output = vec![0; outlen];
-            if EVP_PKEY_decrypt(
-                ctx,
-                output.as_mut_ptr(),
-                &mut outlen,
-                input.as_ptr(),
-                input.len(),
-            ) <= 0
-            {
-                EVP_PKEY_CTX_free(ctx);
-                return Err(ErrorStack::get());
-            };
-            if outlen < output.len() {
-                output.truncate(outlen);
-            }
-
-            EVP_PKEY_CTX_free(ctx);
-        }
-
+        let outlen = decrypter.decrypt_len(input)?;
+        let mut output = vec![0; outlen];
+        let outlen = decrypter.decrypt(input, &mut output)?;
+        output.truncate(outlen);
         Ok(output)
-    }
-
-    const EVP_PKEY_CTRL_RSA_OAEP_MD: c_int = EVP_PKEY_ALG_CTRL + 9;
-
-    #[allow(non_snake_case)]
-    unsafe fn EVP_PKEY_CTX_set_rsa_oaep_md(ctx: *mut EVP_PKEY_CTX, md: *mut EVP_MD) -> c_int {
-        EVP_PKEY_CTX_ctrl(
-            ctx,
-            EVP_PKEY_RSA,
-            EVP_PKEY_OP_TYPE_CRYPT,
-            EVP_PKEY_CTRL_RSA_OAEP_MD,
-            0,
-            md as *mut c_void,
-        )
     }
 }
