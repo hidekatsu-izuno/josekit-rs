@@ -427,15 +427,18 @@ impl JwsVerifier for RsassaJwsVerifier {
     }
 
     fn verify(&self, message: &[u8], signature: &[u8]) -> Result<(), JoseError> {
-        (|| -> anyhow::Result<()> {
+        (|| -> anyhow::Result<bool> {
             let md = self.algorithm.hash_algorithm().message_digest();
 
             let mut verifier = Verifier::new(md, &self.public_key)?;
             verifier.update(message)?;
-            verifier.verify(signature)?;
-            Ok(())
+            Ok(verifier.verify(signature)?)
         })()
         .map_err(|err| JoseError::InvalidSignature(err))
+        .and_then(|result| match result {
+            true => Ok(()),
+            false => Err(JoseError::InvalidSignature(anyhow::Error::msg("Signature does not match"))),
+        })
     }
 
     fn box_clone(&self) -> Box<dyn JwsVerifier> {
@@ -669,6 +672,28 @@ mod tests {
 
             let verifier = alg.verifier_from_der(&public_key)?;
             verifier.verify(input, &signature)?;
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn sign_and_verify_rsassa_mismatch() -> Result<()> {
+        let input = b"abcde12345";
+
+        for alg in &[
+            RsassaJwsAlgorithm::Rs256,
+            RsassaJwsAlgorithm::Rs384,
+            RsassaJwsAlgorithm::Rs512,
+        ] {
+            let signer_key_pair = alg.generate_key_pair(2048)?;
+            let verifier_key_pair = alg.generate_key_pair(2048)?;
+
+            let signer = alg.signer_from_der(&signer_key_pair.to_der_private_key())?;
+            let signature = signer.sign(input)?;
+
+            let verifier = alg.verifier_from_der(&verifier_key_pair.to_der_public_key())?;
+            verifier.verify(input, &signature).expect_err("Unmatched signature did not fail");
         }
 
         Ok(())
