@@ -510,18 +510,17 @@ impl JwsVerifier for RsassaPssJwsVerifier {
     }
 
     fn verify(&self, message: &[u8], signature: &[u8]) -> Result<(), JoseError> {
-        (|| -> anyhow::Result<bool> {
+        (|| -> anyhow::Result<()> {
             let md = self.algorithm.hash_algorithm().message_digest();
 
             let mut verifier = Verifier::new(md, &self.public_key)?;
             verifier.update(message)?;
-            Ok(verifier.verify(signature)?)
+            if !verifier.verify(signature)? {
+                bail!("The signature does not match.");
+            }
+            Ok(())
         })()
         .map_err(|err| JoseError::InvalidSignature(err))
-        .and_then(|result| match result {
-            true => Ok(()),
-            false => Err(JoseError::InvalidSignature(anyhow::Error::msg("Signature does not match"))),
-        })
     }
 
     fn box_clone(&self) -> Box<dyn JwsVerifier> {

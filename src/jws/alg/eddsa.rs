@@ -348,15 +348,14 @@ impl JwsVerifier for EddsaJwsVerifier {
     }
 
     fn verify(&self, message: &[u8], signature: &[u8]) -> Result<(), JoseError> {
-        (|| -> anyhow::Result<bool> {
+        (|| -> anyhow::Result<()> {
             let mut verifier = Verifier::new_without_digest(&self.public_key)?;
-            Ok(verifier.verify_oneshot(signature, message)?)
+            if !verifier.verify_oneshot(signature, message)? {
+                bail!("The signature does not match.")
+            }
+            Ok(())
         })()
         .map_err(|err| JoseError::InvalidSignature(err))
-        .and_then(|result| match result {
-            true => Ok(()),
-            false => Err(JoseError::InvalidSignature(anyhow::Error::msg("Signature does not match"))),
-        })
     }
 
     fn box_clone(&self) -> Box<dyn JwsVerifier> {

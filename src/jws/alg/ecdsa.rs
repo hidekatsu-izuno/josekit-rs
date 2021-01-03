@@ -422,7 +422,7 @@ impl JwsVerifier for EcdsaJwsVerifier {
     }
 
     fn verify(&self, message: &[u8], signature: &[u8]) -> Result<(), JoseError> {
-        (|| -> anyhow::Result<bool> {
+        (|| -> anyhow::Result<()> {
             let signature_len = self.algorithm.signature_len();
             if signature.len() != signature_len {
                 bail!(
@@ -449,13 +449,12 @@ impl JwsVerifier for EcdsaJwsVerifier {
 
             let mut verifier = Verifier::new(md, &self.public_key)?;
             verifier.update(message)?;
-            Ok(verifier.verify(&der_signature)?)
+            if !verifier.verify(&der_signature)? {
+                bail!("The signature does not match.");
+            }
+            Ok(())
         })()
         .map_err(|err| JoseError::InvalidSignature(err))
-        .and_then(|result| match result {
-            true => Ok(()),
-            false => Err(JoseError::InvalidSignature(anyhow::Error::msg("Signature does not match"))),
-        })
     }
 
     fn box_clone(&self) -> Box<dyn JwsVerifier> {
