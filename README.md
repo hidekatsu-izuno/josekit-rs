@@ -6,7 +6,7 @@ JOSE (Javascript Object Signing and Encryption: JWT, JWS, JWE, JWA, JWK) library
 
 ```toml
 [dependencies]
-josekit = "0.7.0"
+josekit = "0.7.1"
 ```
 
 This library depends on OpenSSL 1.1.1 DLL. Read more about [Crate openssl](https://docs.rs/openssl/). 
@@ -24,9 +24,9 @@ cargo build --release
 
 ```sh
 cargo test
+cargo publish --dry-run
 git tag vX.X.X
 git push origin --tags
-cargo publish --dry-run
 cargo publish
 ```
 -->
