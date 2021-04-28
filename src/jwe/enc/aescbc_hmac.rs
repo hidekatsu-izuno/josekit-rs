@@ -79,9 +79,9 @@ impl JweContentEncryption for AescbcHmacJweEncryption {
 
     fn key_len(&self) -> usize {
         match self {
-            Self::A128cbcHs256 => 16 + 16,
-            Self::A192cbcHs384 => 16 + 24,
-            Self::A256cbcHs512 => 16 + 32,
+            Self::A128cbcHs256 => 32,
+            Self::A192cbcHs384 => 48,
+            Self::A256cbcHs512 => 64,
         }
     }
 
