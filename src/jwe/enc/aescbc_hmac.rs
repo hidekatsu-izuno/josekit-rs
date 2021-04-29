@@ -1,14 +1,14 @@
-use std::fmt::Display;
-use std::ops::Deref;
+use std::{fmt::Display, ops::Deref};
 
 use anyhow::bail;
-use openssl::hash::MessageDigest;
-use openssl::pkey::{PKey, Private};
-use openssl::sign::Signer;
-use openssl::symm::{self, Cipher};
+use openssl::{
+    hash::MessageDigest,
+    pkey::{PKey, Private},
+    sign::Signer,
+    symm::{self, Cipher},
+};
 
-use crate::jwe::JweContentEncryption;
-use crate::JoseError;
+use crate::{jwe::JweContentEncryption, JoseError};
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum AescbcHmacJweEncryption {
@@ -29,13 +29,7 @@ impl AescbcHmacJweEncryption {
         }
     }
 
-    fn calcurate_tag(
-        &self,
-        aad: &[u8],
-        iv: Option<&[u8]>,
-        ciphertext: &[u8],
-        mac_key: &[u8],
-    ) -> Result<Vec<u8>, JoseError> {
+    fn calcurate_tag(&self, aad: &[u8], iv: Option<&[u8]>, ciphertext: &[u8], mac_key: &[u8]) -> Result<Vec<u8>, JoseError> {
         let (message_digest, tlen) = match self {
             Self::A128cbcHs256 => (MessageDigest::sha256(), 16),
             Self::A192cbcHs384 => (MessageDigest::sha384(), 24),
@@ -89,25 +83,17 @@ impl JweContentEncryption for AescbcHmacJweEncryption {
         16
     }
 
-    fn encrypt(
-        &self,
-        key: &[u8],
-        iv: Option<&[u8]>,
-        message: &[u8],
-        aad: &[u8],
-    ) -> Result<(Vec<u8>, Option<Vec<u8>>), JoseError> {
+    fn encrypt(&self, key: &[u8], iv: Option<&[u8]>, message: &[u8], aad: &[u8]) -> Result<(Vec<u8>, Option<Vec<u8>>), JoseError> {
         let (encrypted_message, mac_key) = (|| -> anyhow::Result<(Vec<u8>, &[u8])> {
             let expected_len = self.key_len();
             if key.len() != expected_len {
-                bail!(
-                    "The length of content encryption key must be {}: {}",
-                    expected_len,
-                    key.len()
-                );
+                bail!("The length of content encryption key must be {}: {}", expected_len, key.len());
             }
 
-            let mac_key = &key[0..16];
-            let enc_key = &key[16..];
+            // https://tools.ietf.org/html/rfc7518#section-5.2.3
+            let mac_key_len = expected_len / 2;
+            let mac_key = &key[0..mac_key_len];
+            let enc_key = &key[mac_key_len..];
 
             let cipher = self.cipher();
             let encrypted_message = symm::encrypt(cipher, enc_key, iv, message)?;
@@ -131,15 +117,13 @@ impl JweContentEncryption for AescbcHmacJweEncryption {
         let (message, mac_key) = (|| -> anyhow::Result<(Vec<u8>, &[u8])> {
             let expected_len = self.key_len();
             if key.len() != expected_len {
-                bail!(
-                    "The length of content encryption key must be {}: {}",
-                    expected_len,
-                    key.len()
-                );
+                bail!("The length of content encryption key must be {}: {}", expected_len, key.len());
             }
 
-            let mac_key = &key[0..16];
-            let enc_key = &key[16..];
+            // https://tools.ietf.org/html/rfc7518#section-5.2.3
+            let mac_key_len = expected_len / 2;
+            let mac_key = &key[0..mac_key_len];
+            let enc_key = &key[mac_key_len..];
 
             let cipher = self.cipher();
             let message = symm::decrypt(cipher, enc_key, iv, encrypted_message)?;
@@ -205,13 +189,7 @@ mod tests {
             let iv = util::random_bytes(enc.iv_len());
 
             let (encrypted_message, tag) = enc.encrypt(&key, Some(&iv), message, aad)?;
-            let decrypted_message = enc.decrypt(
-                &key,
-                Some(&iv),
-                &encrypted_message,
-                &aad[..],
-                tag.as_deref(),
-            )?;
+            let decrypted_message = enc.decrypt(&key, Some(&iv), &encrypted_message, &aad[..], tag.as_deref())?;
 
             assert_eq!(&message[..], &decrypted_message[..]);
         }
