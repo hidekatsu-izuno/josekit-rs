@@ -485,8 +485,8 @@ impl JweContext {
             if let Some(val) = &protected_b64 {
                 full_aad.push_str(&val);
             }
-            full_aad.push_str(".");
             if let Some(val) = &aad_b64 {
+                full_aad.push_str(".");
                 full_aad.push_str(&val);
             }
 
@@ -738,8 +738,8 @@ impl JweContext {
             if let Some(val) = &protected_b64 {
                 full_aad.push_str(&val);
             }
-            full_aad.push_str(".");
             if let Some(val) = &aad_b64 {
+                full_aad.push_str(".");
                 full_aad.push_str(&val);
             }
 
@@ -1198,8 +1198,8 @@ impl JweContext {
                     Some(val) => val,
                     None => String::new(),
                 };
-                full_aad.push_str(".");
                 if let Some(val) = aad_b64 {
+                    full_aad.push_str(".");
                     full_aad.push_str(&val);
                 }
 
