@@ -132,8 +132,8 @@ cargo publish
         <td>oct (size: the CEK depended. See below)
             <ul>
                 <li>A128CBC-HS256: 32 bytes</li>
-                <li>A192CBC-HS384: 40 bytes</li>
-                <li>A256CBC-HS512: 48 bytes</li>
+                <li>A192CBC-HS384: 48 bytes</li>
+                <li>A256CBC-HS512: 64 bytes</li>
                 <li>A128GCM: 16 bytes</li>
                 <li>A192GCM: 24 bytes</li>
                 <li>A256GCM: 32 bytes</li>

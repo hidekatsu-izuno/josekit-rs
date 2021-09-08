@@ -692,7 +692,9 @@ mod tests {
             let signature = signer.sign(input)?;
 
             let verifier = alg.verifier_from_der(&verifier_key_pair.to_der_public_key())?;
-            verifier.verify(input, &signature).expect_err("Unmatched signature did not fail");
+            verifier
+                .verify(input, &signature)
+                .expect_err("Unmatched signature did not fail");
         }
 
         Ok(())

@@ -29,7 +29,13 @@ impl AescbcHmacJweEncryption {
         }
     }
 
-    fn calcurate_tag(&self, aad: &[u8], iv: Option<&[u8]>, ciphertext: &[u8], mac_key: &[u8]) -> Result<Vec<u8>, JoseError> {
+    fn calcurate_tag(
+        &self,
+        aad: &[u8],
+        iv: Option<&[u8]>,
+        ciphertext: &[u8],
+        mac_key: &[u8],
+    ) -> Result<Vec<u8>, JoseError> {
         let (message_digest, tlen) = match self {
             Self::A128cbcHs256 => (MessageDigest::sha256(), 16),
             Self::A192cbcHs384 => (MessageDigest::sha384(), 24),
@@ -83,14 +89,23 @@ impl JweContentEncryption for AescbcHmacJweEncryption {
         16
     }
 
-    fn encrypt(&self, key: &[u8], iv: Option<&[u8]>, message: &[u8], aad: &[u8]) -> Result<(Vec<u8>, Option<Vec<u8>>), JoseError> {
+    fn encrypt(
+        &self,
+        key: &[u8],
+        iv: Option<&[u8]>,
+        message: &[u8],
+        aad: &[u8],
+    ) -> Result<(Vec<u8>, Option<Vec<u8>>), JoseError> {
         let (encrypted_message, mac_key) = (|| -> anyhow::Result<(Vec<u8>, &[u8])> {
             let expected_len = self.key_len();
             if key.len() != expected_len {
-                bail!("The length of content encryption key must be {}: {}", expected_len, key.len());
+                bail!(
+                    "The length of content encryption key must be {}: {}",
+                    expected_len,
+                    key.len()
+                );
             }
 
-            // https://tools.ietf.org/html/rfc7518#section-5.2.3
             let mac_key_len = expected_len / 2;
             let mac_key = &key[0..mac_key_len];
             let enc_key = &key[mac_key_len..];
@@ -117,10 +132,13 @@ impl JweContentEncryption for AescbcHmacJweEncryption {
         let (message, mac_key) = (|| -> anyhow::Result<(Vec<u8>, &[u8])> {
             let expected_len = self.key_len();
             if key.len() != expected_len {
-                bail!("The length of content encryption key must be {}: {}", expected_len, key.len());
+                bail!(
+                    "The length of content encryption key must be {}: {}",
+                    expected_len,
+                    key.len()
+                );
             }
 
-            // https://tools.ietf.org/html/rfc7518#section-5.2.3
             let mac_key_len = expected_len / 2;
             let mac_key = &key[0..mac_key_len];
             let enc_key = &key[mac_key_len..];
@@ -189,7 +207,13 @@ mod tests {
             let iv = util::random_bytes(enc.iv_len());
 
             let (encrypted_message, tag) = enc.encrypt(&key, Some(&iv), message, aad)?;
-            let decrypted_message = enc.decrypt(&key, Some(&iv), &encrypted_message, &aad[..], tag.as_deref())?;
+            let decrypted_message = enc.decrypt(
+                &key,
+                Some(&iv),
+                &encrypted_message,
+                &aad[..],
+                tag.as_deref(),
+            )?;
 
             assert_eq!(&message[..], &decrypted_message[..]);
         }
