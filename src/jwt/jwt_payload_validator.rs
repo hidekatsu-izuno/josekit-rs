@@ -2,7 +2,6 @@ use std::convert::Into;
 use std::time::SystemTime;
 
 use anyhow::bail;
-use chrono::{DateTime, Utc};
 
 use crate::jwt::JwtPayload;
 use crate::{JoseError, Map, Value};
@@ -178,7 +177,7 @@ impl JwtPayloadValidator {
                 if &not_before > current_time {
                     bail!(
                         "The token is not yet valid: {}",
-                        DateTime::<Utc>::from(not_before)
+                        time::OffsetDateTime::from(not_before),
                     );
                 }
             }
@@ -187,7 +186,7 @@ impl JwtPayloadValidator {
                 if &expires_at <= current_time {
                     bail!(
                         "The token has expired: {}",
-                        DateTime::<Utc>::from(expires_at)
+                        time::OffsetDateTime::from(expires_at),
                     );
                 }
             }
@@ -196,14 +195,14 @@ impl JwtPayloadValidator {
                 if &issued_at < min_issued_time {
                     bail!(
                         "The issued time is too old: {}",
-                        DateTime::<Utc>::from(issued_at)
+                        time::OffsetDateTime::from(issued_at),
                     );
                 }
 
                 if &issued_at > max_issued_time {
                     bail!(
                         "The issued time is too new: {}",
-                        DateTime::<Utc>::from(issued_at)
+                        time::OffsetDateTime::from(issued_at),
                     );
                 }
             }

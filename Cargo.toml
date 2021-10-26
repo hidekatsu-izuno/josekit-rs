@@ -20,8 +20,8 @@ regex = "1"
 serde_json = { version = "1", features = ["preserve_order"] }
 base64 = "0.13"
 flate2 = "1"
-chrono = "0.4"
 openssl = "0.10.36"
+time = "0.3.4"
 
 [dev-dependencies]
 doc-comment = "0.3.3"
