@@ -1,6 +1,6 @@
 [package]
 name = "josekit"
-version = "0.7.3"
+version = "0.7.4"
 description = "JOSE (Javascript Object Signing and Encryption) library for Rust."
 repository = "https://github.com/hidekatsu-izuno/josekit-rs"
 readme = "README.md"
@@ -21,7 +21,7 @@ serde_json = { version = "1", features = ["preserve_order"] }
 base64 = "0.13"
 flate2 = "1"
 openssl = "0.10.36"
-time = "0.3.4"
+time = "0.3"
 
 [dev-dependencies]
 doc-comment = "0.3.3"
