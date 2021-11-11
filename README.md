@@ -508,7 +508,7 @@ openssl pkey -in private.pem -pubout -out public.pem
 ```
 
 ```rust
-use josekit::{JoseError, jws::{JwsHeader, ES256}, jwt::{self, JwtPayload}};
+use josekit::{JoseError, jws::{JwsHeader, Es256}, jwt::{self, JwtPayload}};
 
 const PRIVATE_KEY: &str = concat!(env!("CARGO_MANIFEST_DIR"), 
     "/data/pem/EC_P-256_private.pem");
@@ -524,12 +524,12 @@ fn main() -> Result<(), JoseError> {
 
     // Signing JWT
     let private_key = std::fs::read(PRIVATE_KEY).unwrap();
-    let signer = ES256.signer_from_pem(&private_key)?;
+    let signer = Es256.signer_from_pem(&private_key)?;
     let jwt = jwt::encode_with_signer(&payload, &header, &signer)?;
 
     // Verifing JWT
     let public_key = std::fs::read(PUBLIC_KEY).unwrap();
-    let verifier = ES256.verifier_from_pem(&public_key)?;
+    let verifier = Es256.verifier_from_pem(&public_key)?;
     let (payload, header) = jwt::decode_with_verifier(&jwt, &verifier)?;
 
     Ok(())
