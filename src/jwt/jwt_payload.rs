@@ -4,6 +4,7 @@ use std::time::{Duration, SystemTime};
 
 use crate::{JoseError, Map, Number, Value};
 use anyhow::bail;
+use serde::de::DeserializeOwned;
 
 #[derive(Debug, Eq, PartialEq, Clone, Default)]
 pub struct JwtPayload {
@@ -245,6 +246,14 @@ impl JwtPayload {
     /// Return values for payload claims set
     pub fn claims_set(&self) -> &Map<String, Value> {
         &self.claims
+    }
+
+    /// Convert the claims into a deserializable struct.
+    /// 
+    /// Note that this consumes the payload on errors.
+    pub fn deserialize<T: DeserializeOwned>(self) -> Result<T,serde_json::error::Error> {
+        // can't use TryInto/TryFrom generically without https://github.com/rust-lang/rust/issues/31844
+        serde_json::from_value(Value::Object(self.claims))
     }
 
     fn check_claim(key: &str, value: &Value) -> Result<(), JoseError> {
