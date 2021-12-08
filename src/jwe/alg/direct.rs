@@ -42,11 +42,6 @@ impl DirectJweAlgorithm {
             if !jwk.is_for_key_operation("encrypt") {
                 bail!("A parameter key_ops must contains encrypt.");
             }
-            match jwk.algorithm() {
-                Some(val) if val == self.name() => {}
-                None => {}
-                Some(val) => bail!("A parameter alg must be {} but {}", self.name(), val),
-            }
             let k = match jwk.parameter("k") {
                 Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
                 Some(val) => bail!("A parameter k must be string type but {:?}", val),
@@ -90,11 +85,6 @@ impl DirectJweAlgorithm {
             }
             if !jwk.is_for_key_operation("decrypt") {
                 bail!("A parameter key_ops must contains decrypt.");
-            }
-            match jwk.algorithm() {
-                Some(val) if val == self.name() => {}
-                None => {}
-                Some(val) => bail!("A parameter alg must be {} but {}", self.name(), val),
             }
 
             let k = match jwk.parameter("k") {
@@ -287,6 +277,7 @@ mod tests {
         let jwk = {
             let mut jwk = Jwk::new("oct");
             jwk.set_key_use("enc");
+            jwk.set_algorithm("A128CBC-HS256");
             jwk.set_parameter(
                 "k",
                 Some(json!("MDEyMzQ1Njc4OUFCQ0RFRjAxMjM0NTY3ODlBQkNERUY")),
