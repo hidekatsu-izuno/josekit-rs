@@ -1,6 +1,6 @@
 use crate::Value;
 
-pub trait JoseHeader: Send + Sync {
+pub trait JoseHeader: Send + Sync + std::fmt::Debug {
     // Return claim count.
     fn len(&self) -> usize;
 
