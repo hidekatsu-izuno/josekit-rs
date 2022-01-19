@@ -1,3 +1,5 @@
+use serde::{Deserialize, Serialize};
+
 use std::fmt::Display;
 use std::io::Read;
 use std::string::ToString;
@@ -12,8 +14,9 @@ use crate::util;
 use crate::{JoseError, Map, Value};
 
 /// Represents JWK object.
-#[derive(Debug, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone, Deserialize, Serialize)]
 pub struct Jwk {
+    #[serde(flatten)]
     map: Map<String, Value>,
 }
 
