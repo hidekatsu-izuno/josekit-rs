@@ -6,7 +6,7 @@ JOSE (Javascript Object Signing and Encryption: JWT, JWS, JWE, JWA, JWK) library
 
 ```toml
 [dependencies]
-josekit = "0.7.4"
+josekit = "0.8.0"
 ```
 
 This library depends on OpenSSL 1.1.1 DLL. Read more about [Crate openssl](https://docs.rs/openssl/). 
