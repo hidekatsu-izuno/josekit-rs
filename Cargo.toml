@@ -1,6 +1,6 @@
 [package]
 name = "josekit"
-version = "0.8.0"
+version = "0.8.1"
 description = "JOSE (Javascript Object Signing and Encryption) library for Rust."
 repository = "https://github.com/hidekatsu-izuno/josekit-rs"
 readme = "README.md"
