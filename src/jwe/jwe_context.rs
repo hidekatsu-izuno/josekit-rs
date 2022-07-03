@@ -276,7 +276,7 @@ impl JweContext {
         })
     }
 
-    /// Return a representation of the data that is formatted by flattened json serialization.
+    /// Return a representation of the data that is formatted by general json serialization.
     ///
     /// # Arguments
     ///
@@ -304,7 +304,7 @@ impl JweContext {
         )
     }
 
-    /// Return a representation of the data that is formatted by flattened json serialization.
+    /// Return a representation of the data that is formatted by general json serialization.
     ///
     /// # Arguments
     ///
@@ -964,7 +964,7 @@ impl JweContext {
         })
     }
 
-    /// Deserialize the input that is formatted by flattened json serialization.
+    /// Deserialize the input that is formatted by json serialization.
     ///
     /// # Arguments
     ///
@@ -998,7 +998,7 @@ impl JweContext {
         })
     }
 
-    /// Deserialize the input that is formatted by flattened json serialization.
+    /// Deserialize the input that is formatted by json serialization.
     ///
     /// # Arguments
     ///
