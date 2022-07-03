@@ -534,20 +534,19 @@ impl JweContext {
 
                 let encrypted_key = encrypter.encrypt(&key, &merged, &mut header)?;
 
-                let mut writed = false;
-                if header.len() > 0 {
-                    let header_json = serde_json::to_string(header.claims_set())?;
-                    json.push_str("{\"header\":");
-                    json.push_str(&header_json);
-                    writed = true;
+                if header.len() == 0 {
+                   bail!("The per-recipient header must not be empty");
                 }
+                let header_json = serde_json::to_string(header.claims_set())?;
+                json.push_str("{\"header\":");
+                json.push_str(&header_json);
 
-                json.push_str(if writed { "," } else { "{" });
-                json.push_str("\"encrypted_key\":\"");
                 if let Some(val) = encrypted_key {
+                    json.push_str(",\"encrypted_key\":\"");
                     base64::encode_config_buf(&val, base64::URL_SAFE_NO_PAD, &mut json);
+                    json.push_str("\"");
                 }
-                json.push_str("\"}");
+                json.push_str("}");
             }
             json.push_str("]");
 
@@ -783,11 +782,11 @@ impl JweContext {
                 }
             }
 
-            json.push_str(",\"encrypted_key\":\"");
             if let Some(val) = encrypted_key {
+                json.push_str(",\"encrypted_key\":\"");
                 base64::encode_config_buf(&val, base64::URL_SAFE_NO_PAD, &mut json);
+                json.push_str("\"");
             }
-            json.push_str("\"");
 
             if let Some(val) = aad_b64 {
                 json.push_str(",\"aad\":\"");
@@ -1228,5 +1227,80 @@ impl JweContext {
             Ok(err) => err,
             Err(err) => JoseError::InvalidJweFormat(err),
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use anyhow::Result;
+    use crate::jwe::{
+        alg::direct::DirectJweAlgorithm,
+        JweHeader, JweHeaderSet,
+        serialize_compact, deserialize_compact,
+        serialize_flattened_json, serialize_general_json, deserialize_json
+    };
+
+    const CONTENT_CIPHERS: [(&str, usize); 6] = [
+        ("A128CBC-HS256", 32), ("A192CBC-HS384", 48), ("A256CBC-HS512", 64),
+        ("A128GCM", 16), ("A192GCM", 24), ("A256GCM", 32)
+    ];
+
+    #[test]
+    fn compact_dir() -> Result<()> {
+        let payload = b"hello world";
+        let alg = DirectJweAlgorithm::Dir;
+        for (cipher, keylen) in CONTENT_CIPHERS {
+            let mut header = JweHeader::new();
+            header.set_content_encryption(cipher);
+            let key = vec![0; keylen];
+            let encrypter = alg.encrypter_from_bytes(&key)?;
+            let jwe = serialize_compact(payload, &header, &encrypter)?;
+            println!("{}", jwe);
+
+            let decrypter = alg.decrypter_from_bytes(&key)?;
+            let (data, _header) = deserialize_compact(&jwe, &decrypter)?;
+            assert_eq!(data, payload);
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn flattened_json_dir() -> Result<()> {
+        let payload = b"hello world";
+        let alg = DirectJweAlgorithm::Dir;
+        for (cipher, keylen) in CONTENT_CIPHERS {
+            let mut hs = JweHeaderSet::new();
+            hs.set_content_encryption(cipher, true);
+            let key = vec![0; keylen];
+            let encrypter = alg.encrypter_from_bytes(&key)?;
+            let jwe = serialize_flattened_json(
+                payload, Some(&hs), None, None, &encrypter)?;
+            println!("{}", jwe);
+
+            let decrypter = alg.decrypter_from_bytes(&key)?;
+            let (data, _header) = deserialize_json(&jwe, &decrypter)?;
+            assert_eq!(data, payload);
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn general_json_dir() -> Result<()> {
+        let payload = b"hello world";
+        let alg = DirectJweAlgorithm::Dir;
+        for (cipher, keylen) in CONTENT_CIPHERS {
+            let mut hs = JweHeaderSet::new();
+            hs.set_content_encryption(cipher, true);
+            let key = vec![0; keylen];
+            let encrypter = alg.encrypter_from_bytes(&key)?;
+            let jwe = serialize_general_json(
+                payload, Some(&hs), &[(None, &encrypter)], None)?;
+            println!("{}", jwe);
+
+            let decrypter = alg.decrypter_from_bytes(&key)?;
+            let (data, _header) = deserialize_json(&jwe, &decrypter)?;
+            assert_eq!(data, payload);
+        }
+        Ok(())
     }
 }
