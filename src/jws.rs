@@ -210,9 +210,10 @@ mod tests {
     use std::path::PathBuf;
 
     use anyhow::Result;
+    use once_cell::sync::OnceCell;
 
-    use crate::jws::{self, EdDSA, JwsHeader, JwsHeaderSet, ES256, RS256};
-    use crate::Value;
+    use crate::jws::{self, EdDSA, JwsHeader, JwsHeaderSet, ES256, RS256, JwsVerifier};
+    use crate::{Value};
 
     #[test]
     fn test_jws_compact_serialization() -> Result<()> {
@@ -229,6 +230,34 @@ mod tests {
 
         let verifier = alg.verifier_from_pem(&public_key)?;
         let (dst_payload, dst_header) = jws::deserialize_compact(&jwt, &verifier)?;
+
+        src_header.set_claim("alg", Some(Value::String(alg.name().to_string())))?;
+        assert_eq!(src_header, dst_header);
+        assert_eq!(src_payload.to_vec(), dst_payload);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_jws_compact_serialization_with_selector() -> Result<()> {
+        let alg = RS256;
+
+        let private_key = load_file("pem/RSA_2048bit_private.pem")?;
+        let public_key = load_file("pem/RSA_2048bit_public.pem")?;
+
+        let mut src_header = JwsHeader::new();
+        src_header.set_token_type("JWT");
+        src_header.set_x509_certificate_chain(&vec![&public_key]);
+        let src_payload = b"test payload!";
+        let signer = alg.signer_from_pem(&private_key)?;
+        let jwt = jws::serialize_compact(src_payload, &src_header, &signer)?;
+
+        let cell: OnceCell<Box<dyn JwsVerifier>> = OnceCell::new();
+        let (dst_payload, dst_header) = jws::deserialize_compact_with_selector(&jwt, |header| {
+            let public_keys = header.x509_certificate_chain().unwrap();
+            let verifier = alg.verifier_from_pem(&public_keys[0])?;
+            Ok(Some(cell.get_or_init(|| Box::new(verifier)).as_ref()))
+        })?;
 
         src_header.set_claim("alg", Some(Value::String(alg.name().to_string())))?;
         assert_eq!(src_header, dst_header);
