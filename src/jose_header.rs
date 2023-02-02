@@ -3,7 +3,7 @@ use crate::Value;
 use std::fmt::Debug;
 
 pub trait JoseHeader: Send + Sync + Debug {
-    // Return claim count.
+    /// Return claim count.
     fn len(&self) -> usize;
 
     /// Return the value for header claim of a specified key.
