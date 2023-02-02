@@ -535,7 +535,7 @@ impl JweContext {
                 let encrypted_key = encrypter.encrypt(&key, &merged, &mut header)?;
 
                 if header.len() == 0 {
-                   bail!("The per-recipient header must not be empty");
+                    bail!("The per-recipient header must not be empty");
                 }
                 let header_json = serde_json::to_string(header.claims_set())?;
                 json.push_str("{\"header\":");
@@ -1232,17 +1232,19 @@ impl JweContext {
 
 #[cfg(test)]
 mod tests {
-    use anyhow::Result;
     use crate::jwe::{
-        alg::direct::DirectJweAlgorithm,
-        JweHeader, JweHeaderSet,
-        serialize_compact, deserialize_compact,
-        serialize_flattened_json, serialize_general_json, deserialize_json
+        alg::direct::DirectJweAlgorithm, deserialize_compact, deserialize_json, serialize_compact,
+        serialize_flattened_json, serialize_general_json, JweHeader, JweHeaderSet,
     };
+    use anyhow::Result;
 
     const CONTENT_CIPHERS: [(&str, usize); 6] = [
-        ("A128CBC-HS256", 32), ("A192CBC-HS384", 48), ("A256CBC-HS512", 64),
-        ("A128GCM", 16), ("A192GCM", 24), ("A256GCM", 32)
+        ("A128CBC-HS256", 32),
+        ("A192CBC-HS384", 48),
+        ("A256CBC-HS512", 64),
+        ("A128GCM", 16),
+        ("A192GCM", 24),
+        ("A256GCM", 32),
     ];
 
     #[test]
@@ -1273,8 +1275,7 @@ mod tests {
             hs.set_content_encryption(cipher, true);
             let key = vec![0; keylen];
             let encrypter = alg.encrypter_from_bytes(&key)?;
-            let jwe = serialize_flattened_json(
-                payload, Some(&hs), None, None, &encrypter)?;
+            let jwe = serialize_flattened_json(payload, Some(&hs), None, None, &encrypter)?;
             println!("{}", jwe);
 
             let decrypter = alg.decrypter_from_bytes(&key)?;
@@ -1293,8 +1294,7 @@ mod tests {
             hs.set_content_encryption(cipher, true);
             let key = vec![0; keylen];
             let encrypter = alg.encrypter_from_bytes(&key)?;
-            let jwe = serialize_general_json(
-                payload, Some(&hs), &[(None, &encrypter)], None)?;
+            let jwe = serialize_general_json(payload, Some(&hs), &[(None, &encrypter)], None)?;
             println!("{}", jwe);
 
             let decrypter = alg.decrypter_from_bytes(&key)?;

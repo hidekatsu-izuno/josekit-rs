@@ -174,7 +174,7 @@ impl JweHeader {
         for val in values {
             vec.push(Value::String(base64::encode_config(
                 val.as_ref(),
-                base64::URL_SAFE_NO_PAD,
+                base64::STANDARD,
             )));
         }
         self.claims.insert(key.to_string(), Value::Array(vec));

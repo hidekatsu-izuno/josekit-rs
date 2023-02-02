@@ -184,7 +184,7 @@ impl JweHeaderSet {
         let key = "x5c";
         let vec = values
             .iter()
-            .map(|v| Value::String(base64::encode_config(v.as_ref(), base64::URL_SAFE_NO_PAD)))
+            .map(|v| Value::String(base64::encode_config(v.as_ref(), base64::STANDARD)))
             .collect();
         if protection {
             self.unprotected.remove(key);

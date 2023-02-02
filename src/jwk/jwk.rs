@@ -394,10 +394,7 @@ impl Jwk {
     pub fn set_x509_certificate_chain(&mut self, values: &Vec<impl AsRef<[u8]>>) {
         let mut vec = Vec::with_capacity(values.len());
         for val in values {
-            vec.push(Value::String(base64::encode_config(
-                &val,
-                base64::URL_SAFE_NO_PAD,
-            )));
+            vec.push(Value::String(base64::encode_config(&val, base64::STANDARD)));
         }
         self.map.insert("x5c".to_string(), Value::Array(vec));
     }
