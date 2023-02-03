@@ -503,6 +503,7 @@ mod tests {
 
     use crate::jwk::Jwk;
     use crate::jws::JwsHeader;
+    use crate::Value;
 
     #[test]
     fn test_new_jws_header() -> Result<()> {
@@ -522,29 +523,43 @@ mod tests {
         header.set_nonce(b"nonce");
         header.set_claim("header_claim", Some(json!("header_claim")))?;
 
-        assert!(matches!(header.jwk_set_url(), Some("jku")));
-        assert!(matches!(header.jwk(), Some(val) if val == jwk));
-        assert!(matches!(header.x509_url(), Some("x5u")));
-        assert!(
-            matches!(header.x509_certificate_chain(), Some(vals) if vals == vec![
-                b"x5c0".to_vec(),
-                b"x5c1".to_vec(),
-            ])
+        assert_eq!(header.jwk_set_url(), Some("jku"));
+        assert_eq!(header.jwk(), Some(jwk));
+        assert_eq!(header.x509_url(), Some("x5u"));
+        assert_eq!(
+            header.x509_certificate_chain(),
+            Some(vec![b"x5c0".to_vec(), b"x5c1".to_vec(),])
         );
-        assert!(
-            matches!(header.x509_certificate_sha1_thumbprint(), Some(val) if val == b"x5t".to_vec())
+        assert_eq!(
+            header.claim("x5c"),
+            Some(&Value::Array(vec![
+                Value::String("eDVjMA".to_string()),
+                Value::String("eDVjMQ".to_string()),
+            ]))
         );
-        assert!(
-            matches!(header.x509_certificate_sha256_thumbprint(), Some(val) if val == b"x5t#S256".to_vec())
+        assert_eq!(
+            header.x509_certificate_sha1_thumbprint(),
+            Some(b"x5t".to_vec())
         );
-        assert!(matches!(header.key_id(), Some("kid")));
-        assert!(matches!(header.token_type(), Some("typ")));
-        assert!(matches!(header.content_type(), Some("cty")));
-        assert!(matches!(header.url(), Some("url")));
-        assert!(matches!(header.nonce(), Some(val) if val == b"nonce".to_vec()));
-        assert!(matches!(header.critical(), Some(vals) if vals == vec!["crit0", "crit1"]));
-        assert!(matches!(header.claim("header_claim"), Some(val) if val == &json!("header_claim")));
-
+        assert_eq!(
+            header.claim("x5t"),
+            Some(&Value::String("eDV0".to_string()))
+        );
+        assert_eq!(
+            header.x509_certificate_sha256_thumbprint(),
+            Some(b"x5t#S256".to_vec())
+        );
+        assert_eq!(
+            header.claim("x5t#S256"),
+            Some(&Value::String("eDV0I1MyNTY".to_string()))
+        );
+        assert_eq!(header.key_id(), Some("kid"));
+        assert_eq!(header.token_type(), Some("typ"));
+        assert_eq!(header.content_type(), Some("cty"));
+        assert_eq!(header.url(), Some("url"));
+        assert_eq!(header.nonce(), Some(b"nonce".to_vec()));
+        assert_eq!(header.critical(), Some(vec!["crit0", "crit1"]));
+        assert_eq!(header.claim("header_claim"), Some(&json!("header_claim")));
         Ok(())
     }
 }
