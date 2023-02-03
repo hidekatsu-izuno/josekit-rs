@@ -148,7 +148,7 @@ impl JwsHeader {
         for val in values {
             vec.push(Value::String(base64::encode_config(
                 val.as_ref(),
-                base64::STANDARD_NO_PAD,
+                base64::STANDARD,
             )));
         }
         self.claims.insert(key.to_string(), Value::Array(vec));
@@ -162,7 +162,7 @@ impl JwsHeader {
                 for val in vals {
                     match val {
                         Value::String(val2) => {
-                            match base64::decode_config(val2, base64::STANDARD_NO_PAD) {
+                            match base64::decode_config(val2, base64::STANDARD) {
                                 Ok(val3) => vec.push(val3.clone()),
                                 Err(_) => return None,
                             }
@@ -512,9 +512,9 @@ mod tests {
         header.set_jwk_set_url("jku");
         header.set_jwk(jwk.clone());
         header.set_x509_url("x5u");
-        header.set_x509_certificate_chain(&vec![b"x5c0", b"x5c1"]);
-        header.set_x509_certificate_sha1_thumbprint(b"x5t");
-        header.set_x509_certificate_sha256_thumbprint(b"x5t#S256");
+        header.set_x509_certificate_chain(&vec![b"x5c0".to_vec(), b"x5c1".to_vec(), "@@~".as_bytes().to_vec()]);
+        header.set_x509_certificate_sha1_thumbprint(b"x5t@@~");
+        header.set_x509_certificate_sha256_thumbprint(b"x5t#S256 @@~");
         header.set_key_id("kid");
         header.set_token_type("typ");
         header.set_content_type("cty");
@@ -528,30 +528,35 @@ mod tests {
         assert_eq!(header.x509_url(), Some("x5u"));
         assert_eq!(
             header.x509_certificate_chain(),
-            Some(vec![b"x5c0".to_vec(), b"x5c1".to_vec(),])
+            Some(vec![
+                b"x5c0".to_vec(),
+                b"x5c1".to_vec(),
+                "@@~".as_bytes().to_vec()
+            ])
         );
         assert_eq!(
             header.claim("x5c"),
             Some(&Value::Array(vec![
-                Value::String("eDVjMA".to_string()),
-                Value::String("eDVjMQ".to_string()),
+                Value::String("eDVjMA==".to_string()),
+                Value::String("eDVjMQ==".to_string()),
+                Value::String("QEB+".to_string()),
             ]))
         );
         assert_eq!(
             header.x509_certificate_sha1_thumbprint(),
-            Some(b"x5t".to_vec())
+            Some(b"x5t@@~".to_vec())
         );
         assert_eq!(
             header.claim("x5t"),
-            Some(&Value::String("eDV0".to_string()))
+            Some(&Value::String("eDV0QEB-".to_string()))
         );
         assert_eq!(
             header.x509_certificate_sha256_thumbprint(),
-            Some(b"x5t#S256".to_vec())
+            Some(b"x5t#S256 @@~".to_vec())
         );
         assert_eq!(
             header.claim("x5t#S256"),
-            Some(&Value::String("eDV0I1MyNTY".to_string()))
+            Some(&Value::String("eDV0I1MyNTYgQEB-".to_string()))
         );
         assert_eq!(header.key_id(), Some("kid"));
         assert_eq!(header.token_type(), Some("typ"));
