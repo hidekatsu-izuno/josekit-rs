@@ -590,3 +590,51 @@ impl Display for Jwk {
         fmt.write_str(&val)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use anyhow::Result;
+
+    use crate::jwk::Jwk;
+    use crate::Value;
+
+    #[test]
+    fn test_new_jws_header() -> Result<()> {
+        let mut jwk = Jwk::new("oct");
+        jwk.set_x509_url("x5u");
+        jwk.set_x509_certificate_chain(&vec![b"x5c0", b"x5c1"]);
+        jwk.set_x509_certificate_sha1_thumbprint(b"x5t");
+        jwk.set_x509_certificate_sha256_thumbprint(b"x5t#S256");
+        jwk.set_key_id("kid");
+
+        assert_eq!(jwk.x509_url(), Some("x5u"));
+        assert_eq!(
+            jwk.x509_certificate_chain(),
+            Some(vec![b"x5c0".to_vec(), b"x5c1".to_vec(),])
+        );
+        assert_eq!(
+            jwk.parameter("x5c"),
+            Some(&Value::Array(vec![
+                Value::String("eDVjMA".to_string()),
+                Value::String("eDVjMQ".to_string()),
+            ]))
+        );
+        assert_eq!(
+            jwk.x509_certificate_sha1_thumbprint(),
+            Some(b"x5t".to_vec())
+        );
+        assert_eq!(
+            jwk.parameter("x5t"),
+            Some(&Value::String("eDV0".to_string()))
+        );
+        assert_eq!(
+            jwk.x509_certificate_sha256_thumbprint(),
+            Some(b"x5t#S256".to_vec())
+        );
+        assert_eq!(
+            jwk.parameter("x5t#S256"),
+            Some(&Value::String("eDV0I1MyNTY".to_string()))
+        );
+        Ok(())
+    }
+}
