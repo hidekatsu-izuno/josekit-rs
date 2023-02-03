@@ -48,7 +48,8 @@ pub(crate) fn parse_pem(input: &[u8]) -> anyhow::Result<(String, Vec<u8>)> {
         .unwrap()
     });
 
-    static RE_FILTER: Lazy<regex::bytes::Regex> = Lazy::new(|| regex::bytes::Regex::new("[\t\r\n ]").unwrap());
+    static RE_FILTER: Lazy<regex::bytes::Regex> =
+        Lazy::new(|| regex::bytes::Regex::new("[\t\r\n ]").unwrap());
 
     let result = if let Some(caps) = RE_PEM.captures(input) {
         match (caps.get(1), caps.get(2), caps.get(3)) {
