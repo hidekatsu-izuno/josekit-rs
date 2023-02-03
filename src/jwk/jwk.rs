@@ -547,7 +547,7 @@ impl Jwk {
                         for val in vals {
                             match val {
                                 Value::String(val) => {
-                                    if !util::is_base64_url_safe_nopad(val) {
+                                    if !util::is_base64_standard(val) {
                                         bail!("The JWK {} parameter must be a base64 string.", key);
                                     }
                                 }

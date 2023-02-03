@@ -426,7 +426,7 @@ impl JwsHeader {
                         for val in vals {
                             match val {
                                 Value::String(val) => {
-                                    if !util::is_base64_url_safe_nopad(val) {
+                                    if !util::is_base64_standard(val) {
                                         bail!(
                                             "The JWS {} header claim must be a base64 string.",
                                             key
@@ -503,7 +503,7 @@ mod tests {
 
     use crate::jwk::Jwk;
     use crate::jws::JwsHeader;
-    use crate::Value;
+    use crate::{Value, Map};
 
     #[test]
     fn test_new_jws_header() -> Result<()> {
@@ -565,6 +565,10 @@ mod tests {
         assert_eq!(header.nonce(), Some(b"nonce".to_vec()));
         assert_eq!(header.critical(), Some(vec!["crit0", "crit1"]));
         assert_eq!(header.claim("header_claim"), Some(&json!("header_claim")));
+
+        let map: Map<String, Value> = header.clone().into();
+        assert_eq!(JwsHeader::from_map(map)?, header);
+
         Ok(())
     }
 }

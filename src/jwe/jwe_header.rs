@@ -576,7 +576,7 @@ impl JweHeader {
                         for val in vals {
                             match val {
                                 Value::String(val) => {
-                                    if !util::is_base64_url_safe_nopad(val) {
+                                    if !util::is_base64_standard(val) {
                                         bail!(
                                             "The JWE {} header claim must be a base64 string.",
                                             key
@@ -653,7 +653,7 @@ mod tests {
 
     use crate::jwe::JweHeader;
     use crate::jwk::Jwk;
-    use crate::Value;
+    use crate::{Value, Map};
 
     #[test]
     fn test_new_jwe_header() -> Result<()> {
@@ -733,6 +733,9 @@ mod tests {
         assert_eq!(header.subject(), Some("sub"));
         assert_eq!(header.critical(), Some(vec!["crit0", "crit1"]));
         assert_eq!(header.claim("header_claim"), Some(&json!("header_claim")));
+
+        let map: Map<String, Value> = header.clone().into();
+        assert_eq!(JweHeader::from_map(map)?, header);
 
         Ok(())
     }
