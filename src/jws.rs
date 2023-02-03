@@ -212,8 +212,8 @@ mod tests {
     use anyhow::Result;
     use once_cell::sync::OnceCell;
 
-    use crate::jws::{self, EdDSA, JwsHeader, JwsHeaderSet, JwsVerifier, ES256, RS256};
-    use crate::Value;
+    use crate::jws::{self, EdDSA, JwsHeader, JwsHeaderSet, ES256, RS256, JwsVerifier};
+    use crate::{Value};
 
     #[test]
     fn test_jws_compact_serialization() -> Result<()> {
