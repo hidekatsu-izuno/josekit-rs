@@ -4,6 +4,7 @@ use crate::jwe::{JweContext, JweDecrypter, JweEncrypter, JweHeader};
 use crate::jwk::{Jwk, JwkSet};
 use crate::jws::{JwsContext, JwsHeader, JwsSigner, JwsVerifier};
 use crate::jwt::{self, JwtPayload};
+use crate::util;
 use crate::{JoseError, JoseHeader, Map, Value};
 
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -126,13 +127,13 @@ impl JwtContext {
             let parts: Vec<&[u8]> = input.split(|b| *b == '.' as u8).collect();
             if parts.len() == 3 {
                 // JWS
-                let header = base64::decode_config(parts[0], base64::URL_SAFE_NO_PAD)?;
+                let header = util::decode_base64_urlsafe_no_pad(parts[0])?;
                 let header: Map<String, Value> = serde_json::from_slice(&header)?;
                 let header = JwsHeader::from_map(header)?;
                 Ok(Box::new(header))
             } else if parts.len() == 5 {
                 // JWE
-                let header = base64::decode_config(parts[0], base64::URL_SAFE_NO_PAD)?;
+                let header = util::decode_base64_urlsafe_no_pad(parts[0])?;
                 let header: Map<String, Value> = serde_json::from_slice(&header)?;
                 let header = JweHeader::from_map(header)?;
                 Ok(Box::new(header))

@@ -65,7 +65,7 @@ impl Pbes2HmacAeskwJweAlgorithm {
                 Some(val) => bail!("A parameter alg must be {} but {}", self.name(), val),
             }
             let k = match jwk.parameter("k") {
-                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
+                Some(Value::String(val)) => util::decode_base64_urlsafe_no_pad(val)?,
                 Some(val) => bail!("A parameter k must be string type but {:?}", val),
                 None => bail!("A parameter k is required."),
             };
@@ -128,7 +128,7 @@ impl Pbes2HmacAeskwJweAlgorithm {
             }
 
             let k = match jwk.parameter("k") {
-                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
+                Some(Value::String(val)) => util::decode_base64_urlsafe_no_pad(val)?,
                 Some(val) => bail!("A parameter k must be string type but {:?}", val),
                 None => bail!("A parameter k is required."),
             };
@@ -256,7 +256,7 @@ impl JweEncrypter for Pbes2HmacAeskwJweEncrypter {
         (|| -> anyhow::Result<Option<Vec<u8>>> {
             let p2s = match in_header.claim("p2s") {
                 Some(Value::String(val)) => {
-                    let p2s = base64::decode_config(val, base64::URL_SAFE_NO_PAD)?;
+                    let p2s = util::decode_base64_urlsafe_no_pad(val)?;
                     if p2s.len() < 8 {
                         bail!("The decoded value of p2s header claim must be 8 or more.");
                     }
@@ -265,7 +265,7 @@ impl JweEncrypter for Pbes2HmacAeskwJweEncrypter {
                 Some(_) => bail!("The p2s header claim must be string."),
                 None => {
                     let p2s = util::random_bytes(self.salt_len);
-                    let p2s_b64 = base64::encode_config(&p2s, base64::URL_SAFE_NO_PAD);
+                    let p2s_b64 = util::encode_base64_urlsafe_nopad(&p2s);
                     out_header.set_claim("p2s", Some(Value::String(p2s_b64)))?;
                     p2s
                 }
@@ -368,7 +368,7 @@ impl JweDecrypter for Pbes2HmacAeskwJweDecrypter {
 
             let p2s = match header.claim("p2s") {
                 Some(Value::String(val)) => {
-                    let p2s = base64::decode_config(val, base64::URL_SAFE_NO_PAD)?;
+                    let p2s = util::decode_base64_urlsafe_no_pad(val)?;
                     if p2s.len() < 8 {
                         bail!("The decoded value of p2s header claim must be 8 or more.");
                     }
@@ -431,7 +431,6 @@ impl Deref for Pbes2HmacAeskwJweDecrypter {
 #[cfg(test)]
 mod tests {
     use anyhow::Result;
-    use base64;
     use serde_json::json;
 
     use super::Pbes2HmacAeskwJweAlgorithm;
@@ -454,7 +453,7 @@ mod tests {
 
             let jwk = {
                 let key = util::random_bytes(8);
-                let key = base64::encode_config(&key, base64::URL_SAFE_NO_PAD);
+                let key = util::encode_base64_urlsafe_nopad(&key);
 
                 let mut jwk = Jwk::new("oct");
                 jwk.set_key_use("enc");

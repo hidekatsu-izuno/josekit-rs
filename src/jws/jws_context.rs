@@ -113,10 +113,10 @@ impl JwsContext {
             capacity += util::ceiling(signer.signature_len() * 4, 3);
 
             let mut message = String::with_capacity(capacity);
-            base64::encode_config_buf(header_bytes, base64::URL_SAFE_NO_PAD, &mut message);
+            util::encode_base64_urlsafe_nopad_buf(header_bytes, &mut message);
             message.push_str(".");
             if b64 {
-                base64::encode_config_buf(payload, base64::URL_SAFE_NO_PAD, &mut message);
+                util::encode_base64_urlsafe_nopad_buf(payload, &mut message);
             } else {
                 let payload = std::str::from_utf8(payload)?;
                 if payload.contains(".") {
@@ -128,7 +128,7 @@ impl JwsContext {
             let signature = signer.sign(message.as_bytes())?;
 
             message.push_str(".");
-            base64::encode_config_buf(signature, base64::URL_SAFE_NO_PAD, &mut message);
+            util::encode_base64_urlsafe_nopad_buf(signature, &mut message);
 
             Ok(message)
         })()
@@ -179,7 +179,7 @@ impl JwsContext {
         F: Fn(usize, &JwsHeader) -> Option<&'a dyn JwsSigner>,
     {
         (|| -> anyhow::Result<String> {
-            let payload_b64 = base64::encode_config(payload, base64::URL_SAFE_NO_PAD);
+            let payload_b64 = util::encode_base64_urlsafe_nopad(payload);
 
             let mut result = String::new();
             result.push_str("{\"signatures\":[");
@@ -216,8 +216,7 @@ impl JwsContext {
                 }
 
                 let protected_bytes = serde_json::to_vec(&protected_map)?;
-                let protected_b64 =
-                    base64::encode_config(&protected_bytes, base64::URL_SAFE_NO_PAD);
+                let protected_b64 = util::encode_base64_urlsafe_nopad(&protected_bytes);
 
                 let unprotected_map = header.claims_set(false);
 
@@ -235,7 +234,7 @@ impl JwsContext {
                 }
 
                 result.push_str(",\"signature\":\"");
-                base64::encode_config_buf(&signature, base64::URL_SAFE_NO_PAD, &mut result);
+                util::encode_base64_urlsafe_nopad_buf(&signature, &mut result);
                 result.push_str("\"}");
             }
 
@@ -328,11 +327,11 @@ impl JwsContext {
             }
 
             let protected_json = serde_json::to_string(&protected_map)?;
-            let protected_b64 = base64::encode_config(protected_json, base64::URL_SAFE_NO_PAD);
+            let protected_b64 = util::encode_base64_urlsafe_nopad(protected_json);
 
             let payload_b64;
             let payload = if b64 {
-                payload_b64 = base64::encode_config(payload, base64::URL_SAFE_NO_PAD);
+                payload_b64 = util::encode_base64_urlsafe_nopad(payload);
                 &payload_b64
             } else {
                 std::str::from_utf8(payload)?
@@ -358,7 +357,7 @@ impl JwsContext {
             json.push_str("\"");
 
             json.push_str(",\"signature\":\"");
-            base64::encode_config_buf(&signature, base64::URL_SAFE_NO_PAD, &mut json);
+            util::encode_base64_urlsafe_nopad_buf(&signature, &mut json);
             json.push_str("\"}");
 
             Ok(json)
@@ -417,7 +416,7 @@ impl JwsContext {
             let payload = &input[(indexies[0] + 1)..(indexies[1])];
             let signature = &input[(indexies[1] + 1)..];
 
-            let header = base64::decode_config(header, base64::URL_SAFE_NO_PAD)?;
+            let header = util::decode_base64_urlsafe_no_pad(header)?;
             let header: Map<String, Value> = serde_json::from_slice(&header)?;
             let header = JwsHeader::from_map(header)?;
 
@@ -464,11 +463,11 @@ impl JwsContext {
             }
 
             let message = &input[..(indexies[1])];
-            let signature = base64::decode_config(signature, base64::URL_SAFE_NO_PAD)?;
+            let signature = util::decode_base64_urlsafe_no_pad(signature)?;
             verifier.verify(message, &signature)?;
 
             let payload = if b64 {
-                base64::decode_config(payload, base64::URL_SAFE_NO_PAD)?
+                util::decode_base64_urlsafe_no_pad(payload)?
             } else {
                 payload.to_vec()
             };
@@ -570,7 +569,7 @@ impl JwsContext {
                     None => bail!("The JWS alg header claim must be in protected."),
                 };
 
-                let protected_vec = base64::decode_config(&protected_b64, base64::URL_SAFE_NO_PAD)?;
+                let protected_vec = util::decode_base64_urlsafe_no_pad(&protected_b64)?;
                 let protected_map: Map<String, Value> = serde_json::from_slice(&protected_vec)?;
 
                 let mut b64 = true;
@@ -617,9 +616,7 @@ impl JwsContext {
                 }
 
                 let signature = match sig.get("signature") {
-                    Some(Value::String(val)) => {
-                        base64::decode_config(val, base64::URL_SAFE_NO_PAD)?
-                    }
+                    Some(Value::String(val)) => util::decode_base64_urlsafe_no_pad(val)?,
                     Some(_) => bail!("The signature field must be string."),
                     None => bail!("The signature field is required."),
                 };
@@ -654,7 +651,7 @@ impl JwsContext {
                 verifier.verify(message.as_bytes(), &signature)?;
 
                 let payload = if b64 {
-                    base64::decode_config(&payload_b64, base64::URL_SAFE_NO_PAD)?
+                    util::decode_base64_urlsafe_no_pad(&payload_b64)?
                 } else {
                     payload_b64.into_bytes()
                 };

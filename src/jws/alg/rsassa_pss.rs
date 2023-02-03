@@ -335,12 +335,12 @@ impl RsassaPssJwsAlgorithm {
                 Some(val) => bail!("A parameter alg must be {} but {}", self.name(), val),
             }
             let n = match jwk.parameter("n") {
-                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
+                Some(Value::String(val)) => util::decode_base64_urlsafe_no_pad(val)?,
                 Some(_) => bail!("A parameter n must be a string."),
                 None => bail!("A parameter n is required."),
             };
             let e = match jwk.parameter("e") {
-                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
+                Some(Value::String(val)) => util::decode_base64_urlsafe_no_pad(val)?,
                 Some(_) => bail!("A parameter e must be a string."),
                 None => bail!("A parameter e is required."),
             };

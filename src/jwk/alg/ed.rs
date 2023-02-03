@@ -180,7 +180,7 @@ impl EdKeyPair {
                 None => bail!("A parameter crv is required."),
             };
             let d = match jwk.parameter("d") {
-                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
+                Some(Value::String(val)) => util::decode_base64_urlsafe_no_pad(val)?,
                 Some(_) => bail!("A parameter d must be a string."),
                 None => bail!("A parameter d is required."),
             };
@@ -205,7 +205,7 @@ impl EdKeyPair {
 
     pub fn to_traditional_pem_private_key(&self) -> Vec<u8> {
         let der = self.private_key.private_key_to_der().unwrap();
-        let der = base64::encode_config(&der, base64::STANDARD);
+        let der = util::encode_base64_standard(&der);
         let alg = match self.curve {
             EdCurve::Ed25519 => "ED25519 PRIVATE KEY",
             EdCurve::Ed448 => "ED448 PRIVATE KEY",
@@ -283,7 +283,7 @@ impl EdKeyPair {
                     match reader.next() {
                         Ok(Some(DerType::OctetString)) => {
                             let d = reader.contents().unwrap();
-                            base64::encode_config(d, base64::URL_SAFE_NO_PAD)
+                            util::encode_base64_urlsafe_nopad(d)
                         }
                         _ => unreachable!("Invalid private key."),
                     }
@@ -324,7 +324,7 @@ impl EdKeyPair {
             let x = match reader.next() {
                 Ok(Some(DerType::BitString)) => {
                     if let (x, 0) = reader.to_bit_vec().unwrap() {
-                        base64::encode_config(x, base64::URL_SAFE_NO_PAD)
+                        util::encode_base64_urlsafe_nopad(x)
                     } else {
                         unreachable!("Invalid private key.")
                     }

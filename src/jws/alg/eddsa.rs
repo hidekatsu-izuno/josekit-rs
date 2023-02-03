@@ -215,7 +215,7 @@ impl EddsaJwsAlgorithm {
                 None => bail!("A parameter crv is required."),
             };
             let x = match jwk.parameter("x") {
-                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
+                Some(Value::String(val)) => util::decode_base64_urlsafe_no_pad(val)?,
                 Some(_) => bail!("A parameter x must be a string."),
                 None => bail!("A parameter x is required."),
             };

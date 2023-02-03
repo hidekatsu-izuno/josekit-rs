@@ -7,7 +7,7 @@ use openssl::sign::Signer;
 
 use crate::jwk::Jwk;
 use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier};
-use crate::util::HashAlgorithm;
+use crate::util::{self, HashAlgorithm};
 use crate::{JoseError, Value};
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
@@ -26,7 +26,7 @@ impl HmacJwsAlgorithm {
     /// # Arguments
     /// * `secret` - A secret key
     pub fn to_jwk(&self, secret: &[u8]) -> Jwk {
-        let k = base64::encode_config(secret, base64::URL_SAFE_NO_PAD);
+        let k = util::encode_base64_urlsafe_nopad(secret);
 
         let mut jwk = Jwk::new("oct");
         jwk.set_key_use("sig");
@@ -89,7 +89,7 @@ impl HmacJwsAlgorithm {
                 Some(val) => bail!("A parameter alg must be {} but {}", self.name(), val),
             }
             let k = match jwk.parameter("k") {
-                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
+                Some(Value::String(val)) => util::decode_base64_urlsafe_no_pad(val)?,
                 Some(val) => bail!("A parameter k must be string type but {:?}", val),
                 None => bail!("A parameter k is required."),
             };
@@ -171,7 +171,7 @@ impl HmacJwsAlgorithm {
             }
 
             let k = match jwk.parameter("k") {
-                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
+                Some(Value::String(val)) => util::decode_base64_urlsafe_no_pad(val)?,
                 Some(val) => bail!("A parameter k must be string type but {:?}", val),
                 None => bail!("A parameter k is required."),
             };

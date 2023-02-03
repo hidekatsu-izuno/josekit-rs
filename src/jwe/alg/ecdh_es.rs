@@ -216,16 +216,12 @@ impl EcdhEsJweAlgorithm {
                             val => bail!("EC key doesn't support the curve algorithm: {}", val),
                         };
                         let x = match jwk.parameter("x") {
-                            Some(Value::String(val)) => {
-                                base64::decode_config(val, base64::URL_SAFE_NO_PAD)?
-                            }
+                            Some(Value::String(val)) => util::decode_base64_urlsafe_no_pad(val)?,
                             Some(_) => bail!("A parameter x must be a string."),
                             None => bail!("A parameter x is required."),
                         };
                         let y = match jwk.parameter("y") {
-                            Some(Value::String(val)) => {
-                                base64::decode_config(val, base64::URL_SAFE_NO_PAD)?
-                            }
+                            Some(Value::String(val)) => util::decode_base64_urlsafe_no_pad(val)?,
                             Some(_) => bail!("A parameter y must be a string."),
                             None => bail!("A parameter y is required."),
                         };
@@ -247,9 +243,7 @@ impl EcdhEsJweAlgorithm {
                             val => bail!("OKP key doesn't support the curve algorithm: {}", val),
                         };
                         let x = match jwk.parameter("x") {
-                            Some(Value::String(val)) => {
-                                base64::decode_config(val, base64::URL_SAFE_NO_PAD)?
-                            }
+                            Some(Value::String(val)) => util::decode_base64_urlsafe_no_pad(val)?,
                             Some(_) => bail!("A parameter x must be a string."),
                             None => bail!("A parameter x is required."),
                         };
@@ -628,13 +622,13 @@ impl EcdhEsJweEncrypter {
             let apu_vec;
             let apu = match header.claim("apu") {
                 Some(Value::String(val)) => {
-                    apu_vec = base64::decode_config(val, base64::URL_SAFE_NO_PAD)?;
+                    apu_vec = util::decode_base64_urlsafe_no_pad(val)?;
                     Some(apu_vec.as_slice())
                 }
                 Some(_) => bail!("The apu header claim must be string."),
                 None => match &self.agreement_partyuinfo {
                     Some(val) => {
-                        let apu_b64 = base64::encode_config(val, base64::URL_SAFE_NO_PAD);
+                        let apu_b64 = util::encode_base64_urlsafe_nopad(val);
                         header.set_claim("apu", Some(Value::String(apu_b64)))?;
                         Some(val.as_slice())
                     }
@@ -644,13 +638,13 @@ impl EcdhEsJweEncrypter {
             let apv_vec;
             let apv = match header.claim("apv") {
                 Some(Value::String(val)) => {
-                    apv_vec = base64::decode_config(val, base64::URL_SAFE_NO_PAD)?;
+                    apv_vec = util::decode_base64_urlsafe_no_pad(val)?;
                     Some(apv_vec.as_slice())
                 }
                 Some(_) => bail!("The apv header claim must be string."),
                 None => match &self.agreement_partyvinfo {
                     Some(val) => {
-                        let apv_b64 = base64::encode_config(val, base64::URL_SAFE_NO_PAD);
+                        let apv_b64 = util::encode_base64_urlsafe_nopad(val);
                         header.set_claim("apv", Some(Value::String(apv_b64)))?;
                         Some(val.as_slice())
                     }
@@ -856,7 +850,7 @@ impl JweDecrypter for EcdhEsJweDecrypter {
 
             let apu = match header.claim("apu") {
                 Some(Value::String(val)) => {
-                    let apu = base64::decode_config(val, base64::URL_SAFE_NO_PAD)?;
+                    let apu = util::decode_base64_urlsafe_no_pad(val)?;
                     Some(apu)
                 }
                 Some(_) => bail!("The apu header claim must be string."),
@@ -864,7 +858,7 @@ impl JweDecrypter for EcdhEsJweDecrypter {
             };
             let apv = match header.claim("apv") {
                 Some(Value::String(val)) => {
-                    let apv = base64::decode_config(val, base64::URL_SAFE_NO_PAD)?;
+                    let apv = util::decode_base64_urlsafe_no_pad(val)?;
                     Some(apv)
                 }
                 Some(_) => bail!("The apv header claim must be string."),
@@ -897,7 +891,7 @@ impl JweDecrypter for EcdhEsJweDecrypter {
                         EcdhEsKeyType::Ec(curve) => {
                             let x = match map.get("x") {
                                 Some(Value::String(val)) => {
-                                    base64::decode_config(val, base64::URL_SAFE_NO_PAD)?
+                                    util::decode_base64_urlsafe_no_pad(val)?
                                 }
                                 Some(_) => {
                                     bail!("The x parameter in epk header claim must be a string.")
@@ -906,7 +900,7 @@ impl JweDecrypter for EcdhEsJweDecrypter {
                             };
                             let y = match map.get("y") {
                                 Some(Value::String(val)) => {
-                                    base64::decode_config(val, base64::URL_SAFE_NO_PAD)?
+                                    util::decode_base64_urlsafe_no_pad(val)?
                                 }
                                 Some(_) => {
                                     bail!("The x parameter in epk header claim must be a string.")
@@ -925,7 +919,7 @@ impl JweDecrypter for EcdhEsJweDecrypter {
                         EcdhEsKeyType::Ecx(curve) => {
                             let x = match map.get("x") {
                                 Some(Value::String(val)) => {
-                                    base64::decode_config(val, base64::URL_SAFE_NO_PAD)?
+                                    util::decode_base64_urlsafe_no_pad(val)?
                                 }
                                 Some(_) => {
                                     bail!("The x parameter in epk header claim must be a string.")

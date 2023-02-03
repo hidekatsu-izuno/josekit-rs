@@ -7,7 +7,7 @@ use openssl::aes::{self, AesKey};
 
 use crate::jwe::{JweAlgorithm, JweContentEncryption, JweDecrypter, JweEncrypter, JweHeader};
 use crate::jwk::Jwk;
-use crate::{JoseError, Value};
+use crate::{util, JoseError, Value};
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum AeskwJweAlgorithm {
@@ -64,7 +64,7 @@ impl AeskwJweAlgorithm {
                 Some(val) => bail!("A parameter alg must be {} but {}", self.name(), val),
             }
             let k = match jwk.parameter("k") {
-                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
+                Some(Value::String(val)) => util::decode_base64_urlsafe_no_pad(val)?,
                 Some(val) => bail!("A parameter k must be string type but {:?}", val),
                 None => bail!("A parameter k is required."),
             };
@@ -129,7 +129,7 @@ impl AeskwJweAlgorithm {
             }
 
             let k = match jwk.parameter("k") {
-                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
+                Some(Value::String(val)) => util::decode_base64_urlsafe_no_pad(val)?,
                 Some(val) => bail!("A parameter k must be string type but {:?}", val),
                 None => bail!("A parameter k is required."),
             };
@@ -341,7 +341,6 @@ impl Deref for AeskwJweDecrypter {
 #[cfg(test)]
 mod tests {
     use anyhow::Result;
-    use base64;
     use serde_json::json;
 
     use super::AeskwJweAlgorithm;
@@ -364,7 +363,7 @@ mod tests {
 
             let jwk = {
                 let key = util::random_bytes(alg.key_len());
-                let key = base64::encode_config(&key, base64::URL_SAFE_NO_PAD);
+                let key = util::encode_base64_urlsafe_nopad(&key);
 
                 let mut jwk = Jwk::new("oct");
                 jwk.set_key_use("enc");

@@ -65,7 +65,7 @@ impl AesgcmkwJweAlgorithm {
                 Some(val) => bail!("A parameter alg must be {} but {}", self.name(), val),
             }
             let k = match jwk.parameter("k") {
-                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
+                Some(Value::String(val)) => util::decode_base64_urlsafe_no_pad(val)?,
                 Some(val) => bail!("A parameter k must be string type but {:?}", val),
                 None => bail!("A parameter k is required."),
             };
@@ -130,7 +130,7 @@ impl AesgcmkwJweAlgorithm {
             }
 
             let k = match jwk.parameter("k") {
-                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
+                Some(Value::String(val)) => util::decode_base64_urlsafe_no_pad(val)?,
                 Some(val) => bail!("A parameter k must be string type but {:?}", val),
                 None => bail!("A parameter k is required."),
             };
@@ -247,10 +247,10 @@ impl JweEncrypter for AesgcmkwJweEncrypter {
             let encrypted_key =
                 symm::encrypt_aead(cipher, &self.private_key, Some(&iv), b"", &key, &mut tag)?;
 
-            let iv = base64::encode_config(&iv, base64::URL_SAFE_NO_PAD);
+            let iv = util::encode_base64_urlsafe_nopad(&iv);
             out_header.set_claim("iv", Some(Value::String(iv)))?;
 
-            let tag = base64::encode_config(&tag, base64::URL_SAFE_NO_PAD);
+            let tag = util::encode_base64_urlsafe_nopad(&tag);
             out_header.set_claim("tag", Some(Value::String(tag)))?;
 
             Ok(Some(encrypted_key))
@@ -316,13 +316,13 @@ impl JweDecrypter for AesgcmkwJweDecrypter {
             };
 
             let iv = match header.claim("iv") {
-                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
+                Some(Value::String(val)) => util::decode_base64_urlsafe_no_pad(val)?,
                 Some(_) => bail!("The iv header claim must be string."),
                 None => bail!("The iv header claim is required."),
             };
 
             let tag = match header.claim("tag") {
-                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
+                Some(Value::String(val)) => util::decode_base64_urlsafe_no_pad(val)?,
                 Some(_) => bail!("The tag header claim must be string."),
                 None => bail!("The tag header claim is required."),
             };
@@ -358,7 +358,6 @@ impl Deref for AesgcmkwJweDecrypter {
 #[cfg(test)]
 mod tests {
     use anyhow::Result;
-    use base64;
     use serde_json::json;
 
     use super::AesgcmkwJweAlgorithm;
@@ -381,7 +380,7 @@ mod tests {
 
             let jwk = {
                 let key = util::random_bytes(alg.key_len());
-                let key = base64::encode_config(&key, base64::URL_SAFE_NO_PAD);
+                let key = util::encode_base64_urlsafe_nopad(&key);
 
                 let mut jwk = Jwk::new("oct");
                 jwk.set_key_use("enc");

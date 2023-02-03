@@ -70,7 +70,7 @@ impl Jwk {
         let mut jwk = Self::new("oct");
         jwk.map.insert(
             "k".to_string(),
-            Value::String(base64::encode_config(&k, base64::URL_SAFE_NO_PAD)),
+            Value::String(util::encode_base64_urlsafe_nopad(&k)),
         );
         Ok(jwk)
     }
@@ -350,14 +350,14 @@ impl Jwk {
     pub fn set_x509_certificate_sha1_thumbprint(&mut self, value: impl AsRef<[u8]>) {
         self.map.insert(
             "x5t".to_string(),
-            Value::String(base64::encode_config(&value, base64::URL_SAFE_NO_PAD)),
+            Value::String(util::encode_base64_urlsafe_nopad(value)),
         );
     }
 
     /// Return a value for a x509 certificate SHA-1 thumbprint parameter (x5t).
     pub fn x509_certificate_sha1_thumbprint(&self) -> Option<Vec<u8>> {
         match self.map.get("x5t") {
-            Some(Value::String(val)) => match base64::decode_config(val, base64::URL_SAFE_NO_PAD) {
+            Some(Value::String(val)) => match util::decode_base64_urlsafe_no_pad(val) {
                 Ok(val) => Some(val),
                 Err(_) => None,
             },
@@ -372,14 +372,14 @@ impl Jwk {
     pub fn set_x509_certificate_sha256_thumbprint(&mut self, value: impl AsRef<[u8]>) {
         self.map.insert(
             "x5t#S256".to_string(),
-            Value::String(base64::encode_config(&value, base64::URL_SAFE_NO_PAD)),
+            Value::String(util::encode_base64_urlsafe_nopad(value)),
         );
     }
 
     /// Return a value for a x509 certificate SHA-256 thumbprint parameter (x5t#S256).
     pub fn x509_certificate_sha256_thumbprint(&self) -> Option<Vec<u8>> {
         match self.map.get("x5t#S256") {
-            Some(Value::String(val)) => match base64::decode_config(val, base64::URL_SAFE_NO_PAD) {
+            Some(Value::String(val)) => match util::decode_base64_urlsafe_no_pad(val) {
                 Ok(val) => Some(val),
                 Err(_) => None,
             },
@@ -394,7 +394,7 @@ impl Jwk {
     pub fn set_x509_certificate_chain(&mut self, values: &Vec<impl AsRef<[u8]>>) {
         let mut vec = Vec::with_capacity(values.len());
         for val in values {
-            vec.push(Value::String(base64::encode_config(&val, base64::STANDARD)));
+            vec.push(Value::String(util::encode_base64_standard(val)));
         }
         self.map.insert("x5c".to_string(), Value::Array(vec));
     }
@@ -406,12 +406,10 @@ impl Jwk {
                 let mut vec = Vec::with_capacity(vals.len());
                 for val in vals {
                     match val {
-                        Value::String(val2) => {
-                            match base64::decode_config(val2, base64::STANDARD) {
-                                Ok(val3) => vec.push(val3),
-                                Err(_) => return None,
-                            }
-                        }
+                        Value::String(val2) => match util::decode_base64_standard(val2) {
+                            Ok(val3) => vec.push(val3),
+                            Err(_) => return None,
+                        },
                         _ => return None,
                     }
                 }
@@ -446,14 +444,14 @@ impl Jwk {
     pub fn set_key_value(&mut self, value: impl AsRef<[u8]>) {
         self.map.insert(
             "k".to_string(),
-            Value::String(base64::encode_config(&value, base64::URL_SAFE_NO_PAD)),
+            Value::String(util::encode_base64_urlsafe_nopad(value)),
         );
     }
 
     /// Return a value for a key value parameter (k) of a oct type.
     pub fn key_value(&self) -> Option<Vec<u8>> {
         match self.map.get("k") {
-            Some(Value::String(val)) => match base64::decode_config(val, base64::URL_SAFE_NO_PAD) {
+            Some(Value::String(val)) => match util::decode_base64_urlsafe_no_pad(val) {
                 Ok(val) => Some(val),
                 Err(_) => None,
             },
@@ -535,7 +533,7 @@ impl Jwk {
                 "x5t" | "x5t#S256" | "k" | "d" | "p" | "q" | "dp" | "dq" | "qi" | "x" | "y" => {
                     match &value {
                         Value::String(val) => {
-                            if !util::is_base64_url_safe_nopad(val) {
+                            if !util::is_base64_urlsafe_nopad(val) {
                                 bail!("The JWK {} parameter must be a base64 string.", key);
                             }
                         }

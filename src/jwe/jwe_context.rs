@@ -217,7 +217,7 @@ impl JweContext {
             out_header.set_algorithm(encrypter.algorithm().name());
 
             let header_bytes = serde_json::to_vec(out_header.claims_set())?;
-            let header_b64 = base64::encode_config(header_bytes, base64::URL_SAFE_NO_PAD);
+            let header_b64 = util::encode_base64_urlsafe_nopad(header_bytes);
 
             let compressed;
             let content = if let Some(compression) = compression {
@@ -255,17 +255,17 @@ impl JweContext {
             message.push_str(&header_b64);
             message.push_str(".");
             if let Some(val) = &encrypted_key {
-                base64::encode_config_buf(val, base64::URL_SAFE_NO_PAD, &mut message);
+                util::encode_base64_urlsafe_nopad_buf(val, &mut message);
             }
             message.push_str(".");
             if let Some(val) = iv {
-                base64::encode_config_buf(val, base64::URL_SAFE_NO_PAD, &mut message);
+                util::encode_base64_urlsafe_nopad_buf(val, &mut message);
             }
             message.push_str(".");
-            base64::encode_config_buf(ciphertext, base64::URL_SAFE_NO_PAD, &mut message);
+            util::encode_base64_urlsafe_nopad_buf(ciphertext, &mut message);
             message.push_str(".");
             if let Some(val) = &tag {
-                base64::encode_config_buf(val, base64::URL_SAFE_NO_PAD, &mut message);
+                util::encode_base64_urlsafe_nopad_buf(val, &mut message);
             }
 
             Ok(message)
@@ -457,8 +457,7 @@ impl JweContext {
                     let protected_map = header.claims_set(true);
                     if protected_map.len() > 0 {
                         let protected_json = serde_json::to_vec(header.claims_set(true))?;
-                        let protected_b64 =
-                            base64::encode_config(protected_json, base64::URL_SAFE_NO_PAD);
+                        let protected_b64 = util::encode_base64_urlsafe_nopad(protected_json);
                         Some(protected_b64)
                     } else {
                         None
@@ -468,7 +467,7 @@ impl JweContext {
             };
 
             let aad_b64 = match aad {
-                Some(val) => Some(base64::encode_config(val, base64::URL_SAFE_NO_PAD)),
+                Some(val) => Some(util::encode_base64_urlsafe_nopad(val)),
                 None => None,
             };
 
@@ -543,7 +542,7 @@ impl JweContext {
 
                 if let Some(val) = encrypted_key {
                     json.push_str(",\"encrypted_key\":\"");
-                    base64::encode_config_buf(&val, base64::URL_SAFE_NO_PAD, &mut json);
+                    util::encode_base64_urlsafe_nopad_buf(&val, &mut json);
                     json.push_str("\"");
                 }
                 json.push_str("}");
@@ -558,17 +557,17 @@ impl JweContext {
 
             json.push_str(",\"iv\":\"");
             if let Some(val) = iv {
-                base64::encode_config_buf(&val, base64::URL_SAFE_NO_PAD, &mut json);
+                util::encode_base64_urlsafe_nopad_buf(&val, &mut json);
             }
             json.push_str("\"");
 
             json.push_str(",\"ciphertext\":\"");
-            base64::encode_config_buf(&ciphertext, base64::URL_SAFE_NO_PAD, &mut json);
+            util::encode_base64_urlsafe_nopad_buf(&ciphertext, &mut json);
             json.push_str("\"");
 
             json.push_str(",\"tag\":\"");
             if let Some(val) = tag {
-                base64::encode_config_buf(&val, base64::URL_SAFE_NO_PAD, &mut json);
+                util::encode_base64_urlsafe_nopad_buf(&val, &mut json);
             }
             json.push_str("\"");
 
@@ -713,14 +712,14 @@ impl JweContext {
 
             let protected_b64 = if protected.len() > 0 {
                 let protected_json = serde_json::to_vec(protected.claims_set())?;
-                let protected_b64 = base64::encode_config(protected_json, base64::URL_SAFE_NO_PAD);
+                let protected_b64 = util::encode_base64_urlsafe_nopad(protected_json);
                 Some(protected_b64)
             } else {
                 None
             };
 
             let aad_b64 = match aad {
-                Some(val) => Some(base64::encode_config(val, base64::URL_SAFE_NO_PAD)),
+                Some(val) => Some(util::encode_base64_urlsafe_nopad(val)),
                 None => None,
             };
 
@@ -784,7 +783,7 @@ impl JweContext {
 
             if let Some(val) = encrypted_key {
                 json.push_str(",\"encrypted_key\":\"");
-                base64::encode_config_buf(&val, base64::URL_SAFE_NO_PAD, &mut json);
+                util::encode_base64_urlsafe_nopad_buf(&val, &mut json);
                 json.push_str("\"");
             }
 
@@ -796,17 +795,17 @@ impl JweContext {
 
             json.push_str(",\"iv\":\"");
             if let Some(val) = iv {
-                base64::encode_config_buf(&val, base64::URL_SAFE_NO_PAD, &mut json);
+                util::encode_base64_urlsafe_nopad_buf(&val, &mut json);
             }
             json.push_str("\"");
 
             json.push_str(",\"ciphertext\":\"");
-            base64::encode_config_buf(&ciphertext, base64::URL_SAFE_NO_PAD, &mut json);
+            util::encode_base64_urlsafe_nopad_buf(&ciphertext, &mut json);
             json.push_str("\"");
 
             json.push_str(",\"tag\":\"");
             if let Some(val) = tag {
-                base64::encode_config_buf(&val, base64::URL_SAFE_NO_PAD, &mut json);
+                util::encode_base64_urlsafe_nopad_buf(&val, &mut json);
             }
             json.push_str("\"}");
 
@@ -865,8 +864,7 @@ impl JweContext {
             let encrypted_key_b64 = &input[(indexies[0] + 1)..(indexies[1])];
             let encrypted_key_vec;
             let encrypted_key = if encrypted_key_b64.len() > 0 {
-                encrypted_key_vec =
-                    base64::decode_config(encrypted_key_b64, base64::URL_SAFE_NO_PAD)?;
+                encrypted_key_vec = util::decode_base64_urlsafe_no_pad(encrypted_key_b64)?;
                 Some(encrypted_key_vec.as_slice())
             } else {
                 None
@@ -875,25 +873,25 @@ impl JweContext {
             let iv_b64 = &input[(indexies[1] + 1)..(indexies[2])];
             let iv_vec;
             let iv = if iv_b64.len() > 0 {
-                iv_vec = base64::decode_config(iv_b64, base64::URL_SAFE_NO_PAD)?;
+                iv_vec = util::decode_base64_urlsafe_no_pad(iv_b64)?;
                 Some(iv_vec.as_slice())
             } else {
                 None
             };
 
             let ciphertext_b64 = &input[(indexies[2] + 1)..(indexies[3])];
-            let ciphertext = base64::decode_config(ciphertext_b64, base64::URL_SAFE_NO_PAD)?;
+            let ciphertext = util::decode_base64_urlsafe_no_pad(ciphertext_b64)?;
 
             let tag_b64 = &input[(indexies[3] + 1)..];
             let tag_vec;
             let tag = if tag_b64.len() > 0 {
-                tag_vec = base64::decode_config(tag_b64, base64::URL_SAFE_NO_PAD)?;
+                tag_vec = util::decode_base64_urlsafe_no_pad(tag_b64)?;
                 Some(tag_vec.as_slice())
             } else {
                 None
             };
 
-            let header = base64::decode_config(header_b64, base64::URL_SAFE_NO_PAD)?;
+            let header = util::decode_base64_urlsafe_no_pad(header_b64)?;
             let merged: Map<String, Value> = serde_json::from_slice(&header)?;
             let merged = JweHeader::from_map(merged)?;
 
@@ -1020,7 +1018,7 @@ impl JweContext {
                     if val.len() == 0 {
                         bail!("The protected field must be empty.");
                     }
-                    let vec = base64::decode_config(&val, base64::URL_SAFE_NO_PAD)?;
+                    let vec = util::decode_base64_urlsafe_no_pad(&val)?;
                     let json: Map<String, Value> = serde_json::from_slice(&vec)?;
                     (Some(json), Some(val))
                 }
@@ -1041,7 +1039,7 @@ impl JweContext {
                 Some(Value::String(val)) => {
                     if val.len() == 0 {
                         bail!("The JWE aad field must be empty.");
-                    } else if !util::is_base64_url_safe_nopad(&val) {
+                    } else if !util::is_base64_urlsafe_nopad(&val) {
                         bail!("The JWE aad field must be a base64 string.");
                     }
                     Some(val)
@@ -1055,7 +1053,7 @@ impl JweContext {
                     if val.len() == 0 {
                         bail!("The iv field must be empty.");
                     }
-                    iv_vec = base64::decode_config(&val, base64::URL_SAFE_NO_PAD)?;
+                    iv_vec = util::decode_base64_urlsafe_no_pad(&val)?;
                     Some(iv_vec.as_slice())
                 }
                 Some(_) => bail!("The iv field must be string."),
@@ -1066,7 +1064,7 @@ impl JweContext {
                     if val.len() == 0 {
                         bail!("The ciphertext field must be empty.");
                     }
-                    base64::decode_config(&val, base64::URL_SAFE_NO_PAD)?
+                    util::decode_base64_urlsafe_no_pad(&val)?
                 }
                 Some(_) => bail!("The ciphertext field must be string."),
                 None => bail!("The ciphertext field is required."),
@@ -1077,7 +1075,7 @@ impl JweContext {
                     if val.len() == 0 {
                         bail!("The tag field must be empty.");
                     }
-                    tag_vec = base64::decode_config(&val, base64::URL_SAFE_NO_PAD)?;
+                    tag_vec = util::decode_base64_urlsafe_no_pad(&val)?;
                     Some(tag_vec.as_slice())
                 }
                 Some(_) => bail!("The tag field must be string."),
@@ -1116,7 +1114,7 @@ impl JweContext {
                         if val.len() == 0 {
                             bail!("The encrypted_key field must be empty.");
                         }
-                        encrypted_key_vec = base64::decode_config(&val, base64::URL_SAFE_NO_PAD)?;
+                        encrypted_key_vec = util::decode_base64_urlsafe_no_pad(&val)?;
                         Some(encrypted_key_vec.as_slice())
                     }
                     Some(_) => bail!("The encrypted_key field must be a string."),

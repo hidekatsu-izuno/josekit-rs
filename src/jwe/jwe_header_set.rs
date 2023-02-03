@@ -3,7 +3,7 @@ use std::ops::Deref;
 
 use crate::jwe::JweHeader;
 use crate::jwk::Jwk;
-use crate::{JoseError, JoseHeader, Map, Value};
+use crate::{util, JoseError, JoseHeader, Map, Value};
 
 /// Represent JWE protected and unprotected header claims
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -184,7 +184,7 @@ impl JweHeaderSet {
         let key = "x5c";
         let vec = values
             .iter()
-            .map(|v| Value::String(base64::encode_config(v.as_ref(), base64::STANDARD)))
+            .map(|v| Value::String(util::encode_base64_standard(v.as_ref())))
             .collect();
         if protection {
             self.unprotected.remove(key);
@@ -202,12 +202,10 @@ impl JweHeaderSet {
                 let mut vec = Vec::with_capacity(vals.len());
                 for val in vals {
                     match val {
-                        Value::String(val2) => {
-                            match base64::decode_config(val2, base64::STANDARD) {
-                                Ok(val3) => vec.push(val3.clone()),
-                                Err(_) => return None,
-                            }
-                        }
+                        Value::String(val2) => match util::decode_base64_standard(val2) {
+                            Ok(val3) => vec.push(val3.clone()),
+                            Err(_) => return None,
+                        },
                         _ => return None,
                     }
                 }
@@ -228,7 +226,7 @@ impl JweHeaderSet {
         protection: bool,
     ) {
         let key = "x5t";
-        let value = base64::encode_config(&value, base64::URL_SAFE_NO_PAD);
+        let value = util::encode_base64_urlsafe_nopad(value);
         if protection {
             self.unprotected.remove(key);
             self.protected.insert(key.to_string(), Value::String(value));
@@ -242,7 +240,7 @@ impl JweHeaderSet {
     /// Return the value for X.509 certificate SHA-1 thumbprint header claim (x5t).
     pub fn x509_certificate_sha1_thumbprint(&self) -> Option<Vec<u8>> {
         match self.claim("x5t") {
-            Some(Value::String(val)) => match base64::decode_config(val, base64::URL_SAFE_NO_PAD) {
+            Some(Value::String(val)) => match util::decode_base64_urlsafe_no_pad(val) {
                 Ok(val2) => Some(val2),
                 Err(_) => None,
             },
@@ -261,7 +259,7 @@ impl JweHeaderSet {
         protection: bool,
     ) {
         let key = "x5t#S256";
-        let value = base64::encode_config(&value, base64::URL_SAFE_NO_PAD);
+        let value = util::encode_base64_urlsafe_nopad(value);
         if protection {
             self.unprotected.remove(key);
             self.protected.insert(key.to_string(), Value::String(value));
@@ -275,7 +273,7 @@ impl JweHeaderSet {
     /// Return the value for X.509 certificate SHA-256 thumbprint header claim (x5t#S256).
     pub fn x509_certificate_sha256_thumbprint(&self) -> Option<Vec<u8>> {
         match self.claim("x5t#S256") {
-            Some(Value::String(val)) => match base64::decode_config(val, base64::URL_SAFE_NO_PAD) {
+            Some(Value::String(val)) => match util::decode_base64_urlsafe_no_pad(val) {
                 Ok(val2) => Some(val2),
                 Err(_) => None,
             },
@@ -426,7 +424,7 @@ impl JweHeaderSet {
     /// * `value` - A nonce
     pub fn set_nonce(&mut self, value: impl AsRef<[u8]>, protection: bool) {
         let key = "nonce";
-        let value = base64::encode_config(&value, base64::URL_SAFE_NO_PAD);
+        let value = util::encode_base64_urlsafe_nopad(value);
         if protection {
             self.unprotected.remove(key);
             self.protected.insert(key.to_string(), Value::String(value));
@@ -440,7 +438,7 @@ impl JweHeaderSet {
     /// Return the value for nonce header claim (nonce).
     pub fn nonce(&self) -> Option<Vec<u8>> {
         match self.claim("nonce") {
-            Some(Value::String(val)) => match base64::decode_config(val, base64::URL_SAFE_NO_PAD) {
+            Some(Value::String(val)) => match util::decode_base64_urlsafe_no_pad(val) {
                 Ok(val2) => Some(val2),
                 Err(_) => None,
             },
@@ -455,7 +453,7 @@ impl JweHeaderSet {
     /// * `value` - A agreement PartyUInfo
     pub fn set_agreement_partyuinfo(&mut self, value: impl AsRef<[u8]>, protection: bool) {
         let key = "apu";
-        let value = base64::encode_config(&value, base64::URL_SAFE_NO_PAD);
+        let value = util::encode_base64_urlsafe_nopad(&value);
         if protection {
             self.unprotected.remove(key);
             self.protected.insert(key.to_string(), Value::String(value));
@@ -469,7 +467,7 @@ impl JweHeaderSet {
     /// Return the value for agreement PartyUInfo header claim (apu).
     pub fn agreement_partyuinfo(&self) -> Option<Vec<u8>> {
         match self.claim("apu") {
-            Some(Value::String(val)) => match base64::decode_config(val, base64::URL_SAFE_NO_PAD) {
+            Some(Value::String(val)) => match util::decode_base64_urlsafe_no_pad(val) {
                 Ok(val2) => Some(val2),
                 Err(_) => None,
             },
@@ -484,7 +482,7 @@ impl JweHeaderSet {
     /// * `value` - A agreement PartyVInfo
     pub fn set_agreement_partyvinfo(&mut self, value: impl AsRef<[u8]>, protection: bool) {
         let key = "apv";
-        let value = base64::encode_config(&value, base64::URL_SAFE_NO_PAD);
+        let value = util::encode_base64_urlsafe_nopad(&value);
         if protection {
             self.unprotected.remove(key);
             self.protected.insert(key.to_string(), Value::String(value));
@@ -498,7 +496,7 @@ impl JweHeaderSet {
     /// Return the value for agreement PartyVInfo header claim (apv).
     pub fn agreement_partyvinfo(&self) -> Option<Vec<u8>> {
         match self.claim("apv") {
-            Some(Value::String(val)) => match base64::decode_config(val, base64::URL_SAFE_NO_PAD) {
+            Some(Value::String(val)) => match util::decode_base64_urlsafe_no_pad(val) {
                 Ok(val2) => Some(val2),
                 Err(_) => None,
             },

@@ -6,7 +6,7 @@ use anyhow::bail;
 
 use crate::jwe::{JweAlgorithm, JweContentEncryption, JweDecrypter, JweEncrypter, JweHeader};
 use crate::jwk::Jwk;
-use crate::{JoseError, Value};
+use crate::{util, JoseError, Value};
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum DirectJweAlgorithm {
@@ -48,7 +48,7 @@ impl DirectJweAlgorithm {
                 Some(val) => bail!("A parameter alg must be {} but {}", self.name(), val),
             }
             let k = match jwk.parameter("k") {
-                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
+                Some(Value::String(val)) => util::decode_base64_urlsafe_no_pad(val)?,
                 Some(val) => bail!("A parameter k must be string type but {:?}", val),
                 None => bail!("A parameter k is required."),
             };
@@ -98,7 +98,7 @@ impl DirectJweAlgorithm {
             }
 
             let k = match jwk.parameter("k") {
-                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
+                Some(Value::String(val)) => util::decode_base64_urlsafe_no_pad(val)?,
                 Some(val) => bail!("A parameter k must be string type but {:?}", val),
                 None => bail!("A parameter k is required."),
             };

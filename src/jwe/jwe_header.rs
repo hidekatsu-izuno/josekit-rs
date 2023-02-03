@@ -172,10 +172,7 @@ impl JweHeader {
         let key = "x5c";
         let mut vec = Vec::with_capacity(values.len());
         for val in values {
-            vec.push(Value::String(base64::encode_config(
-                val.as_ref(),
-                base64::STANDARD,
-            )));
+            vec.push(Value::String(util::encode_base64_standard(val)));
         }
         self.claims.insert(key.to_string(), Value::Array(vec));
     }
@@ -187,12 +184,10 @@ impl JweHeader {
                 let mut vec = Vec::with_capacity(vals.len());
                 for val in vals {
                     match val {
-                        Value::String(val2) => {
-                            match base64::decode_config(val2, base64::STANDARD) {
-                                Ok(val3) => vec.push(val3.clone()),
-                                Err(_) => return None,
-                            }
-                        }
+                        Value::String(val2) => match util::decode_base64_standard(val2) {
+                            Ok(val3) => vec.push(val3.clone()),
+                            Err(_) => return None,
+                        },
                         _ => return None,
                     }
                 }
@@ -209,14 +204,14 @@ impl JweHeader {
     /// * `value` - A X.509 certificate SHA-1 thumbprint
     pub fn set_x509_certificate_sha1_thumbprint(&mut self, value: impl AsRef<[u8]>) {
         let key = "x5t";
-        let val = base64::encode_config(&value, base64::URL_SAFE_NO_PAD);
+        let val = util::encode_base64_urlsafe_nopad(value);
         self.claims.insert(key.to_string(), Value::String(val));
     }
 
     /// Return the value for X.509 certificate SHA-1 thumbprint header claim (x5t).
     pub fn x509_certificate_sha1_thumbprint(&self) -> Option<Vec<u8>> {
         match self.claims.get("x5t") {
-            Some(Value::String(val)) => match base64::decode_config(val, base64::URL_SAFE_NO_PAD) {
+            Some(Value::String(val)) => match util::decode_base64_urlsafe_no_pad(val) {
                 Ok(val2) => Some(val2),
                 Err(_) => None,
             },
@@ -231,14 +226,14 @@ impl JweHeader {
     /// * `value` - A x509 certificate SHA-256 thumbprint
     pub fn set_x509_certificate_sha256_thumbprint(&mut self, value: impl AsRef<[u8]>) {
         let key = "x5t#S256";
-        let val = base64::encode_config(&value, base64::URL_SAFE_NO_PAD);
+        let val = util::encode_base64_urlsafe_nopad(value);
         self.claims.insert(key.to_string(), Value::String(val));
     }
 
     /// Return the value for X.509 certificate SHA-256 thumbprint header claim (x5t#S256).
     pub fn x509_certificate_sha256_thumbprint(&self) -> Option<Vec<u8>> {
         match self.claims.get("x5t#S256") {
-            Some(Value::String(val)) => match base64::decode_config(val, base64::URL_SAFE_NO_PAD) {
+            Some(Value::String(val)) => match util::decode_base64_urlsafe_no_pad(val) {
                 Ok(val2) => Some(val2),
                 Err(_) => None,
             },
@@ -356,14 +351,14 @@ impl JweHeader {
     /// * `value` - A nonce
     pub fn set_nonce(&mut self, value: impl AsRef<[u8]>) {
         let key = "nonce";
-        let val = base64::encode_config(&value, base64::URL_SAFE_NO_PAD);
+        let val = util::encode_base64_urlsafe_nopad(value);
         self.claims.insert(key.to_string(), Value::String(val));
     }
 
     /// Return the value for nonce header claim (nonce).
     pub fn nonce(&self) -> Option<Vec<u8>> {
         match self.claims.get("nonce") {
-            Some(Value::String(val)) => match base64::decode_config(val, base64::URL_SAFE_NO_PAD) {
+            Some(Value::String(val)) => match util::decode_base64_urlsafe_no_pad(val) {
                 Ok(val2) => Some(val2),
                 Err(_) => None,
             },
@@ -378,14 +373,14 @@ impl JweHeader {
     /// * `value` - A agreement PartyUInfo
     pub fn set_agreement_partyuinfo(&mut self, value: impl AsRef<[u8]>) {
         let key = "apu";
-        let val = base64::encode_config(&value, base64::URL_SAFE_NO_PAD);
+        let val = util::encode_base64_urlsafe_nopad(value);
         self.claims.insert(key.to_string(), Value::String(val));
     }
 
     /// Return the value for agreement PartyUInfo header claim (apu).
     pub fn agreement_partyuinfo(&self) -> Option<Vec<u8>> {
         match self.claims.get("apu") {
-            Some(Value::String(val)) => match base64::decode_config(val, base64::URL_SAFE_NO_PAD) {
+            Some(Value::String(val)) => match util::decode_base64_urlsafe_no_pad(val) {
                 Ok(val2) => Some(val2),
                 Err(_) => None,
             },
@@ -400,14 +395,14 @@ impl JweHeader {
     /// * `value` - A agreement PartyVInfo
     pub fn set_agreement_partyvinfo(&mut self, value: impl AsRef<[u8]>) {
         let key = "apv";
-        let val = base64::encode_config(&value, base64::URL_SAFE_NO_PAD);
+        let val = util::encode_base64_urlsafe_nopad(value);
         self.claims.insert(key.to_string(), Value::String(val));
     }
 
     /// Return the value for agreement PartyVInfo header claim (apv).
     pub fn agreement_partyvinfo(&self) -> Option<Vec<u8>> {
         match self.claims.get("apv") {
-            Some(Value::String(val)) => match base64::decode_config(val, base64::URL_SAFE_NO_PAD) {
+            Some(Value::String(val)) => match util::decode_base64_urlsafe_no_pad(val) {
                 Ok(val2) => Some(val2),
                 Err(_) => None,
             },
@@ -565,7 +560,7 @@ impl JweHeader {
                 },
                 "x5t" | "x5t#S256" | "nonce" | "apu" | "apv" => match &value {
                     Value::String(val) => {
-                        if !util::is_base64_url_safe_nopad(val) {
+                        if !util::is_base64_urlsafe_nopad(val) {
                             bail!("The JWE {} header claim must be a base64 string.", key);
                         }
                     }
@@ -653,7 +648,7 @@ mod tests {
 
     use crate::jwe::JweHeader;
     use crate::jwk::Jwk;
-    use crate::{Value, Map};
+    use crate::{Map, Value};
 
     #[test]
     fn test_new_jwe_header() -> Result<()> {

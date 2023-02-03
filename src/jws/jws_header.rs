@@ -146,10 +146,7 @@ impl JwsHeader {
         let key = "x5c";
         let mut vec = Vec::with_capacity(values.len());
         for val in values {
-            vec.push(Value::String(base64::encode_config(
-                val.as_ref(),
-                base64::STANDARD,
-            )));
+            vec.push(Value::String(util::encode_base64_standard(val)));
         }
         self.claims.insert(key.to_string(), Value::Array(vec));
     }
@@ -161,12 +158,10 @@ impl JwsHeader {
                 let mut vec = Vec::with_capacity(vals.len());
                 for val in vals {
                     match val {
-                        Value::String(val2) => {
-                            match base64::decode_config(val2, base64::STANDARD) {
-                                Ok(val3) => vec.push(val3.clone()),
-                                Err(_) => return None,
-                            }
-                        }
+                        Value::String(val2) => match util::decode_base64_standard(val2) {
+                            Ok(val3) => vec.push(val3.clone()),
+                            Err(_) => return None,
+                        },
                         _ => return None,
                     }
                 }
@@ -183,14 +178,14 @@ impl JwsHeader {
     /// * `value` - A X.509 certificate SHA-1 thumbprint
     pub fn set_x509_certificate_sha1_thumbprint(&mut self, value: impl AsRef<[u8]>) {
         let key = "x5t";
-        let val = base64::encode_config(&value, base64::URL_SAFE_NO_PAD);
+        let val = util::encode_base64_urlsafe_nopad(value);
         self.claims.insert(key.to_string(), Value::String(val));
     }
 
     /// Return the value for X.509 certificate SHA-1 thumbprint header claim (x5t).
     pub fn x509_certificate_sha1_thumbprint(&self) -> Option<Vec<u8>> {
         match self.claims.get("x5t") {
-            Some(Value::String(val)) => match base64::decode_config(val, base64::URL_SAFE_NO_PAD) {
+            Some(Value::String(val)) => match util::decode_base64_urlsafe_no_pad(val) {
                 Ok(val2) => Some(val2),
                 Err(_) => None,
             },
@@ -205,14 +200,14 @@ impl JwsHeader {
     /// * `value` - A x509 certificate SHA-256 thumbprint
     pub fn set_x509_certificate_sha256_thumbprint(&mut self, value: impl AsRef<[u8]>) {
         let key = "x5t#S256";
-        let val = base64::encode_config(&value, base64::URL_SAFE_NO_PAD);
+        let val = util::encode_base64_urlsafe_nopad(value);
         self.claims.insert(key.to_string(), Value::String(val));
     }
 
     /// Return the value for X.509 certificate SHA-256 thumbprint header claim (x5t#S256).
     pub fn x509_certificate_sha256_thumbprint(&self) -> Option<Vec<u8>> {
         match self.claims.get("x5t#S256") {
-            Some(Value::String(val)) => match base64::decode_config(val, base64::URL_SAFE_NO_PAD) {
+            Some(Value::String(val)) => match util::decode_base64_urlsafe_no_pad(val) {
                 Ok(val2) => Some(val2),
                 Err(_) => None,
             },
@@ -347,14 +342,14 @@ impl JwsHeader {
     /// * `value` - A nonce
     pub fn set_nonce(&mut self, value: impl AsRef<[u8]>) {
         let key = "nonce";
-        let val = base64::encode_config(&value, base64::URL_SAFE_NO_PAD);
+        let val = util::encode_base64_urlsafe_nopad(value);
         self.claims.insert(key.to_string(), Value::String(val));
     }
 
     /// Return the value for nonce header claim (nonce).
     pub fn nonce(&self) -> Option<Vec<u8>> {
         match self.claims.get("nonce") {
-            Some(Value::String(val)) => match base64::decode_config(val, base64::URL_SAFE_NO_PAD) {
+            Some(Value::String(val)) => match util::decode_base64_urlsafe_no_pad(val) {
                 Ok(val2) => Some(val2),
                 Err(_) => None,
             },
@@ -415,7 +410,7 @@ impl JwsHeader {
                 },
                 "x5t" | "x5t#S256" | "nonce" => match &value {
                     Value::String(val) => {
-                        if !util::is_base64_url_safe_nopad(val) {
+                        if !util::is_base64_urlsafe_nopad(val) {
                             bail!("The JWS {} header claim must be a base64 string.", key);
                         }
                     }
@@ -503,7 +498,7 @@ mod tests {
 
     use crate::jwk::Jwk;
     use crate::jws::JwsHeader;
-    use crate::{Value, Map};
+    use crate::{Map, Value};
 
     #[test]
     fn test_new_jws_header() -> Result<()> {
@@ -512,7 +507,11 @@ mod tests {
         header.set_jwk_set_url("jku");
         header.set_jwk(jwk.clone());
         header.set_x509_url("x5u");
-        header.set_x509_certificate_chain(&vec![b"x5c0".to_vec(), b"x5c1".to_vec(), "@@~".as_bytes().to_vec()]);
+        header.set_x509_certificate_chain(&vec![
+            b"x5c0".to_vec(),
+            b"x5c1".to_vec(),
+            "@@~".as_bytes().to_vec(),
+        ]);
         header.set_x509_certificate_sha1_thumbprint(b"x5t@@~");
         header.set_x509_certificate_sha256_thumbprint(b"x5t#S256 @@~");
         header.set_key_id("kid");

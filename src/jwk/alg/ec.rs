@@ -179,13 +179,13 @@ impl EcKeyPair {
                 None => bail!("A parameter crv is required."),
             };
             let d = match jwk.parameter("d") {
-                Some(Value::String(val)) => base64::decode_config(val, base64::URL_SAFE_NO_PAD)?,
+                Some(Value::String(val)) => util::decode_base64_urlsafe_no_pad(val)?,
                 Some(_) => bail!("A parameter d must be a string."),
                 None => bail!("A parameter d is required."),
             };
             let x = match jwk.parameter("x") {
                 Some(Value::String(val)) => {
-                    let x = base64::decode_config(val, base64::URL_SAFE_NO_PAD)?;
+                    let x = util::decode_base64_urlsafe_no_pad(val)?;
                     Some(x)
                 }
                 Some(_) => bail!("A parameter x must be a string."),
@@ -193,7 +193,7 @@ impl EcKeyPair {
             };
             let y = match jwk.parameter("y") {
                 Some(Value::String(val)) => {
-                    let y = base64::decode_config(val, base64::URL_SAFE_NO_PAD)?;
+                    let y = util::decode_base64_urlsafe_no_pad(val)?;
                     Some(y)
                 }
                 Some(_) => bail!("A parameter y must be a string."),
@@ -333,7 +333,7 @@ impl EcKeyPair {
         if private {
             let d = ec_key.private_key();
             let d = util::num_to_vec(&d, self.curve.coordinate_size());
-            let d = base64::encode_config(&d, base64::URL_SAFE_NO_PAD);
+            let d = util::encode_base64_urlsafe_nopad(&d);
 
             jwk.set_parameter("d", Some(Value::String(d))).unwrap();
         }
@@ -347,10 +347,10 @@ impl EcKeyPair {
                 .unwrap();
 
             let x = util::num_to_vec(&x, self.curve.coordinate_size());
-            let x = base64::encode_config(&x, base64::URL_SAFE_NO_PAD);
+            let x = util::encode_base64_urlsafe_nopad(&x);
 
             let y = util::num_to_vec(&y, self.curve.coordinate_size());
-            let y = base64::encode_config(&y, base64::URL_SAFE_NO_PAD);
+            let y = util::encode_base64_urlsafe_nopad(&y);
 
             jwk.set_parameter("x", Some(Value::String(x))).unwrap();
             jwk.set_parameter("y", Some(Value::String(y))).unwrap();
