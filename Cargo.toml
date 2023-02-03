@@ -8,7 +8,7 @@ license = "MIT OR Apache-2.0"
 authors = ["Hidekatsu Izuno <hidekatsu.izuno@gmail.com>"]
 keywords = ["jose", "jwt", "jws", "jwe", "jwa"]
 categories = ["authentication"]
-edition = "2018"
+edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
