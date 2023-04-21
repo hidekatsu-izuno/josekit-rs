@@ -21,7 +21,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 base64 = "0.21"
 flate2 = "1"
-openssl = "0.10.38"
+openssl = "0.10.51"
 time = "0.3"
 
 [dev-dependencies]
