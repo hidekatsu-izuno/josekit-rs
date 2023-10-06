@@ -10,6 +10,7 @@ use crate::jwk::alg::ec::{EcCurve, EcKeyPair};
 use crate::jwk::alg::ecx::{EcxCurve, EcxKeyPair};
 use crate::jwk::alg::ed::{EdCurve, EdKeyPair};
 use crate::jwk::alg::rsa::RsaKeyPair;
+use crate::jws::{self, JwsSigner, JwsVerifier};
 use crate::util;
 use crate::{JoseError, Map, Value};
 
@@ -507,6 +508,51 @@ impl Jwk {
             Ok(())
         })()
         .map_err(|err| JoseError::InvalidJwsFormat(err))
+    }
+
+    /// Return a verifier from this `JWK` that can be used for signing data.
+    pub fn get_signer(&self) -> Result<Box<dyn JwsSigner>, JoseError> {
+        let verifier: Box<dyn JwsSigner> = match self.algorithm() {
+            Some("HS256") => Box::new(jws::HS256.signer_from_jwk(&jwk)?),
+            Some("HS384") => Box::new(jws::HS384.signer_from_jwk(&jwk)?),
+            Some("HS512") => Box::new(jws::HS512.signer_from_jwk(&jwk)?),
+            Some("RS256") => Box::new(jws::RS256.signer_from_jwk(&jwk)?),
+            Some("RS384") => Box::new(jws::RS384.signer_from_jwk(&jwk)?),
+            Some("RS512") => Box::new(jws::RS512.signer_from_jwk(&jwk)?),
+            Some("PS256") => Box::new(jws::PS256.signer_from_jwk(&jwk)?),
+            Some("PS384") => Box::new(jws::PS384.signer_from_jwk(&jwk)?),
+            Some("PS512") => Box::new(jws::PS512.signer_from_jwk(&jwk)?),
+            Some("ES256") => Box::new(jws::ES256.signer_from_jwk(&jwk)?),
+            Some("ES256K") => Box::new(jws::ES256K.signer_from_jwk(&jwk)?),
+            Some("ES384") => Box::new(jws::ES384.signer_from_jwk(&jwk)?),
+            Some("ES512") => Box::new(jws::ES512.signer_from_jwk(&jwk)?),
+            Some("EdDSA") => Box::new(jws::EdDSA.signer_from_jwk(&jwk)?),
+            _ => bail!("unknown algorthim."),
+        };
+        Ok(verifier)
+    }
+
+    /// Return a verifier from this `JWK` that can be used to verify signed
+    /// data.
+    pub fn get_verifier(&self) -> Result<Box<dyn JwsVerifier>, JoseError> {
+        let verifier: Box<dyn JwsVerifier> = match self.algorithm() {
+            Some("HS256") => Box::new(jws::HS256.verifier_from_jwk(&jwk)?),
+            Some("HS384") => Box::new(jws::HS384.verifier_from_jwk(&jwk)?),
+            Some("HS512") => Box::new(jws::HS512.verifier_from_jwk(&jwk)?),
+            Some("RS256") => Box::new(jws::RS256.verifier_from_jwk(&jwk)?),
+            Some("RS384") => Box::new(jws::RS384.verifier_from_jwk(&jwk)?),
+            Some("RS512") => Box::new(jws::RS512.verifier_from_jwk(&jwk)?),
+            Some("PS256") => Box::new(jws::PS256.verifier_from_jwk(&jwk)?),
+            Some("PS384") => Box::new(jws::PS384.verifier_from_jwk(&jwk)?),
+            Some("PS512") => Box::new(jws::PS512.verifier_from_jwk(&jwk)?),
+            Some("ES256") => Box::new(jws::ES256.verifier_from_jwk(&jwk)?),
+            Some("ES256K") => Box::new(jws::ES256K.verifier_from_jwk(&jwk)?),
+            Some("ES384") => Box::new(jws::ES384.verifier_from_jwk(&jwk)?),
+            Some("ES512") => Box::new(jws::ES512.verifier_from_jwk(&jwk)?),
+            Some("EdDSA") => Box::new(jws::EdDSA.verifier_from_jwk(&jwk)?),
+            _ => bail!("unknown algorthim."),
+        };
+        Ok(verifier)
     }
 
     fn check_parameter(key: &str, value: &Value) -> Result<(), JoseError> {
