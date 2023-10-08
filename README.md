@@ -23,6 +23,9 @@ cargo build --release
 ## Publish
 
 ```sh
+1. Update to vX.X.X on README.md.
+
+2. Run commnads
 cargo test
 cargo publish --dry-run
 git tag vX.X.X
