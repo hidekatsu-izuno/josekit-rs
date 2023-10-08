@@ -12,6 +12,10 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[features]
+default = []
+vendored = ["openssl/vendored"]
+
 [dependencies]
 thiserror = "1"
 anyhow = "1"
@@ -21,7 +25,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 base64 = "0.21"
 flate2 = "1"
-openssl = "0.10.51"
+openssl = "0.10.57"
 time = "0.3"
 
 [dev-dependencies]
