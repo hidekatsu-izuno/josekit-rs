@@ -1,0 +1,9 @@
+{
+	"rust-analyzer.check.overrideCommand": [
+		"cargo",
+		"check",
+		"--workspace",
+		"--all-targets",
+		"--message-format=json"
+	]
+}

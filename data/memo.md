@@ -37,6 +37,7 @@ openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-256 -outform PEM -out
 openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-384 -outform PEM -out ecdsa_p384_private.pem
 openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-521 -outform PEM -out ecdsa_p521_private.pem
 openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:secp256k1 -outform PEM -out ecdsa_p521k_private.pem
+openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:brainpoolP256r1 -outform PEM -out EC_BP256R1_private.pem
 
 ### Generate ECDSA PKCS#8 PEM public key from ECDSA PKCS#8 PEM private key
 openssl pkey -in ecdsa_p256_private.pem -pubout -outform PEM -out ecdsa_p256_public.pem

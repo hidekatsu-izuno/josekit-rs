@@ -33,6 +33,7 @@ pub use RsassaPssJwsAlgorithm::Ps384 as PS384;
 pub use RsassaPssJwsAlgorithm::Ps512 as PS512;
 
 use crate::jws::alg::ecdsa::EcdsaJwsAlgorithm;
+pub use EcdsaJwsAlgorithm::BP256R1 as BP256R1;
 pub use EcdsaJwsAlgorithm::Es256 as ES256;
 pub use EcdsaJwsAlgorithm::Es256k as ES256K;
 pub use EcdsaJwsAlgorithm::Es384 as ES384;

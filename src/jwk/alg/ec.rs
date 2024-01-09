@@ -11,8 +11,8 @@ use crate::jwk::{Jwk, KeyPair};
 use crate::util;
 use crate::util::der::{DerBuilder, DerClass, DerReader, DerType};
 use crate::util::oid::{
-    ObjectIdentifier, OID_ID_EC_PUBLIC_KEY, OID_PRIME256V1, OID_SECP256K1, OID_SECP384R1,
-    OID_SECP521R1,
+    ObjectIdentifier, OID_BP256R1, OID_ID_EC_PUBLIC_KEY, OID_PRIME256V1, OID_SECP256K1,
+    OID_SECP384R1, OID_SECP521R1,
 };
 use crate::{JoseError, Value};
 
@@ -22,6 +22,7 @@ pub enum EcCurve {
     P384,
     P521,
     Secp256k1,
+    BP256R1,
 }
 
 impl EcCurve {
@@ -31,6 +32,7 @@ impl EcCurve {
             Self::P384 => "P-384",
             Self::P521 => "P-521",
             Self::Secp256k1 => "secp256k1",
+            Self::BP256R1 => "BP256R1",
         }
     }
 
@@ -40,6 +42,7 @@ impl EcCurve {
             Self::P384 => &OID_SECP384R1,
             Self::P521 => &OID_SECP521R1,
             Self::Secp256k1 => &OID_SECP256K1,
+            Self::BP256R1 => &OID_BP256R1,
         }
     }
 
@@ -49,12 +52,13 @@ impl EcCurve {
             Self::P384 => Nid::SECP384R1,
             Self::P521 => Nid::SECP521R1,
             Self::Secp256k1 => Nid::SECP256K1,
+            Self::BP256R1 => Nid::BRAINPOOL_P256R1,
         }
     }
 
     fn coordinate_size(&self) -> usize {
         match self {
-            Self::P256 | Self::Secp256k1 => 32,
+            Self::P256 | Self::Secp256k1 | Self::BP256R1 => 32,
             Self::P384 => 48,
             Self::P521 => 66,
         }
@@ -173,6 +177,7 @@ impl EcKeyPair {
                     "P-384" => EcCurve::P384,
                     "P-521" => EcCurve::P521,
                     "secp256k1" => EcCurve::Secp256k1,
+                    "BP256R1" => EcCurve::BP256R1,
                     _ => bail!("A Unknown curve: {}", val),
                 },
                 Some(_) => bail!("A parameter crv must be a string."),
@@ -403,6 +408,7 @@ impl EcKeyPair {
                         Ok(val) if val == *OID_SECP384R1 => EcCurve::P384,
                         Ok(val) if val == *OID_SECP521R1 => EcCurve::P521,
                         Ok(val) if val == *OID_SECP256K1 => EcCurve::Secp256k1,
+                        Ok(val) if val == *OID_BP256R1 => EcCurve::BP256R1,
                         _ => return None,
                     },
                     _ => return None,
@@ -452,6 +458,7 @@ impl EcKeyPair {
                         Ok(val) if val == *OID_SECP384R1 => EcCurve::P384,
                         Ok(val) if val == *OID_SECP521R1 => EcCurve::P521,
                         Ok(val) if val == *OID_SECP256K1 => EcCurve::Secp256k1,
+                        Ok(val) if val == *OID_BP256R1 => EcCurve::BP256R1,
                         _ => return None,
                     },
                     _ => return None,

@@ -189,8 +189,8 @@ mod tests {
     };
     use crate::jwk::Jwk;
     use crate::jws::{
-        EdDSA, JwsHeader, ES256, ES256K, ES384, ES512, HS256, HS384, HS512, PS256, PS384, PS512,
-        RS256, RS384, RS512,
+        EdDSA, JwsHeader, BP256R1, ES256, ES256K, ES384, ES512, HS256, HS384, HS512, PS256, PS384,
+        PS512, RS256, RS384, RS512,
     };
     use crate::jwt::{self, JwtPayload};
     use crate::util;
@@ -346,18 +346,20 @@ mod tests {
 
     #[test]
     fn test_jwt_with_ecdsa_pem() -> Result<()> {
-        for alg in &[ES256, ES384, ES512, ES256K] {
+        for alg in &[ES256, ES384, ES512, ES256K, BP256R1] {
             let private_key = load_file(match alg {
                 ES256 => "pem/EC_P-256_private.pem",
                 ES384 => "pem/EC_P-384_private.pem",
                 ES512 => "pem/EC_P-521_private.pem",
                 ES256K => "pem/EC_secp256k1_private.pem",
+                BP256R1 => "pem/EC_BP256R1_private.pem",
             })?;
             let public_key = load_file(match alg {
                 ES256 => "pem/EC_P-256_public.pem",
                 ES384 => "pem/EC_P-384_public.pem",
                 ES512 => "pem/EC_P-521_public.pem",
                 ES256K => "pem/EC_secp256k1_public.pem",
+                BP256R1 => "pem/EC_BP256R1_public.pem",
             })?;
 
             let mut src_header = JwsHeader::new();
@@ -379,18 +381,20 @@ mod tests {
 
     #[test]
     fn test_jwt_with_ecdsa_der() -> Result<()> {
-        for alg in &[ES256, ES384, ES512, ES256K] {
+        for alg in &[ES256, ES384, ES512, ES256K, BP256R1] {
             let private_key = load_file(match alg {
                 ES256 => "der/EC_P-256_pkcs8_private.der",
                 ES384 => "der/EC_P-384_pkcs8_private.der",
                 ES512 => "der/EC_P-521_pkcs8_private.der",
                 ES256K => "der/EC_secp256k1_pkcs8_private.der",
+                BP256R1 => "der/EC_BP256R1_private.der",
             })?;
             let public_key = load_file(match alg {
                 ES256 => "der/EC_P-256_spki_public.der",
                 ES384 => "der/EC_P-384_spki_public.der",
                 ES512 => "der/EC_P-521_spki_public.der",
                 ES256K => "der/EC_secp256k1_spki_public.der",
+                BP256R1 => "der/EC_BP256R1_public.der",
             })?;
 
             let mut src_header = JwsHeader::new();
@@ -490,6 +494,7 @@ mod tests {
                 ES384 => "jwk/EC_P-384_public.jwk",
                 ES512 => "jwk/EC_P-521_public.jwk",
                 ES256K => "jwk/EC_secp256k1_public.jwk",
+                BP256R1 => unreachable!(),
             })?)?;
             let verifier = alg.verifier_from_jwk(&jwk)?;
             let jwt_string = String::from_utf8(load_file(&format!("jwt/{}.jwt", alg.name()))?)?;

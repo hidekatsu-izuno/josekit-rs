@@ -17,8 +17,8 @@ use crate::jwk::Jwk;
 use crate::util;
 use crate::util::der::{DerReader, DerType};
 use crate::util::oid::{
-    OID_ID_EC_PUBLIC_KEY, OID_PRIME256V1, OID_SECP256K1, OID_SECP384R1, OID_SECP521R1, OID_X25519,
-    OID_X448,
+    OID_BP256R1, OID_ID_EC_PUBLIC_KEY, OID_PRIME256V1, OID_SECP256K1, OID_SECP384R1, OID_SECP521R1,
+    OID_X25519, OID_X448,
 };
 use crate::{JoseError, JoseHeader, Map, Value};
 
@@ -373,6 +373,7 @@ impl EcdhEsJweAlgorithm {
                             "P-384" => EcCurve::P384,
                             "P-521" => EcCurve::P521,
                             "secp256k1" => EcCurve::Secp256k1,
+                            "BP256R1" => EcCurve::BP256R1,
                             val => bail!("EC key doesn't support the curve algorithm: {}", val),
                         };
                         match jwk.curve() {
@@ -484,6 +485,7 @@ impl EcdhEsJweAlgorithm {
                         Ok(val) if val == *OID_SECP384R1 => EcdhEsKeyType::Ec(EcCurve::P384),
                         Ok(val) if val == *OID_SECP521R1 => EcdhEsKeyType::Ec(EcCurve::P521),
                         Ok(val) if val == *OID_SECP256K1 => EcdhEsKeyType::Ec(EcCurve::Secp256k1),
+                        Ok(val) if val == *OID_BP256R1 => EcdhEsKeyType::Ec(EcCurve::BP256R1),
                         _ => return None,
                     },
                     _ => return None,
@@ -1028,6 +1030,7 @@ mod tests {
                 EcdhEsKeyType::Ec(EcCurve::P384),
                 EcdhEsKeyType::Ec(EcCurve::P521),
                 EcdhEsKeyType::Ec(EcCurve::Secp256k1),
+                EcdhEsKeyType::Ec(EcCurve::BP256R1),
                 EcdhEsKeyType::Ecx(EcxCurve::X25519),
                 EcdhEsKeyType::Ecx(EcxCurve::X448),
             ] {
@@ -1036,6 +1039,7 @@ mod tests {
                     EcdhEsKeyType::Ec(EcCurve::P384) => "der/EC_P-384_pkcs8_private.der",
                     EcdhEsKeyType::Ec(EcCurve::P521) => "der/EC_P-521_pkcs8_private.der",
                     EcdhEsKeyType::Ec(EcCurve::Secp256k1) => "der/EC_secp256k1_pkcs8_private.der",
+                    EcdhEsKeyType::Ec(EcCurve::BP256R1) => "der/EC_BP256R1_private.der",
                     EcdhEsKeyType::Ecx(EcxCurve::X25519) => "der/X25519_pkcs8_private.der",
                     EcdhEsKeyType::Ecx(EcxCurve::X448) => "der/X448_pkcs8_private.der",
                 })?;
@@ -1045,6 +1049,7 @@ mod tests {
                     EcdhEsKeyType::Ec(EcCurve::P384) => "der/EC_P-384_spki_public.der",
                     EcdhEsKeyType::Ec(EcCurve::P521) => "der/EC_P-521_spki_public.der",
                     EcdhEsKeyType::Ec(EcCurve::Secp256k1) => "der/EC_secp256k1_spki_public.der",
+                    EcdhEsKeyType::Ec(EcCurve::BP256R1) => "der/EC_BP256R1_public.der",
                     EcdhEsKeyType::Ecx(EcxCurve::X25519) => "der/X25519_spki_public.der",
                     EcdhEsKeyType::Ecx(EcxCurve::X448) => "der/X448_spki_public.der",
                 })?;
@@ -1090,6 +1095,7 @@ mod tests {
                 EcdhEsKeyType::Ec(EcCurve::P384),
                 EcdhEsKeyType::Ec(EcCurve::P521),
                 EcdhEsKeyType::Ec(EcCurve::Secp256k1),
+                EcdhEsKeyType::Ec(EcCurve::BP256R1),
                 EcdhEsKeyType::Ecx(EcxCurve::X25519),
                 EcdhEsKeyType::Ecx(EcxCurve::X448),
             ] {
@@ -1098,6 +1104,7 @@ mod tests {
                     EcdhEsKeyType::Ec(EcCurve::P384) => "pem/EC_P-384_private.pem",
                     EcdhEsKeyType::Ec(EcCurve::P521) => "pem/EC_P-521_private.pem",
                     EcdhEsKeyType::Ec(EcCurve::Secp256k1) => "pem/EC_secp256k1_private.pem",
+                    EcdhEsKeyType::Ec(EcCurve::BP256R1) => "pem/EC_BP256R1_private.pem",
                     EcdhEsKeyType::Ecx(EcxCurve::X25519) => "pem/X25519_private.pem",
                     EcdhEsKeyType::Ecx(EcxCurve::X448) => "pem/X448_private.pem",
                 })?;
@@ -1107,6 +1114,7 @@ mod tests {
                     EcdhEsKeyType::Ec(EcCurve::P384) => "pem/EC_P-384_public.pem",
                     EcdhEsKeyType::Ec(EcCurve::P521) => "pem/EC_P-521_public.pem",
                     EcdhEsKeyType::Ec(EcCurve::Secp256k1) => "pem/EC_secp256k1_public.pem",
+                    EcdhEsKeyType::Ec(EcCurve::BP256R1) => "pem/EC_BP256R1_public.pem",
                     EcdhEsKeyType::Ecx(EcxCurve::X25519) => "pem/X25519_public.pem",
                     EcdhEsKeyType::Ecx(EcxCurve::X448) => "pem/X448_public.pem",
                 })?;
@@ -1162,6 +1170,7 @@ mod tests {
                     EcdhEsKeyType::Ec(EcCurve::Secp256k1) => {
                         "pem/EC_secp256k1_traditional_private.pem"
                     }
+                    EcdhEsKeyType::Ec(EcCurve::BP256R1) => unreachable!(),
                     EcdhEsKeyType::Ecx(EcxCurve::X25519) => "pem/X25519_traditional_private.pem",
                     EcdhEsKeyType::Ecx(EcxCurve::X448) => "pem/X448_traditional_private.pem",
                 })?;
@@ -1171,6 +1180,7 @@ mod tests {
                     EcdhEsKeyType::Ec(EcCurve::P384) => "pem/EC_P-384_public.pem",
                     EcdhEsKeyType::Ec(EcCurve::P521) => "pem/EC_P-521_public.pem",
                     EcdhEsKeyType::Ec(EcCurve::Secp256k1) => "pem/EC_secp256k1_public.pem",
+                    EcdhEsKeyType::Ec(EcCurve::BP256R1) => unreachable!(),
                     EcdhEsKeyType::Ecx(EcxCurve::X25519) => "pem/X25519_public.pem",
                     EcdhEsKeyType::Ecx(EcxCurve::X448) => "pem/X448_public.pem",
                 })?;
@@ -1226,6 +1236,7 @@ mod tests {
                     EcdhEsKeyType::Ec(EcCurve::Secp256k1) => "jwk/EC_secp256k1_private.jwk",
                     EcdhEsKeyType::Ecx(EcxCurve::X25519) => "jwk/OKP_X25519_private.jwk",
                     EcdhEsKeyType::Ecx(EcxCurve::X448) => "jwk/OKP_X448_private.jwk",
+                    EcdhEsKeyType::Ec(EcCurve::BP256R1) => unreachable!(),
                 })?;
 
                 let public_key = load_file(match key {
@@ -1235,6 +1246,7 @@ mod tests {
                     EcdhEsKeyType::Ec(EcCurve::Secp256k1) => "jwk/EC_secp256k1_public.jwk",
                     EcdhEsKeyType::Ecx(EcxCurve::X25519) => "jwk/OKP_X25519_public.jwk",
                     EcdhEsKeyType::Ecx(EcxCurve::X448) => "jwk/OKP_X448_public.jwk",
+                    EcdhEsKeyType::Ec(EcCurve::BP256R1) => unreachable!(),
                 })?;
 
                 let mut header = JweHeader::new();
