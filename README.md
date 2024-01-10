@@ -395,7 +395,7 @@ You can generate the keys by executing openssl command.
 
 ```sh
 # Generate a new private key. Keygen bits must be 2048 or more.
-openssl openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out private.pem
+openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out private.pem
 
 # Generate a public key from the private key.
 openssl pkey -in private.pem -pubout -out public.pem
@@ -795,7 +795,7 @@ You can generate the keys by executing openssl command.
 
 ```sh
 # Generate a new private key. Keygen bits must be 2048 or more.
-openssl openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out private.pem
+openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out private.pem
 
 # Generate a public key from the private key.
 openssl pkey -in private.pem -pubout -out public.pem
