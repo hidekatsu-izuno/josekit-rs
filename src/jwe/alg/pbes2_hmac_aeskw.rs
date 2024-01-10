@@ -386,7 +386,7 @@ impl JweDecrypter for Pbes2HmacAeskwJweDecrypter {
                 None => bail!("The p2c header claim is required."),
             };
 
-            if p2c > 10000 {
+            if p2c > 1000000 {
                 bail!("The p2c value is too large. This is a possible DoS attack: {}", p2c);
             }
 
@@ -503,7 +503,7 @@ mod tests {
             };
 
             let mut encrypter = alg.encrypter_from_jwk(&jwk)?;
-            encrypter.set_iter_count(10001);
+            encrypter.set_iter_count(1000001);
             let mut out_header = header.clone();
             let src_key = util::random_bytes(enc.key_len());
             let encrypted_key = encrypter.encrypt(&src_key, &header, &mut out_header)?;
@@ -511,7 +511,7 @@ mod tests {
             let decrypter = alg.decrypter_from_jwk(&jwk)?;
 
             let err = decrypter.decrypt(encrypted_key.as_deref(), &enc, &out_header).unwrap_err();
-            assert_eq!(format!("{}", err), "Invalid JWE format: The p2c value is too large. This is a possible DoS attack: 10001");
+            assert_eq!(format!("{}", err), "Invalid JWE format: The p2c value is too large. This is a possible DoS attack: 1000001");
         }
 
         Ok(())
