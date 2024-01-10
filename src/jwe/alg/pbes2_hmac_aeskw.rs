@@ -283,6 +283,10 @@ impl JweEncrypter for Pbes2HmacAeskwJweEncrypter {
                 }
             };
 
+            if p2c > 10000 {
+                bail!("The p2c value is too large. This is a possible DoS attack: {}", p2c);
+            }
+
             let mut salt = Vec::with_capacity(self.algorithm().name().len() + 1 + p2s.len());
             salt.extend_from_slice(self.algorithm().name().as_bytes());
             salt.push(0);
