@@ -382,9 +382,13 @@ impl JweDecrypter for Pbes2HmacAeskwJweDecrypter {
                     Some(val) => usize::try_from(val)?,
                     None => bail!("Overflow u64 value: {}", val),
                 },
-                Some(_) => bail!("The p2s header claim must be string."),
+                Some(_) => bail!("The p2c header claim must be string."),
                 None => bail!("The p2c header claim is required."),
             };
+
+            if p2c > 1000000 {
+                bail!("The p2c value is too large. This is a possible DoS attack: {}", p2c);
+            }
 
             let mut salt = Vec::with_capacity(self.algorithm().name().len() + 1 + p2s.len());
             salt.extend_from_slice(self.algorithm().name().as_bytes());
@@ -471,6 +475,43 @@ mod tests {
             let dst_key = decrypter.decrypt(encrypted_key.as_deref(), &enc, &out_header)?;
 
             assert_eq!(&src_key as &[u8], &dst_key as &[u8]);
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn reject_pbes2_hmac_with_too_large_p2c() -> Result<()> {
+        let enc = AescbcHmacJweEncryption::A128cbcHs256;
+
+        for alg in vec![
+            Pbes2HmacAeskwJweAlgorithm::Pbes2Hs256A128kw,
+            Pbes2HmacAeskwJweAlgorithm::Pbes2Hs384A192kw,
+            Pbes2HmacAeskwJweAlgorithm::Pbes2Hs512A256kw,
+        ] {
+            let mut header = JweHeader::new();
+            header.set_content_encryption(enc.name());
+
+            let jwk = {
+                let key = util::random_bytes(8);
+                let key = util::encode_base64_urlsafe_nopad(&key);
+
+                let mut jwk = Jwk::new("oct");
+                jwk.set_key_use("enc");
+                jwk.set_parameter("k", Some(json!(key)))?;
+                jwk
+            };
+
+            let mut encrypter = alg.encrypter_from_jwk(&jwk)?;
+            encrypter.set_iter_count(1000001);
+            let mut out_header = header.clone();
+            let src_key = util::random_bytes(enc.key_len());
+            let encrypted_key = encrypter.encrypt(&src_key, &header, &mut out_header)?;
+
+            let decrypter = alg.decrypter_from_jwk(&jwk)?;
+
+            let err = decrypter.decrypt(encrypted_key.as_deref(), &enc, &out_header).unwrap_err();
+            assert_eq!(format!("{}", err), "Invalid JWE format: The p2c value is too large. This is a possible DoS attack: 1000001");
         }
 
         Ok(())
