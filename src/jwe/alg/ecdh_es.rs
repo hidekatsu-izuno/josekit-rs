@@ -1160,6 +1160,7 @@ mod tests {
                 EcdhEsKeyType::Ec(EcCurve::P384),
                 EcdhEsKeyType::Ec(EcCurve::P521),
                 EcdhEsKeyType::Ec(EcCurve::Secp256k1),
+                EcdhEsKeyType::Ec(EcCurve::BP256R1),
                 EcdhEsKeyType::Ecx(EcxCurve::X25519),
                 EcdhEsKeyType::Ecx(EcxCurve::X448),
             ] {
@@ -1170,7 +1171,7 @@ mod tests {
                     EcdhEsKeyType::Ec(EcCurve::Secp256k1) => {
                         "pem/EC_secp256k1_traditional_private.pem"
                     }
-                    EcdhEsKeyType::Ec(EcCurve::BP256R1) => unreachable!(),
+                    EcdhEsKeyType::Ec(EcCurve::BP256R1) => "pem/EC_BP256R1_traditional_private.pem",
                     EcdhEsKeyType::Ecx(EcxCurve::X25519) => "pem/X25519_traditional_private.pem",
                     EcdhEsKeyType::Ecx(EcxCurve::X448) => "pem/X448_traditional_private.pem",
                 })?;
@@ -1180,7 +1181,7 @@ mod tests {
                     EcdhEsKeyType::Ec(EcCurve::P384) => "pem/EC_P-384_public.pem",
                     EcdhEsKeyType::Ec(EcCurve::P521) => "pem/EC_P-521_public.pem",
                     EcdhEsKeyType::Ec(EcCurve::Secp256k1) => "pem/EC_secp256k1_public.pem",
-                    EcdhEsKeyType::Ec(EcCurve::BP256R1) => unreachable!(),
+                    EcdhEsKeyType::Ec(EcCurve::BP256R1) => "pem/EC_BP256R1_public.pem",
                     EcdhEsKeyType::Ecx(EcxCurve::X25519) => "pem/X25519_public.pem",
                     EcdhEsKeyType::Ecx(EcxCurve::X448) => "pem/X448_public.pem",
                 })?;
