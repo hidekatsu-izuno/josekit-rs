@@ -240,7 +240,7 @@ impl JweEncrypter for AesgcmkwJweEncrypter {
         out_header: &mut JweHeader,
     ) -> Result<Option<Vec<u8>>, JoseError> {
         (|| -> anyhow::Result<Option<Vec<u8>>> {
-            let iv = util::random_bytes(32);
+            let iv = util::random_bytes(12);
 
             let cipher = self.algorithm.cipher();
             let mut tag = [0; 16];
@@ -315,7 +315,7 @@ impl JweDecrypter for AesgcmkwJweDecrypter {
                 None => bail!("A encrypted_key is required."),
             };
 
-            let iv = match header.claim("iv") {
+            let iv: Vec<u8> = match header.claim("iv") {
                 Some(Value::String(val)) => util::decode_base64_urlsafe_no_pad(val)?,
                 Some(_) => bail!("The iv header claim must be string."),
                 None => bail!("The iv header claim is required."),
