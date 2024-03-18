@@ -892,7 +892,8 @@ impl JweContext {
         })
     }
 
-    /// Deserialize the input that is formatted by compact serialization.
+    /// Deserialize the input that is formatted by compact serialization
+    /// using an async Decrypter, eg. KMS.
     ///
     /// # Arguments
     ///
