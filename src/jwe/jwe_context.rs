@@ -859,41 +859,12 @@ impl JweContext {
                 );
             }
 
-            let header_b64 = &input[0..indexies[0]];
-
-            let encrypted_key_b64 = &input[(indexies[0] + 1)..(indexies[1])];
-            let encrypted_key_vec;
-            let encrypted_key = if encrypted_key_b64.len() > 0 {
-                encrypted_key_vec = util::decode_base64_urlsafe_no_pad(encrypted_key_b64)?;
-                Some(encrypted_key_vec.as_slice())
-            } else {
-                None
-            };
-
-            let iv_b64 = &input[(indexies[1] + 1)..(indexies[2])];
-            let iv_vec;
-            let iv = if iv_b64.len() > 0 {
-                iv_vec = util::decode_base64_urlsafe_no_pad(iv_b64)?;
-                Some(iv_vec.as_slice())
-            } else {
-                None
-            };
-
-            let ciphertext_b64 = &input[(indexies[2] + 1)..(indexies[3])];
-            let ciphertext = util::decode_base64_urlsafe_no_pad(ciphertext_b64)?;
-
-            let tag_b64 = &input[(indexies[3] + 1)..];
-            let tag_vec;
-            let tag = if tag_b64.len() > 0 {
-                tag_vec = util::decode_base64_urlsafe_no_pad(tag_b64)?;
-                Some(tag_vec.as_slice())
-            } else {
-                None
-            };
-
-            let header = util::decode_base64_urlsafe_no_pad(header_b64)?;
-            let merged: Map<String, Value> = serde_json::from_slice(&header)?;
-            let merged = JweHeader::from_map(merged)?;
+            let merged = {
+                let header_b64 = &input[0..indexies[0]];
+                let header = util::decode_base64_urlsafe_no_pad(header_b64)?;
+                let merged: Map<String, Value> = serde_json::from_slice(&header)?;
+                JweHeader::from_map(merged)
+            }?;
 
             let decrypter = match selector(&merged)? {
                 Some(val) => val,
@@ -938,19 +909,60 @@ impl JweContext {
                 None => {}
             }
 
-            let key = decrypter.decrypt(encrypted_key, cencryption, &merged)?;
-            if key.len() != cencryption.key_len() {
-                bail!(
-                    "The key size is expected to be {}: {}",
-                    cencryption.key_len(),
-                    key.len()
-                );
-            }
+            let tag_vec;
+            let tag = {
+                let tag_b64 = &input[(indexies[3] + 1)..];
 
-            let content = cencryption.decrypt(&key, iv, &ciphertext, header_b64, tag)?;
-            let content = match compression {
-                Some(val) => val.decompress(&content)?,
-                None => content,
+                let tag = if tag_b64.len() > 0 {
+                    tag_vec = util::decode_base64_urlsafe_no_pad(tag_b64)?;
+                    Some(tag_vec.as_slice())
+                } else {
+                    None
+                };
+
+                tag
+            };
+
+            let key = {
+                let encrypted_key_b64 = &input[(indexies[0] + 1)..(indexies[1])];
+                let encrypted_key_vec;
+                let encrypted_key = if encrypted_key_b64.len() > 0 {
+                    encrypted_key_vec = util::decode_base64_urlsafe_no_pad(encrypted_key_b64)?;
+                    Some(encrypted_key_vec.as_slice())
+                } else {
+                    None
+                };
+                let key = decrypter.decrypt(encrypted_key, cencryption, &merged)?;
+                if key.len() != cencryption.key_len() {
+                    bail!(
+                        "The key size is expected to be {}: {}",
+                        cencryption.key_len(),
+                        key.len()
+                    );
+                }
+                key
+            };
+
+            let iv_vec;
+            let iv = {
+                let iv_b64 = &input[(indexies[1] + 1)..(indexies[2])];
+                let iv = if iv_b64.len() > 0 {
+                    iv_vec = util::decode_base64_urlsafe_no_pad(iv_b64)?;
+                    Some(iv_vec.as_slice())
+                } else {
+                    None
+                };
+                iv
+            };
+
+            let content = {
+                let ciphertext_b64 = &input[(indexies[2] + 1)..(indexies[3])];
+                let ciphertext = util::decode_base64_urlsafe_no_pad(ciphertext_b64)?;
+                let content = cencryption.decrypt(&key, iv, &ciphertext, header_b64, tag)?;
+                match compression {
+                    Some(val) => val.decompress(&content)?,
+                    None => content,
+                }
             };
 
             Ok((content, merged))
