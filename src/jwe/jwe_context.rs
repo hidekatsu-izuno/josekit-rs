@@ -13,6 +13,8 @@ use crate::jwe::{
 use crate::util;
 use crate::{JoseError, JoseHeader, Map, Value};
 
+use super::jwe_algorithm::JweDecrypterAsync;
+
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct JweContext {
     acceptable_criticals: BTreeSet<String>,
@@ -847,92 +849,29 @@ impl JweContext {
     {
         (|| -> anyhow::Result<(Vec<u8>, JweHeader)> {
             let input = input.as_ref();
-            let indexies: Vec<usize> = input
-                .iter()
-                .enumerate()
-                .filter(|(_, b)| **b == b'.' as u8)
-                .map(|(pos, _)| pos)
-                .collect();
-            if indexies.len() != 4 {
-                bail!(
-                    "The compact serialization form of JWE must be five parts separated by colon."
-                );
-            }
+            let parsed = parse_input(input)?;
 
-            let merged = {
-                let header_b64 = &input[0..indexies[0]];
-                let header = util::decode_base64_urlsafe_no_pad(header_b64)?;
-                let merged: Map<String, Value> = serde_json::from_slice(&header)?;
-                JweHeader::from_map(merged)
-            }?;
-
-            let decrypter = match selector(&merged)? {
+            let decrypter = match selector(&parsed.merged)? {
                 Some(val) => val,
                 None => bail!("A decrypter is not found."),
             };
 
-            let cencryption = match merged.claim("enc") {
-                Some(Value::String(val)) => match self.get_content_encryption(val) {
-                    Some(val2) => val2,
-                    None => bail!("A content encryption is not registered: {}", val),
-                },
-                Some(_) => bail!("A enc header claim must be a string."),
-                None => bail!("A enc header claim is required."),
-            };
-
-            let compression = match merged.claim("zip") {
-                Some(Value::String(val)) => match self.get_compression(val) {
-                    Some(val2) => Some(val2),
-                    None => bail!("A compression algorithm is not registered: {}", val),
-                },
-                Some(_) => bail!("A enc header claim must be a string."),
-                None => None,
-            };
-
-            match merged.claim("alg") {
-                Some(Value::String(val)) => {
-                    let expected_alg = decrypter.algorithm().name();
-                    if val != expected_alg {
-                        bail!("The JWE alg header claim is not {}: {}", expected_alg, val);
-                    }
-                }
-                Some(_) => bail!("A alg header claim must be a string."),
-                None => bail!("The JWE alg header claim is required."),
-            }
-
-            match decrypter.key_id() {
-                Some(expected) => match merged.key_id() {
-                    Some(actual) if expected == actual => {}
-                    Some(actual) => bail!("The JWE kid header claim is mismatched: {}", actual),
-                    None => bail!("The JWE kid header claim is required."),
-                },
-                None => {}
-            }
-
-            let tag_vec;
-            let tag = {
-                let tag_b64 = &input[(indexies[3] + 1)..];
-
-                let tag = if tag_b64.len() > 0 {
-                    tag_vec = util::decode_base64_urlsafe_no_pad(tag_b64)?;
-                    Some(tag_vec.as_slice())
-                } else {
-                    None
-                };
-
-                tag
-            };
+            let (cencryption, compression) = self.validate_and_extract_components(
+                &parsed.merged,
+                decrypter.algorithm().name(),
+                decrypter.key_id(),
+            )?;
 
             let key = {
-                let encrypted_key_b64 = &input[(indexies[0] + 1)..(indexies[1])];
                 let encrypted_key_vec;
-                let encrypted_key = if encrypted_key_b64.len() > 0 {
-                    encrypted_key_vec = util::decode_base64_urlsafe_no_pad(encrypted_key_b64)?;
+                let encrypted_key = if parsed.encrypted_key_b64.len() > 0 {
+                    encrypted_key_vec =
+                        util::decode_base64_urlsafe_no_pad(parsed.encrypted_key_b64)?;
                     Some(encrypted_key_vec.as_slice())
                 } else {
                     None
                 };
-                let key = decrypter.decrypt(encrypted_key, cencryption, &merged)?;
+                let key = decrypter.decrypt(encrypted_key, cencryption, &parsed.merged)?;
                 if key.len() != cencryption.key_len() {
                     bail!(
                         "The key size is expected to be {}: {}",
@@ -943,34 +882,147 @@ impl JweContext {
                 key
             };
 
-            let iv_vec;
-            let iv = {
-                let iv_b64 = &input[(indexies[1] + 1)..(indexies[2])];
-                let iv = if iv_b64.len() > 0 {
-                    iv_vec = util::decode_base64_urlsafe_no_pad(iv_b64)?;
-                    Some(iv_vec.as_slice())
-                } else {
-                    None
-                };
-                iv
-            };
+            let content = decrypt_content(input, &parsed, cencryption, key, compression)?;
 
-            let content = {
-                let ciphertext_b64 = &input[(indexies[2] + 1)..(indexies[3])];
-                let ciphertext = util::decode_base64_urlsafe_no_pad(ciphertext_b64)?;
-                let content = cencryption.decrypt(&key, iv, &ciphertext, header_b64, tag)?;
-                match compression {
-                    Some(val) => val.decompress(&content)?,
-                    None => content,
-                }
-            };
-
-            Ok((content, merged))
+            Ok((content, parsed.merged))
         })()
         .map_err(|err| match err.downcast::<JoseError>() {
             Ok(err) => err,
             Err(err) => JoseError::InvalidJweFormat(err),
         })
+    }
+
+    /// Deserialize the input that is formatted by compact serialization.
+    ///
+    /// # Arguments
+    ///
+    /// * `input` - The input data.
+    /// * `decrypter` - The JWS decrypter.
+    #[cfg(feature = "async")]
+    pub async fn deserialize_compact_async(
+        &self,
+        input: impl AsRef<[u8]>,
+        decrypter: &dyn JweDecrypterAsync,
+    ) -> Result<(Vec<u8>, JweHeader), JoseError> {
+        self.deserialize_compact_with_selector_async(input, |_header| Ok(Some(decrypter)))
+            .await
+    }
+
+    /// Deserialize the input that is formatted by compact serialization.
+    ///
+    /// # Arguments
+    ///
+    /// * `input` - The input data.
+    /// * `selector` - a function for selecting the decrypting algorithm.
+    #[cfg(feature = "async")]
+    pub async fn deserialize_compact_with_selector_async<'a, F>(
+        &self,
+        input: impl AsRef<[u8]>,
+        selector: F,
+    ) -> Result<(Vec<u8>, JweHeader), JoseError>
+    where
+        F: Fn(&JweHeader) -> Result<Option<&'a dyn JweDecrypterAsync>, JoseError>,
+    {
+        self.deserialize_compact_with_selector_async_(input, selector)
+            .await
+            .map_err(|err| match err.downcast::<JoseError>() {
+                Ok(err) => err,
+                Err(err) => JoseError::InvalidJweFormat(err),
+            })
+    }
+
+    async fn deserialize_compact_with_selector_async_<'a, F>(
+        &self,
+        input: impl AsRef<[u8]>,
+        selector: F,
+    ) -> anyhow::Result<(Vec<u8>, JweHeader)>
+    where
+        F: Fn(&JweHeader) -> Result<Option<&'a dyn JweDecrypterAsync>, JoseError>,
+    {
+        let input = input.as_ref();
+        let parsed = parse_input(input)?;
+
+        let decrypter = match selector(&parsed.merged)? {
+            Some(val) => val,
+            None => bail!("A decrypter is not found."),
+        };
+
+        let (cencryption, compression) = self.validate_and_extract_components(
+            &parsed.merged,
+            decrypter.algorithm().name(),
+            decrypter.key_id(),
+        )?;
+
+        let key = {
+            let encrypted_key_vec;
+            let encrypted_key = if parsed.encrypted_key_b64.len() > 0 {
+                encrypted_key_vec = util::decode_base64_urlsafe_no_pad(parsed.encrypted_key_b64)?;
+                Some(encrypted_key_vec.as_slice())
+            } else {
+                None
+            };
+            let key = decrypter
+                .decrypt(encrypted_key, cencryption, &parsed.merged)
+                .await?;
+            if key.len() != cencryption.key_len() {
+                bail!(
+                    "The key size is expected to be {}: {}",
+                    cencryption.key_len(),
+                    key.len()
+                );
+            }
+            key
+        };
+
+        let content = decrypt_content(input, &parsed, cencryption, key, compression)?;
+
+        Ok((content, parsed.merged))
+    }
+
+    fn validate_and_extract_components(
+        &self,
+        merged: &JweHeader,
+        decrypter_alg_name: &str,
+        decrypter_key_id: Option<&str>,
+    ) -> anyhow::Result<(&dyn JweContentEncryption, Option<&dyn JweCompression>)> {
+        let cencryption = match merged.claim("enc") {
+            Some(Value::String(val)) => match self.get_content_encryption(val) {
+                Some(val2) => val2,
+                None => bail!("A content encryption is not registered: {}", val),
+            },
+            Some(_) => bail!("A enc header claim must be a string."),
+            None => bail!("A enc header claim is required."),
+        };
+
+        let compression = match merged.claim("zip") {
+            Some(Value::String(val)) => match self.get_compression(val) {
+                Some(val2) => Some(val2),
+                None => bail!("A compression algorithm is not registered: {}", val),
+            },
+            Some(_) => bail!("A enc header claim must be a string."),
+            None => None,
+        };
+
+        match merged.claim("alg") {
+            Some(Value::String(val)) => {
+                let expected_alg = decrypter_alg_name;
+                if val != expected_alg {
+                    bail!("The JWE alg header claim is not {}: {}", expected_alg, val);
+                }
+            }
+            Some(_) => bail!("A alg header claim must be a string."),
+            None => bail!("The JWE alg header claim is required."),
+        }
+
+        match decrypter_key_id {
+            Some(expected) => match merged.key_id() {
+                Some(actual) if expected == actual => {}
+                Some(actual) => bail!("The JWE kid header claim is mismatched: {}", actual),
+                None => bail!("The JWE kid header claim is required."),
+            },
+            None => {}
+        }
+        Ok((cencryption, compression))
     }
 
     /// Deserialize the input that is formatted by json serialization.
@@ -1238,6 +1290,77 @@ impl JweContext {
             Err(err) => JoseError::InvalidJweFormat(err),
         })
     }
+}
+
+fn decrypt_content(
+    input: &[u8],
+    parsed: &Parsed<'_>,
+    cencryption: &dyn JweContentEncryption,
+    key: Cow<'_, [u8]>,
+    compression: Option<&dyn JweCompression>,
+) -> Result<Vec<u8>, anyhow::Error> {
+    let ciphertext_b64 = &input[(parsed.indexies[2] + 1)..(parsed.indexies[3])];
+    let ciphertext = util::decode_base64_urlsafe_no_pad(ciphertext_b64)?;
+    let tag_vec;
+    let tag = {
+        let tag_b64 = &input[(parsed.indexies[3] + 1)..];
+        if tag_b64.len() > 0 {
+            tag_vec = util::decode_base64_urlsafe_no_pad(tag_b64)?;
+            Some(tag_vec.as_slice())
+        } else {
+            None
+        }
+    };
+    let iv_vec;
+    let iv = {
+        let iv_b64 = &input[(parsed.indexies[1] + 1)..(parsed.indexies[2])];
+        let iv = if iv_b64.len() > 0 {
+            iv_vec = util::decode_base64_urlsafe_no_pad(iv_b64)?;
+            Some(iv_vec.as_slice())
+        } else {
+            None
+        };
+        iv
+    };
+    let content = cencryption.decrypt(&key, iv, &ciphertext, parsed.header_b64, tag)?;
+    Ok(match compression {
+        Some(val) => val.decompress(&content)?,
+        None => content,
+    })
+}
+
+struct Parsed<'i> {
+    indexies: Vec<usize>,
+    header_b64: &'i [u8],
+    encrypted_key_b64: &'i [u8],
+    merged: JweHeader,
+}
+
+fn parse_input(input: &[u8]) -> Result<Parsed, anyhow::Error> {
+    let indexies: Vec<usize> = input
+        .iter()
+        .enumerate()
+        .filter(|(_, b)| **b == b'.' as u8)
+        .map(|(pos, _)| pos)
+        .collect();
+    if indexies.len() != 4 {
+        bail!("The compact serialization form of JWE must be five parts separated by colon.");
+    }
+    let header_b64 = &input[0..indexies[0]];
+    let merged = {
+        let header = util::decode_base64_urlsafe_no_pad(header_b64)?;
+        let merged: Map<String, Value> = serde_json::from_slice(&header)?;
+        JweHeader::from_map(merged)
+    }?;
+
+    let encrypted_key_b64 = &input[(indexies[0] + 1)..(indexies[1])];
+
+    Ok(Parsed {
+        indexies,
+        header_b64,
+        encrypted_key_b64,
+        merged,
+    })
 }
 
 #[cfg(test)]

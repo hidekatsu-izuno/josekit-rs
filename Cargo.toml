@@ -14,6 +14,7 @@ edition = "2021"
 
 [features]
 default = []
+async = []
 vendored = ["openssl/vendored"]
 
 [dependencies]
@@ -27,6 +28,7 @@ base64 = "0.21"
 flate2 = "1"
 openssl = "0.10.62"
 time = "0.3"
+async-trait = "0.1.78"
 
 [dev-dependencies]
 doc-comment = "0.3.3"
