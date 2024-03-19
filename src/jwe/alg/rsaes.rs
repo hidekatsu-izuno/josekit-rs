@@ -550,7 +550,7 @@ mod tests {
     }
 }
 
-mod openssl_rsa_oaep {
+pub(crate) mod openssl_rsa_oaep {
     use openssl::error::ErrorStack;
     use openssl::hash::MessageDigest;
     use openssl::pkey::{PKey, Private, Public};

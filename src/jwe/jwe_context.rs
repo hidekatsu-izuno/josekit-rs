@@ -13,8 +13,6 @@ use crate::jwe::{
 use crate::util;
 use crate::{JoseError, JoseHeader, Map, Value};
 
-use super::jwe_algorithm::JweDecrypterAsync;
-
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct JweContext {
     acceptable_criticals: BTreeSet<String>,
@@ -903,7 +901,7 @@ impl JweContext {
     pub async fn deserialize_compact_async(
         &self,
         input: impl AsRef<[u8]>,
-        decrypter: &dyn JweDecrypterAsync,
+        decrypter: &dyn super::jwe_algorithm::JweDecrypterAsync,
     ) -> Result<(Vec<u8>, JweHeader), JoseError> {
         self.deserialize_compact_with_selector_async(input, |_header| Ok(Some(decrypter)))
             .await
@@ -922,7 +920,10 @@ impl JweContext {
         selector: F,
     ) -> Result<(Vec<u8>, JweHeader), JoseError>
     where
-        F: Fn(&JweHeader) -> Result<Option<&'a dyn JweDecrypterAsync>, JoseError>,
+        F: Fn(
+            &JweHeader,
+        )
+            -> Result<Option<&'a dyn super::jwe_algorithm::JweDecrypterAsync>, JoseError>,
     {
         self.deserialize_compact_with_selector_async_(input, selector)
             .await
@@ -932,13 +933,17 @@ impl JweContext {
             })
     }
 
+    #[cfg(feature = "async")]
     async fn deserialize_compact_with_selector_async_<'a, F>(
         &self,
         input: impl AsRef<[u8]>,
         selector: F,
     ) -> anyhow::Result<(Vec<u8>, JweHeader)>
     where
-        F: Fn(&JweHeader) -> Result<Option<&'a dyn JweDecrypterAsync>, JoseError>,
+        F: Fn(
+            &JweHeader,
+        )
+            -> Result<Option<&'a dyn super::jwe_algorithm::JweDecrypterAsync>, JoseError>,
     {
         let input = input.as_ref();
         let parsed = parse_input(input)?;

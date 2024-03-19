@@ -134,26 +134,18 @@ pub trait JweDecrypterAsync: Debug + Send + Sync {
 #[cfg(test)]
 #[cfg(feature = "async")]
 mod test_async {
-    use base64::Engine;
-    use openssl::{
-        encrypt::Decrypter,
-        pkey::PKey,
-        rsa::{Padding, Rsa},
-    };
+    use openssl::hash::MessageDigest;
 
-    use crate::jwe::{
-        alg::{
-            aesgcmkw::{AesgcmkwJweAlgorithm, AesgcmkwJweDecrypter},
-            rsaes::RsaesJweAlgorithm,
-        },
-        JweContext, JweHeader,
+    use crate::{
+        jwe::{self, alg::rsaes::RsaesJweAlgorithm, JweContext, JweHeader},
+        jwk::alg::rsa::RsaKeyPair,
     };
 
     use super::JweDecrypterAsync;
 
     const PLAINTEXT: &str = "The quick brown fox jumps over the lazy dog";
-    const PRIVATE_KEY: &str = include_str!("../../data/pem/RSA_2048bit_traditional_private.pem");
-    const PUBLIC_KEY: &str = include_str!("../../data/pem/RSA_2048bit_traditional_public.pem");
+    const PRIVATE_KEY: &str = include_str!("../../data/pem/RSA_2048bit_private.pem");
+    const PUBLIC_KEY: &str = include_str!("../../data/pem/RSA_2048bit_public.pem");
     const KEY_ID: &str = "32b9e1af-fcb3-49d5-a027-c88746cfe193";
 
     #[test]
@@ -177,8 +169,6 @@ mod test_async {
     async fn async_test() {
         let ctx = JweContext::new();
         let jwe = create_jwe(&ctx);
-
-        dbg!(&jwe);
 
         // decrypt - using async
 
@@ -221,27 +211,19 @@ mod test_async {
             // Imagine making a network call to decrypt the key using KMS
             //
             let encrypted_key = encrypted_key.unwrap();
-            let encrypted_key = String::from_utf8(encrypted_key.to_vec()).unwrap();
-            dbg!(&encrypted_key);
 
-            let encrypted_key = base64::engine::general_purpose::URL_SAFE
-                .decode(encrypted_key)
-                .unwrap();
+            let pkey = RsaKeyPair::from_pem(PRIVATE_KEY)
+                .expect("from_pem")
+                .into_private_key();
 
-            let rsa =
-                Rsa::private_key_from_pem(PRIVATE_KEY.as_bytes()).expect("private_key_from_pem");
-            let pkey = PKey::from_rsa(rsa).expect("pkey_from_rsa");
-            let mut decrypter = openssl::encrypt::Decrypter::new(&pkey).expect("Decrypter::new");
-            decrypter.set_rsa_padding(Padding::PKCS1).unwrap();
-            let buffer_len = decrypter.decrypt_len(&encrypted_key).unwrap();
-            let mut decrypted = vec![0; buffer_len];
+            let key = jwe::alg::rsaes::openssl_rsa_oaep::pkey_private_decrypt(
+                &pkey,
+                &encrypted_key,
+                MessageDigest::sha256(),
+            )
+            .expect("pkey_private_decrypt");
 
-            let decrypted_len = decrypter.decrypt(&encrypted_key, &mut decrypted).unwrap();
-            decrypted.truncate(decrypted_len);
-            let decrypted = decrypted[..decrypted_len].to_vec();
-            dbg!(decrypted.len(), decrypted_len);
-
-            Ok(std::borrow::Cow::Owned(decrypted))
+            Ok(std::borrow::Cow::Owned(key))
         }
     }
 
