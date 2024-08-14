@@ -1,4 +1,3 @@
-use openssl::hash::MessageDigest;
 use std::fmt::Display;
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
@@ -25,15 +24,6 @@ impl HashAlgorithm {
             Self::Sha256 => 32,
             Self::Sha384 => 48,
             Self::Sha512 => 64,
-        }
-    }
-
-    pub(crate) fn message_digest(&self) -> MessageDigest {
-        match self {
-            Self::Sha1 => MessageDigest::sha1(),
-            Self::Sha256 => MessageDigest::sha256(),
-            Self::Sha384 => MessageDigest::sha384(),
-            Self::Sha512 => MessageDigest::sha512(),
         }
     }
 }

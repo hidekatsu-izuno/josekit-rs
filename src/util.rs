@@ -1,27 +1,21 @@
 pub mod der;
 pub mod hash_algorithm;
 pub mod oid;
+pub mod crypto;
 
 use anyhow::bail;
 use base64::DecodeError;
 use base64::Engine as _;
 use once_cell::sync::Lazy;
-use openssl::bn::BigNumRef;
-use openssl::rand;
 use regex;
 
 pub use crate::util::hash_algorithm::HashAlgorithm;
+pub use crate::util::crypto::random_bytes;
 
 pub use HashAlgorithm::Sha1 as SHA_1;
 pub use HashAlgorithm::Sha256 as SHA_256;
 pub use HashAlgorithm::Sha384 as SHA_384;
 pub use HashAlgorithm::Sha512 as SHA_512;
-
-pub fn random_bytes(len: usize) -> Vec<u8> {
-    let mut vec = vec![0; len];
-    rand::rand_bytes(&mut vec).unwrap();
-    vec
-}
 
 pub(crate) fn ceiling(len: usize, div: usize) -> usize {
     (len + (div - 1)) / div
@@ -101,20 +95,6 @@ pub(crate) fn parse_pem(input: &[u8]) -> anyhow::Result<(String, Vec<u8>)> {
     };
 
     Ok(result)
-}
-
-pub(crate) fn num_to_vec(num: &BigNumRef, len: usize) -> Vec<u8> {
-    let vec = num.to_vec();
-    if vec.len() < len {
-        let mut tmp = Vec::with_capacity(len);
-        for _ in 0..(len - vec.len()) {
-            tmp.push(0);
-        }
-        tmp.extend_from_slice(&vec);
-        tmp
-    } else {
-        vec
-    }
 }
 
 #[cfg(test)]

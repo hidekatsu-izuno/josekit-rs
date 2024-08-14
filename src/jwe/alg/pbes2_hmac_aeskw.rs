@@ -288,7 +288,7 @@ impl JweEncrypter for Pbes2HmacAeskwJweEncrypter {
             salt.push(0);
             salt.extend_from_slice(&p2s);
 
-            let md = self.algorithm.hash_algorithm().message_digest();
+            let md = util::crypto::message_digest(&self.algorithm.hash_algorithm());
             let mut derived_key = vec![0; self.algorithm.derived_key_len()];
             pkcs5::pbkdf2_hmac(&self.private_key, &salt, p2c, md, &mut derived_key)?;
 
@@ -395,7 +395,7 @@ impl JweDecrypter for Pbes2HmacAeskwJweDecrypter {
             salt.push(0);
             salt.extend_from_slice(&p2s);
 
-            let md = self.algorithm.hash_algorithm().message_digest();
+            let md = util::crypto::message_digest(&self.algorithm.hash_algorithm());
             let mut derived_key = vec![0; self.algorithm.derived_key_len()];
             pkcs5::pbkdf2_hmac(&self.private_key, &salt, p2c, md, &mut derived_key)?;
 

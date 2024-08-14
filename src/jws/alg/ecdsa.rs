@@ -346,7 +346,7 @@ impl JwsSigner for EcdsaJwsSigner {
 
     fn sign(&self, message: &[u8]) -> Result<Vec<u8>, JoseError> {
         (|| -> anyhow::Result<Vec<u8>> {
-            let md = self.algorithm.hash_algorithm().message_digest();
+            let md = util::crypto::message_digest(&self.algorithm.hash_algorithm());
 
             let mut signer = Signer::new(md, &self.private_key)?;
             signer.update(message)?;
@@ -445,7 +445,7 @@ impl JwsVerifier for EcdsaJwsVerifier {
             der_builder.end();
             let der_signature = der_builder.build();
 
-            let md = self.algorithm.hash_algorithm().message_digest();
+            let md = util::crypto::message_digest(&self.algorithm.hash_algorithm());
 
             let mut verifier = Verifier::new(md, &self.public_key)?;
             verifier.update(message)?;

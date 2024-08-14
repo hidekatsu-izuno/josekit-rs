@@ -457,7 +457,7 @@ impl JwsSigner for RsassaPssJwsSigner {
 
     fn sign(&self, message: &[u8]) -> Result<Vec<u8>, JoseError> {
         (|| -> anyhow::Result<Vec<u8>> {
-            let md = self.algorithm.hash_algorithm().message_digest();
+            let md = util::crypto::message_digest(&self.algorithm.hash_algorithm());
 
             let mut signer = Signer::new(md, &self.private_key)?;
             signer.update(message)?;
@@ -511,7 +511,7 @@ impl JwsVerifier for RsassaPssJwsVerifier {
 
     fn verify(&self, message: &[u8], signature: &[u8]) -> Result<(), JoseError> {
         (|| -> anyhow::Result<()> {
-            let md = self.algorithm.hash_algorithm().message_digest();
+            let md = util::crypto::message_digest(&self.algorithm.hash_algorithm());
 
             let mut verifier = Verifier::new(md, &self.public_key)?;
             verifier.update(message)?;

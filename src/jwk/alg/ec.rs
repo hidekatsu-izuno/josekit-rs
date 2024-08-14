@@ -2,7 +2,7 @@ use std::fmt::Display;
 use std::ops::Deref;
 
 use anyhow::bail;
-use openssl::bn::{BigNum, BigNumContext};
+use openssl::bn::{BigNum, BigNumContext, BigNumRef};
 use openssl::ec::{EcGroup, EcKey};
 use openssl::nid::Nid;
 use openssl::pkey::{PKey, Private};
@@ -332,7 +332,7 @@ impl EcKeyPair {
             .unwrap();
         if private {
             let d = ec_key.private_key();
-            let d = util::num_to_vec(&d, self.curve.coordinate_size());
+            let d = Self::num_to_vec(&d, self.curve.coordinate_size());
             let d = util::encode_base64_urlsafe_nopad(&d);
 
             jwk.set_parameter("d", Some(Value::String(d))).unwrap();
@@ -346,10 +346,10 @@ impl EcKeyPair {
                 .affine_coordinates_gfp(ec_key.group(), &mut x, &mut y, &mut ctx)
                 .unwrap();
 
-            let x = util::num_to_vec(&x, self.curve.coordinate_size());
+            let x = Self::num_to_vec(&x, self.curve.coordinate_size());
             let x = util::encode_base64_urlsafe_nopad(&x);
 
-            let y = util::num_to_vec(&y, self.curve.coordinate_size());
+            let y = Self::num_to_vec(&y, self.curve.coordinate_size());
             let y = util::encode_base64_urlsafe_nopad(&y);
 
             jwk.set_parameter("x", Some(Value::String(x))).unwrap();
@@ -486,6 +486,20 @@ impl EcKeyPair {
         builder.end();
 
         builder.build()
+    }
+ 
+    fn num_to_vec(num: &BigNumRef, len: usize) -> Vec<u8> {
+        let vec = num.to_vec();
+        if vec.len() < len {
+            let mut tmp = Vec::with_capacity(len);
+            for _ in 0..(len - vec.len()) {
+                tmp.push(0);
+            }
+            tmp.extend_from_slice(&vec);
+            tmp
+        } else {
+            vec
+        }
     }
 }
 
