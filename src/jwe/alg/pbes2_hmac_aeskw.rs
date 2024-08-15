@@ -5,6 +5,7 @@ use std::ops::Deref;
 
 use anyhow::bail;
 use openssl::aes::{self, AesKey};
+use openssl::hash::MessageDigest;
 use openssl::pkcs5;
 
 use crate::jwe::{JweAlgorithm, JweContentEncryption, JweDecrypter, JweEncrypter, JweHeader};
@@ -288,7 +289,12 @@ impl JweEncrypter for Pbes2HmacAeskwJweEncrypter {
             salt.push(0);
             salt.extend_from_slice(&p2s);
 
-            let md = util::crypto::message_digest(&self.algorithm.hash_algorithm());
+            let md = match &self.algorithm.hash_algorithm() {
+                HashAlgorithm::Sha1 => MessageDigest::sha1(),
+                HashAlgorithm::Sha256 => MessageDigest::sha256(),
+                HashAlgorithm::Sha384 => MessageDigest::sha384(),
+                HashAlgorithm::Sha512 => MessageDigest::sha512(),
+            };
             let mut derived_key = vec![0; self.algorithm.derived_key_len()];
             pkcs5::pbkdf2_hmac(&self.private_key, &salt, p2c, md, &mut derived_key)?;
 
@@ -387,7 +393,10 @@ impl JweDecrypter for Pbes2HmacAeskwJweDecrypter {
             };
 
             if p2c > 1000000 {
-                bail!("The p2c value is too large. This is a possible DoS attack: {}", p2c);
+                bail!(
+                    "The p2c value is too large. This is a possible DoS attack: {}",
+                    p2c
+                );
             }
 
             let mut salt = Vec::with_capacity(self.algorithm().name().len() + 1 + p2s.len());
@@ -395,7 +404,12 @@ impl JweDecrypter for Pbes2HmacAeskwJweDecrypter {
             salt.push(0);
             salt.extend_from_slice(&p2s);
 
-            let md = util::crypto::message_digest(&self.algorithm.hash_algorithm());
+            let md = match &self.algorithm.hash_algorithm() {
+                HashAlgorithm::Sha1 => MessageDigest::sha1(),
+                HashAlgorithm::Sha256 => MessageDigest::sha256(),
+                HashAlgorithm::Sha384 => MessageDigest::sha384(),
+                HashAlgorithm::Sha512 => MessageDigest::sha512(),
+            };
             let mut derived_key = vec![0; self.algorithm.derived_key_len()];
             pkcs5::pbkdf2_hmac(&self.private_key, &salt, p2c, md, &mut derived_key)?;
 
@@ -510,7 +524,9 @@ mod tests {
 
             let decrypter = alg.decrypter_from_jwk(&jwk)?;
 
-            let err = decrypter.decrypt(encrypted_key.as_deref(), &enc, &out_header).unwrap_err();
+            let err = decrypter
+                .decrypt(encrypted_key.as_deref(), &enc, &out_header)
+                .unwrap_err();
             assert_eq!(format!("{}", err), "Invalid JWE format: The p2c value is too large. This is a possible DoS attack: 1000001");
         }
 

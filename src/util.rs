@@ -1,7 +1,6 @@
 pub mod der;
 pub mod hash_algorithm;
 pub mod oid;
-pub mod crypto;
 
 use anyhow::bail;
 use base64::DecodeError;
@@ -10,7 +9,6 @@ use once_cell::sync::Lazy;
 use regex;
 
 pub use crate::util::hash_algorithm::HashAlgorithm;
-pub use crate::util::crypto::random_bytes;
 
 pub use HashAlgorithm::Sha1 as SHA_1;
 pub use HashAlgorithm::Sha256 as SHA_256;
@@ -95,6 +93,25 @@ pub(crate) fn parse_pem(input: &[u8]) -> anyhow::Result<(String, Vec<u8>)> {
     };
 
     Ok(result)
+}
+
+#[cfg(feature = "no_ffi")]
+pub fn random_bytes(len: usize) -> Vec<u8> {
+    use rand::{RngCore, thread_rng};
+    use crypto::sha1::{Sha1, Digest};
+
+    let mut vec = vec![0; len];
+    thread_rng().fill_bytes(&mut vec);
+    vec
+}
+
+#[cfg(not(feature = "no_ffi"))]
+pub fn random_bytes(len: usize) -> Vec<u8> {
+    use openssl::rand;
+
+    let mut vec = vec![0; len];
+    rand::rand_bytes(&mut vec).unwrap();
+    vec
 }
 
 #[cfg(test)]

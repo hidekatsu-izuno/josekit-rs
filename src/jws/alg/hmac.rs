@@ -2,6 +2,7 @@ use std::fmt::Display;
 use std::ops::Deref;
 
 use anyhow::bail;
+use openssl::hash::MessageDigest;
 use openssl::pkey::{PKey, Private};
 use openssl::sign::Signer;
 
@@ -269,8 +270,12 @@ impl JwsSigner for HmacJwsSigner {
 
     fn sign(&self, message: &[u8]) -> Result<Vec<u8>, JoseError> {
         (|| -> anyhow::Result<Vec<u8>> {
-            let md = util::crypto::message_digest(&self.algorithm.hash_algorithm());
-
+            let md = match &self.algorithm.hash_algorithm() {
+                HashAlgorithm::Sha1 => MessageDigest::sha1(),
+                HashAlgorithm::Sha256 => MessageDigest::sha256(),
+                HashAlgorithm::Sha384 => MessageDigest::sha384(),
+                HashAlgorithm::Sha512 => MessageDigest::sha512(),
+            };
             let mut signer = Signer::new(md, &self.private_key)?;
             signer.update(message)?;
             let signature = signer.sign_to_vec()?;
@@ -323,8 +328,12 @@ impl JwsVerifier for HmacJwsVerifier {
 
     fn verify(&self, message: &[u8], signature: &[u8]) -> Result<(), JoseError> {
         (|| -> anyhow::Result<()> {
-            let md = util::crypto::message_digest(&self.algorithm.hash_algorithm());
-
+            let md = match &self.algorithm.hash_algorithm() {
+                HashAlgorithm::Sha1 => MessageDigest::sha1(),
+                HashAlgorithm::Sha256 => MessageDigest::sha256(),
+                HashAlgorithm::Sha384 => MessageDigest::sha384(),
+                HashAlgorithm::Sha512 => MessageDigest::sha512(),
+            };
             let mut signer = Signer::new(md, &self.private_key)?;
             signer.update(message)?;
             let new_signature = signer.sign_to_vec()?;
