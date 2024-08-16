@@ -157,14 +157,6 @@ impl AesgcmkwJweAlgorithm {
             Self::A256gcmkw => 32,
         }
     }
-
-    fn cipher(&self) -> Cipher {
-        match self {
-            Self::A128gcmkw => Cipher::aes_128_gcm(),
-            Self::A192gcmkw => Cipher::aes_192_gcm(),
-            Self::A256gcmkw => Cipher::aes_256_gcm(),
-        }
-    }
 }
 
 impl JweAlgorithm for AesgcmkwJweAlgorithm {
@@ -240,9 +232,12 @@ impl JweEncrypter for AesgcmkwJweEncrypter {
         out_header: &mut JweHeader,
     ) -> Result<Option<Vec<u8>>, JoseError> {
         (|| -> anyhow::Result<Option<Vec<u8>>> {
+            let cipher = match self.algorithm {
+                AesgcmkwJweAlgorithm::A128gcmkw => Cipher::aes_128_gcm(),
+                AesgcmkwJweAlgorithm::A192gcmkw => Cipher::aes_192_gcm(),
+                AesgcmkwJweAlgorithm::A256gcmkw => Cipher::aes_256_gcm(),
+            };
             let iv = util::random_bytes(12);
-
-            let cipher = self.algorithm.cipher();
             let mut tag = [0; 16];
             let encrypted_key =
                 symm::encrypt_aead(cipher, &self.private_key, Some(&iv), b"", &key, &mut tag)?;
@@ -327,7 +322,11 @@ impl JweDecrypter for AesgcmkwJweDecrypter {
                 None => bail!("The tag header claim is required."),
             };
 
-            let cipher = self.algorithm.cipher();
+            let cipher = match self.algorithm {
+                AesgcmkwJweAlgorithm::A128gcmkw => Cipher::aes_128_gcm(),
+                AesgcmkwJweAlgorithm::A192gcmkw => Cipher::aes_192_gcm(),
+                AesgcmkwJweAlgorithm::A256gcmkw => Cipher::aes_256_gcm(),
+            };
             let key = symm::decrypt_aead(
                 cipher,
                 &self.private_key,

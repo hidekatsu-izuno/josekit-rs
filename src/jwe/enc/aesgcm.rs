@@ -17,16 +17,6 @@ pub enum AesgcmJweEncryption {
     A256gcm,
 }
 
-impl AesgcmJweEncryption {
-    fn cipher(&self) -> Cipher {
-        match self {
-            Self::A128gcm => Cipher::aes_128_gcm(),
-            Self::A192gcm => Cipher::aes_192_gcm(),
-            Self::A256gcm => Cipher::aes_256_gcm(),
-        }
-    }
-}
-
 impl JweContentEncryption for AesgcmJweEncryption {
     fn name(&self) -> &str {
         match self {
@@ -65,7 +55,11 @@ impl JweContentEncryption for AesgcmJweEncryption {
                 );
             }
 
-            let cipher = self.cipher();
+            let cipher = match self {
+                AesgcmJweEncryption::A128gcm => Cipher::aes_128_gcm(),
+                AesgcmJweEncryption::A192gcm => Cipher::aes_192_gcm(),
+                AesgcmJweEncryption::A256gcm => Cipher::aes_256_gcm(),
+            };
             let mut tag = [0; 16];
             let encrypted_message = symm::encrypt_aead(cipher, key, iv, aad, message, &mut tag)?;
             Ok((encrypted_message, Some(tag.to_vec())))
@@ -96,7 +90,11 @@ impl JweContentEncryption for AesgcmJweEncryption {
                 None => bail!("A tag value is required."),
             };
 
-            let cipher = self.cipher();
+            let cipher = match self {
+                AesgcmJweEncryption::A128gcm => Cipher::aes_128_gcm(),
+                AesgcmJweEncryption::A192gcm => Cipher::aes_192_gcm(),
+                AesgcmJweEncryption::A256gcm => Cipher::aes_256_gcm(),
+            };
             let message = symm::decrypt_aead(cipher, key, iv, aad, encrypted_message, tag)?;
             Ok(message)
         })()

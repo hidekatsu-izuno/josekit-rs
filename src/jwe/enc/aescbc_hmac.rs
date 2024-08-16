@@ -21,14 +21,6 @@ pub enum AescbcHmacJweEncryption {
 }
 
 impl AescbcHmacJweEncryption {
-    fn cipher(&self) -> Cipher {
-        match self {
-            Self::A128cbcHs256 => Cipher::aes_128_cbc(),
-            Self::A192cbcHs384 => Cipher::aes_192_cbc(),
-            Self::A256cbcHs512 => Cipher::aes_256_cbc(),
-        }
-    }
-
     fn calcurate_tag(
         &self,
         aad: &[u8],
@@ -109,8 +101,11 @@ impl JweContentEncryption for AescbcHmacJweEncryption {
             let mac_key_len = expected_len / 2;
             let mac_key = &key[0..mac_key_len];
             let enc_key = &key[mac_key_len..];
-
-            let cipher = self.cipher();
+            let cipher = match self {
+                AescbcHmacJweEncryption::A128cbcHs256 => Cipher::aes_128_cbc(),
+                AescbcHmacJweEncryption::A192cbcHs384 => Cipher::aes_192_cbc(),
+                AescbcHmacJweEncryption::A256cbcHs512 => Cipher::aes_256_cbc(),
+            };
             let encrypted_message = symm::encrypt(cipher, enc_key, iv, message)?;
             Ok((encrypted_message, mac_key))
         })()
@@ -142,8 +137,11 @@ impl JweContentEncryption for AescbcHmacJweEncryption {
             let mac_key_len = expected_len / 2;
             let mac_key = &key[0..mac_key_len];
             let enc_key = &key[mac_key_len..];
-
-            let cipher = self.cipher();
+            let cipher = match self {
+                AescbcHmacJweEncryption::A128cbcHs256 => Cipher::aes_128_cbc(),
+                AescbcHmacJweEncryption::A192cbcHs384 => Cipher::aes_192_cbc(),
+                AescbcHmacJweEncryption::A256cbcHs512 => Cipher::aes_256_cbc(),
+            };
             let message = symm::decrypt(cipher, enc_key, iv, encrypted_message)?;
             Ok((message, mac_key))
         })()

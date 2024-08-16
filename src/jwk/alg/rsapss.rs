@@ -13,7 +13,6 @@ use crate::{JoseError, Value};
 #[derive(Debug, Clone)]
 pub struct RsaPssKeyPair {
     private_key: PKey<Private>,
-    key_len: u32,
     hash: HashAlgorithm,
     mgf1_hash: HashAlgorithm,
     salt_len: u8,
@@ -23,7 +22,7 @@ pub struct RsaPssKeyPair {
 
 impl RsaPssKeyPair {
     pub fn key_len(&self) -> u32 {
-        self.key_len
+        self.private_key.size().try_into().unwrap()
     }
 
     pub fn set_algorithm(&mut self, value: Option<&str>) {
@@ -42,19 +41,17 @@ impl RsaPssKeyPair {
     }
 
     pub fn into_rsa_key_pair(self) -> RsaKeyPair {
-        RsaKeyPair::from_private_key(self.private_key, self.key_len)
+        RsaKeyPair::from_private_key(self.private_key)
     }
 
     pub(crate) fn from_private_key(
         private_key: PKey<Private>,
-        key_len: u32,
         hash: HashAlgorithm,
         mgf1_hash: HashAlgorithm,
         salt_len: u8,
     ) -> Self {
         Self {
             private_key,
-            key_len,
             hash,
             mgf1_hash,
             salt_len,
@@ -79,12 +76,10 @@ impl RsaPssKeyPair {
     ) -> Result<RsaPssKeyPair, JoseError> {
         (|| -> anyhow::Result<RsaPssKeyPair> {
             let rsa = Rsa::generate(bits)?;
-            let key_len = rsa.size();
             let private_key = PKey::from_rsa(rsa)?;
 
             Ok(RsaPssKeyPair {
                 private_key,
-                key_len,
                 hash,
                 mgf1_hash,
                 salt_len,
@@ -165,12 +160,9 @@ impl RsaPssKeyPair {
             };
 
             let private_key = PKey::private_key_from_der(pkcs8_der)?;
-            let rsa = private_key.rsa()?;
-            let key_len = rsa.size();
 
             Ok(RsaPssKeyPair {
                 private_key,
-                key_len,
                 hash,
                 mgf1_hash,
                 salt_len,
@@ -258,12 +250,9 @@ impl RsaPssKeyPair {
             };
 
             let private_key = PKey::private_key_from_der(pkcs8_der)?;
-            let rsa = private_key.rsa()?;
-            let key_len = rsa.size();
 
             Ok(RsaPssKeyPair {
                 private_key,
-                key_len,
                 hash,
                 mgf1_hash,
                 salt_len,
@@ -350,14 +339,11 @@ impl RsaPssKeyPair {
 
             let pkcs8 = RsaPssKeyPair::to_pkcs8(&builder.build(), false, hash, mgf1_hash, salt_len);
             let private_key = PKey::private_key_from_der(&pkcs8)?;
-            let rsa = private_key.rsa()?;
-            let key_len = rsa.size();
             let algorithm = jwk.algorithm().map(|val| val.to_string());
             let key_id = jwk.key_id().map(|val| val.to_string());
 
             Ok(Self {
                 private_key,
-                key_len,
                 hash,
                 mgf1_hash,
                 salt_len,

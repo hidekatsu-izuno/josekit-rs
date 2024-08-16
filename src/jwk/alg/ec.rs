@@ -43,15 +43,6 @@ impl EcCurve {
         }
     }
 
-    fn nid(&self) -> Nid {
-        match self {
-            Self::P256 => Nid::X9_62_PRIME256V1,
-            Self::P384 => Nid::SECP384R1,
-            Self::P521 => Nid::SECP521R1,
-            Self::Secp256k1 => Nid::SECP256K1,
-        }
-    }
-
     fn coordinate_size(&self) -> usize {
         match self {
             Self::P256 | Self::Secp256k1 => 32,
@@ -102,7 +93,13 @@ impl EcKeyPair {
     /// Generate EC key pair.
     pub fn generate(curve: EcCurve) -> Result<EcKeyPair, JoseError> {
         (|| -> anyhow::Result<EcKeyPair> {
-            let ec_group = EcGroup::from_curve_name(curve.nid())?;
+            let nid = match curve {
+                EcCurve::P256 => Nid::X9_62_PRIME256V1,
+                EcCurve::P384 => Nid::SECP384R1,
+                EcCurve::P521 => Nid::SECP521R1,
+                EcCurve::Secp256k1 => Nid::SECP256K1,
+            };
+            let ec_group = EcGroup::from_curve_name(nid)?;
             let ec_key = EcKey::generate(&ec_group)?;
             let private_key = PKey::from_ec_key(ec_key)?;
 
