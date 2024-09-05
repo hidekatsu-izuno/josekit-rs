@@ -10,7 +10,7 @@ mod jwe_header;
 mod jwe_header_set;
 pub mod zip;
 
-use once_cell::sync::Lazy;
+use std::sync::LazyLock;
 
 use crate::JoseError;
 
@@ -54,7 +54,7 @@ pub use RsaesJweAlgorithm::RsaOaep256 as RSA_OAEP_256;
 pub use RsaesJweAlgorithm::RsaOaep384 as RSA_OAEP_384;
 pub use RsaesJweAlgorithm::RsaOaep512 as RSA_OAEP_512;
 
-static DEFAULT_CONTEXT: Lazy<JweContext> = Lazy::new(|| JweContext::new());
+static DEFAULT_CONTEXT: LazyLock<JweContext> = LazyLock::new(|| JweContext::new());
 
 /// Return a representation of the data that is formatted by compact serialization.
 ///

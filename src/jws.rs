@@ -6,7 +6,7 @@ mod jws_context;
 mod jws_header;
 mod jws_header_set;
 
-use once_cell::sync::Lazy;
+use std::sync::LazyLock;
 
 use crate::JoseError;
 
@@ -41,7 +41,7 @@ pub use EcdsaJwsAlgorithm::Es512 as ES512;
 use crate::jws::alg::eddsa::EddsaJwsAlgorithm;
 pub use EddsaJwsAlgorithm::Eddsa as EdDSA;
 
-static DEFAULT_CONTEXT: Lazy<JwsContext> = Lazy::new(|| JwsContext::new());
+static DEFAULT_CONTEXT: LazyLock<JwsContext> = LazyLock::new(|| JwsContext::new());
 
 /// Return a representation of the data that is formatted by compact serialization.
 ///
@@ -206,11 +206,11 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::cell::OnceCell;
     use std::fs;
     use std::path::PathBuf;
 
     use anyhow::Result;
-    use once_cell::sync::OnceCell;
 
     use crate::jws::{self, EdDSA, JwsHeader, JwsHeaderSet, JwsVerifier, ES256, RS256};
     use crate::Value;

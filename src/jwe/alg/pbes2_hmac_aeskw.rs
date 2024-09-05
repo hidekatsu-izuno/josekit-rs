@@ -387,7 +387,10 @@ impl JweDecrypter for Pbes2HmacAeskwJweDecrypter {
             };
 
             if p2c > 1000000 {
-                bail!("The p2c value is too large. This is a possible DoS attack: {}", p2c);
+                bail!(
+                    "The p2c value is too large. This is a possible DoS attack: {}",
+                    p2c
+                );
             }
 
             let mut salt = Vec::with_capacity(self.algorithm().name().len() + 1 + p2s.len());
@@ -510,7 +513,9 @@ mod tests {
 
             let decrypter = alg.decrypter_from_jwk(&jwk)?;
 
-            let err = decrypter.decrypt(encrypted_key.as_deref(), &enc, &out_header).unwrap_err();
+            let err = decrypter
+                .decrypt(encrypted_key.as_deref(), &enc, &out_header)
+                .unwrap_err();
             assert_eq!(format!("{}", err), "Invalid JWE format: The p2c value is too large. This is a possible DoS attack: 1000001");
         }
 

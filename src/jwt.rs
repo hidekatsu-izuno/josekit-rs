@@ -11,14 +11,14 @@ pub use crate::jwt::jwt_payload_validator::JwtPayloadValidator;
 
 pub use crate::jwt::alg::unsecured::UnsecuredJwsAlgorithm::None;
 
-use once_cell::sync::Lazy;
+use std::sync::LazyLock;
 
 use crate::jwe::{JweDecrypter, JweEncrypter, JweHeader};
 use crate::jwk::{Jwk, JwkSet};
 use crate::jws::{JwsHeader, JwsSigner, JwsVerifier};
 use crate::{JoseError, JoseHeader};
 
-static DEFAULT_CONTEXT: Lazy<JwtContext> = Lazy::new(|| JwtContext::new());
+static DEFAULT_CONTEXT: LazyLock<JwtContext> = LazyLock::new(|| JwtContext::new());
 
 /// Return the string repsentation of the JWT with a "none" algorithm.
 ///

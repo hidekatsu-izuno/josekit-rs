@@ -2,10 +2,11 @@ pub mod der;
 pub mod hash_algorithm;
 pub mod oid;
 
+use std::sync::LazyLock;
+
 use anyhow::bail;
 use base64::DecodeError;
 use base64::Engine as _;
-use once_cell::sync::Lazy;
 use openssl::bn::BigNumRef;
 use openssl::rand;
 use regex;
@@ -28,7 +29,7 @@ pub(crate) fn ceiling(len: usize, div: usize) -> usize {
 }
 
 pub(crate) fn is_base64_standard(input: &str) -> bool {
-    static RE_BASE64_STANDARD: Lazy<regex::Regex> = Lazy::new(|| {
+    static RE_BASE64_STANDARD: LazyLock<regex::Regex> = LazyLock::new(|| {
         regex::Regex::new(
             r"^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/][AQgw]==|[A-Za-z0-9+/]{2}[AEIMQUYcgkosw048]=)?$",
         )
@@ -39,7 +40,7 @@ pub(crate) fn is_base64_standard(input: &str) -> bool {
 }
 
 pub(crate) fn is_base64_urlsafe_nopad(input: &str) -> bool {
-    static RE_BASE64_URL_SAFE_NOPAD: Lazy<regex::Regex> = Lazy::new(|| {
+    static RE_BASE64_URL_SAFE_NOPAD: LazyLock<regex::Regex> = LazyLock::new(|| {
         regex::Regex::new(
             r"^(?:[A-Za-z0-9_-]{4})*(?:[A-Za-z0-9_-][AQgw]|[A-Za-z0-9_-]{2}[AEIMQUYcgkosw048])?$",
         )
@@ -72,7 +73,7 @@ pub(crate) fn decode_base64_urlsafe_no_pad(
 }
 
 pub(crate) fn parse_pem(input: &[u8]) -> anyhow::Result<(String, Vec<u8>)> {
-    static RE_PEM: Lazy<regex::bytes::Regex> = Lazy::new(|| {
+    static RE_PEM: LazyLock<regex::bytes::Regex> = LazyLock::new(|| {
         regex::bytes::Regex::new(concat!(
             r"^",
             r"-----BEGIN ([A-Z0-9 -]+)-----[\t ]*(?:\r\n|[\r\n])",
@@ -83,8 +84,8 @@ pub(crate) fn parse_pem(input: &[u8]) -> anyhow::Result<(String, Vec<u8>)> {
         .unwrap()
     });
 
-    static RE_FILTER: Lazy<regex::bytes::Regex> =
-        Lazy::new(|| regex::bytes::Regex::new("[\t\r\n ]").unwrap());
+    static RE_FILTER: LazyLock<regex::bytes::Regex> =
+        LazyLock::new(|| regex::bytes::Regex::new("[\t\r\n ]").unwrap());
 
     let result = if let Some(caps) = RE_PEM.captures(input) {
         match (caps.get(1), caps.get(2), caps.get(3)) {
