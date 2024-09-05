@@ -2,6 +2,7 @@ use std::fmt::Display;
 use std::ops::Deref;
 
 use anyhow::bail;
+use openssl::hash::MessageDigest;
 use openssl::pkey::{PKey, Private, Public};
 use openssl::sign::{Signer, Verifier};
 
@@ -346,8 +347,12 @@ impl JwsSigner for EcdsaJwsSigner {
 
     fn sign(&self, message: &[u8]) -> Result<Vec<u8>, JoseError> {
         (|| -> anyhow::Result<Vec<u8>> {
-            let md = self.algorithm.hash_algorithm().message_digest();
-
+            let md = match &self.algorithm.hash_algorithm() {
+                HashAlgorithm::Sha1 => MessageDigest::sha1(),
+                HashAlgorithm::Sha256 => MessageDigest::sha256(),
+                HashAlgorithm::Sha384 => MessageDigest::sha384(),
+                HashAlgorithm::Sha512 => MessageDigest::sha512(),
+            };
             let mut signer = Signer::new(md, &self.private_key)?;
             signer.update(message)?;
             let der_signature = signer.sign_to_vec()?;
@@ -445,8 +450,12 @@ impl JwsVerifier for EcdsaJwsVerifier {
             der_builder.end();
             let der_signature = der_builder.build();
 
-            let md = self.algorithm.hash_algorithm().message_digest();
-
+            let md = match &self.algorithm.hash_algorithm() {
+                HashAlgorithm::Sha1 => MessageDigest::sha1(),
+                HashAlgorithm::Sha256 => MessageDigest::sha256(),
+                HashAlgorithm::Sha384 => MessageDigest::sha384(),
+                HashAlgorithm::Sha512 => MessageDigest::sha512(),
+            };
             let mut verifier = Verifier::new(md, &self.public_key)?;
             verifier.update(message)?;
             if !verifier.verify(&der_signature)? {

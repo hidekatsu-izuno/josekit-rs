@@ -362,7 +362,7 @@ mod tests {
             header.set_content_encryption(enc.name());
 
             let jwk = {
-                let key = util::random_bytes(alg.key_len());
+                let key = util::crypto::random_bytes(alg.key_len());
                 let key = util::encode_base64_urlsafe_nopad(&key);
 
                 let mut jwk = Jwk::new("oct");
@@ -372,7 +372,7 @@ mod tests {
             };
 
             let encrypter = alg.encrypter_from_jwk(&jwk)?;
-            let src_key = util::random_bytes(enc.key_len());
+            let src_key = util::crypto::random_bytes(enc.key_len());
             let mut out_header = header.clone();
             let encrypted_key = encrypter.encrypt(&src_key, &header, &mut out_header)?;
 

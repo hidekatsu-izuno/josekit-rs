@@ -274,12 +274,12 @@ mod tests {
 
             let alg = Dir;
             let key = match enc {
-                "A128CBC-HS256" => util::random_bytes(32),
-                "A192CBC-HS384" => util::random_bytes(48),
-                "A256CBC-HS512" => util::random_bytes(64),
-                "A128GCM" => util::random_bytes(16),
-                "A192GCM" => util::random_bytes(24),
-                "A256GCM" => util::random_bytes(32),
+                "A128CBC-HS256" => util::crypto::random_bytes(32),
+                "A192CBC-HS384" => util::crypto::random_bytes(48),
+                "A256CBC-HS512" => util::crypto::random_bytes(64),
+                "A128GCM" => util::crypto::random_bytes(16),
+                "A192GCM" => util::crypto::random_bytes(24),
+                "A256GCM" => util::crypto::random_bytes(32),
                 _ => unreachable!(),
             };
             let encrypter = alg.encrypter_from_bytes(&key)?;

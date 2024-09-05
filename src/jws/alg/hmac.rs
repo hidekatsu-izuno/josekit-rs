@@ -2,6 +2,7 @@ use std::fmt::Display;
 use std::ops::Deref;
 
 use anyhow::bail;
+use openssl::hash::MessageDigest;
 use openssl::pkey::{PKey, Private};
 use openssl::sign::Signer;
 
@@ -269,8 +270,12 @@ impl JwsSigner for HmacJwsSigner {
 
     fn sign(&self, message: &[u8]) -> Result<Vec<u8>, JoseError> {
         (|| -> anyhow::Result<Vec<u8>> {
-            let md = self.algorithm.hash_algorithm().message_digest();
-
+            let md = match &self.algorithm.hash_algorithm() {
+                HashAlgorithm::Sha1 => MessageDigest::sha1(),
+                HashAlgorithm::Sha256 => MessageDigest::sha256(),
+                HashAlgorithm::Sha384 => MessageDigest::sha384(),
+                HashAlgorithm::Sha512 => MessageDigest::sha512(),
+            };
             let mut signer = Signer::new(md, &self.private_key)?;
             signer.update(message)?;
             let signature = signer.sign_to_vec()?;
@@ -323,8 +328,12 @@ impl JwsVerifier for HmacJwsVerifier {
 
     fn verify(&self, message: &[u8], signature: &[u8]) -> Result<(), JoseError> {
         (|| -> anyhow::Result<()> {
-            let md = self.algorithm.hash_algorithm().message_digest();
-
+            let md = match &self.algorithm.hash_algorithm() {
+                HashAlgorithm::Sha1 => MessageDigest::sha1(),
+                HashAlgorithm::Sha256 => MessageDigest::sha256(),
+                HashAlgorithm::Sha384 => MessageDigest::sha384(),
+                HashAlgorithm::Sha512 => MessageDigest::sha512(),
+            };
             let mut signer = Signer::new(md, &self.private_key)?;
             signer.update(message)?;
             let new_signature = signer.sign_to_vec()?;
@@ -361,7 +370,7 @@ mod tests {
 
     #[test]
     fn sign_and_verify_hmac_generated_jwk() -> Result<()> {
-        let private_key = util::random_bytes(64);
+        let private_key = util::crypto::random_bytes(64);
         let input = b"12345abcde";
 
         for alg in &[
@@ -405,7 +414,7 @@ mod tests {
 
     #[test]
     fn sign_and_verify_hmac_bytes() -> Result<()> {
-        let private_key = util::random_bytes(64);
+        let private_key = util::crypto::random_bytes(64);
         let input = b"abcde12345";
 
         for alg in &[
