@@ -265,7 +265,7 @@ impl JweEncrypter for Pbes2HmacAeskwJweEncrypter {
                 }
                 Some(_) => bail!("The p2s header claim must be string."),
                 None => {
-                    let p2s = util::crypto::random_bytes(self.salt_len);
+                    let p2s = util::random_bytes(self.salt_len);
                     let p2s_b64 = util::encode_base64_urlsafe_nopad(&p2s);
                     out_header.set_claim("p2s", Some(Value::String(p2s_b64)))?;
                     p2s
@@ -470,7 +470,7 @@ mod tests {
             header.set_content_encryption(enc.name());
 
             let jwk = {
-                let key = util::crypto::random_bytes(8);
+                let key = util::random_bytes(8);
                 let key = util::encode_base64_urlsafe_nopad(&key);
 
                 let mut jwk = Jwk::new("oct");
@@ -481,7 +481,7 @@ mod tests {
 
             let encrypter = alg.encrypter_from_jwk(&jwk)?;
             let mut out_header = header.clone();
-            let src_key = util::crypto::random_bytes(enc.key_len());
+            let src_key = util::random_bytes(enc.key_len());
             let encrypted_key = encrypter.encrypt(&src_key, &header, &mut out_header)?;
 
             let decrypter = alg.decrypter_from_jwk(&jwk)?;
@@ -507,7 +507,7 @@ mod tests {
             header.set_content_encryption(enc.name());
 
             let jwk = {
-                let key = util::crypto::random_bytes(8);
+                let key = util::random_bytes(8);
                 let key = util::encode_base64_urlsafe_nopad(&key);
 
                 let mut jwk = Jwk::new("oct");
@@ -519,7 +519,7 @@ mod tests {
             let mut encrypter = alg.encrypter_from_jwk(&jwk)?;
             encrypter.set_iter_count(1000001);
             let mut out_header = header.clone();
-            let src_key = util::crypto::random_bytes(enc.key_len());
+            let src_key = util::random_bytes(enc.key_len());
             let encrypted_key = encrypter.encrypt(&src_key, &header, &mut out_header)?;
 
             let decrypter = alg.decrypter_from_jwk(&jwk)?;

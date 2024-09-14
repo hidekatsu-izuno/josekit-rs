@@ -246,7 +246,7 @@ mod tests {
     #[test]
     fn test_jwt_with_hmac() -> Result<()> {
         for alg in &[HS256, HS384, HS512] {
-            let private_key = util::crypto::random_bytes(64);
+            let private_key = util::random_bytes(64);
 
             let mut src_header = JwsHeader::new();
             src_header.set_token_type("JWT");

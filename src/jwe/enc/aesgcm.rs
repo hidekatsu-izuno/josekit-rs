@@ -137,8 +137,8 @@ mod tests {
             AesgcmJweEncryption::A192gcm,
             AesgcmJweEncryption::A256gcm,
         ] {
-            let key = util::crypto::random_bytes(enc.key_len());
-            let iv = util::crypto::random_bytes(enc.iv_len());
+            let key = util::random_bytes(enc.key_len());
+            let iv = util::random_bytes(enc.iv_len());
 
             let (encrypted_message, tag) = enc.encrypt(&key, Some(&iv), message, aad)?;
             let decrypted_message = enc.decrypt(

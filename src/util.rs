@@ -1,4 +1,3 @@
-pub mod crypto;
 pub mod der;
 pub mod hash_algorithm;
 pub mod oid;
@@ -9,6 +8,7 @@ use anyhow::bail;
 use base64::DecodeError;
 use base64::Engine as _;
 use regex;
+use openssl::rand;
 
 pub use crate::util::hash_algorithm::HashAlgorithm;
 
@@ -16,6 +16,12 @@ pub use HashAlgorithm::Sha1 as SHA_1;
 pub use HashAlgorithm::Sha256 as SHA_256;
 pub use HashAlgorithm::Sha384 as SHA_384;
 pub use HashAlgorithm::Sha512 as SHA_512;
+
+pub fn random_bytes(len: usize) -> Vec<u8> {
+    let mut vec = vec![0; len];
+    rand::rand_bytes(&mut vec).unwrap();
+    vec
+}
 
 pub(crate) fn ceiling(len: usize, div: usize) -> usize {
     (len + (div - 1)) / div

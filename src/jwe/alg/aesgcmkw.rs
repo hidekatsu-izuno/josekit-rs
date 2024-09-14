@@ -240,7 +240,7 @@ impl JweEncrypter for AesgcmkwJweEncrypter {
         out_header: &mut JweHeader,
     ) -> Result<Option<Vec<u8>>, JoseError> {
         (|| -> anyhow::Result<Option<Vec<u8>>> {
-            let iv = util::crypto::random_bytes(12);
+            let iv = util::random_bytes(12);
 
             let cipher = self.algorithm.cipher();
             let mut tag = [0; 16];
@@ -379,7 +379,7 @@ mod tests {
             header.set_content_encryption(enc.name());
 
             let jwk = {
-                let key = util::crypto::random_bytes(alg.key_len());
+                let key = util::random_bytes(alg.key_len());
                 let key = util::encode_base64_urlsafe_nopad(&key);
 
                 let mut jwk = Jwk::new("oct");
@@ -389,7 +389,7 @@ mod tests {
             };
 
             let encrypter = alg.encrypter_from_jwk(&jwk)?;
-            let src_key = util::crypto::random_bytes(enc.key_len());
+            let src_key = util::random_bytes(enc.key_len());
             let mut out_header = header.clone();
             let encrypted_key = encrypter.encrypt(&src_key, &header, &mut out_header)?;
 

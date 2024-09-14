@@ -24,8 +24,8 @@ serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 base64 = "0.22"
 flate2 = "1"
-openssl = "0.10.66"
 time = "0.3"
+openssl = { version = "0.10.66" }
 
 [dev-dependencies]
 doc-comment = "0.3.3"

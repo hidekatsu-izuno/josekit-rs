@@ -204,7 +204,7 @@ impl JweContext {
                 &mut out_header,
             )? {
                 Some(val) => val,
-                None => Cow::Owned(util::crypto::random_bytes(key_len)),
+                None => Cow::Owned(util::random_bytes(key_len)),
             };
 
             let encrypted_key = encrypter.encrypt(&key, &header, &mut out_header)?;
@@ -229,7 +229,7 @@ impl JweContext {
 
             let iv_vec;
             let iv = if cencryption.iv_len() > 0 {
-                iv_vec = util::crypto::random_bytes(cencryption.iv_len());
+                iv_vec = util::random_bytes(cencryption.iv_len());
                 Some(iv_vec.as_slice())
             } else {
                 None
@@ -443,11 +443,11 @@ impl JweContext {
 
             let key = match &selected_key {
                 Some(val) => Cow::Borrowed(val.as_ref()),
-                None => Cow::Owned(util::crypto::random_bytes(cencryption.key_len())),
+                None => Cow::Owned(util::random_bytes(cencryption.key_len())),
             };
 
             let iv = if cencryption.iv_len() > 0 {
-                Some(util::crypto::random_bytes(cencryption.iv_len()))
+                Some(util::random_bytes(cencryption.iv_len()))
             } else {
                 None
             };
@@ -683,7 +683,7 @@ impl JweContext {
                 &mut protected,
             )? {
                 Some(val) => val,
-                None => Cow::Owned(util::crypto::random_bytes(cencryption.key_len())),
+                None => Cow::Owned(util::random_bytes(cencryption.key_len())),
             };
 
             let encrypted_key = encrypter.encrypt(&key, &merged, &mut protected)?;
@@ -704,7 +704,7 @@ impl JweContext {
 
             let iv_vec;
             let iv = if cencryption.iv_len() > 0 {
-                iv_vec = util::crypto::random_bytes(cencryption.iv_len());
+                iv_vec = util::random_bytes(cencryption.iv_len());
                 Some(iv_vec.as_slice())
             } else {
                 None
