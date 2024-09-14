@@ -7,8 +7,8 @@ use std::sync::LazyLock;
 use anyhow::bail;
 use base64::DecodeError;
 use base64::Engine as _;
-use regex;
 use openssl::rand;
+use regex;
 
 pub use crate::util::hash_algorithm::HashAlgorithm;
 

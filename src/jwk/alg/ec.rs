@@ -484,7 +484,7 @@ impl EcKeyPair {
 
         builder.build()
     }
-    
+
     fn num_to_vec(num: &BigNumRef, len: usize) -> Vec<u8> {
         let vec = num.to_vec();
         if vec.len() < len {
