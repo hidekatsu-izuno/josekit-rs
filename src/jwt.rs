@@ -193,8 +193,8 @@ mod tests {
         RS256, RS384, RS512,
     };
     use crate::jwt::{self, JwtPayload};
-    use crate::util;
     use crate::Value;
+    use crate::{util, JoseHeader};
 
     #[test]
     fn test_decode_header() -> Result<()> {
@@ -203,6 +203,27 @@ mod tests {
         let header = jwt::decode_header(&data)?;
         assert_eq!(
             header.claim("alg"),
+            Some(&Value::String("RS256".to_string()))
+        );
+
+        let header = jwt::decode_header(&data)?;
+        let jws_header = header.as_any().downcast_ref::<JwsHeader>().unwrap();
+        assert_eq!(
+            jws_header.claim("alg"),
+            Some(&Value::String("RS256".to_string()))
+        );
+
+        let mut header = jwt::decode_header(&data)?;
+        let jws_header = header.as_any_mut().downcast_mut::<JwsHeader>().unwrap();
+        assert_eq!(
+            jws_header.claim("alg"),
+            Some(&Value::String("RS256".to_string()))
+        );
+
+        let header = jwt::decode_header(&data)?;
+        let jws_header = header.into_any().downcast::<JwsHeader>().unwrap();
+        assert_eq!(
+            jws_header.claim("alg"),
             Some(&Value::String("RS256".to_string()))
         );
 

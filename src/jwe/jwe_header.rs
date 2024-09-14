@@ -1,3 +1,4 @@
+use std::any::Any;
 use std::cmp::Eq;
 use std::convert::Into;
 use std::fmt::{Debug, Display};
@@ -611,6 +612,18 @@ impl JoseHeader for JweHeader {
 
     fn box_clone(&self) -> Box<dyn JoseHeader> {
         Box::new(self.clone())
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+
+    fn into_any(self: Box<Self>) -> Box<dyn Any> {
+        self
     }
 }
 

@@ -1,8 +1,8 @@
 use crate::Value;
 
-use std::fmt::Debug;
+use std::{any::Any, fmt::Debug};
 
-pub trait JoseHeader: Send + Sync + Debug {
+pub trait JoseHeader: Any + Send + Sync + Debug {
     /// Return claim count.
     fn len(&self) -> usize;
 
@@ -14,6 +14,12 @@ pub trait JoseHeader: Send + Sync + Debug {
     fn claim(&self, key: &str) -> Option<&Value>;
 
     fn box_clone(&self) -> Box<dyn JoseHeader>;
+
+    fn as_any(&self) -> &dyn Any;
+
+    fn as_any_mut(&mut self) -> &mut dyn Any;
+
+    fn into_any(self: Box<Self>) -> Box<dyn Any>;
 }
 
 impl Clone for Box<dyn JoseHeader> {
