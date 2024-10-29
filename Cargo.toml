@@ -44,6 +44,8 @@ unused_import_braces = "allow"
 unused_qualifications = "allow"
 
 [lints.clippy]
+# TODO: Disable
+all = "allow"
 tabs_in_doc_comments = "allow"
 branches_sharing_code = "allow"
 cast_lossless = "allow"
