@@ -111,7 +111,7 @@ impl Jwk {
         Ok(key_pair.to_jwk_key_pair())
     }
 
-    /// Generate private key from private key.
+    /// Generate public key from private key.
     pub fn to_public_key(&self) -> Result<Self, JoseError> {
         (|| -> anyhow::Result<Jwk> {
             let jwk = match self.key_type() {
