@@ -22,7 +22,11 @@ impl JwkSet {
     pub fn new() -> Self {
         Self {
             keys: Vec::new(),
-            params: Map::new(),
+            params: {
+                let mut map = Map::new();
+                map.insert("keys".to_string(), Value::Array(Vec::new()));
+                map
+            },
             kid_map: BTreeMap::new(),
         }
     }
@@ -171,6 +175,21 @@ mod tests {
     use anyhow::Result;
     use std::fs::File;
     use std::path::PathBuf;
+
+    #[test]
+    fn test_new_jwk_set() -> Result<()> {
+        let mut jwks = JwkSet::new();
+        assert_eq!(jwks.keys().len(), 0);
+
+        let mut file = load_file("jwks/test.jwks")?;
+        let tmp_jwks = JwkSet::from_reader(&mut file)?;
+        for jwk in tmp_jwks.keys() {
+            jwks.push_key(jwk.clone());
+        }
+        assert_eq!(jwks.keys().len(), 2);
+
+        Ok(())
+    }
 
     #[test]
     fn test_load_jwt_set() -> Result<()> {
