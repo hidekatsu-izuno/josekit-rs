@@ -51,8 +51,8 @@ impl DerBuilder {
         self.append(DerType::Integer, None, &vec);
     }
 
-    pub fn append_integer_from_be_slice(&mut self, value: &[u8], sign: bool) {
-        let prefix = if sign && value.len() > 0 && value[0] & 0b10000000 != 0 {
+    pub fn append_integer_from_be_slice(&mut self, value: &[u8], unsigned: bool) {
+        let prefix = if unsigned && value.len() > 0 && value[0] & 0b10000000 != 0 {
             Some(0)
         } else {
             None
