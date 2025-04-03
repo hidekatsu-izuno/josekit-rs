@@ -565,6 +565,16 @@ impl Jwk {
         })()
         .map_err(|err| JoseError::InvalidJwkFormat(err))
     }
+
+    fn extract_string<'a>(&'a self, name: &'a str) -> anyhow::Result<&'a String> {
+        let value = match self.map.get(name) {
+            Some(Value::String(k)) => k,
+            Some(_) => bail!("The parameter '{name}' must be a string."),
+            None => bail!("The key type '{}' must have parameter '{name}'.", self.key_type()),
+        };
+
+        Ok(value)
+    }
 }
 
 impl AsRef<Map<String, Value>> for Jwk {
