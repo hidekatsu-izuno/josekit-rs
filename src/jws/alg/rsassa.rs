@@ -277,16 +277,7 @@ impl RsassaJwsAlgorithm {
                 None => bail!("A parameter e is required."),
             };
 
-            let mut builder = DerBuilder::new();
-            builder.begin(DerType::Sequence);
-            {
-                builder.append_integer_from_be_slice(&n, false); // n
-                builder.append_integer_from_be_slice(&e, false); // e
-            }
-            builder.end();
-
-            let pkcs8 = RsaKeyPair::to_pkcs8(&builder.build(), true);
-            let public_key = PKey::public_key_from_der(&pkcs8)?;
+            let public_key = PKey::public_key_from_der(Self::rsa_integers_to_der(&n, &e).as_slice())?;
             let key_id = jwk.key_id().map(|val| val.to_string());
 
             let rsa = public_key.rsa()?;
@@ -309,6 +300,18 @@ impl RsassaJwsAlgorithm {
             Self::Rs384 => HashAlgorithm::Sha384,
             Self::Rs512 => HashAlgorithm::Sha512,
         }
+    }
+
+    fn rsa_integers_to_der(n: &[u8], e: &[u8]) -> Vec<u8> {
+        let mut builder = DerBuilder::new();
+        builder.begin(DerType::Sequence);
+        {
+            builder.append_integer_from_be_slice(n, true); // n
+            builder.append_integer_from_be_slice(e, true); // e
+        }
+        builder.end();
+    
+        RsaKeyPair::to_pkcs8(&builder.build(), true)
     }
 }
 
@@ -469,6 +472,31 @@ mod tests {
     use anyhow::Result;
     use std::fs;
     use std::path::PathBuf;
+
+    #[test]
+    fn test_rsa_integers_to_der() {
+        let n_b64 = 
+            "jAuCIOz0ZCZsJO1XRU4_wi62k_Qp5TofcADv3RdzQNw_pyG9S6-cwPDX1_KEgJ1\
+            E63J0nNtpzBQUWuS7mQEhooDPuHM7iYjQw6YZ3AL9xnizJkAsxAWNwLksPtnGz60\
+            Y42uBDHDYcsyEcxi2j_SSjNH3mGVSrjns1yd6Ym4mZ-fc1bG6UoRDgh1UdphnTbO\
+            TExzHxKLTx2-HN9V13e1rxNImYoDMBxl-zhknUqsNuKJWx2iKCANLAnfrQWotTBR\
+            LGCk0m-ckP0K8iK48Mdgg_pbMgYwuLaq9et9zgsJedI7Iy75xh3-GCSw_tBwK1CN\
+            AnCdlVJGOJau5UFkFYmDV0Q";
+        let e_b64 = "AQAB";
+        let expected_b64 = "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAjAuCIOz0ZCZsJO1XRU4/\
+            wi62k/Qp5TofcADv3RdzQNw/pyG9S6+cwPDX1/KEgJ1E63J0nNtpzBQUWuS7mQEh\
+            ooDPuHM7iYjQw6YZ3AL9xnizJkAsxAWNwLksPtnGz60Y42uBDHDYcsyEcxi2j/SS\
+            jNH3mGVSrjns1yd6Ym4mZ+fc1bG6UoRDgh1UdphnTbOTExzHxKLTx2+HN9V13e1r\
+            xNImYoDMBxl+zhknUqsNuKJWx2iKCANLAnfrQWotTBRLGCk0m+ckP0K8iK48Mdgg\
+            /pbMgYwuLaq9et9zgsJedI7Iy75xh3+GCSw/tBwK1CNAnCdlVJGOJau5UFkFYmDV\
+            0QIDAQAB";
+
+        let n = util::decode_base64_urlsafe_no_pad(n_b64).unwrap();
+        let e = util::decode_base64_urlsafe_no_pad(e_b64).unwrap();
+        let expected = util::decode_base64_standard(expected_b64).unwrap();
+
+        assert_eq!(RsassaJwsAlgorithm::rsa_integers_to_der(&n, &e), expected)
+    }
 
     #[test]
     fn sign_and_verify_rsassa_generated_der() -> Result<()> {

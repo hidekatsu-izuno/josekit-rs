@@ -349,8 +349,8 @@ impl RsassaPssJwsAlgorithm {
             let mut builder = DerBuilder::new();
             builder.begin(DerType::Sequence);
             {
-                builder.append_integer_from_be_slice(&n, false); // n
-                builder.append_integer_from_be_slice(&e, false); // e
+                builder.append_integer_from_be_slice(&n, true); // n
+                builder.append_integer_from_be_slice(&e, true); // e
             }
             builder.end();
 

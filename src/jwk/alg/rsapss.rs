@@ -326,14 +326,14 @@ impl RsaPssKeyPair {
             builder.begin(DerType::Sequence);
             {
                 builder.append_integer_from_u8(0); // version
-                builder.append_integer_from_be_slice(&n, false); // n
-                builder.append_integer_from_be_slice(&e, false); // e
-                builder.append_integer_from_be_slice(&d, false); // d
-                builder.append_integer_from_be_slice(&p, false); // p
-                builder.append_integer_from_be_slice(&q, false); // q
-                builder.append_integer_from_be_slice(&dp, false); // d mod (p-1)
-                builder.append_integer_from_be_slice(&dq, false); // d mod (q-1)
-                builder.append_integer_from_be_slice(&qi, false); // (inverse of q) mod p
+                builder.append_integer_from_be_slice(&n, true); // n
+                builder.append_integer_from_be_slice(&e, true); // e
+                builder.append_integer_from_be_slice(&d, true); // d
+                builder.append_integer_from_be_slice(&p, true); // p
+                builder.append_integer_from_be_slice(&q, true); // q
+                builder.append_integer_from_be_slice(&dp, true); // d mod (p-1)
+                builder.append_integer_from_be_slice(&dq, true); // d mod (q-1)
+                builder.append_integer_from_be_slice(&qi, true); // (inverse of q) mod p
             }
             builder.end();
 
