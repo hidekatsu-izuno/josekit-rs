@@ -1,6 +1,6 @@
 [package]
 name = "josekit"
-version = "0.10.1"
+version = "0.10.2"
 description = "JOSE (Javascript Object Signing and Encryption) library for Rust."
 repository = "https://github.com/hidekatsu-izuno/josekit-rs"
 readme = "README.md"
@@ -17,7 +17,7 @@ default = []
 vendored = ["openssl/vendored"]
 
 [dependencies]
-thiserror = "1"
+thiserror = "2"
 anyhow = "1"
 regex = "1"
 serde = { version = "1", features = ["derive"] }
