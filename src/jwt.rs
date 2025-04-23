@@ -183,9 +183,9 @@ mod tests {
 
     #[allow(deprecated)]
     use crate::jwe::{
-        Dir, A128GCMKW, A128KW, A192GCMKW, A192KW, A256GCMKW, A256KW, ECDH_ES, ECDH_ES_A128KW,
-        ECDH_ES_A192KW, ECDH_ES_A256KW, PBES2_HS256_A128KW, PBES2_HS384_A192KW, PBES2_HS512_A256KW,
-        RSA1_5, RSA_OAEP, RSA_OAEP_256,
+        Dir, JweHeader, A128GCMKW, A128KW, A192GCMKW, A192KW, A256GCMKW, A256KW, ECDH_ES,
+        ECDH_ES_A128KW, ECDH_ES_A192KW, ECDH_ES_A256KW, PBES2_HS256_A128KW, PBES2_HS384_A192KW,
+        PBES2_HS512_A256KW, RSA1_5, RSA_OAEP, RSA_OAEP_256,
     };
     use crate::jwk::Jwk;
     use crate::jws::{
@@ -815,6 +815,48 @@ mod tests {
             }
         }
 
+        Ok(())
+    }
+
+    #[test]
+    fn test_nested_jwt_sign_encrypt_decrypt_verify() -> Result<()> {
+        let claim = json!("John");
+        let signing_alg = ES256;
+        let signing_key = load_file("pem/EC_P-256_private.pem")?;
+        let verifying_key = load_file("pem/EC_P-256_public.pem")?;
+
+        let header = JwsHeader::new();
+        let mut nested_payload = JwtPayload::new();
+
+        nested_payload.set_claim("given_name", Some(claim))?;
+
+        let signer = signing_alg.signer_from_pem(signing_key)?;
+        let signed_jwt_string = jwt::encode_with_signer(&nested_payload, &header, &signer)?;
+
+        let encryption_alg = RSA_OAEP_256;
+        let encryption_key = load_file("pem/RSA_2048bit_public.pem")?;
+        let decryption_key = load_file("pem/RSA_2048bit_private.pem")?;
+
+        let mut header = JweHeader::new();
+        header.set_token_type("JWT");
+        header.set_content_encryption("A128CBC-HS256");
+        let payload = JwtPayload::from_nested_jwt(&signed_jwt_string);
+
+        let encrypter = encryption_alg.encrypter_from_pem(encryption_key)?;
+        let encrypted_nested_jwt_string =
+            jwt::encode_with_encrypter(&payload, &header, &encrypter)?;
+
+        let decrypter = encryption_alg.decrypter_from_pem(decryption_key)?;
+        let decrypted_nested_jwt =
+            jwt::decode_with_decrypter(encrypted_nested_jwt_string, &decrypter)?;
+
+        let verifier = signing_alg.verifier_from_pem(verifying_key)?;
+        let signed_jwt = jwt::decode_with_verifier(
+            decrypted_nested_jwt.0.nested_jwt_bytes().unwrap(),
+            &verifier,
+        )?;
+
+        assert_eq!(nested_payload, signed_jwt.0);
         Ok(())
     }
 

@@ -8,12 +8,34 @@ use anyhow::bail;
 #[derive(Debug, Eq, PartialEq, Clone, Default)]
 pub struct JwtPayload {
     claims: Map<String, Value>,
+    nested_jwt: Option<String>,
 }
 
 impl JwtPayload {
     /// Return a new JWT payload
     pub fn new() -> Self {
-        Self { claims: Map::new() }
+        Self {
+            claims: Map::new(),
+            nested_jwt: Default::default(),
+        }
+    }
+
+    /// Return a new JWT payload from nested JWT string
+    pub fn from_nested_jwt(jwt: &str) -> Self {
+        Self {
+            claims: Map::new(),
+            nested_jwt: Some(jwt.to_string()),
+        }
+    }
+
+    /// Return a nested JWT string as bytes
+    pub fn nested_jwt_bytes(&self) -> Option<Vec<u8>> {
+        self.nested_jwt.as_ref().map(|s| s.as_bytes().to_vec())
+    }
+
+    /// Return a nested JWT as string
+    pub fn nested_jwt(&self) -> Option<&str> {
+        self.nested_jwt.as_ref().map(|s| s.as_str())
     }
 
     /// Return the JWT payload from map.
@@ -27,7 +49,10 @@ impl JwtPayload {
             Self::check_claim(key, value)?;
         }
 
-        Ok(Self { claims: map })
+        Ok(Self {
+            claims: map,
+            nested_jwt: Default::default(),
+        })
     }
 
     /// Set a value for issuer payload claim (iss).
@@ -302,7 +327,10 @@ impl Into<Map<String, Value>> for JwtPayload {
 
 impl Display for JwtPayload {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
-        let val = serde_json::to_string(&self.claims).map_err(|_e| std::fmt::Error {})?;
+        let val = match self.nested_jwt().as_ref() {
+            Some(jwt) => jwt.to_string(),
+            None => serde_json::to_string(&self.claims).map_err(|_e| std::fmt::Error {})?,
+        };
         fmt.write_str(&val)
     }
 }
