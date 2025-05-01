@@ -29,3 +29,8 @@ openssl = { version = "0.10.68" }
 
 [dev-dependencies]
 doc-comment = "0.3.3"
+criterion = "0.5.1"
+
+[[bench]]
+name = "benches"
+harness = false
