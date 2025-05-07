@@ -496,6 +496,11 @@ impl RsaPssKeyPair {
                             }
 
                             match reader.next() {
+                                Ok(Some(DerType::Null)) => {}
+                                _ => break,
+                            }
+
+                            match reader.next() {
                                 Ok(Some(DerType::EndOfContents)) => {}
                                 _ => break,
                             }
@@ -541,6 +546,11 @@ impl RsaPssKeyPair {
                                     }
                                     _ => return None,
                                 },
+                                _ => break,
+                            }
+
+                            match reader.next() {
+                                Ok(Some(DerType::Null)) => {}
                                 _ => break,
                             }
 
