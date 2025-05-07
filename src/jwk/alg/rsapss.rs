@@ -495,6 +495,15 @@ impl RsaPssKeyPair {
                                 _ => break,
                             }
 
+                            match reader.peek() {
+                                Ok(Some(DerType::Null)) => {
+                                    // Skip NULL
+                                    let _ = reader.next();
+                                }
+                                Ok(Some(DerType::EndOfContents)) => {}
+                                _ => break,
+                            }
+
                             match reader.next() {
                                 Ok(Some(DerType::EndOfContents)) => {}
                                 _ => break,
@@ -541,6 +550,15 @@ impl RsaPssKeyPair {
                                     }
                                     _ => return None,
                                 },
+                                _ => break,
+                            }
+
+                            match reader.peek() {
+                                Ok(Some(DerType::Null)) => {
+                                    // Skip NULL
+                                    let _ = reader.next();
+                                }
+                                Ok(Some(DerType::EndOfContents)) => {}
                                 _ => break,
                             }
 
