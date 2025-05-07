@@ -16,6 +16,7 @@ pub struct DerReader<R: Read> {
     der_type: DerType,
     constructed: bool,
     contents: Option<Vec<u8>>,
+    peeked: Option<Result<Option<DerType>, DerError>>,
     read_count: usize,
 }
 
@@ -34,10 +35,27 @@ impl<R: Read> DerReader<R> {
             constructed: false,
             contents: None,
             read_count: 0,
+            peeked: None,
+        }
+    }
+
+    pub fn peek(&mut self) -> &Result<Option<DerType>, DerError> {
+        if let Some(ref peeked) = self.peeked {
+            peeked
+        } else {
+            self.peeked = Some(self.next_inner());
+            self.peeked.as_ref().unwrap()
         }
     }
 
     pub fn next(&mut self) -> Result<Option<DerType>, DerError> {
+        match self.peeked.take() {
+            Some(v) => v,
+            None => self.next_inner(),
+        }
+    }
+
+    fn next_inner(&mut self) -> Result<Option<DerType>, DerError> {
         let mut depth = self.stack.len();
         let mut is_indefinite_parent = false;
         if depth > 0 {
