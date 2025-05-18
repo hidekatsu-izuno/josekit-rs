@@ -118,20 +118,33 @@ impl JwtPayload {
     /// * `value` - A expiration time on or after which the JWT must not be accepted for processing.
     pub fn set_expires_at(&mut self, value: &SystemTime) {
         let key = "exp".to_string();
-        let val = Number::from(
-            value
-                .duration_since(SystemTime::UNIX_EPOCH)
-                .unwrap()
-                .as_secs(),
-        );
-        self.claims.insert(key.clone(), Value::Number(val));
+        let duration = value.duration_since(SystemTime::UNIX_EPOCH).unwrap();
+        let val = if duration.subsec_nanos() != 0 {
+            Value::Number(
+                Number::from_f64(
+                    value
+                        .duration_since(SystemTime::UNIX_EPOCH)
+                        .unwrap()
+                        .as_secs_f64(),
+                )
+                .unwrap(),
+            )
+        } else {
+            Value::Number(Number::from(
+                value
+                    .duration_since(SystemTime::UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs(),
+            ))
+        };
+        self.claims.insert(key.clone(), val);
     }
 
     /// Return the system time for expires at payload claim (exp).
     pub fn expires_at(&self) -> Option<SystemTime> {
         match self.claims.get("exp") {
-            Some(Value::Number(val)) => match val.as_u64() {
-                Some(val) => Some(SystemTime::UNIX_EPOCH + Duration::from_secs(val)),
+            Some(Value::Number(val)) => match val.as_f64() {
+                Some(val) => Some(SystemTime::UNIX_EPOCH + Duration::from_secs_f64(val)),
                 None => None,
             },
             _ => None,
@@ -145,20 +158,21 @@ impl JwtPayload {
     /// * `value` - A time before which the JWT must not be accepted for processing.
     pub fn set_not_before(&mut self, value: &SystemTime) {
         let key = "nbf".to_string();
-        let val = Number::from(
+        let val = Number::from_f64(
             value
                 .duration_since(SystemTime::UNIX_EPOCH)
                 .unwrap()
-                .as_secs(),
-        );
+                .as_secs_f64(),
+        )
+        .unwrap();
         self.claims.insert(key.clone(), Value::Number(val));
     }
 
     /// Return the system time for not before payload claim (nbf).
     pub fn not_before(&self) -> Option<SystemTime> {
         match self.claims.get("nbf") {
-            Some(Value::Number(val)) => match val.as_u64() {
-                Some(val) => Some(SystemTime::UNIX_EPOCH + Duration::from_secs(val)),
+            Some(Value::Number(val)) => match val.as_f64() {
+                Some(val) => Some(SystemTime::UNIX_EPOCH + Duration::from_secs_f64(val)),
                 None => None,
             },
             _ => None,
@@ -172,20 +186,21 @@ impl JwtPayload {
     /// * `value` - a time at which the JWT was issued.
     pub fn set_issued_at(&mut self, value: &SystemTime) {
         let key = "iat".to_string();
-        let val = Number::from(
+        let val = Number::from_f64(
             value
                 .duration_since(SystemTime::UNIX_EPOCH)
                 .unwrap()
-                .as_secs(),
-        );
+                .as_secs_f64(),
+        )
+        .unwrap();
         self.claims.insert(key.clone(), Value::Number(val));
     }
 
     /// Return the time for a issued at payload claim (iat).
     pub fn issued_at(&self) -> Option<SystemTime> {
         match self.claims.get("iat") {
-            Some(Value::Number(val)) => match val.as_u64() {
-                Some(val) => Some(SystemTime::UNIX_EPOCH + Duration::from_secs(val)),
+            Some(Value::Number(val)) => match val.as_f64() {
+                Some(val) => Some(SystemTime::UNIX_EPOCH + Duration::from_secs_f64(val)),
                 None => None,
             },
             _ => None,
@@ -270,14 +285,13 @@ impl JwtPayload {
                     _ => bail!("The JWT {} payload claim must be a string or array.", key),
                 },
                 "exp" | "nbf" | "iat" => match &value {
-                    Value::Number(val) => match val.as_u64() {
-                        Some(_) => {}
-                        None => bail!(
-                            "The JWT {} payload claim must be a positive integer within 64bit.",
-                            key
-                        ),
-                    },
-                    _ => bail!("The JWT {} header claim must be a string.", key),
+                    Value::Number(val) if !is_negative(val) => {}
+                    Value::Number(val) => bail!(
+                        "The JWT {} payload claim must be a 64bit positive integer or floating point: {}",
+                        key,
+                        val,
+                    ),
+                    _ => bail!("The JWT {} header claim must be a number.", key),
                 },
                 _ => {}
             }
@@ -307,12 +321,24 @@ impl Display for JwtPayload {
     }
 }
 
+fn is_negative(num: &Number) -> bool {
+    if let Some(num) = num.as_i128() {
+        num < 0
+    } else if let Some(num) = num.as_i64() {
+        num < 0
+    } else if let Some(num) = num.as_f64() {
+        num < 0.0
+    } else {
+        false
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use std::time::SystemTime;
+    use std::time::{Duration, SystemTime};
 
     use anyhow::Result;
-    use serde_json::json;
+    use serde_json::{json, Number, Value};
 
     use super::JwtPayload;
 
@@ -336,6 +362,61 @@ mod tests {
         assert!(matches!(payload.expires_at(), Some(ref val) if val == &SystemTime::UNIX_EPOCH));
         assert!(matches!(payload.not_before(), Some(ref val) if val == &SystemTime::UNIX_EPOCH));
         assert!(matches!(payload.issued_at(), Some(ref val) if val == &SystemTime::UNIX_EPOCH));
+        assert!(matches!(payload.jwt_id(), Some("jti")));
+        assert!(
+            matches!(payload.claim("payload_claim"), Some(val) if val == &json!("payload_claim"))
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_f64_time_payload() -> Result<()> {
+        let mut payload = JwtPayload::new();
+        payload.set_issuer("iss");
+        payload.set_subject("sub");
+        payload.set_audience(vec!["aud0", "aud1"]);
+        payload.set_expires_at(
+            &SystemTime::UNIX_EPOCH
+                .checked_add(Duration::new(1, 1))
+                .unwrap(),
+        );
+        payload.set_not_before(
+            &SystemTime::UNIX_EPOCH
+                .checked_add(Duration::new(12, 12))
+                .unwrap(),
+        );
+        payload.set_issued_at(
+            &SystemTime::UNIX_EPOCH
+                .checked_add(Duration::new(123, 123))
+                .unwrap(),
+        );
+        payload.set_jwt_id("jti");
+        payload.set_claim("payload_claim", Some(json!("payload_claim")))?;
+
+        assert!(matches!(payload.issuer(), Some("iss")));
+        assert!(matches!(payload.subject(), Some("sub")));
+        assert!(
+            matches!(payload.audience(), Some(ref vals) if vals == &vec!["aud0".to_string(), "aud1".to_string()])
+        );
+        assert!(
+            matches!(payload.claim("exp"), Some(Value::Number(ref val)) if val == &Number::from_f64(1.000000001).unwrap())
+        );
+        assert!(
+            matches!(payload.claim("nbf"), Some(Value::Number(ref val)) if val == &Number::from_f64(12.000000012).unwrap())
+        );
+        assert!(
+            matches!(payload.claim("iat"), Some(Value::Number(ref val)) if val == &Number::from_f64(123.000000123).unwrap())
+        );
+        assert!(
+            matches!(payload.expires_at(), Some(ref val) if val == &SystemTime::UNIX_EPOCH.checked_add(Duration::new(1, 1)).unwrap())
+        );
+        assert!(
+            matches!(payload.not_before(), Some(ref val) if val == &SystemTime::UNIX_EPOCH.checked_add(Duration::new(12, 12)).unwrap())
+        );
+        assert!(
+            matches!(payload.issued_at(), Some(ref val) if val == &SystemTime::UNIX_EPOCH.checked_add(Duration::new(123, 123)).unwrap())
+        );
         assert!(matches!(payload.jwt_id(), Some("jti")));
         assert!(
             matches!(payload.claim("payload_claim"), Some(val) if val == &json!("payload_claim"))
