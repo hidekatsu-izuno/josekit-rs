@@ -6,6 +6,8 @@ use std::string::ToString;
 
 use anyhow::bail;
 
+use openssl::sha::sha256;
+
 use crate::jwk::alg::ec::{EcCurve, EcKeyPair};
 use crate::jwk::alg::ecx::{EcxCurve, EcxKeyPair};
 use crate::jwk::alg::ed::{EdCurve, EdKeyPair};
@@ -211,6 +213,39 @@ impl Jwk {
             Ok(jwk)
         })()
         .map_err(|err| JoseError::InvalidJwkFormat(err))
+    }
+
+    /// Generate SHA-256 JWK thumbprint from public key.
+    pub fn to_sha256_thumbprint(&self) -> Result<String, JoseError> {
+        (|| -> anyhow::Result<String> {
+            let json = match self.key_type() {
+                "oct" => {
+                    let k = self.extract_string("k")?;
+                    format!(r#"{{"k":"{k}","kty":"oct"}}"#)
+                }
+                "RSA" => {
+                    let e = self.extract_string("e")?;
+                    let n = self.extract_string("n")?;
+                    format!(r#"{{"e":"{e}","kty":"RSA","n":"{n}"}}"#)
+                }
+                "EC" => {
+                    let crv = self.extract_string("crv")?;
+                    let x = self.extract_string("x")?;
+                    let y = self.extract_string("y")?;
+                    format!(r#"{{"crv":"{crv}","kty":"EC","x":"{x}","y":"{y}"}}"#)
+                }
+                "OKP" => {
+                    let crv = self.extract_string("crv")?;
+                    let x = self.extract_string("x")?;
+                    format!(r#"{{"crv":"{crv}","kty":"OKP","x":"{x}"}}"#)
+                }
+                val => bail!("Unknown key type: {}", val),
+            };
+
+            let thumbprint = sha256(json.as_bytes());
+            Ok(util::encode_base64_urlsafe_nopad(thumbprint))
+        })()
+        .map_err(JoseError::InvalidJwkFormat)
     }
 
     /// Set a value for a key type parameter (kty).
@@ -564,6 +599,19 @@ impl Jwk {
             Ok(())
         })()
         .map_err(|err| JoseError::InvalidJwkFormat(err))
+    }
+
+    fn extract_string<'a>(&'a self, name: &'a str) -> anyhow::Result<&'a String> {
+        let value = match self.map.get(name) {
+            Some(Value::String(k)) => k,
+            Some(_) => bail!("The parameter '{name}' must be a string."),
+            None => bail!(
+                "The key type '{}' must have parameter '{name}'.",
+                self.key_type()
+            ),
+        };
+
+        Ok(value)
     }
 }
 
