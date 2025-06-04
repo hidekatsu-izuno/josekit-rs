@@ -6,7 +6,7 @@ JOSE (Javascript Object Signing and Encryption: JWT, JWS, JWE, JWA, JWK) library
 
 ```toml
 [dependencies]
-josekit = "0.10.3"
+josekit = "0.10.4"
 ```
 
 This library depends on OpenSSL 1.1.1 or above DLL. Read more about [Crate openssl](https://docs.rs/openssl/). 
@@ -18,6 +18,9 @@ sudo apt install build-essential pkg-config libssl-dev
 cd josekit-rs
 cargo build --release
 ```
+### Crate Features
+1. `claims-as-ints` [Default] - Claims are processed as integers
+1. `claims-as-floats` - Claims are processed as floats
 
 <!-- 
 ## Publish
