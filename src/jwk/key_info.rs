@@ -5,9 +5,12 @@ use crate::jwk::Jwk;
 use crate::util;
 use crate::util::der::{DerClass, DerError, DerReader, DerType};
 use crate::util::oid::{
-    OID_ED25519, OID_ED448, OID_ID_EC_PUBLIC_KEY, OID_MGF1, OID_PRIME256V1, OID_RSASSA_PSS,
+    OID_ED25519, OID_ID_EC_PUBLIC_KEY, OID_MGF1, OID_PRIME256V1, OID_RSASSA_PSS,
     OID_RSA_ENCRYPTION, OID_SECP256K1, OID_SECP384R1, OID_SECP521R1, OID_SHA1, OID_SHA256,
-    OID_SHA384, OID_SHA512, OID_X25519, OID_X448,
+    OID_SHA384, OID_SHA512, OID_X25519,
+};
+#[cfg(openssl111)] use util::oid::{
+    OID_ED448, OID_X448,
 };
 use crate::util::HashAlgorithm;
 
@@ -149,7 +152,7 @@ impl KeyInfo {
                             is_public_key: key_info.is_public_key(),
                         }
                     }
-                    "ED448 PRIVATE KEY" => {
+                    #[cfg(openssl111)] "ED448 PRIVATE KEY" => {
                         let key_info = Self::detect_from_der(&data)?;
                         if key_info.is_public_key()
                             || !matches!(
@@ -187,7 +190,7 @@ impl KeyInfo {
                             is_public_key: key_info.is_public_key(),
                         }
                     }
-                    "X448 PRIVATE KEY" => {
+                    #[cfg(openssl111)] "X448 PRIVATE KEY" => {
                         let key_info = Self::detect_from_der(&data)?;
                         if key_info.is_public_key()
                             || !matches!(
@@ -282,13 +285,13 @@ impl KeyInfo {
                             Some("Ed25519") => Some(KeyAlg::Ed {
                                 curve: Some(EdCurve::Ed25519),
                             }),
-                            Some("Ed448") => Some(KeyAlg::Ed {
+                            #[cfg(openssl111)] Some("Ed448") => Some(KeyAlg::Ed {
                                 curve: Some(EdCurve::Ed448),
                             }),
                             Some("X25519") => Some(KeyAlg::Ecx {
                                 curve: Some(EcxCurve::X25519),
                             }),
-                            Some("X448") => Some(KeyAlg::Ecx {
+                            #[cfg(openssl111)] Some("X448") => Some(KeyAlg::Ecx {
                                 curve: Some(EcxCurve::X448),
                             }),
                             Some(_) => None,
@@ -371,7 +374,7 @@ impl KeyInfo {
                         }),
                         is_public_key: true,
                     },
-                    val if val == *OID_ED448 => KeyInfo {
+                    #[cfg(openssl111)] val if val == *OID_ED448 => KeyInfo {
                         format: KeyFormat::Der { raw: false },
                         alg: Some(KeyAlg::Ed {
                             curve: Some(EdCurve::Ed448),
@@ -385,7 +388,7 @@ impl KeyInfo {
                         }),
                         is_public_key: true,
                     },
-                    val if val == *OID_X448 => KeyInfo {
+                    #[cfg(openssl111)] val if val == *OID_X448 => KeyInfo {
                         format: KeyFormat::Der { raw: false },
                         alg: Some(KeyAlg::Ecx {
                             curve: Some(EcxCurve::X448),
@@ -449,7 +452,7 @@ impl KeyInfo {
                             }),
                             is_public_key: false,
                         },
-                        val if val == *OID_ED448 => KeyInfo {
+                        #[cfg(openssl111)] val if val == *OID_ED448 => KeyInfo {
                             format: KeyFormat::Der { raw: false },
                             alg: Some(KeyAlg::Ed {
                                 curve: Some(EdCurve::Ed448),
@@ -463,7 +466,7 @@ impl KeyInfo {
                             }),
                             is_public_key: false,
                         },
-                        val if val == *OID_X448 => KeyInfo {
+                        #[cfg(openssl111)] val if val == *OID_X448 => KeyInfo {
                             format: KeyFormat::Der { raw: false },
                             alg: Some(KeyAlg::Ecx {
                                 curve: Some(EcxCurve::X448),
@@ -1040,7 +1043,7 @@ mod tests {
 
     #[test]
     fn test_detect_ed_der_private_key() -> Result<()> {
-        for curve in &[EdCurve::Ed25519, EdCurve::Ed448] {
+        for curve in &[EdCurve::Ed25519, #[cfg(openssl111)] EdCurve::Ed448] {
             let input = load_file(&format!(
                 "der/{}_pkcs8_private.der",
                 curve.name().to_uppercase()
@@ -1062,7 +1065,7 @@ mod tests {
 
     #[test]
     fn test_detect_ed_der_public_key() -> Result<()> {
-        for curve in &[EdCurve::Ed25519, EdCurve::Ed448] {
+        for curve in &[EdCurve::Ed25519, #[cfg(openssl111)] EdCurve::Ed448] {
             let input = load_file(&format!(
                 "der/{}_spki_public.der",
                 curve.name().to_uppercase()
@@ -1084,7 +1087,7 @@ mod tests {
 
     #[test]
     fn test_detect_ed_pem_private_key() -> Result<()> {
-        for curve in &[EdCurve::Ed25519, EdCurve::Ed448] {
+        for curve in &[EdCurve::Ed25519, #[cfg(openssl111)] EdCurve::Ed448] {
             let input = load_file(&format!("pem/{}_private.pem", curve.name().to_uppercase()))?;
 
             let key_info = KeyInfo::detect(&input).unwrap();
@@ -1103,7 +1106,7 @@ mod tests {
 
     #[test]
     fn test_detect_ed_pem_public_key() -> Result<()> {
-        for curve in &[EdCurve::Ed25519, EdCurve::Ed448] {
+        for curve in &[EdCurve::Ed25519, #[cfg(openssl111)] EdCurve::Ed448] {
             let input = load_file(&format!("pem/{}_public.pem", curve.name().to_uppercase()))?;
 
             let key_info = KeyInfo::detect(&input).unwrap();
@@ -1122,7 +1125,7 @@ mod tests {
 
     #[test]
     fn test_detect_ed_traditional_pem_private_key() -> Result<()> {
-        for curve in &[EdCurve::Ed25519, EdCurve::Ed448] {
+        for curve in &[EdCurve::Ed25519, #[cfg(openssl111)] EdCurve::Ed448] {
             let input = load_file(&format!(
                 "pem/{}_traditional_private.pem",
                 curve.name().to_uppercase()
@@ -1144,7 +1147,7 @@ mod tests {
 
     #[test]
     fn test_detect_ed_jwk_private_key() -> Result<()> {
-        for curve in &[EdCurve::Ed25519, EdCurve::Ed448] {
+        for curve in &[EdCurve::Ed25519, #[cfg(openssl111)] EdCurve::Ed448] {
             let input = load_file(&format!("jwk/OKP_{}_private.jwk", curve.name()))?;
 
             let key_info = KeyInfo::detect(&input).unwrap();
@@ -1163,7 +1166,7 @@ mod tests {
 
     #[test]
     fn test_detect_ed_jwk_public_key() -> Result<()> {
-        for curve in &[EdCurve::Ed25519, EdCurve::Ed448] {
+        for curve in &[EdCurve::Ed25519, #[cfg(openssl111)] EdCurve::Ed448] {
             let input = load_file(&format!("jwk/OKP_{}_public.jwk", curve.name()))?;
 
             let key_info = KeyInfo::detect(&input).unwrap();
@@ -1182,7 +1185,7 @@ mod tests {
 
     #[test]
     fn test_detect_ecx_der_private_key() -> Result<()> {
-        for curve in &[EcxCurve::X25519, EcxCurve::X448] {
+        for curve in &[EcxCurve::X25519, #[cfg(openssl111)] EcxCurve::X448] {
             let input = load_file(&format!(
                 "der/{}_pkcs8_private.der",
                 curve.name().to_uppercase()
@@ -1204,7 +1207,7 @@ mod tests {
 
     #[test]
     fn test_detect_ecx_der_public_key() -> Result<()> {
-        for curve in &[EcxCurve::X25519, EcxCurve::X448] {
+        for curve in &[EcxCurve::X25519, #[cfg(openssl111)] EcxCurve::X448] {
             let input = load_file(&format!(
                 "der/{}_spki_public.der",
                 curve.name().to_uppercase()
@@ -1226,7 +1229,7 @@ mod tests {
 
     #[test]
     fn test_detect_ecx_pem_private_key() -> Result<()> {
-        for curve in &[EcxCurve::X25519, EcxCurve::X448] {
+        for curve in &[EcxCurve::X25519, #[cfg(openssl111)] EcxCurve::X448] {
             let input = load_file(&format!("pem/{}_private.pem", curve.name().to_uppercase()))?;
 
             let key_info = KeyInfo::detect(&input).unwrap();
@@ -1245,7 +1248,7 @@ mod tests {
 
     #[test]
     fn test_detect_ecx_pem_public_key() -> Result<()> {
-        for curve in &[EcxCurve::X25519, EcxCurve::X448] {
+        for curve in &[EcxCurve::X25519, #[cfg(openssl111)] EcxCurve::X448] {
             let input = load_file(&format!("pem/{}_public.pem", curve.name().to_uppercase()))?;
 
             let key_info = KeyInfo::detect(&input).unwrap();
@@ -1264,7 +1267,7 @@ mod tests {
 
     #[test]
     fn test_detect_ecx_traditional_pem_private_key() -> Result<()> {
-        for curve in &[EcxCurve::X25519, EcxCurve::X448] {
+        for curve in &[EcxCurve::X25519, #[cfg(openssl111)] EcxCurve::X448] {
             let input = load_file(&format!(
                 "pem/{}_traditional_private.pem",
                 curve.name().to_uppercase()
@@ -1286,7 +1289,7 @@ mod tests {
 
     #[test]
     fn test_detect_ecx_jwk_private_key() -> Result<()> {
-        for curve in &[EcxCurve::X25519, EcxCurve::X448] {
+        for curve in &[EcxCurve::X25519, #[cfg(openssl111)] EcxCurve::X448] {
             let input = load_file(&format!("jwk/OKP_{}_private.jwk", curve.name()))?;
 
             let key_info = KeyInfo::detect(&input).unwrap();
@@ -1305,7 +1308,7 @@ mod tests {
 
     #[test]
     fn test_detect_ecx_jwk_public_key() -> Result<()> {
-        for curve in &[EcxCurve::X25519, EcxCurve::X448] {
+        for curve in &[EcxCurve::X25519, #[cfg(openssl111)] EcxCurve::X448] {
             let input = load_file(&format!("jwk/OKP_{}_public.jwk", curve.name()))?;
 
             let key_info = KeyInfo::detect(&input).unwrap();

@@ -7,27 +7,28 @@ use openssl::pkey::{PKey, Private};
 use crate::jwk::{Jwk, KeyPair};
 use crate::util;
 use crate::util::der::{DerBuilder, DerReader, DerType};
-use crate::util::oid::{ObjectIdentifier, OID_ED25519, OID_ED448};
+use crate::util::oid::{ObjectIdentifier, OID_ED25519};
+#[cfg(openssl111)] use crate::util::oid::OID_ED448;
 use crate::{JoseError, Value};
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum EdCurve {
     Ed25519,
-    Ed448,
+    #[cfg(openssl111)] Ed448,
 }
 
 impl EdCurve {
     pub fn name(&self) -> &str {
         match self {
             Self::Ed25519 => "Ed25519",
-            Self::Ed448 => "Ed448",
+            #[cfg(openssl111)] Self::Ed448 => "Ed448",
         }
     }
 
     pub fn oid(&self) -> &ObjectIdentifier {
         match self {
             Self::Ed25519 => &*OID_ED25519,
-            Self::Ed448 => &*OID_ED448,
+            #[cfg(openssl111)] Self::Ed448 => &*OID_ED448,
         }
     }
 }
@@ -78,7 +79,7 @@ impl EdKeyPair {
         (|| -> anyhow::Result<Self> {
             let private_key = match curve {
                 EdCurve::Ed25519 => PKey::generate_ed25519()?,
-                EdCurve::Ed448 => PKey::generate_ed448()?,
+                #[cfg(openssl111)] EdCurve::Ed448 => PKey::generate_ed448()?,
             };
 
             Ok(Self {
@@ -140,7 +141,7 @@ impl EdKeyPair {
                     Some(val) => bail!("The EdDSA curve is mismatched: {}", val.name()),
                     None => bail!("The EdDSA private key must be wrapped by PKCS#8 format."),
                 },
-                "ED448 PRIVATE KEY" => match EdKeyPair::detect_pkcs8(&data, false) {
+                #[cfg(openssl111)] "ED448 PRIVATE KEY" => match EdKeyPair::detect_pkcs8(&data, false) {
                     Some(val) if val == EdCurve::Ed448 => (data.as_slice(), val),
                     Some(val) => bail!("The EdDSA curve is mismatched: {}", val.name()),
                     None => bail!("The EdDSA private key must be wrapped by PKCS#8 format."),
@@ -173,7 +174,7 @@ impl EdKeyPair {
             let curve = match jwk.parameter("crv") {
                 Some(Value::String(val)) => match val.as_str() {
                     "Ed25519" => EdCurve::Ed25519,
-                    "Ed448" => EdCurve::Ed448,
+                    #[cfg(openssl111)] "Ed448" => EdCurve::Ed448,
                     _ => bail!("A parameter crv is unrecognized: {}", val),
                 },
                 Some(_) => bail!("A parameter crv must be a string."),
@@ -208,7 +209,7 @@ impl EdKeyPair {
         let der = util::encode_base64_standard(&der);
         let alg = match self.curve {
             EdCurve::Ed25519 => "ED25519 PRIVATE KEY",
-            EdCurve::Ed448 => "ED448 PRIVATE KEY",
+            #[cfg(openssl111)] EdCurve::Ed448 => "ED448 PRIVATE KEY",
         };
 
         let mut result = String::new();
@@ -372,7 +373,7 @@ impl EdKeyPair {
                 curve = match reader.next() {
                     Ok(Some(DerType::ObjectIdentifier)) => match reader.to_object_identifier() {
                         Ok(val) if val == *OID_ED25519 => EdCurve::Ed25519,
-                        Ok(val) if val == *OID_ED448 => EdCurve::Ed448,
+                        #[cfg(openssl111)] Ok(val) if val == *OID_ED448 => EdCurve::Ed448,
                         _ => return None,
                     },
                     _ => return None,
@@ -473,7 +474,7 @@ mod tests {
 
     #[test]
     fn test_ed_jwt() -> Result<()> {
-        for curve in vec![EdCurve::Ed25519, EdCurve::Ed448] {
+        for curve in vec![EdCurve::Ed25519, #[cfg(openssl111)] EdCurve::Ed448] {
             let key_pair_1 = EdKeyPair::generate(curve)?;
             let der_private1 = key_pair_1.to_der_private_key();
             let der_public1 = key_pair_1.to_der_public_key();

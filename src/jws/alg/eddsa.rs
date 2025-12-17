@@ -209,7 +209,7 @@ impl EddsaJwsAlgorithm {
             }
             let curve = match jwk.parameter("crv") {
                 Some(Value::String(val)) if val == "Ed25519" => EdCurve::Ed25519,
-                Some(Value::String(val)) if val == "Ed448" => EdCurve::Ed448,
+                #[cfg(openssl111)] Some(Value::String(val)) if val == "Ed448" => EdCurve::Ed448,
                 Some(Value::String(val)) => bail!("A parameter crv must is invalid: {}", val),
                 Some(_) => bail!("A parameter crv must be a string."),
                 None => bail!("A parameter crv is required."),
@@ -284,7 +284,7 @@ impl JwsSigner for EddsaJwsSigner {
     fn signature_len(&self) -> usize {
         match self.curve {
             EdCurve::Ed25519 => 64,
-            EdCurve::Ed448 => 114,
+            #[cfg(openssl111)] EdCurve::Ed448 => 114,
         }
     }
 
@@ -383,7 +383,7 @@ mod tests {
     fn sign_and_verify_eddsa_generated_der() -> Result<()> {
         let input = b"abcde12345";
 
-        for curve in vec![EdCurve::Ed25519, EdCurve::Ed448] {
+        for curve in vec![EdCurve::Ed25519, #[cfg(openssl111)] EdCurve::Ed448] {
             let alg = EddsaJwsAlgorithm::Eddsa;
             let key_pair = alg.generate_key_pair(curve)?;
 
@@ -401,7 +401,7 @@ mod tests {
     fn sign_and_verify_eddsa_generated_pem() -> Result<()> {
         let input = b"abcde12345";
 
-        for curve in vec![EdCurve::Ed25519, EdCurve::Ed448] {
+        for curve in vec![EdCurve::Ed25519, #[cfg(openssl111)] EdCurve::Ed448] {
             let alg = EddsaJwsAlgorithm::Eddsa;
             let key_pair = alg.generate_key_pair(curve)?;
 
@@ -419,7 +419,7 @@ mod tests {
     fn sign_and_verify_eddsa_generated_traditional_pem() -> Result<()> {
         let input = b"abcde12345";
 
-        for curve in vec![EdCurve::Ed25519, EdCurve::Ed448] {
+        for curve in vec![EdCurve::Ed25519, #[cfg(openssl111)] EdCurve::Ed448] {
             let alg = EddsaJwsAlgorithm::Eddsa;
             let key_pair = alg.generate_key_pair(curve)?;
 
@@ -437,7 +437,7 @@ mod tests {
     fn sign_and_verify_eddsa_generated_jwk() -> Result<()> {
         let input = b"abcde12345";
 
-        for curve in vec![EdCurve::Ed25519, EdCurve::Ed448] {
+        for curve in vec![EdCurve::Ed25519, #[cfg(openssl111)] EdCurve::Ed448] {
             let alg = EddsaJwsAlgorithm::Eddsa;
             let key_pair = alg.generate_key_pair(curve)?;
 
@@ -475,7 +475,7 @@ mod tests {
 
         let alg = EddsaJwsAlgorithm::Eddsa;
 
-        for crv in &["ED25519", "ED448"] {
+        for crv in &["ED25519", #[cfg(openssl111)] "ED448"] {
             let private_key = load_file(&format!("pem/{}_private.pem", crv))?;
             let public_key = load_file(&format!("pem/{}_public.pem", crv))?;
 
@@ -495,7 +495,7 @@ mod tests {
 
         let alg = EddsaJwsAlgorithm::Eddsa;
 
-        for crv in &["ED25519", "ED448"] {
+        for crv in &["ED25519", #[cfg(openssl111)] "ED448"] {
             let private_key = load_file(&format!("der/{}_pkcs8_private.der", crv))?;
             let public_key = load_file(&format!("der/{}_spki_public.der", crv))?;
 
@@ -513,7 +513,7 @@ mod tests {
     fn sign_and_verify_eddsa_mismatch() -> Result<()> {
         let input = b"abcde12345";
 
-        for curve in vec![EdCurve::Ed25519, EdCurve::Ed448] {
+        for curve in vec![EdCurve::Ed25519, #[cfg(openssl111)] EdCurve::Ed448] {
             let alg = EddsaJwsAlgorithm::Eddsa;
             let signer_key_pair = alg.generate_key_pair(curve)?;
             let verifier_key_pair = alg.generate_key_pair(curve)?;

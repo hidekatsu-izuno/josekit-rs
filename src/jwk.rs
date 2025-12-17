@@ -20,7 +20,7 @@ pub use crate::jwk::alg::ec::EcCurve::P384 as P_384;
 pub use crate::jwk::alg::ec::EcCurve::P521 as P_521;
 
 pub use crate::jwk::alg::ed::EdCurve::Ed25519;
-pub use crate::jwk::alg::ed::EdCurve::Ed448;
+#[cfg(openssl111)] pub use crate::jwk::alg::ed::EdCurve::Ed448;
 
 pub use crate::jwk::alg::ecx::EcxCurve::X25519;
-pub use crate::jwk::alg::ecx::EcxCurve::X448;
+#[cfg(openssl111)] pub use crate::jwk::alg::ecx::EcxCurve::X448;
