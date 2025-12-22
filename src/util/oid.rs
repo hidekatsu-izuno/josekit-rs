@@ -39,13 +39,13 @@ pub static OID_SECP256K1: LazyLock<ObjectIdentifier> =
 pub static OID_ED25519: LazyLock<ObjectIdentifier> =
     LazyLock::new(|| ObjectIdentifier::from_slice(&[1, 3, 101, 112]));
 
-pub static OID_ED448: LazyLock<ObjectIdentifier> =
+#[cfg(openssl111)] pub static OID_ED448: LazyLock<ObjectIdentifier> =
     LazyLock::new(|| ObjectIdentifier::from_slice(&[1, 3, 101, 113]));
 
 pub static OID_X25519: LazyLock<ObjectIdentifier> =
     LazyLock::new(|| ObjectIdentifier::from_slice(&[1, 3, 101, 110]));
 
-pub static OID_X448: LazyLock<ObjectIdentifier> =
+#[cfg(openssl111)] pub static OID_X448: LazyLock<ObjectIdentifier> =
     LazyLock::new(|| ObjectIdentifier::from_slice(&[1, 3, 101, 111]));
 
 #[derive(Debug, Eq, PartialEq)]

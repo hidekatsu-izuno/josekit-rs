@@ -7,27 +7,28 @@ use openssl::pkey::{PKey, Private};
 use crate::jwk::{Jwk, KeyPair};
 use crate::util;
 use crate::util::der::{DerBuilder, DerReader, DerType};
-use crate::util::oid::{ObjectIdentifier, OID_X25519, OID_X448};
+use crate::util::oid::{ObjectIdentifier, OID_X25519};
+#[cfg(openssl111)] use crate::util::oid::OID_X448;
 use crate::{JoseError, Value};
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum EcxCurve {
     X25519,
-    X448,
+    #[cfg(openssl111)] X448,
 }
 
 impl EcxCurve {
     pub fn name(&self) -> &str {
         match self {
             Self::X25519 => "X25519",
-            Self::X448 => "X448",
+            #[cfg(openssl111)] Self::X448 => "X448",
         }
     }
 
     pub fn oid(&self) -> &ObjectIdentifier {
         match self {
             Self::X25519 => &*OID_X25519,
-            Self::X448 => &*OID_X448,
+            #[cfg(openssl111)] Self::X448 => &*OID_X448,
         }
     }
 }
@@ -78,7 +79,7 @@ impl EcxKeyPair {
         (|| -> anyhow::Result<EcxKeyPair> {
             let private_key = match curve {
                 EcxCurve::X25519 => PKey::generate_x25519()?,
-                EcxCurve::X448 => PKey::generate_x448()?,
+                #[cfg(openssl111)] EcxCurve::X448 => PKey::generate_x448()?,
             };
 
             Ok(EcxKeyPair {
@@ -145,7 +146,7 @@ impl EcxKeyPair {
                         bail!("The Montgomery curve private key must be wrapped by PKCS#8 format.")
                     }
                 },
-                "X448 PRIVATE KEY" => match EcxKeyPair::detect_pkcs8(&data, false) {
+                #[cfg(openssl111)] "X448 PRIVATE KEY" => match EcxKeyPair::detect_pkcs8(&data, false) {
                     Some(val) if val == EcxCurve::X448 => (data.as_slice(), val),
                     Some(val) => bail!("The EdDSA curve is mismatched: {}", val.name()),
                     None => {
@@ -180,7 +181,7 @@ impl EcxKeyPair {
             let curve = match jwk.parameter("crv") {
                 Some(Value::String(val)) => match val.as_str() {
                     "X25519" => EcxCurve::X25519,
-                    "X448" => EcxCurve::X448,
+                    #[cfg(openssl111)] "X448" => EcxCurve::X448,
                     _ => bail!("A parameter crv is unrecognized: {}", val),
                 },
                 Some(_) => bail!("A parameter crv must be a string."),
@@ -215,7 +216,7 @@ impl EcxKeyPair {
         let der = util::encode_base64_standard(&der);
         let alg = match self.curve {
             EcxCurve::X25519 => "X25519 PRIVATE KEY",
-            EcxCurve::X448 => "X448 PRIVATE KEY",
+            #[cfg(openssl111)] EcxCurve::X448 => "X448 PRIVATE KEY",
         };
 
         let mut result = String::new();
@@ -373,7 +374,7 @@ impl EcxKeyPair {
                 curve = match reader.next() {
                     Ok(Some(DerType::ObjectIdentifier)) => match reader.to_object_identifier() {
                         Ok(val) if val == *OID_X25519 => EcxCurve::X25519,
-                        Ok(val) if val == *OID_X448 => EcxCurve::X448,
+                        #[cfg(openssl111)] Ok(val) if val == *OID_X448 => EcxCurve::X448,
                         _ => return None,
                     },
                     _ => return None,
@@ -476,7 +477,7 @@ mod tests {
 
     #[test]
     fn test_generate_ecx() -> Result<()> {
-        for curve in vec![EcxCurve::X25519, EcxCurve::X448] {
+        for curve in vec![EcxCurve::X25519, #[cfg(openssl111)] EcxCurve::X448] {
             let key_pair_1 = EcxKeyPair::generate(curve)?;
             let der_private1 = key_pair_1.to_der_private_key();
             let der_public1 = key_pair_1.to_der_public_key();
@@ -496,15 +497,15 @@ mod tests {
 
     #[test]
     fn test_ecx_key_pair() -> Result<()> {
-        for curve in vec![EcxCurve::X25519, EcxCurve::X448] {
+        for curve in vec![EcxCurve::X25519, #[cfg(openssl111)] EcxCurve::X448] {
             let private_key = load_file(match curve {
                 EcxCurve::X25519 => "der/X25519_pkcs8_private.der",
-                EcxCurve::X448 => "der/X448_pkcs8_private.der",
+                #[cfg(openssl111)] EcxCurve::X448 => "der/X448_pkcs8_private.der",
             })?;
 
             let public_key = load_file(match curve {
                 EcxCurve::X25519 => "der/X25519_spki_public.der",
-                EcxCurve::X448 => "der/X448_spki_public.der",
+                #[cfg(openssl111)] EcxCurve::X448 => "der/X448_spki_public.der",
             })?;
 
             let key_pair_1 = EcxKeyPair::from_der(private_key)?;

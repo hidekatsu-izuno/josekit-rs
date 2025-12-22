@@ -18,8 +18,8 @@ use crate::util;
 use crate::util::der::{DerReader, DerType};
 use crate::util::oid::{
     OID_ID_EC_PUBLIC_KEY, OID_PRIME256V1, OID_SECP256K1, OID_SECP384R1, OID_SECP521R1, OID_X25519,
-    OID_X448,
 };
+#[cfg(openssl111)] use crate::util::oid::OID_X448;
 use crate::{JoseError, JoseHeader, Map, Value};
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
@@ -239,7 +239,7 @@ impl EcdhEsJweAlgorithm {
                     "OKP" => {
                         let curve = match val.as_str() {
                             "X25519" => EcxCurve::X25519,
-                            "X448" => EcxCurve::X448,
+                            #[cfg(openssl111)] "X448" => EcxCurve::X448,
                             val => bail!("OKP key doesn't support the curve algorithm: {}", val),
                         };
                         let x = match jwk.parameter("x") {
@@ -326,7 +326,7 @@ impl EcdhEsJweAlgorithm {
                     Some(val) => bail!("The curve name is mismatched: {}", val),
                     None => bail!("PEM contents is expected PKCS#8 wrapped key."),
                 },
-                "X448 PRIVATE KEY" => match Self::detect_pkcs8(data.as_slice(), false) {
+                #[cfg(openssl111)] "X448 PRIVATE KEY" => match Self::detect_pkcs8(data.as_slice(), false) {
                     Some(val @ EcdhEsKeyType::Ecx(EcxCurve::X448)) => (data.as_slice(), val),
                     Some(val) => bail!("The curve name is mismatched: {}", val),
                     None => bail!("PEM contents is expected PKCS#8 wrapped key."),
@@ -390,7 +390,7 @@ impl EcdhEsJweAlgorithm {
                     "OKP" => {
                         let curve = match val.as_str() {
                             "X25519" => EcxCurve::X25519,
-                            "X448" => EcxCurve::X448,
+                            #[cfg(openssl111)] "X448" => EcxCurve::X448,
                             val => bail!("OKP key doesn't support the curve algorithm: {}", val),
                         };
                         match jwk.curve() {
@@ -464,15 +464,10 @@ impl EcdhEsJweAlgorithm {
             {
                 match reader.next() {
                     Ok(Some(DerType::ObjectIdentifier)) => match reader.to_object_identifier() {
-                        Ok(val) => {
-                            if val == *OID_X25519 {
-                                return Some(EcdhEsKeyType::Ecx(EcxCurve::X25519));
-                            } else if val == *OID_X448 {
-                                return Some(EcdhEsKeyType::Ecx(EcxCurve::X448));
-                            } else if val != *OID_ID_EC_PUBLIC_KEY {
-                                return None;
-                            }
-                        }
+                        Ok(val) if val == *OID_X25519 => return Some(EcdhEsKeyType::Ecx(EcxCurve::X25519)),
+                        #[cfg(openssl111)] Ok(val) if val == *OID_X448 => return Some(EcdhEsKeyType::Ecx(EcxCurve::X448)),
+                        Ok(val) if val != *OID_ID_EC_PUBLIC_KEY => return None,
+                        Ok(_) => (),
                         _ => return None,
                     },
                     _ => return None,
@@ -1029,7 +1024,7 @@ mod tests {
                 EcdhEsKeyType::Ec(EcCurve::P521),
                 EcdhEsKeyType::Ec(EcCurve::Secp256k1),
                 EcdhEsKeyType::Ecx(EcxCurve::X25519),
-                EcdhEsKeyType::Ecx(EcxCurve::X448),
+                #[cfg(openssl111)] EcdhEsKeyType::Ecx(EcxCurve::X448),
             ] {
                 let private_key = load_file(match key {
                     EcdhEsKeyType::Ec(EcCurve::P256) => "der/EC_P-256_pkcs8_private.der",
@@ -1037,7 +1032,7 @@ mod tests {
                     EcdhEsKeyType::Ec(EcCurve::P521) => "der/EC_P-521_pkcs8_private.der",
                     EcdhEsKeyType::Ec(EcCurve::Secp256k1) => "der/EC_secp256k1_pkcs8_private.der",
                     EcdhEsKeyType::Ecx(EcxCurve::X25519) => "der/X25519_pkcs8_private.der",
-                    EcdhEsKeyType::Ecx(EcxCurve::X448) => "der/X448_pkcs8_private.der",
+                    #[cfg(openssl111)] EcdhEsKeyType::Ecx(EcxCurve::X448) => "der/X448_pkcs8_private.der",
                 })?;
 
                 let public_key = load_file(match key {
@@ -1046,7 +1041,7 @@ mod tests {
                     EcdhEsKeyType::Ec(EcCurve::P521) => "der/EC_P-521_spki_public.der",
                     EcdhEsKeyType::Ec(EcCurve::Secp256k1) => "der/EC_secp256k1_spki_public.der",
                     EcdhEsKeyType::Ecx(EcxCurve::X25519) => "der/X25519_spki_public.der",
-                    EcdhEsKeyType::Ecx(EcxCurve::X448) => "der/X448_spki_public.der",
+                    #[cfg(openssl111)] EcdhEsKeyType::Ecx(EcxCurve::X448) => "der/X448_spki_public.der",
                 })?;
 
                 let mut header = JweHeader::new();
@@ -1091,7 +1086,7 @@ mod tests {
                 EcdhEsKeyType::Ec(EcCurve::P521),
                 EcdhEsKeyType::Ec(EcCurve::Secp256k1),
                 EcdhEsKeyType::Ecx(EcxCurve::X25519),
-                EcdhEsKeyType::Ecx(EcxCurve::X448),
+                #[cfg(openssl111)] EcdhEsKeyType::Ecx(EcxCurve::X448),
             ] {
                 let private_key = load_file(match key {
                     EcdhEsKeyType::Ec(EcCurve::P256) => "pem/EC_P-256_private.pem",
@@ -1099,7 +1094,7 @@ mod tests {
                     EcdhEsKeyType::Ec(EcCurve::P521) => "pem/EC_P-521_private.pem",
                     EcdhEsKeyType::Ec(EcCurve::Secp256k1) => "pem/EC_secp256k1_private.pem",
                     EcdhEsKeyType::Ecx(EcxCurve::X25519) => "pem/X25519_private.pem",
-                    EcdhEsKeyType::Ecx(EcxCurve::X448) => "pem/X448_private.pem",
+                    #[cfg(openssl111)] EcdhEsKeyType::Ecx(EcxCurve::X448) => "pem/X448_private.pem",
                 })?;
 
                 let public_key = load_file(match key {
@@ -1108,7 +1103,7 @@ mod tests {
                     EcdhEsKeyType::Ec(EcCurve::P521) => "pem/EC_P-521_public.pem",
                     EcdhEsKeyType::Ec(EcCurve::Secp256k1) => "pem/EC_secp256k1_public.pem",
                     EcdhEsKeyType::Ecx(EcxCurve::X25519) => "pem/X25519_public.pem",
-                    EcdhEsKeyType::Ecx(EcxCurve::X448) => "pem/X448_public.pem",
+                    #[cfg(openssl111)] EcdhEsKeyType::Ecx(EcxCurve::X448) => "pem/X448_public.pem",
                 })?;
 
                 let mut header = JweHeader::new();
@@ -1153,7 +1148,7 @@ mod tests {
                 EcdhEsKeyType::Ec(EcCurve::P521),
                 EcdhEsKeyType::Ec(EcCurve::Secp256k1),
                 EcdhEsKeyType::Ecx(EcxCurve::X25519),
-                EcdhEsKeyType::Ecx(EcxCurve::X448),
+                #[cfg(openssl111)] EcdhEsKeyType::Ecx(EcxCurve::X448),
             ] {
                 let private_key = load_file(match key {
                     EcdhEsKeyType::Ec(EcCurve::P256) => "pem/EC_P-256_traditional_private.pem",
@@ -1163,7 +1158,7 @@ mod tests {
                         "pem/EC_secp256k1_traditional_private.pem"
                     }
                     EcdhEsKeyType::Ecx(EcxCurve::X25519) => "pem/X25519_traditional_private.pem",
-                    EcdhEsKeyType::Ecx(EcxCurve::X448) => "pem/X448_traditional_private.pem",
+                    #[cfg(openssl111)] EcdhEsKeyType::Ecx(EcxCurve::X448) => "pem/X448_traditional_private.pem",
                 })?;
 
                 let public_key = load_file(match key {
@@ -1172,7 +1167,7 @@ mod tests {
                     EcdhEsKeyType::Ec(EcCurve::P521) => "pem/EC_P-521_public.pem",
                     EcdhEsKeyType::Ec(EcCurve::Secp256k1) => "pem/EC_secp256k1_public.pem",
                     EcdhEsKeyType::Ecx(EcxCurve::X25519) => "pem/X25519_public.pem",
-                    EcdhEsKeyType::Ecx(EcxCurve::X448) => "pem/X448_public.pem",
+                    #[cfg(openssl111)] EcdhEsKeyType::Ecx(EcxCurve::X448) => "pem/X448_public.pem",
                 })?;
 
                 let mut header = JweHeader::new();
@@ -1217,7 +1212,7 @@ mod tests {
                 EcdhEsKeyType::Ec(EcCurve::P521),
                 EcdhEsKeyType::Ec(EcCurve::Secp256k1),
                 EcdhEsKeyType::Ecx(EcxCurve::X25519),
-                EcdhEsKeyType::Ecx(EcxCurve::X448),
+                #[cfg(openssl111)] EcdhEsKeyType::Ecx(EcxCurve::X448),
             ] {
                 let private_key = load_file(match key {
                     EcdhEsKeyType::Ec(EcCurve::P256) => "jwk/EC_P-256_private.jwk",
@@ -1225,7 +1220,7 @@ mod tests {
                     EcdhEsKeyType::Ec(EcCurve::P521) => "jwk/EC_P-521_private.jwk",
                     EcdhEsKeyType::Ec(EcCurve::Secp256k1) => "jwk/EC_secp256k1_private.jwk",
                     EcdhEsKeyType::Ecx(EcxCurve::X25519) => "jwk/OKP_X25519_private.jwk",
-                    EcdhEsKeyType::Ecx(EcxCurve::X448) => "jwk/OKP_X448_private.jwk",
+                    #[cfg(openssl111)] EcdhEsKeyType::Ecx(EcxCurve::X448) => "jwk/OKP_X448_private.jwk",
                 })?;
 
                 let public_key = load_file(match key {
@@ -1234,7 +1229,7 @@ mod tests {
                     EcdhEsKeyType::Ec(EcCurve::P521) => "jwk/EC_P-521_public.jwk",
                     EcdhEsKeyType::Ec(EcCurve::Secp256k1) => "jwk/EC_secp256k1_public.jwk",
                     EcdhEsKeyType::Ecx(EcxCurve::X25519) => "jwk/OKP_X25519_public.jwk",
-                    EcdhEsKeyType::Ecx(EcxCurve::X448) => "jwk/OKP_X448_public.jwk",
+                    #[cfg(openssl111)] EcdhEsKeyType::Ecx(EcxCurve::X448) => "jwk/OKP_X448_public.jwk",
                 })?;
 
                 let mut header = JweHeader::new();

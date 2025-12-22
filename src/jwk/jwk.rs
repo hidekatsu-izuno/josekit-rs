@@ -188,7 +188,11 @@ impl Jwk {
                     }
                     match self.map.get("crv") {
                         Some(Value::String(val)) => match val.as_str() {
-                            "Ed25519" | "Ed448" | "X25519" | "X448" => {
+                            "Ed25519" | "X25519" => {
+                                jwk.map
+                                    .insert("crv".to_string(), Value::String(val.clone()));
+                            }
+                            #[cfg(openssl111)] "Ed448" | "X448" => {
                                 jwk.map
                                     .insert("crv".to_string(), Value::String(val.clone()));
                             }
