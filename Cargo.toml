@@ -26,7 +26,9 @@ base64 = "0.22"
 flate2 = "1"
 time = "0.3"
 openssl = { version = "0.10.68" }
-openssl-sys = "0.9.111"
 
 [dev-dependencies]
 doc-comment = "0.3.3"
+
+[build-dependencies]
+openssl = { version = "0.10.68" }
