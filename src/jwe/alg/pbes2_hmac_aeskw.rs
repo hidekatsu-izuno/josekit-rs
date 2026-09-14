@@ -3,15 +3,111 @@ use std::convert::TryFrom;
 use std::fmt::Display;
 use std::ops::Deref;
 
-use anyhow::bail;
-use openssl::aes::{self, AesKey};
-use openssl::hash::MessageDigest;
-use openssl::pkcs5;
-
+#[cfg(feature = "rustcrypto")]
+use crate::jwe::alg::aeskw::{aes, AesKey};
 use crate::jwe::{JweAlgorithm, JweContentEncryption, JweDecrypter, JweEncrypter, JweHeader};
 use crate::jwk::Jwk;
 use crate::util::{self, HashAlgorithm};
 use crate::{JoseError, JoseHeader, Number, Value};
+use anyhow::bail;
+#[cfg(feature = "openssl")]
+use openssl::aes::{self, AesKey};
+#[cfg(feature = "openssl")]
+use openssl::hash::MessageDigest;
+#[cfg(feature = "openssl")]
+use openssl::pkcs5;
+#[cfg(feature = "rustcrypto")]
+use sha1::Sha1;
+#[cfg(feature = "rustcrypto")]
+use sha2::Digest;
+#[cfg(feature = "rustcrypto")]
+use sha2::{Sha256, Sha384, Sha512};
+
+#[cfg(feature = "rustcrypto")]
+pub enum MessageDigest {
+    Sha1(Sha1),
+    Sha256(Sha256),
+    Sha384(Sha384),
+    Sha512(Sha512),
+}
+#[cfg(feature = "rustcrypto")]
+#[derive(Debug, Clone)]
+pub enum Hmac {
+    HmacSha1(hmac::Hmac<Sha1>),
+    HmacSha256(hmac::Hmac<Sha256>),
+    HmacSha384(hmac::Hmac<Sha384>),
+    HmacSha512(hmac::Hmac<Sha512>),
+}
+#[cfg(feature = "rustcrypto")]
+impl Hmac {
+    pub fn update(&mut self, data: &[u8]) -> Result<(), anyhow::Error> {
+        use hmac::digest::Update;
+        Ok(match self {
+            Hmac::HmacSha1(ref mut hmac) => hmac.update(data),
+            Hmac::HmacSha256(ref mut hmac) => hmac.update(data),
+            Hmac::HmacSha384(ref mut hmac) => hmac.update(data),
+            Hmac::HmacSha512(ref mut hmac) => hmac.update(data),
+        })
+    }
+    pub fn sign_to_vec(self) -> Result<Vec<u8>, anyhow::Error> {
+        use hmac::Mac;
+        Ok(match self {
+            Hmac::HmacSha1(hmac) => hmac.finalize().into_bytes().to_vec(),
+            Hmac::HmacSha256(hmac) => hmac.finalize().into_bytes().to_vec(),
+            Hmac::HmacSha384(hmac) => hmac.finalize().into_bytes().to_vec(),
+            Hmac::HmacSha512(hmac) => hmac.finalize().into_bytes().to_vec(),
+        })
+    }
+}
+#[cfg(feature = "rustcrypto")]
+impl MessageDigest {
+    pub fn sha1() -> Self {
+        Self::Sha1(Sha1::new())
+    }
+    pub fn sha256() -> Self {
+        Self::Sha256(Sha256::new())
+    }
+    pub fn sha384() -> Self {
+        Self::Sha384(Sha384::new())
+    }
+    pub fn sha512() -> Self {
+        Self::Sha512(Sha512::new())
+    }
+    pub fn pbkdf2(&self, password: &[u8], salt: &[u8], rounds: u32, res: &mut [u8]) {
+        match self {
+            MessageDigest::Sha1(_) => pbkdf2::pbkdf2_hmac::<Sha1>(password, salt, rounds, res),
+            MessageDigest::Sha256(_) => pbkdf2::pbkdf2_hmac::<Sha256>(password, salt, rounds, res),
+            MessageDigest::Sha384(_) => pbkdf2::pbkdf2_hmac::<Sha384>(password, salt, rounds, res),
+            MessageDigest::Sha512(_) => pbkdf2::pbkdf2_hmac::<Sha512>(password, salt, rounds, res),
+        };
+    }
+    pub fn hmac(&self, key: &[u8]) -> Result<self::Hmac, anyhow::Error> {
+        use hmac::KeyInit;
+
+        Ok(match self {
+            MessageDigest::Sha1(_) => {
+                self::Hmac::HmacSha1(hmac::Hmac::<Sha1>::new_from_slice(key)?)
+            }
+            MessageDigest::Sha256(_) => {
+                self::Hmac::HmacSha256(hmac::Hmac::<Sha256>::new_from_slice(key)?)
+            }
+            MessageDigest::Sha384(_) => {
+                self::Hmac::HmacSha384(hmac::Hmac::<Sha384>::new_from_slice(key)?)
+            }
+            MessageDigest::Sha512(_) => {
+                self::Hmac::HmacSha512(hmac::Hmac::<Sha512>::new_from_slice(key)?)
+            }
+        })
+    }
+    pub fn hash(&self, data: &[u8]) -> Vec<u8> {
+        match self {
+            MessageDigest::Sha1(_) => sha1::Sha1::digest(data).to_vec(),
+            MessageDigest::Sha256(_) => sha2::Sha256::digest(data).to_vec(),
+            MessageDigest::Sha384(_) => sha2::Sha384::digest(data).to_vec(),
+            MessageDigest::Sha512(_) => sha2::Sha512::digest(data).to_vec(),
+        }
+    }
+}
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum Pbes2HmacAeskwJweAlgorithm {
@@ -239,12 +335,12 @@ impl JweEncrypter for Pbes2HmacAeskwJweEncrypter {
         }
     }
 
-    fn compute_content_encryption_key(
-        &self,
+    fn compute_content_encryption_key<'a>(
+        &'a self,
         _cencryption: &dyn JweContentEncryption,
         _in_header: &JweHeader,
         _out_header: &mut JweHeader,
-    ) -> Result<Option<Cow<[u8]>>, JoseError> {
+    ) -> Result<Option<Cow<'a, [u8]>>, JoseError> {
         Ok(None)
     }
 
@@ -296,8 +392,10 @@ impl JweEncrypter for Pbes2HmacAeskwJweEncrypter {
                 HashAlgorithm::Sha512 => MessageDigest::sha512(),
             };
             let mut derived_key = vec![0; self.algorithm.derived_key_len()];
+            #[cfg(feature = "openssl")]
             pkcs5::pbkdf2_hmac(&self.private_key, &salt, p2c, md, &mut derived_key)?;
-
+            #[cfg(feature = "rustcrypto")]
+            md.pbkdf2(&self.private_key, &salt, p2c as u32, &mut derived_key);
             let aes = match AesKey::new_encrypt(&derived_key) {
                 Ok(val) => val,
                 Err(_) => bail!("Failed to set a encryption key."),
@@ -305,7 +403,10 @@ impl JweEncrypter for Pbes2HmacAeskwJweEncrypter {
 
             let mut encrypted_key = vec![0; key.len() + 8];
             match aes::wrap_key(&aes, None, &mut encrypted_key, &key) {
-                Ok(val) => {
+                #[allow(unused)]
+                Ok(val) =>
+                {
+                    #[cfg(feature = "openssl")]
                     if val < encrypted_key.len() {
                         encrypted_key.truncate(val);
                     }
@@ -360,12 +461,12 @@ impl JweDecrypter for Pbes2HmacAeskwJweDecrypter {
         }
     }
 
-    fn decrypt(
-        &self,
+    fn decrypt<'a>(
+        &'a self,
         encrypted_key: Option<&[u8]>,
         _cencryption: &dyn JweContentEncryption,
         header: &JweHeader,
-    ) -> Result<Cow<[u8]>, JoseError> {
+    ) -> Result<Cow<'a, [u8]>, JoseError> {
         (|| -> anyhow::Result<Cow<[u8]>> {
             let encrypted_key = match encrypted_key {
                 Some(val) => val,
@@ -411,7 +512,10 @@ impl JweDecrypter for Pbes2HmacAeskwJweDecrypter {
                 HashAlgorithm::Sha512 => MessageDigest::sha512(),
             };
             let mut derived_key = vec![0; self.algorithm.derived_key_len()];
+            #[cfg(feature = "openssl")]
             pkcs5::pbkdf2_hmac(&self.private_key, &salt, p2c, md, &mut derived_key)?;
+            #[cfg(feature = "rustcrypto")]
+            md.pbkdf2(&self.private_key, &salt, p2c as u32, &mut derived_key);
 
             let aes = match AesKey::new_decrypt(&derived_key) {
                 Ok(val) => val,
@@ -420,7 +524,10 @@ impl JweDecrypter for Pbes2HmacAeskwJweDecrypter {
 
             let mut key = vec![0; encrypted_key.len() - 8];
             match aes::unwrap_key(&aes, None, &mut key, &encrypted_key) {
-                Ok(val) => {
+                #[allow(unused)]
+                Ok(val) =>
+                {
+                    #[cfg(feature = "openssl")]
                     if val < key.len() {
                         key.truncate(val);
                     }

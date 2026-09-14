@@ -9,7 +9,10 @@ use anyhow::bail;
 use crate::jwk::alg::ec::{EcCurve, EcKeyPair};
 use crate::jwk::alg::ecx::{EcxCurve, EcxKeyPair};
 use crate::jwk::alg::ed::{EdCurve, EdKeyPair};
+#[cfg(feature = "pqc")]
+use crate::jwk::alg::ml_dsa::{MlDsa, MlDsaKeyPair};
 use crate::jwk::alg::rsa::RsaKeyPair;
+use crate::jwk::KeyPair;
 use crate::util;
 use crate::{JoseError, Map, Value};
 
@@ -110,11 +113,43 @@ impl Jwk {
         let key_pair = EcxKeyPair::generate(curve)?;
         Ok(key_pair.to_jwk_key_pair())
     }
+    /// Generate a new Ml-DSA type JWK.
+    ///
+    /// # Arguments
+    /// * `variant` - The Ml-DSA parameter set
+    #[cfg(feature = "pqc")]
+    pub fn generate_mldsa_key(variant: MlDsa) -> Result<Self, JoseError> {
+        let key_pair = MlDsaKeyPair::generate(variant)?;
+        Ok(key_pair.to_jwk_key_pair())
+    }
 
     /// Generate public key from private key.
     pub fn to_public_key(&self) -> Result<Self, JoseError> {
         (|| -> anyhow::Result<Jwk> {
             let jwk = match self.key_type() {
+                "AKP" => {
+                    let mut jwk = Jwk::new("AKP");
+                    match self.map.get("use") {
+                        Some(Value::String(val)) => {
+                            jwk.map
+                                .insert("use".to_string(), Value::String(val.clone()));
+                        }
+                        _ => {}
+                    }
+                    if let Some(alg) = self.map.get("alg").and_then(|a| a.as_str()) {
+                        jwk.map
+                            .insert("alg".to_string(), Value::String(alg.to_string()));
+                    }
+                    match self.map.get("pub") {
+                        Some(Value::String(val)) => {
+                            jwk.map
+                                .insert("pub".to_string(), Value::String(val.clone()));
+                        }
+                        Some(_) => bail!("The parameter 'pub' must be a string."),
+                        None => bail!("The key type 'AKP' must have parameter 'pub'."),
+                    }
+                    jwk
+                }
                 "oct" => bail!("The key type 'oct' doesn't have public key."),
                 "RSA" => {
                     let mut jwk = Jwk::new("RSA");
@@ -138,6 +173,10 @@ impl Jwk {
                         }
                         Some(_) => bail!("The parameter 'x' must be a string."),
                         None => bail!("The key type 'RSA' must have parameter 'n'."),
+                    }
+                    if let Some(alg) = self.map.get("alg").and_then(|a| a.as_str()) {
+                        jwk.map
+                            .insert("alg".to_string(), Value::String(alg.to_string()));
                     }
                     jwk
                 }
@@ -175,6 +214,10 @@ impl Jwk {
                         Some(_) => bail!("The parameter 'x' must be a string."),
                         None => bail!("The key type 'EC' must have parameter 'y'."),
                     }
+                    if let Some(alg) = self.map.get("alg").and_then(|a| a.as_str()) {
+                        jwk.map
+                            .insert("alg".to_string(), Value::String(alg.to_string()));
+                    }
                     jwk
                 }
                 "OKP" => {
@@ -203,6 +246,10 @@ impl Jwk {
                         }
                         Some(_) => bail!("The parameter 'x' must be a string."),
                         None => bail!("The key type 'OKP' must have parameter 'x'."),
+                    }
+                    if let Some(alg) = self.map.get("alg").and_then(|a| a.as_str()) {
+                        jwk.map
+                            .insert("alg".to_string(), Value::String(alg.to_string()));
                     }
                     jwk
                 }

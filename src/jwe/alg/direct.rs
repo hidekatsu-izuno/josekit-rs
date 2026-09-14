@@ -170,12 +170,12 @@ impl JweEncrypter for DirectJweEncrypter {
         }
     }
 
-    fn compute_content_encryption_key(
-        &self,
+    fn compute_content_encryption_key<'a>(
+        &'a self,
         cencryption: &dyn JweContentEncryption,
         _merged: &JweHeader,
         _header: &mut JweHeader,
-    ) -> Result<Option<Cow<[u8]>>, JoseError> {
+    ) -> Result<Option<Cow<'a, [u8]>>, JoseError> {
         (|| -> anyhow::Result<Option<Cow<[u8]>>> {
             let actual_len = self.cencryption_key.len();
             if cencryption.key_len() != actual_len {
@@ -242,12 +242,12 @@ impl JweDecrypter for DirectJweDecrypter {
         }
     }
 
-    fn decrypt(
-        &self,
+    fn decrypt<'a>(
+        &'a self,
         encrypted_key: Option<&[u8]>,
         _cencryption: &dyn JweContentEncryption,
         _header: &JweHeader,
-    ) -> Result<Cow<[u8]>, JoseError> {
+    ) -> Result<Cow<'a, [u8]>, JoseError> {
         (|| -> anyhow::Result<Cow<[u8]>> {
             if let Some(_) = encrypted_key {
                 bail!("The encrypted_key must not exist.");

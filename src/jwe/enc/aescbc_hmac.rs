@@ -1,14 +1,16 @@
 use std::{fmt::Display, ops::Deref};
 
+#[cfg(feature = "rustcrypto")]
+use crate::jwe::alg::pbes2_hmac_aeskw::MessageDigest;
+use crate::{jwe::JweContentEncryption, JoseError};
 use anyhow::bail;
+#[cfg(feature = "openssl")]
 use openssl::{
     hash::MessageDigest,
     pkey::{PKey, Private},
     sign::Signer,
     symm::{self, Cipher},
 };
-
-use crate::{jwe::JweContentEncryption, JoseError};
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum AescbcHmacJweEncryption {
@@ -33,7 +35,7 @@ impl AescbcHmacJweEncryption {
             Self::A192cbcHs384 => (MessageDigest::sha384(), 24),
             Self::A256cbcHs512 => (MessageDigest::sha512(), 32),
         };
-
+        #[cfg(feature = "openssl")]
         let pkey = (|| -> anyhow::Result<PKey<Private>> {
             let pkey = PKey::hmac(mac_key)?;
             Ok(pkey)
@@ -42,8 +44,10 @@ impl AescbcHmacJweEncryption {
 
         let signature = (|| -> anyhow::Result<Vec<u8>> {
             let aad_bits = ((aad.len() * 8) as u64).to_be_bytes();
-
+            #[cfg(feature = "openssl")]
             let mut signer = Signer::new(message_digest, &pkey)?;
+            #[cfg(feature = "rustcrypto")]
+            let mut signer = message_digest.hmac(mac_key)?;
             signer.update(aad)?;
             if let Some(val) = iv {
                 signer.update(val)?;
@@ -101,12 +105,47 @@ impl JweContentEncryption for AescbcHmacJweEncryption {
             let mac_key_len = expected_len / 2;
             let mac_key = &key[0..mac_key_len];
             let enc_key = &key[mac_key_len..];
+            #[cfg(feature = "openssl")]
             let cipher = match self {
                 AescbcHmacJweEncryption::A128cbcHs256 => Cipher::aes_128_cbc(),
                 AescbcHmacJweEncryption::A192cbcHs384 => Cipher::aes_192_cbc(),
                 AescbcHmacJweEncryption::A256cbcHs512 => Cipher::aes_256_cbc(),
             };
+            #[cfg(feature = "openssl")]
             let encrypted_message = symm::encrypt(cipher, enc_key, iv, message)?;
+            #[cfg(feature = "rustcrypto")]
+            let encrypted_message = match self {
+                AescbcHmacJweEncryption::A128cbcHs256 => {
+                    use aes::cipher::{block_padding::Pkcs7, BlockEncryptMut, KeyIvInit};
+                    let mut default_iv = [0; 16];
+                    if let Some(iv) = iv {
+                        default_iv.copy_from_slice(&iv[..16]);
+                    }
+                    let encryptor =
+                        cbc::Encryptor::<aes::Aes128>::new(enc_key.into(), &default_iv.into());
+                    encryptor.encrypt_padded_vec_mut::<Pkcs7>(&message)
+                }
+                AescbcHmacJweEncryption::A192cbcHs384 => {
+                    use aes::cipher::{block_padding::Pkcs7, BlockEncryptMut, KeyIvInit};
+                    let mut default_iv = [0; 16];
+                    if let Some(iv) = iv {
+                        default_iv.copy_from_slice(&iv[..16]);
+                    }
+                    let encryptor =
+                        cbc::Encryptor::<aes::Aes192>::new(enc_key.into(), &default_iv.into());
+                    encryptor.encrypt_padded_vec_mut::<Pkcs7>(&message)
+                }
+                AescbcHmacJweEncryption::A256cbcHs512 => {
+                    use aes::cipher::{block_padding::Pkcs7, BlockEncryptMut, KeyIvInit};
+                    let mut default_iv = [0; 16];
+                    if let Some(iv) = iv {
+                        default_iv.copy_from_slice(&iv[..16]);
+                    }
+                    let encryptor =
+                        cbc::Encryptor::<aes::Aes256>::new(enc_key.into(), &default_iv.into());
+                    encryptor.encrypt_padded_vec_mut::<Pkcs7>(&message)
+                }
+            };
             Ok((encrypted_message, mac_key))
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))?;
@@ -137,12 +176,53 @@ impl JweContentEncryption for AescbcHmacJweEncryption {
             let mac_key_len = expected_len / 2;
             let mac_key = &key[0..mac_key_len];
             let enc_key = &key[mac_key_len..];
+            #[cfg(feature = "openssl")]
             let cipher = match self {
                 AescbcHmacJweEncryption::A128cbcHs256 => Cipher::aes_128_cbc(),
                 AescbcHmacJweEncryption::A192cbcHs384 => Cipher::aes_192_cbc(),
                 AescbcHmacJweEncryption::A256cbcHs512 => Cipher::aes_256_cbc(),
             };
+            #[cfg(feature = "openssl")]
             let message = symm::decrypt(cipher, enc_key, iv, encrypted_message)?;
+            #[cfg(feature = "rustcrypto")]
+            let message = match self {
+                AescbcHmacJweEncryption::A128cbcHs256 => {
+                    use aes::cipher::{block_padding::Pkcs7, BlockDecryptMut, KeyIvInit};
+                    let mut default_iv = [0; 16];
+                    if let Some(iv) = iv {
+                        default_iv.copy_from_slice(&iv[..16]);
+                    }
+                    let decryptor =
+                        cbc::Decryptor::<aes::Aes128>::new(enc_key.into(), &default_iv.into());
+                    decryptor
+                        .decrypt_padded_vec_mut::<Pkcs7>(&encrypted_message)
+                        .map_err(|e| anyhow::anyhow!(e))?
+                }
+                AescbcHmacJweEncryption::A192cbcHs384 => {
+                    use aes::cipher::{block_padding::Pkcs7, BlockDecryptMut, KeyIvInit};
+                    let mut default_iv = [0; 16];
+                    if let Some(iv) = iv {
+                        default_iv.copy_from_slice(&iv[..16]);
+                    }
+                    let decryptor =
+                        cbc::Decryptor::<aes::Aes192>::new(enc_key.into(), &default_iv.into());
+                    decryptor
+                        .decrypt_padded_vec_mut::<Pkcs7>(&encrypted_message)
+                        .map_err(|e| anyhow::anyhow!(e))?
+                }
+                AescbcHmacJweEncryption::A256cbcHs512 => {
+                    use aes::cipher::{block_padding::Pkcs7, BlockDecryptMut, KeyIvInit};
+                    let mut default_iv = [0; 16];
+                    if let Some(iv) = iv {
+                        default_iv.copy_from_slice(&iv[..16]);
+                    }
+                    let decryptor =
+                        cbc::Decryptor::<aes::Aes256>::new(enc_key.into(), &default_iv.into());
+                    decryptor
+                        .decrypt_padded_vec_mut::<Pkcs7>(encrypted_message)
+                        .map_err(|e| anyhow::anyhow!(e))?
+                }
+            };
             Ok((message, mac_key))
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))?;

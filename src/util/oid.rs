@@ -48,6 +48,15 @@ pub static OID_X25519: LazyLock<ObjectIdentifier> =
 pub static OID_X448: LazyLock<ObjectIdentifier> =
     LazyLock::new(|| ObjectIdentifier::from_slice(&[1, 3, 101, 111]));
 
+pub static ML_DSA_44: LazyLock<ObjectIdentifier> =
+    LazyLock::new(|| ObjectIdentifier::from_slice(&[2, 16, 840, 1, 101, 3, 4, 3, 17]));
+
+pub static ML_DSA_65: LazyLock<ObjectIdentifier> =
+    LazyLock::new(|| ObjectIdentifier::from_slice(&[2, 16, 840, 1, 101, 3, 4, 3, 18]));
+
+pub static ML_DSA_87: LazyLock<ObjectIdentifier> =
+    LazyLock::new(|| ObjectIdentifier::from_slice(&[2, 16, 840, 1, 101, 3, 4, 3, 19]));
+
 #[derive(Debug, Eq, PartialEq)]
 pub struct ObjectIdentifier {
     values: Vec<u64>,

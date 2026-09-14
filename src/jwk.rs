@@ -6,6 +6,7 @@ mod jwk;
 mod jwk_set;
 mod key_info;
 mod key_pair;
+mod public_key;
 
 pub use crate::jwk::jwk::Jwk;
 pub use crate::jwk::jwk_set::JwkSet;
@@ -13,6 +14,7 @@ pub use crate::jwk::key_info::KeyAlg;
 pub use crate::jwk::key_info::KeyFormat;
 pub use crate::jwk::key_info::KeyInfo;
 pub use crate::jwk::key_pair::KeyPair;
+pub use crate::jwk::public_key::PublicKey;
 
 pub use crate::jwk::alg::ec::EcCurve::Secp256k1;
 pub use crate::jwk::alg::ec::EcCurve::P256 as P_256;

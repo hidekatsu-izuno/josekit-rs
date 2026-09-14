@@ -7,7 +7,10 @@ use std::sync::LazyLock;
 use anyhow::bail;
 use base64::DecodeError;
 use base64::Engine as _;
+#[cfg(feature = "openssl")]
 use openssl::rand;
+#[cfg(feature = "rustcrypto")]
+use rand::Rng;
 use regex;
 
 pub use crate::util::hash_algorithm::HashAlgorithm;
@@ -19,7 +22,12 @@ pub use HashAlgorithm::Sha512 as SHA_512;
 
 pub fn random_bytes(len: usize) -> Vec<u8> {
     let mut vec = vec![0; len];
+    #[cfg(feature = "openssl")]
     rand::rand_bytes(&mut vec).unwrap();
+    #[cfg(feature = "rustcrypto")]
+    let mut rand = rand::rng();
+    #[cfg(feature = "rustcrypto")]
+    rand.fill_bytes(&mut vec);
     vec
 }
 

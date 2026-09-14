@@ -2,13 +2,116 @@ use std::borrow::Cow;
 use std::fmt::Display;
 use std::ops::Deref;
 
+#[cfg(feature = "rustcrypto")]
+use aes_gcm::{
+    aead::{consts::U12, Payload},
+    aes::{Aes128, Aes192, Aes256},
+    AeadInPlace, AesGcm, KeyInit, Nonce,
+};
+
 use anyhow::bail;
+
+#[cfg(feature = "openssl")]
 use openssl::symm::{self, Cipher};
 
 use crate::jwe::{JweAlgorithm, JweContentEncryption, JweDecrypter, JweEncrypter, JweHeader};
 use crate::jwk::Jwk;
 use crate::util;
 use crate::{JoseError, JoseHeader, Value};
+
+#[cfg(feature = "rustcrypto")]
+pub enum Cipher {
+    Aes128GCM(AesGcm<Aes128, U12>),
+    Aes192GCM(AesGcm<Aes192, U12>),
+    Aes256GCM(AesGcm<Aes256, U12>),
+}
+
+#[cfg(feature = "rustcrypto")]
+impl Cipher {
+    pub fn aes_128_gcm(key: &[u8]) -> Self {
+        Cipher::Aes128GCM(AesGcm::<Aes128, U12>::new_from_slice(key).unwrap())
+    }
+
+    pub fn aes_192_gcm(key: &[u8]) -> Self {
+        Cipher::Aes192GCM(AesGcm::<Aes192, U12>::new_from_slice(key).unwrap())
+    }
+
+    pub fn aes_256_gcm(key: &[u8]) -> Self {
+        Cipher::Aes256GCM(AesGcm::<Aes256, U12>::new_from_slice(key).unwrap())
+    }
+    pub fn encrypt(
+        &self,
+        iv: &[u8],
+        aad: &[u8],
+        plaintext: &[u8],
+        tag: &mut [u8],
+    ) -> aes_gcm::aead::Result<Vec<u8>> {
+        let p: Payload = Payload {
+            msg: plaintext,
+            aad: aad,
+        };
+        match self {
+            Cipher::Aes128GCM(cipher) => {
+                let nonce = Nonce::from_slice(iv);
+                // TODO: how can we access the TagSize associated type
+                let mut buffer = plaintext.to_vec();
+                let t = cipher.encrypt_in_place_detached(nonce, p.aad, &mut buffer)?;
+                tag.copy_from_slice(&t);
+                Ok(buffer)
+            }
+            Cipher::Aes192GCM(cipher) => {
+                let nonce = Nonce::from_slice(iv);
+                // TODO: how can we access the TagSize associated type
+                let mut buffer = plaintext.to_vec();
+                let t = cipher.encrypt_in_place_detached(nonce, p.aad, &mut buffer)?;
+                tag.copy_from_slice(&t);
+                Ok(buffer)
+            }
+            Cipher::Aes256GCM(cipher) => {
+                let nonce = Nonce::from_slice(iv);
+                // TODO: how can we access the TagSize associated type
+                let mut buffer = plaintext.to_vec();
+                let t = cipher.encrypt_in_place_detached(nonce, p.aad, &mut buffer)?;
+                tag.copy_from_slice(&t);
+                Ok(buffer)
+            }
+        }
+    }
+    pub fn decrypt(
+        &self,
+        iv: &[u8],
+        aad: &[u8],
+        cipher_text: &[u8],
+        tag: &[u8],
+    ) -> Result<Vec<u8>, aes_gcm::Error> {
+        match self {
+            Cipher::Aes128GCM(cipher) => {
+                use aes_gcm::Tag;
+                let nonce = Nonce::from_slice(iv);
+                let mut buffer = cipher_text.to_vec();
+                let t = Tag::clone_from_slice(tag);
+                cipher.decrypt_in_place_detached(nonce, aad, &mut buffer, &t)?;
+                Ok(buffer)
+            }
+            Cipher::Aes192GCM(cipher) => {
+                use aes_gcm::Tag;
+                let nonce = Nonce::from_slice(iv);
+                let mut buffer = cipher_text.to_vec();
+                let t = Tag::clone_from_slice(tag);
+                cipher.decrypt_in_place_detached(nonce, aad, &mut buffer, &t)?;
+                Ok(buffer)
+            }
+            Cipher::Aes256GCM(cipher) => {
+                use aes_gcm::Tag;
+                let nonce = Nonce::from_slice(iv);
+                let mut buffer = cipher_text.to_vec();
+                let t = Tag::clone_from_slice(tag);
+                cipher.decrypt_in_place_detached(nonce, aad, &mut buffer, &t)?;
+                Ok(buffer)
+            }
+        }
+    }
+}
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum AesgcmkwJweAlgorithm {
@@ -157,7 +260,15 @@ impl AesgcmkwJweAlgorithm {
             Self::A256gcmkw => 32,
         }
     }
-
+    #[cfg(feature = "rustcrypto")]
+    fn cipher(&self, key: &[u8]) -> Cipher {
+        match self {
+            Self::A128gcmkw => Cipher::aes_128_gcm(key),
+            Self::A192gcmkw => Cipher::aes_192_gcm(key),
+            Self::A256gcmkw => Cipher::aes_256_gcm(key),
+        }
+    }
+    #[cfg(feature = "openssl")]
     fn cipher(&self) -> Cipher {
         match self {
             Self::A128gcmkw => Cipher::aes_128_gcm(),
@@ -224,12 +335,12 @@ impl JweEncrypter for AesgcmkwJweEncrypter {
         }
     }
 
-    fn compute_content_encryption_key(
-        &self,
+    fn compute_content_encryption_key<'a>(
+        &'a self,
         _cencryption: &dyn JweContentEncryption,
         _in_header: &JweHeader,
         _out_header: &mut JweHeader,
-    ) -> Result<Option<Cow<[u8]>>, JoseError> {
+    ) -> Result<Option<Cow<'a, [u8]>>, JoseError> {
         Ok(None)
     }
 
@@ -241,9 +352,16 @@ impl JweEncrypter for AesgcmkwJweEncrypter {
     ) -> Result<Option<Vec<u8>>, JoseError> {
         (|| -> anyhow::Result<Option<Vec<u8>>> {
             let iv = util::random_bytes(12);
-
+            #[cfg(feature = "openssl")]
             let cipher = self.algorithm.cipher();
+            #[cfg(feature = "rustcrypto")]
+            let cipher = self.algorithm.cipher(&self.private_key);
             let mut tag = [0; 16];
+            #[cfg(feature = "rustcrypto")]
+            let encrypted_key = cipher
+                .encrypt(&iv, b"", key, &mut tag)
+                .map_err(|e| JoseError::InvalidJweFormat(anyhow::anyhow!(e)))?;
+            #[cfg(feature = "openssl")]
             let encrypted_key =
                 symm::encrypt_aead(cipher, &self.private_key, Some(&iv), b"", &key, &mut tag)?;
 
@@ -303,12 +421,12 @@ impl JweDecrypter for AesgcmkwJweDecrypter {
         }
     }
 
-    fn decrypt(
-        &self,
+    fn decrypt<'a>(
+        &'a self,
         encrypted_key: Option<&[u8]>,
         _cencryption: &dyn JweContentEncryption,
         header: &JweHeader,
-    ) -> Result<Cow<[u8]>, JoseError> {
+    ) -> Result<Cow<'a, [u8]>, JoseError> {
         (|| -> anyhow::Result<Cow<[u8]>> {
             let encrypted_key = match encrypted_key {
                 Some(val) => val,
@@ -327,7 +445,11 @@ impl JweDecrypter for AesgcmkwJweDecrypter {
                 None => bail!("The tag header claim is required."),
             };
 
+            #[cfg(feature = "openssl")]
             let cipher = self.algorithm.cipher();
+            #[cfg(feature = "rustcrypto")]
+            let cipher = self.algorithm.cipher(&self.private_key);
+            #[cfg(feature = "openssl")]
             let key = symm::decrypt_aead(
                 cipher,
                 &self.private_key,
@@ -336,7 +458,10 @@ impl JweDecrypter for AesgcmkwJweDecrypter {
                 encrypted_key,
                 &tag,
             )?;
-
+            #[cfg(feature = "rustcrypto")]
+            let key = cipher
+                .decrypt(&iv, b"", encrypted_key, &tag)
+                .map_err(|e| JoseError::InvalidJweFormat(anyhow::anyhow!(e)))?;
             Ok(Cow::Owned(key))
         })()
         .map_err(|err| JoseError::InvalidJweFormat(err))
@@ -392,7 +517,6 @@ mod tests {
             let src_key = util::random_bytes(enc.key_len());
             let mut out_header = header.clone();
             let encrypted_key = encrypter.encrypt(&src_key, &header, &mut out_header)?;
-
             let decrypter = alg.decrypter_from_jwk(&jwk)?;
             let dst_key = decrypter.decrypt(encrypted_key.as_deref(), &enc, &out_header)?;
 

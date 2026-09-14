@@ -2,17 +2,26 @@ use std::fmt::Display;
 use std::ops::Deref;
 
 use anyhow::bail;
+#[cfg(feature = "openssl")]
 use openssl::hash::MessageDigest;
+#[cfg(feature = "openssl")]
 use openssl::pkey::{PKey, Private, Public};
+#[cfg(feature = "openssl")]
 use openssl::sign::{Signer, Verifier};
 
+#[cfg(feature = "rustcrypto")]
+use crate::jwe::alg::ecdh_es::{PrivateKey, PublicKey};
+#[cfg(feature = "rustcrypto")]
+use crate::jwe::alg::pbes2_hmac_aeskw::MessageDigest;
 use crate::jwk::{
     alg::ec::{EcCurve, EcKeyPair},
-    Jwk,
+    Jwk, PublicKey as PublicKeyTrait,
 };
 use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier};
 use crate::util::der::{DerBuilder, DerReader, DerType};
 use crate::util::{self, HashAlgorithm};
+#[cfg(feature = "kapun-provider")]
+use crate::{kapun_signing_provider, kapun_verifying_provider};
 use crate::{JoseError, Value};
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
@@ -148,7 +157,10 @@ impl EcdsaJwsAlgorithm {
                 }
             };
 
+            #[cfg(feature = "openssl")]
             let public_key = PKey::public_key_from_der(spki_der)?;
+            #[cfg(feature = "rustcrypto")]
+            let public_key = PublicKey::from_pkcs8_der_with_ec_curve(self.curve(), spki_der)?;
 
             Ok(EcdsaJwsVerifier {
                 algorithm: self.clone(),
@@ -183,7 +195,10 @@ impl EcdsaJwsAlgorithm {
                 alg => bail!("Inappropriate algorithm: {}", alg),
             };
 
+            #[cfg(feature = "openssl")]
             let public_key = PKey::public_key_from_der(spki)?;
+            #[cfg(feature = "rustcrypto")]
+            let public_key = PublicKey::from_pkcs8_der_with_ec_curve(self.curve(), spki)?;
 
             Ok(EcdsaJwsVerifier {
                 algorithm: self.clone(),
@@ -244,7 +259,10 @@ impl EcdsaJwsAlgorithm {
             vec.extend_from_slice(&y);
 
             let pkcs8 = EcKeyPair::to_pkcs8(&vec, true, self.curve());
+            #[cfg(feature = "openssl")]
             let public_key = PKey::public_key_from_der(&pkcs8)?;
+            #[cfg(feature = "rustcrypto")]
+            let public_key = PublicKey::from_pkcs8_der_with_ec_curve(self.curve(), &pkcs8)?;
             let key_id = jwk.key_id().map(|val| val.to_string());
 
             Ok(EcdsaJwsVerifier {
@@ -315,7 +333,10 @@ impl Deref for EcdsaJwsAlgorithm {
 #[derive(Debug, Clone)]
 pub struct EcdsaJwsSigner {
     algorithm: EcdsaJwsAlgorithm,
+    #[cfg(feature = "openssl")]
     private_key: PKey<Private>,
+    #[cfg(feature = "rustcrypto")]
+    private_key: PrivateKey,
     key_id: Option<String>,
 }
 
@@ -347,15 +368,53 @@ impl JwsSigner for EcdsaJwsSigner {
 
     fn sign(&self, message: &[u8]) -> Result<Vec<u8>, JoseError> {
         (|| -> anyhow::Result<Vec<u8>> {
+            #[allow(unused)]
             let md = match &self.algorithm.hash_algorithm() {
                 HashAlgorithm::Sha1 => MessageDigest::sha1(),
                 HashAlgorithm::Sha256 => MessageDigest::sha256(),
                 HashAlgorithm::Sha384 => MessageDigest::sha384(),
                 HashAlgorithm::Sha512 => MessageDigest::sha512(),
             };
+            #[cfg(feature = "openssl")]
             let mut signer = Signer::new(md, &self.private_key)?;
+            #[cfg(feature = "openssl")]
             signer.update(message)?;
+            #[cfg(feature = "openssl")]
             let der_signature = signer.sign_to_vec()?;
+            #[cfg(feature = "rustcrypto")]
+            let der_signature = self.private_key.sign(message)?;
+
+            let signature_len = self.signature_len();
+            let sep = signature_len / 2;
+
+            let mut signature = Vec::with_capacity(signature_len);
+            let mut reader = DerReader::from_bytes(&der_signature);
+            match reader.next()? {
+                Some(DerType::Sequence) => {}
+                _ => unreachable!("A generated signature is invalid."),
+            }
+            match reader.next()? {
+                Some(DerType::Integer) => {
+                    signature.extend_from_slice(&reader.to_be_bytes(false, sep));
+                }
+                _ => unreachable!("A generated signature is invalid."),
+            }
+            match reader.next()? {
+                Some(DerType::Integer) => {
+                    signature.extend_from_slice(&reader.to_be_bytes(false, sep));
+                }
+                _ => unreachable!("A generated signature is invalid."),
+            }
+
+            Ok(signature)
+        })()
+        .map_err(|err| JoseError::InvalidSignature(err))
+    }
+    #[cfg(feature = "rustcrypto")]
+    fn sign_prehashed(&self, digest: &[u8]) -> Result<Vec<u8>, JoseError> {
+        (|| -> anyhow::Result<Vec<u8>> {
+            #[cfg(feature = "rustcrypto")]
+            let der_signature = self.private_key.sign_prehashed(digest)?;
 
             let signature_len = self.signature_len();
             let sep = signature_len / 2;
@@ -400,7 +459,10 @@ impl Deref for EcdsaJwsSigner {
 #[derive(Debug, Clone)]
 pub struct EcdsaJwsVerifier {
     algorithm: EcdsaJwsAlgorithm,
+    #[cfg(feature = "openssl")]
     public_key: PKey<Public>,
+    #[cfg(feature = "rustcrypto")]
+    public_key: PublicKey,
     key_id: Option<String>,
 }
 
@@ -411,6 +473,25 @@ impl EcdsaJwsVerifier {
 
     pub fn remove_key_id(&mut self) {
         self.key_id = None;
+    }
+}
+
+impl PublicKeyTrait for EcdsaJwsVerifier {
+    fn to_der_public_key(&self) -> Vec<u8> {
+        PublicKeyTrait::to_der_public_key(&self.public_key)
+    }
+
+    fn to_pem_public_key(&self) -> Vec<u8> {
+        PublicKeyTrait::to_pem_public_key(&self.public_key)
+    }
+
+    fn to_jwk_public_key(&self) -> Jwk {
+        let mut jwk = PublicKeyTrait::to_jwk_public_key(&self.public_key);
+        jwk.set_algorithm(self.algorithm.name());
+        if let Some(key_id) = &self.key_id {
+            jwk.set_key_id(key_id);
+        }
+        jwk
     }
 }
 
@@ -429,36 +510,46 @@ impl JwsVerifier for EcdsaJwsVerifier {
     fn verify(&self, message: &[u8], signature: &[u8]) -> Result<(), JoseError> {
         (|| -> anyhow::Result<()> {
             let signature_len = self.algorithm.signature_len();
-            if signature.len() != signature_len {
-                bail!(
-                    "A signature size must be {}: {}",
-                    signature_len,
-                    signature.len()
-                );
-            }
+            // If the signature is in the SEC1 bytes format (65 bytes long), make a der signature out of it
+            let der_signature = if signature.len() == signature_len {
+                let mut der_builder = DerBuilder::new();
+                der_builder.begin(DerType::Sequence);
+                {
+                    let sep = signature_len / 2;
 
-            let mut der_builder = DerBuilder::new();
-            der_builder.begin(DerType::Sequence);
-            {
-                let sep = signature_len / 2;
+                    let zeros = signature[..sep].iter().take_while(|b| **b == 0).count();
+                    der_builder.append_integer_from_be_slice(&signature[zeros..sep], true);
+                    let zeros = signature[sep..].iter().take_while(|b| **b == 0).count();
+                    der_builder.append_integer_from_be_slice(&signature[(sep + zeros)..], true);
+                }
+                der_builder.end();
+                der_builder.build()
+            } else {
+                // we assume that the signature is in DER format. It should fail later if it's not
+                signature.to_vec()
+            };
 
-                let zeros = signature[..sep].iter().take_while(|b| **b == 0).count();
-                der_builder.append_integer_from_be_slice(&signature[zeros..sep], true);
-                let zeros = signature[sep..].iter().take_while(|b| **b == 0).count();
-                der_builder.append_integer_from_be_slice(&signature[(sep + zeros)..], true);
-            }
-            der_builder.end();
-            let der_signature = der_builder.build();
-
+            #[allow(unused)]
             let md = match &self.algorithm.hash_algorithm() {
                 HashAlgorithm::Sha1 => MessageDigest::sha1(),
                 HashAlgorithm::Sha256 => MessageDigest::sha256(),
                 HashAlgorithm::Sha384 => MessageDigest::sha384(),
                 HashAlgorithm::Sha512 => MessageDigest::sha512(),
             };
+            #[cfg(feature = "openssl")]
             let mut verifier = Verifier::new(md, &self.public_key)?;
+            #[cfg(feature = "openssl")]
             verifier.update(message)?;
+            #[cfg(feature = "openssl")]
             if !verifier.verify(&der_signature)? {
+                bail!("The signature does not match.");
+            }
+            #[cfg(feature = "rustcrypto")]
+            if !self
+                .public_key
+                .verify_signature(&message, &der_signature)
+                .is_ok()
+            {
                 bail!("The signature does not match.");
             }
             Ok(())
@@ -479,11 +570,20 @@ impl Deref for EcdsaJwsVerifier {
     }
 }
 
+#[cfg(feature = "kapun-provider")]
+kapun_verifying_provider!(EcdsaJwsVerifier);
+#[cfg(feature = "kapun-provider")]
+kapun_signing_provider!(EcdsaJwsSigner);
+
 #[cfg(test)]
 mod tests {
+    use crate::jws::alg::ecdsa::EcdsaJwsAlgorithm::Es256;
+
     use super::*;
 
     use anyhow::Result;
+    #[cfg(feature = "rustcrypto")]
+    use k256::sha2::{Digest, Sha256};
     use std::fs;
     use std::path::PathBuf;
 
@@ -721,6 +821,24 @@ mod tests {
         }
 
         Ok(())
+    }
+    #[test]
+    fn test_sign_prehashed_ecdsa() {
+        let kp = Es256.generate_key_pair().unwrap();
+        let sk = kp.to_der_private_key();
+        let pk = kp.to_der_public_key();
+        let signer: Box<dyn JwsSigner> = sk.as_slice().try_into().unwrap();
+        let verifier: Box<dyn JwsVerifier> = pk.as_slice().try_into().unwrap();
+        let normal_data = signer.sign(b"test").unwrap();
+        let prehashed_data = signer
+            .sign_prehashed(Sha256::digest(b"test").to_vec().as_slice())
+            .unwrap();
+        verifier
+            .verify(b"test", &normal_data)
+            .expect("normal data failed");
+        verifier
+            .verify(b"test", &prehashed_data)
+            .expect("prehashed data failed");
     }
 
     fn load_file(path: &str) -> Result<Vec<u8>> {

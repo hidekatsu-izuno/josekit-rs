@@ -2,15 +2,21 @@ use std::fmt::Display;
 use std::ops::Deref;
 
 use anyhow::bail;
+#[cfg(feature = "openssl")]
 use openssl::pkey::{PKey, Private, Public};
+#[cfg(feature = "openssl")]
 use openssl::sign::{Signer, Verifier};
 
+#[cfg(feature = "rustcrypto")]
+use crate::jwe::alg::ecdh_es::{PrivateKey, PublicKey};
 use crate::jwk::{
     alg::ed::{EdCurve, EdKeyPair},
-    Jwk,
+    Jwk, PublicKey as PublicKeyTrait,
 };
 use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier};
 use crate::util;
+#[cfg(feature = "kapun-provider")]
+use crate::{kapun_signing_provider, kapun_verifying_provider};
 use crate::{JoseError, Value};
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
@@ -134,12 +140,16 @@ impl EddsaJwsAlgorithm {
         input: impl AsRef<[u8]>,
     ) -> Result<EddsaJwsVerifier, JoseError> {
         (|| -> anyhow::Result<EddsaJwsVerifier> {
-            let spki_der = match EdKeyPair::detect_pkcs8(input.as_ref(), true) {
-                Some(_) => input.as_ref(),
+            #[allow(unused)]
+            let (spki_der, curve) = match EdKeyPair::detect_pkcs8(input.as_ref(), true) {
+                Some(curve) => (input.as_ref(), curve),
                 None => bail!("The EdDSA public key must be wrapped by PKCS#8 format."),
             };
 
+            #[cfg(feature = "openssl")]
             let public_key = PKey::public_key_from_der(spki_der)?;
+            #[cfg(feature = "rustcrypto")]
+            let public_key = PublicKey::from_pkcs8_der_with_ed_curve(curve, spki_der)?;
 
             Ok(EddsaJwsVerifier {
                 algorithm: self.clone(),
@@ -163,9 +173,10 @@ impl EddsaJwsAlgorithm {
     ) -> Result<EddsaJwsVerifier, JoseError> {
         (|| -> anyhow::Result<EddsaJwsVerifier> {
             let (alg, data) = util::parse_pem(input.as_ref())?;
-            let spki_der = match alg.as_str() {
+            #[allow(unused)]
+            let (spki_der, curve) = match alg.as_str() {
                 "PUBLIC KEY" => match EdKeyPair::detect_pkcs8(&data, true) {
-                    Some(_) => data.as_slice(),
+                    Some(curve) => (data.as_slice(), curve),
                     None => bail!(
                         "The EdDSA public key must be wrapped by SubjectPublicKeyInfo format."
                     ),
@@ -173,8 +184,10 @@ impl EddsaJwsAlgorithm {
                 alg => bail!("Unacceptable algorithm: {}", alg),
             };
 
+            #[cfg(feature = "openssl")]
             let public_key = PKey::public_key_from_der(spki_der)?;
-
+            #[cfg(feature = "rustcrypto")]
+            let public_key = PublicKey::from_pkcs8_der_with_ed_curve(curve, spki_der)?;
             Ok(EddsaJwsVerifier {
                 algorithm: self.clone(),
                 public_key,
@@ -221,7 +234,10 @@ impl EddsaJwsAlgorithm {
             };
 
             let pkcs8 = EdKeyPair::to_pkcs8(&x, true, curve);
+            #[cfg(feature = "openssl")]
             let public_key = PKey::public_key_from_der(&pkcs8)?;
+            #[cfg(feature = "rustcrypto")]
+            let public_key = PublicKey::from_pkcs8_der_with_ed_curve(curve, &pkcs8)?;
             let key_id = jwk.key_id().map(|val| val.to_string());
 
             Ok(EddsaJwsVerifier {
@@ -262,7 +278,10 @@ impl Deref for EddsaJwsAlgorithm {
 pub struct EddsaJwsSigner {
     algorithm: EddsaJwsAlgorithm,
     curve: EdCurve,
+    #[cfg(feature = "openssl")]
     private_key: PKey<Private>,
+    #[cfg(feature = "rustcrypto")]
+    private_key: PrivateKey,
     key_id: Option<String>,
 }
 
@@ -297,9 +316,23 @@ impl JwsSigner for EddsaJwsSigner {
 
     fn sign(&self, message: &[u8]) -> Result<Vec<u8>, JoseError> {
         (|| -> anyhow::Result<Vec<u8>> {
+            #[cfg(feature = "openssl")]
             let mut signer = Signer::new_without_digest(&self.private_key)?;
+            #[cfg(feature = "openssl")]
             let mut signature = vec![0; signer.len()?];
+            #[cfg(feature = "openssl")]
             signer.sign_oneshot(&mut signature, message)?;
+            #[cfg(feature = "rustcrypto")]
+            let signature = self.private_key.sign(&message)?;
+            Ok(signature)
+        })()
+        .map_err(|err| JoseError::InvalidSignature(err))
+    }
+
+    #[cfg(feature = "rustcrypto")]
+    fn sign_prehashed(&self, digest: &[u8]) -> Result<Vec<u8>, JoseError> {
+        (|| -> anyhow::Result<Vec<u8>> {
+            let signature = self.private_key.sign_prehashed(&digest)?;
             Ok(signature)
         })()
         .map_err(|err| JoseError::InvalidSignature(err))
@@ -321,7 +354,10 @@ impl Deref for EddsaJwsSigner {
 #[derive(Debug, Clone)]
 pub struct EddsaJwsVerifier {
     algorithm: EddsaJwsAlgorithm,
+    #[cfg(feature = "openssl")]
     public_key: PKey<Public>,
+    #[cfg(feature = "rustcrypto")]
+    public_key: PublicKey,
     key_id: Option<String>,
 }
 
@@ -332,6 +368,25 @@ impl EddsaJwsVerifier {
 
     pub fn remove_key_id(&mut self) {
         self.key_id = None;
+    }
+}
+
+impl PublicKeyTrait for EddsaJwsVerifier {
+    fn to_der_public_key(&self) -> Vec<u8> {
+        PublicKeyTrait::to_der_public_key(&self.public_key)
+    }
+
+    fn to_pem_public_key(&self) -> Vec<u8> {
+        PublicKeyTrait::to_pem_public_key(&self.public_key)
+    }
+
+    fn to_jwk_public_key(&self) -> Jwk {
+        let mut jwk = PublicKeyTrait::to_jwk_public_key(&self.public_key);
+        jwk.set_algorithm(self.algorithm.name());
+        if let Some(key_id) = &self.key_id {
+            jwk.set_key_id(key_id);
+        }
+        jwk
     }
 }
 
@@ -349,8 +404,32 @@ impl JwsVerifier for EddsaJwsVerifier {
 
     fn verify(&self, message: &[u8], signature: &[u8]) -> Result<(), JoseError> {
         (|| -> anyhow::Result<()> {
+            #[cfg(feature = "openssl")]
             let mut verifier = Verifier::new_without_digest(&self.public_key)?;
+            #[cfg(feature = "openssl")]
             if !verifier.verify_oneshot(signature, message)? {
+                bail!("The signature does not match.")
+            }
+            #[cfg(feature = "rustcrypto")]
+            if self
+                .public_key
+                .verify_signature(message, signature)
+                .is_err()
+            {
+                bail!("The signature does not match.")
+            }
+            Ok(())
+        })()
+        .map_err(|err| JoseError::InvalidSignature(err))
+    }
+    #[cfg(feature = "rustcrypto")]
+    fn verify_prehashed(&self, message: &[u8], signature: &[u8]) -> Result<(), JoseError> {
+        (|| -> anyhow::Result<()> {
+            if self
+                .public_key
+                .verify_signature(message, signature)
+                .is_err()
+            {
                 bail!("The signature does not match.")
             }
             Ok(())
@@ -371,11 +450,19 @@ impl Deref for EddsaJwsVerifier {
     }
 }
 
+#[cfg(feature = "kapun-provider")]
+kapun_verifying_provider!(EddsaJwsVerifier);
+#[cfg(feature = "kapun-provider")]
+kapun_signing_provider!(EddsaJwsSigner);
+
 #[cfg(test)]
 mod tests {
+    use crate::jws::alg::eddsa::EddsaJwsAlgorithm::Eddsa;
+
     use super::*;
 
     use anyhow::Result;
+    use sha2::{Digest, Sha512};
     use std::fs;
     use std::path::PathBuf;
 
@@ -384,6 +471,7 @@ mod tests {
         let input = b"abcde12345";
 
         for curve in vec![EdCurve::Ed25519, EdCurve::Ed448] {
+            println!("--> {curve:?}");
             let alg = EddsaJwsAlgorithm::Eddsa;
             let key_pair = alg.generate_key_pair(curve)?;
 
@@ -528,6 +616,30 @@ mod tests {
         }
 
         Ok(())
+    }
+    #[test]
+    fn test_sign_prehashed_eddsa() {
+        let Value::Object(secret_key) = serde_json::json!({
+            "kty":"OKP",
+            "crv":"Ed25519",
+            "d":"gz_mJAkje51i7HdYdSCRHpp1nOwdGXVbfakBuW3KPUI"
+        }) else {
+            panic!("")
+        };
+        let sk = Eddsa
+            .signer_from_jwk(&Jwk::from_map(secret_key).unwrap())
+            .unwrap();
+        let digest = Sha512::digest("test").to_vec();
+        let prehashed_sig = sk.sign_prehashed(&digest).unwrap();
+        let normal_sig = sk.sign(b"test").unwrap();
+        sk.private_key
+            .public_key()
+            .verify_signature(b"test", &normal_sig)
+            .expect("normal failed");
+        sk.private_key
+            .public_key()
+            .verify_signature_prehashed(b"test", &prehashed_sig)
+            .expect("prehashed failed");
     }
 
     fn load_file(path: &str) -> Result<Vec<u8>> {

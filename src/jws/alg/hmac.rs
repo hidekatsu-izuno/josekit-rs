@@ -1,11 +1,19 @@
 use std::fmt::Display;
+
 use std::ops::Deref;
 
 use anyhow::bail;
+#[cfg(feature = "kapun-provider")]
+use kapun_crypto_provider::{KeyEncoding, Metadata, Signer, Signing, Verifier, Verifying};
+#[cfg(feature = "openssl")]
 use openssl::hash::MessageDigest;
+#[cfg(feature = "openssl")]
 use openssl::pkey::{PKey, Private};
+#[cfg(feature = "openssl")]
 use openssl::sign::Signer;
 
+#[cfg(feature = "rustcrypto")]
+use crate::jwe::alg::pbes2_hmac_aeskw::{Hmac, MessageDigest};
 use crate::jwk::Jwk;
 use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier};
 use crate::util::{self, HashAlgorithm};
@@ -54,8 +62,15 @@ impl HmacJwsAlgorithm {
                     input.len()
                 );
             }
-
+            #[cfg(feature = "openssl")]
             let private_key = PKey::hmac(input)?;
+            #[cfg(feature = "rustcrypto")]
+            let private_key = match self.hash_algorithm() {
+                HashAlgorithm::Sha256 => MessageDigest::sha256().hmac(&input),
+                HashAlgorithm::Sha384 => MessageDigest::sha384().hmac(&input),
+                HashAlgorithm::Sha512 => MessageDigest::sha512().hmac(&input),
+                _ => bail!("Unsupported hash algorithm"),
+            }?;
 
             Ok(HmacJwsSigner {
                 algorithm: self.clone(),
@@ -104,7 +119,15 @@ impl HmacJwsAlgorithm {
                 );
             }
 
+            #[cfg(feature = "openssl")]
             let private_key = PKey::hmac(&k)?;
+            #[cfg(feature = "rustcrypto")]
+            let private_key = match self.hash_algorithm() {
+                HashAlgorithm::Sha256 => MessageDigest::sha256().hmac(&k),
+                HashAlgorithm::Sha384 => MessageDigest::sha384().hmac(&k),
+                HashAlgorithm::Sha512 => MessageDigest::sha512().hmac(&k),
+                _ => bail!("Unsupported hash algorithm"),
+            }?;
             let key_id = jwk.key_id().map(|val| val.to_string());
 
             Ok(HmacJwsSigner {
@@ -136,7 +159,15 @@ impl HmacJwsAlgorithm {
                 );
             }
 
+            #[cfg(feature = "openssl")]
             let private_key = PKey::hmac(input)?;
+            #[cfg(feature = "rustcrypto")]
+            let private_key = match self.hash_algorithm() {
+                HashAlgorithm::Sha256 => MessageDigest::sha256().hmac(&input),
+                HashAlgorithm::Sha384 => MessageDigest::sha384().hmac(&input),
+                HashAlgorithm::Sha512 => MessageDigest::sha512().hmac(&input),
+                _ => bail!("Unsupported hash algorithm"),
+            }?;
 
             Ok(HmacJwsVerifier {
                 algorithm: self.clone(),
@@ -186,7 +217,15 @@ impl HmacJwsAlgorithm {
                 );
             }
 
+            #[cfg(feature = "openssl")]
             let private_key = PKey::hmac(&k)?;
+            #[cfg(feature = "rustcrypto")]
+            let private_key = match self.hash_algorithm() {
+                HashAlgorithm::Sha256 => MessageDigest::sha256().hmac(&k),
+                HashAlgorithm::Sha384 => MessageDigest::sha384().hmac(&k),
+                HashAlgorithm::Sha512 => MessageDigest::sha512().hmac(&k),
+                _ => bail!("Unsupported hash algorithm"),
+            }?;
             let key_id = jwk.key_id().map(|val| val.to_string());
 
             Ok(HmacJwsVerifier {
@@ -238,7 +277,10 @@ impl Deref for HmacJwsAlgorithm {
 #[derive(Debug, Clone)]
 pub struct HmacJwsSigner {
     algorithm: HmacJwsAlgorithm,
+    #[cfg(feature = "openssl")]
     private_key: PKey<Private>,
+    #[cfg(feature = "rustcrypto")]
+    private_key: Hmac,
     key_id: Option<String>,
 }
 
@@ -267,7 +309,7 @@ impl JwsSigner for HmacJwsSigner {
             None => None,
         }
     }
-
+    #[cfg(feature = "openssl")]
     fn sign(&self, message: &[u8]) -> Result<Vec<u8>, JoseError> {
         (|| -> anyhow::Result<Vec<u8>> {
             let md = match &self.algorithm.hash_algorithm() {
@@ -279,6 +321,16 @@ impl JwsSigner for HmacJwsSigner {
             let mut signer = Signer::new(md, &self.private_key)?;
             signer.update(message)?;
             let signature = signer.sign_to_vec()?;
+            Ok(signature)
+        })()
+        .map_err(|err| JoseError::InvalidSignature(err))
+    }
+    #[cfg(feature = "rustcrypto")]
+    fn sign(&self, message: &[u8]) -> Result<Vec<u8>, JoseError> {
+        (|| -> anyhow::Result<Vec<u8>> {
+            let mut k = self.private_key.clone();
+            k.update(message)?;
+            let signature = k.sign_to_vec()?;
             Ok(signature)
         })()
         .map_err(|err| JoseError::InvalidSignature(err))
@@ -300,7 +352,10 @@ impl Deref for HmacJwsSigner {
 #[derive(Debug, Clone)]
 pub struct HmacJwsVerifier {
     algorithm: HmacJwsAlgorithm,
+    #[cfg(feature = "openssl")]
     private_key: PKey<Private>,
+    #[cfg(feature = "rustcrypto")]
+    private_key: Hmac,
     key_id: Option<String>,
 }
 
@@ -325,7 +380,7 @@ impl JwsVerifier for HmacJwsVerifier {
             None => None,
         }
     }
-
+    #[cfg(feature = "openssl")]
     fn verify(&self, message: &[u8], signature: &[u8]) -> Result<(), JoseError> {
         (|| -> anyhow::Result<()> {
             let md = match &self.algorithm.hash_algorithm() {
@@ -337,6 +392,20 @@ impl JwsVerifier for HmacJwsVerifier {
             let mut signer = Signer::new(md, &self.private_key)?;
             signer.update(message)?;
             let new_signature = signer.sign_to_vec()?;
+            if new_signature.as_slice() != signature {
+                bail!("Failed to verify.");
+            }
+            Ok(())
+        })()
+        .map_err(|err| JoseError::InvalidSignature(err))
+    }
+
+    #[cfg(feature = "rustcrypto")]
+    fn verify(&self, message: &[u8], signature: &[u8]) -> Result<(), JoseError> {
+        (|| -> anyhow::Result<()> {
+            let mut k = self.private_key.clone();
+            k.update(message)?;
+            let new_signature = k.sign_to_vec()?;
             if new_signature.as_slice() != signature {
                 bail!("Failed to verify.");
             }
@@ -357,6 +426,53 @@ impl Deref for HmacJwsVerifier {
         self
     }
 }
+
+#[cfg(feature = "kapun-provider")]
+impl KeyEncoding for HmacJwsSigner {}
+#[cfg(feature = "kapun-provider")]
+impl Metadata for HmacJwsSigner {}
+#[cfg(feature = "kapun-provider")]
+impl Signing for HmacJwsSigner {
+    fn kapun_sign(&self, _data: Vec<u8>) -> Result<Vec<u8>, kapun_crypto_provider::SigningProblem> {
+        todo!()
+    }
+
+    fn kapun_sign_hash(
+        &self,
+        _hash: Vec<u8>,
+    ) -> Result<Vec<u8>, kapun_crypto_provider::SigningProblem> {
+        todo!()
+    }
+}
+
+#[cfg(feature = "kapun-provider")]
+impl KeyEncoding for HmacJwsVerifier {}
+#[cfg(feature = "kapun-provider")]
+impl Metadata for HmacJwsVerifier {}
+
+#[cfg(feature = "kapun-provider")]
+impl Verifying for HmacJwsVerifier {
+    fn kapun_verify(
+        &self,
+        _data: Vec<u8>,
+        _signature: Vec<u8>,
+    ) -> Result<(), kapun_crypto_provider::VerificationProblem> {
+        todo!()
+    }
+
+    fn kapun_verify_hash(
+        &self,
+        _hash: Vec<u8>,
+        _signature: Vec<u8>,
+    ) -> Result<(), kapun_crypto_provider::VerificationProblem> {
+        todo!()
+    }
+}
+
+#[cfg(feature = "kapun-provider")]
+impl Verifier for HmacJwsVerifier {}
+#[cfg(feature = "kapun-provider")]
+impl Signer for HmacJwsSigner {}
 
 #[cfg(test)]
 mod tests {

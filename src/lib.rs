@@ -16,6 +16,10 @@ pub use crate::jose_header::JoseHeader;
 
 pub use serde_json::{Map, Number, Value};
 
+/// Re-exported so that the `kapun_*_provider!` macros resolve their paths through `$crate`.
+#[cfg(feature = "kapun-provider")]
+pub use kapun_crypto_provider;
+
 #[cfg(doctest)]
 use doc_comment::doctest;
 

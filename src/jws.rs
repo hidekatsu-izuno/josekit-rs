@@ -23,6 +23,8 @@ pub use HmacJwsAlgorithm::Hs384 as HS384;
 pub use HmacJwsAlgorithm::Hs512 as HS512;
 
 use crate::jws::alg::rsassa::RsassaJwsAlgorithm;
+#[cfg(feature = "rsa-sha1")]
+pub use RsassaJwsAlgorithm::Rs1 as RS1;
 pub use RsassaJwsAlgorithm::Rs256 as RS256;
 pub use RsassaJwsAlgorithm::Rs384 as RS384;
 pub use RsassaJwsAlgorithm::Rs512 as RS512;
@@ -40,6 +42,15 @@ pub use EcdsaJwsAlgorithm::Es512 as ES512;
 
 use crate::jws::alg::eddsa::EddsaJwsAlgorithm;
 pub use EddsaJwsAlgorithm::Eddsa as EdDSA;
+
+#[cfg(feature = "pqc")]
+use crate::jws::alg::ml_dsa::MldsaJwsAlgorithm;
+#[cfg(feature = "pqc")]
+pub use MldsaJwsAlgorithm::MlDSA44;
+#[cfg(feature = "pqc")]
+pub use MldsaJwsAlgorithm::MlDSA65;
+#[cfg(feature = "pqc")]
+pub use MldsaJwsAlgorithm::MlDSA87;
 
 static DEFAULT_CONTEXT: LazyLock<JwsContext> = LazyLock::new(|| JwsContext::new());
 

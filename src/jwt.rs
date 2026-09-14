@@ -178,9 +178,6 @@ mod tests {
     use std::path::PathBuf;
     use std::time::{Duration, SystemTime};
 
-    use anyhow::Result;
-    use serde_json::json;
-
     #[allow(deprecated)]
     use crate::jwe::{
         Dir, A128GCMKW, A128KW, A192GCMKW, A192KW, A256GCMKW, A256KW, ECDH_ES, ECDH_ES_A128KW,
@@ -193,8 +190,11 @@ mod tests {
         RS256, RS384, RS512,
     };
     use crate::jwt::{self, JwtPayload};
+    use crate::util::decode_base64_urlsafe_no_pad;
     use crate::Value;
     use crate::{util, JoseHeader};
+    use anyhow::Result;
+    use serde_json::json;
 
     #[test]
     fn test_decode_header() -> Result<()> {
@@ -484,6 +484,7 @@ mod tests {
         let jwk = Jwk::from_bytes(&load_file("jwk/RSA_public.jwk")?)?;
 
         for alg in &[PS256, PS384, PS512] {
+            println!("{:?}", alg);
             let verifier = alg.verifier_from_jwk(&jwk)?;
             let jwt_string = String::from_utf8(load_file(&format!("jwt/{}.jwt", alg.name()))?)?;
             let (payload, header) = jwt::decode_with_verifier(&jwt_string, &verifier)?;
@@ -504,6 +505,23 @@ mod tests {
     }
 
     #[test]
+    fn test_es256k_sign_and_verify() -> Result<()> {
+        let alg = ES256K;
+        let jwt_string = String::from_utf8(load_file(&format!("jwt/{}.jwt", alg.name()))?)?;
+        let content_parts = jwt_string.split(".").collect::<Vec<&str>>();
+        let content = content_parts[0].to_string() + "." + content_parts[1];
+        let jwk_private = Jwk::from_bytes(&load_file("jwk/EC_secp256k1_private.jwk")?)?;
+        let jwk_public = Jwk::from_bytes(&load_file("jwk/EC_secp256k1_public.jwk")?)?;
+        let signer = alg.signer_from_jwk(&jwk_private)?;
+        let _ = signer.sign(content.as_ref())?;
+        let verifier = alg.verifier_from_jwk(&jwk_public)?;
+        let sig = decode_base64_urlsafe_no_pad(&content_parts[2])?;
+        // let content = MessageDigest::sha256().hash(content.as_bytes());
+        verifier.verify(content.as_bytes(), &sig)?;
+        Ok(())
+    }
+
+    #[test]
     fn test_external_jwt_verify_with_ecdsa() -> Result<()> {
         for alg in &[ES256, ES384, ES512, ES256K] {
             let jwk = Jwk::from_bytes(&load_file(match alg {
@@ -514,6 +532,7 @@ mod tests {
             })?)?;
             let verifier = alg.verifier_from_jwk(&jwk)?;
             let jwt_string = String::from_utf8(load_file(&format!("jwt/{}.jwt", alg.name()))?)?;
+            println!("{alg:?}");
             let (payload, header) = jwt::decode_with_verifier(&jwt_string, &verifier)?;
 
             assert_eq!(header.algorithm(), Some(verifier.algorithm().name()));

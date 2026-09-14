@@ -2,8 +2,11 @@ use std::fmt::Display;
 use std::ops::Deref;
 
 use anyhow::bail;
+#[cfg(feature = "openssl")]
 use openssl::symm::{self, Cipher};
 
+#[cfg(feature = "rustcrypto")]
+use crate::jwe::alg::aesgcmkw::Cipher;
 use crate::jwe::JweContentEncryption;
 use crate::JoseError;
 
@@ -56,12 +59,32 @@ impl JweContentEncryption for AesgcmJweEncryption {
             }
 
             let cipher = match self {
-                AesgcmJweEncryption::A128gcm => Cipher::aes_128_gcm(),
-                AesgcmJweEncryption::A192gcm => Cipher::aes_192_gcm(),
-                AesgcmJweEncryption::A256gcm => Cipher::aes_256_gcm(),
+                AesgcmJweEncryption::A128gcm => Cipher::aes_128_gcm(
+                    #[cfg(feature = "rustcrypto")]
+                    key,
+                ),
+                AesgcmJweEncryption::A192gcm => Cipher::aes_192_gcm(
+                    #[cfg(feature = "rustcrypto")]
+                    key,
+                ),
+                AesgcmJweEncryption::A256gcm => Cipher::aes_256_gcm(
+                    #[cfg(feature = "rustcrypto")]
+                    key,
+                ),
             };
             let mut tag = [0; 16];
+            #[cfg(feature = "rustcrypto")]
+            let mut new_iv = [0; 12];
+            #[cfg(feature = "rustcrypto")]
+            if let Some(the_iv) = iv {
+                new_iv.copy_from_slice(&the_iv[..12]);
+            }
+            #[cfg(feature = "openssl")]
             let encrypted_message = symm::encrypt_aead(cipher, key, iv, aad, message, &mut tag)?;
+            #[cfg(feature = "rustcrypto")]
+            let encrypted_message = cipher
+                .encrypt(&new_iv, aad, message, &mut tag)
+                .map_err(|e| anyhow::anyhow!(e))?;
             Ok((encrypted_message, Some(tag.to_vec())))
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
@@ -91,11 +114,32 @@ impl JweContentEncryption for AesgcmJweEncryption {
             };
 
             let cipher = match self {
-                AesgcmJweEncryption::A128gcm => Cipher::aes_128_gcm(),
-                AesgcmJweEncryption::A192gcm => Cipher::aes_192_gcm(),
-                AesgcmJweEncryption::A256gcm => Cipher::aes_256_gcm(),
+                AesgcmJweEncryption::A128gcm => Cipher::aes_128_gcm(
+                    #[cfg(feature = "rustcrypto")]
+                    key,
+                ),
+                AesgcmJweEncryption::A192gcm => Cipher::aes_192_gcm(
+                    #[cfg(feature = "rustcrypto")]
+                    key,
+                ),
+                AesgcmJweEncryption::A256gcm => Cipher::aes_256_gcm(
+                    #[cfg(feature = "rustcrypto")]
+                    key,
+                ),
             };
+            #[cfg(feature = "openssl")]
             let message = symm::decrypt_aead(cipher, key, iv, aad, encrypted_message, tag)?;
+
+            #[allow(unused)]
+            let mut new_iv = [0; 12];
+            #[cfg(feature = "rustcrypto")]
+            if let Some(the_iv) = iv {
+                new_iv.copy_from_slice(&the_iv[..12]);
+            }
+            #[cfg(feature = "rustcrypto")]
+            let message = cipher
+                .decrypt(&new_iv, aad, encrypted_message, tag)
+                .map_err(|e| anyhow::anyhow!(e))?;
             Ok(message)
         })()
         .map_err(|err| JoseError::InvalidJweFormat(err))

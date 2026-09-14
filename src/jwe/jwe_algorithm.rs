@@ -41,12 +41,12 @@ pub trait JweEncrypter: Debug + Send + Sync {
     /// * `cencryption` - The content encryption method.
     /// * `in_header` - the input header
     /// * `out_header` - the output header
-    fn compute_content_encryption_key(
-        &self,
+    fn compute_content_encryption_key<'a>(
+        &'a self,
         cencryption: &dyn JweContentEncryption,
         in_header: &JweHeader,
         out_header: &mut JweHeader,
-    ) -> Result<Option<Cow<[u8]>>, JoseError>;
+    ) -> Result<Option<Cow<'a, [u8]>>, JoseError>;
 
     /// Return a encypted key.
     ///
@@ -86,12 +86,12 @@ pub trait JweDecrypter: Debug + Send + Sync {
     /// * `encrypted_key` - The encrypted key.
     /// * `cencryption` - The content encryption method.
     /// * `header` - The header
-    fn decrypt(
-        &self,
+    fn decrypt<'a>(
+        &'a self,
         encrypted_key: Option<&[u8]>,
         cencryption: &dyn JweContentEncryption,
         header: &JweHeader,
-    ) -> Result<Cow<[u8]>, JoseError>;
+    ) -> Result<Cow<'a, [u8]>, JoseError>;
 
     fn box_clone(&self) -> Box<dyn JweDecrypter>;
 }

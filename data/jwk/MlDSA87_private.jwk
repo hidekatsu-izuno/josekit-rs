@@ -1,0 +1,6 @@
+{
+    "kid": "tRn1JNIkgMsABVQBlXeDHxAIcclh-2IX0UdDEzPt5XU",
+    "kty": "AKP",
+    "alg": "ML-DSA-87",
+    "priv": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+  }

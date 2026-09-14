@@ -2,11 +2,22 @@ use std::fmt::Display;
 use std::ops::Deref;
 
 use anyhow::bail;
+#[cfg(feature = "kapun-provider")]
+use kapun_crypto_provider::{KeyEncoding, Metadata, Signer, Signing, Verifier, Verifying};
+#[cfg(feature = "openssl")]
 use openssl::hash::MessageDigest;
+#[cfg(feature = "openssl")]
 use openssl::pkey::{PKey, Private, Public};
+#[cfg(feature = "openssl")]
 use openssl::sign::{Signer, Verifier};
+#[cfg(feature = "kapun-provider")]
+use pkcs8::EncodePrivateKey;
+#[cfg(feature = "rustcrypto")]
+use rsa::pkcs8::DecodePublicKey;
+#[cfg(feature = "kapun-provider")]
+use spki::EncodePublicKey;
 
-use crate::jwk::{alg::rsa::RsaKeyPair, Jwk};
+use crate::jwk::{alg::rsa::RsaKeyPair, Jwk, PublicKey as PublicKeyTrait};
 use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier};
 use crate::util::der::{DerBuilder, DerType};
 use crate::util::{self, HashAlgorithm};
@@ -14,6 +25,9 @@ use crate::{JoseError, Value};
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum RsassaJwsAlgorithm {
+    #[cfg(feature = "rsa-sha1")]
+    /// NOTE: Not official!! RSASSA-PKCS1-v1_5 using SHA-1
+    Rs1,
     /// RSASSA-PKCS1-v1_5 using SHA-256
     Rs256,
 
@@ -31,6 +45,7 @@ impl RsassaJwsAlgorithm {
     /// * `bits` - RSA key length
     pub fn generate_key_pair(&self, bits: u32) -> Result<RsaKeyPair, JoseError> {
         (|| -> anyhow::Result<RsaKeyPair> {
+            #[cfg(not(feature = "rsa-sha1"))]
             if bits < 2048 {
                 bail!("key length must be 2048 or more.");
             }
@@ -53,6 +68,7 @@ impl RsassaJwsAlgorithm {
         (|| -> anyhow::Result<RsaKeyPair> {
             let mut key_pair = RsaKeyPair::from_der(input)?;
 
+            #[cfg(not(feature = "rsa-sha1"))]
             if key_pair.key_len() * 8 < 2048 {
                 bail!("key length must be 2048 or more.");
             }
@@ -80,6 +96,7 @@ impl RsassaJwsAlgorithm {
         (|| -> anyhow::Result<RsaKeyPair> {
             let mut key_pair = RsaKeyPair::from_pem(input.as_ref())?;
 
+            #[cfg(not(feature = "rsa-sha1"))]
             if key_pair.key_len() * 8 < 2048 {
                 bail!("key length must be 2048 or more.");
             }
@@ -146,6 +163,7 @@ impl RsassaJwsAlgorithm {
             }
 
             let key_pair = RsaKeyPair::from_jwk(jwk)?;
+            #[cfg(not(feature = "rsa-sha1"))]
             if key_pair.key_len() * 8 < 2048 {
                 bail!("key length must be 2048 or more.");
             }
@@ -180,12 +198,25 @@ impl RsassaJwsAlgorithm {
                 }
             };
 
+            #[cfg(feature = "openssl")]
             let public_key = PKey::public_key_from_der(spki_der)?;
-
-            let rsa = public_key.rsa()?;
-            if rsa.size() * 8 < 2048 {
-                bail!("key length must be 2048 or more.");
+            #[cfg(feature = "rustcrypto")]
+            let public_key = rsa::RsaPublicKey::from_public_key_der(&spki_der)?;
+            #[cfg(feature = "openssl")]
+            {
+                let rsa = public_key.rsa()?;
+                if rsa.size() * 8 < 2048 {
+                    bail!("key length must be 2048 or more.");
+                }
             }
+            #[cfg(feature = "rustcrypto")]
+            #[cfg(not(feature = "rsa-sha1"))]
+            {
+                use rsa::traits::PublicKeyParts;
+                if public_key.size() * 8 < 2048 {
+                    bail!("key length must be 2048 or more.");
+                }
+            };
 
             Ok(RsassaJwsVerifier {
                 algorithm: self.clone(),
@@ -226,11 +257,24 @@ impl RsassaJwsAlgorithm {
                 alg => bail!("Inappropriate algorithm: {}", alg),
             };
 
+            #[cfg(feature = "openssl")]
             let public_key = PKey::public_key_from_der(spki_der)?;
-
-            let rsa = public_key.rsa()?;
-            if rsa.size() * 8 < 2048 {
-                bail!("key length must be 2048 or more.");
+            #[cfg(feature = "rustcrypto")]
+            let public_key = rsa::RsaPublicKey::from_public_key_der(spki_der)?;
+            #[cfg(feature = "openssl")]
+            {
+                let rsa = public_key.rsa()?;
+                if rsa.size() * 8 < 2048 {
+                    bail!("key length must be 2048 or more.");
+                }
+            }
+            #[cfg(feature = "rustcrypto")]
+            #[cfg(not(feature = "rsa-sha1"))]
+            {
+                use rsa::traits::PublicKeyParts;
+                if public_key.size() * 8 < 2048 {
+                    bail!("key length must be 2048 or more.");
+                }
             }
 
             Ok(RsassaJwsVerifier {
@@ -286,13 +330,26 @@ impl RsassaJwsAlgorithm {
             builder.end();
 
             let pkcs8 = RsaKeyPair::to_pkcs8(&builder.build(), true);
+            #[cfg(feature = "openssl")]
             let public_key = PKey::public_key_from_der(&pkcs8)?;
-            let key_id = jwk.key_id().map(|val| val.to_string());
-
-            let rsa = public_key.rsa()?;
-            if rsa.size() * 8 < 2048 {
-                bail!("key length must be 2048 or more.");
+            #[cfg(feature = "rustcrypto")]
+            let public_key = rsa::RsaPublicKey::from_public_key_der(&pkcs8)?;
+            #[cfg(feature = "openssl")]
+            {
+                let rsa = public_key.rsa()?;
+                if rsa.size() * 8 < 2048 {
+                    bail!("key length must be 2048 or more.");
+                }
             }
+            #[cfg(feature = "rustcrypto")]
+            #[cfg(not(feature = "rsa-sha1"))]
+            {
+                use rsa::traits::PublicKeyParts;
+                if public_key.size() * 8 < 2048 {
+                    bail!("key length must be 2048 or more.");
+                }
+            }
+            let key_id = jwk.key_id().map(|val| val.to_string());
 
             Ok(RsassaJwsVerifier {
                 algorithm: self.clone(),
@@ -305,6 +362,8 @@ impl RsassaJwsAlgorithm {
 
     fn hash_algorithm(&self) -> HashAlgorithm {
         match self {
+            #[cfg(feature = "rsa-sha1")]
+            Self::Rs1 => HashAlgorithm::Sha1,
             Self::Rs256 => HashAlgorithm::Sha256,
             Self::Rs384 => HashAlgorithm::Sha384,
             Self::Rs512 => HashAlgorithm::Sha512,
@@ -315,6 +374,8 @@ impl RsassaJwsAlgorithm {
 impl JwsAlgorithm for RsassaJwsAlgorithm {
     fn name(&self) -> &str {
         match self {
+            #[cfg(feature = "rsa-sha1")]
+            Self::Rs1 => "RS1",
             Self::Rs256 => "RS256",
             Self::Rs384 => "RS384",
             Self::Rs512 => "RS512",
@@ -343,7 +404,10 @@ impl Deref for RsassaJwsAlgorithm {
 #[derive(Debug, Clone)]
 pub struct RsassaJwsSigner {
     algorithm: RsassaJwsAlgorithm,
+    #[cfg(feature = "openssl")]
     private_key: PKey<Private>,
+    #[cfg(feature = "rustcrypto")]
+    private_key: rsa::RsaPrivateKey,
     key_id: Option<String>,
 }
 
@@ -372,7 +436,7 @@ impl JwsSigner for RsassaJwsSigner {
             None => None,
         }
     }
-
+    #[cfg(feature = "openssl")]
     fn sign(&self, message: &[u8]) -> Result<Vec<u8>, JoseError> {
         (|| -> anyhow::Result<Vec<u8>> {
             let md = match &self.algorithm.hash_algorithm() {
@@ -388,11 +452,66 @@ impl JwsSigner for RsassaJwsSigner {
         })()
         .map_err(|err| JoseError::InvalidSignature(err))
     }
+    #[cfg(feature = "rustcrypto")]
+    fn sign(&self, message: &[u8]) -> Result<Vec<u8>, JoseError> {
+        (|| -> anyhow::Result<Vec<u8>> {
+            use rsa::{traits::SignatureScheme, Pkcs1v15Sign};
+            use sha1::Sha1;
+            use sha2::{Sha256, Sha384, Sha512};
+
+            use crate::jwe::alg::pbes2_hmac_aeskw::MessageDigest;
+
+            let mut rng = rand::rng();
+
+            let signer = match &self.algorithm.hash_algorithm() {
+                HashAlgorithm::Sha1 => Pkcs1v15Sign::new::<Sha1>(),
+                HashAlgorithm::Sha256 => Pkcs1v15Sign::new::<Sha256>(),
+                HashAlgorithm::Sha384 => Pkcs1v15Sign::new::<Sha384>(),
+                HashAlgorithm::Sha512 => Pkcs1v15Sign::new::<Sha512>(),
+            };
+            let md = match &self.algorithm.hash_algorithm() {
+                HashAlgorithm::Sha1 => MessageDigest::sha1(),
+                HashAlgorithm::Sha256 => MessageDigest::sha256(),
+                HashAlgorithm::Sha384 => MessageDigest::sha384(),
+                HashAlgorithm::Sha512 => MessageDigest::sha512(),
+            };
+
+            let signature = signer.sign(Some(&mut rng), &self.private_key, &md.hash(message))?;
+            Ok(signature)
+        })()
+        .map_err(|err| JoseError::InvalidSignature(err))
+    }
+    #[cfg(feature = "rustcrypto")]
+    fn sign_prehashed(&self, digest: &[u8]) -> Result<Vec<u8>, JoseError> {
+        (|| -> anyhow::Result<Vec<u8>> {
+            use rsa::{traits::SignatureScheme, Pkcs1v15Sign};
+            use sha1::Sha1;
+            use sha2::{Sha256, Sha384, Sha512};
+
+            let mut rng = rand::rng();
+
+            let signer = match &self.algorithm.hash_algorithm() {
+                HashAlgorithm::Sha1 => Pkcs1v15Sign::new::<Sha1>(),
+                HashAlgorithm::Sha256 => Pkcs1v15Sign::new::<Sha256>(),
+                HashAlgorithm::Sha384 => Pkcs1v15Sign::new::<Sha384>(),
+                HashAlgorithm::Sha512 => Pkcs1v15Sign::new::<Sha512>(),
+            };
+
+            let signature = signer.sign(Some(&mut rng), &self.private_key, digest)?;
+            Ok(signature)
+        })()
+        .map_err(|err| JoseError::InvalidSignature(err))
+    }
 
     fn box_clone(&self) -> Box<dyn JwsSigner> {
         Box::new(self.clone())
     }
 }
+
+#[cfg(feature = "kapun-provider")]
+impl Signer for RsassaJwsSigner {}
+#[cfg(feature = "kapun-provider")]
+impl Verifier for RsassaJwsVerifier {}
 
 impl Deref for RsassaJwsSigner {
     type Target = dyn JwsSigner;
@@ -405,7 +524,10 @@ impl Deref for RsassaJwsSigner {
 #[derive(Debug, Clone)]
 pub struct RsassaJwsVerifier {
     algorithm: RsassaJwsAlgorithm,
+    #[cfg(feature = "openssl")]
     public_key: PKey<Public>,
+    #[cfg(feature = "rustcrypto")]
+    public_key: rsa::RsaPublicKey,
     key_id: Option<String>,
 }
 
@@ -416,6 +538,25 @@ impl RsassaJwsVerifier {
 
     pub fn remove_key_id(&mut self) {
         self.key_id = None;
+    }
+}
+
+impl PublicKeyTrait for RsassaJwsVerifier {
+    fn to_der_public_key(&self) -> Vec<u8> {
+        PublicKeyTrait::to_der_public_key(&self.public_key)
+    }
+
+    fn to_pem_public_key(&self) -> Vec<u8> {
+        PublicKeyTrait::to_pem_public_key(&self.public_key)
+    }
+
+    fn to_jwk_public_key(&self) -> Jwk {
+        let mut jwk = PublicKeyTrait::to_jwk_public_key(&self.public_key);
+        jwk.set_algorithm(self.algorithm.name());
+        if let Some(key_id) = &self.key_id {
+            jwk.set_key_id(key_id);
+        }
+        jwk
     }
 }
 
@@ -430,7 +571,7 @@ impl JwsVerifier for RsassaJwsVerifier {
             None => None,
         }
     }
-
+    #[cfg(feature = "openssl")]
     fn verify(&self, message: &[u8], signature: &[u8]) -> Result<(), JoseError> {
         (|| -> anyhow::Result<()> {
             let md = match &self.algorithm.hash_algorithm() {
@@ -448,6 +589,31 @@ impl JwsVerifier for RsassaJwsVerifier {
         })()
         .map_err(|err| JoseError::InvalidSignature(err))
     }
+    #[cfg(feature = "rustcrypto")]
+    fn verify(&self, message: &[u8], signature: &[u8]) -> Result<(), JoseError> {
+        (|| -> anyhow::Result<()> {
+            use rsa::{traits::SignatureScheme, Pkcs1v15Sign};
+            use sha1::Sha1;
+            use sha2::{Sha256, Sha384, Sha512};
+
+            use crate::jwe::alg::pbes2_hmac_aeskw::MessageDigest;
+            let verifier = match &self.algorithm.hash_algorithm() {
+                HashAlgorithm::Sha1 => Pkcs1v15Sign::new::<Sha1>(),
+                HashAlgorithm::Sha256 => Pkcs1v15Sign::new::<Sha256>(),
+                HashAlgorithm::Sha384 => Pkcs1v15Sign::new::<Sha384>(),
+                HashAlgorithm::Sha512 => Pkcs1v15Sign::new::<Sha512>(),
+            };
+            let md = match &self.algorithm.hash_algorithm() {
+                HashAlgorithm::Sha1 => MessageDigest::sha1(),
+                HashAlgorithm::Sha256 => MessageDigest::sha256(),
+                HashAlgorithm::Sha384 => MessageDigest::sha384(),
+                HashAlgorithm::Sha512 => MessageDigest::sha512(),
+            };
+            verifier.verify(&self.public_key, &md.hash(message), signature)?;
+            Ok(())
+        })()
+        .map_err(|err| JoseError::InvalidSignature(err))
+    }
 
     fn box_clone(&self) -> Box<dyn JwsVerifier> {
         Box::new(self.clone())
@@ -459,6 +625,105 @@ impl Deref for RsassaJwsVerifier {
 
     fn deref(&self) -> &Self::Target {
         self
+    }
+}
+
+#[cfg(feature = "kapun-provider")]
+impl KeyEncoding for RsassaJwsSigner {
+    fn kapun_private_pkcs8_der(&self) -> Option<Vec<u8>> {
+        Some(self.private_key.to_pkcs8_der().ok()?.to_bytes().to_vec())
+    }
+
+    fn kapun_private_pkcs8_pem(&self) -> Option<String> {
+        Some(
+            self.private_key
+                .to_pkcs8_pem(pkcs8::LineEnding::CRLF)
+                .ok()?
+                .to_string(),
+        )
+    }
+
+    fn kapun_public_spki_der(&self) -> Option<Vec<u8>> {
+        Some(
+            self.private_key
+                .as_public_key()
+                .to_public_key_der()
+                .ok()?
+                .to_vec(),
+        )
+    }
+
+    fn kapun_public_spki_pem(&self) -> Option<String> {
+        Some(
+            self.private_key
+                .as_public_key()
+                .to_public_key_pem(pkcs8::LineEnding::CRLF)
+                .ok()?,
+        )
+    }
+}
+#[cfg(feature = "kapun-provider")]
+impl KeyEncoding for RsassaJwsVerifier {
+    fn kapun_public_spki_der(&self) -> Option<Vec<u8>> {
+        Some(self.public_key.to_public_key_der().ok()?.to_vec())
+    }
+
+    fn kapun_public_spki_pem(&self) -> Option<String> {
+        Some(
+            self.public_key
+                .to_public_key_pem(pkcs8::LineEnding::CRLF)
+                .ok()?,
+        )
+    }
+}
+
+#[cfg(feature = "kapun-provider")]
+impl Signing for RsassaJwsSigner {
+    fn kapun_sign(&self, data: Vec<u8>) -> Result<Vec<u8>, kapun_crypto_provider::SigningProblem> {
+        self.sign(&data)
+            .map_err(|_| kapun_crypto_provider::SigningProblem::SigningFailed)
+    }
+
+    fn kapun_sign_hash(
+        &self,
+        hash: Vec<u8>,
+    ) -> Result<Vec<u8>, kapun_crypto_provider::SigningProblem> {
+        self.sign_prehashed(&hash)
+            .map_err(|_| kapun_crypto_provider::SigningProblem::SigningFailed)
+    }
+}
+
+#[cfg(feature = "kapun-provider")]
+impl Verifying for RsassaJwsVerifier {
+    fn kapun_verify(
+        &self,
+        data: Vec<u8>,
+        signature: Vec<u8>,
+    ) -> Result<(), kapun_crypto_provider::VerificationProblem> {
+        self.verify(&data, &signature)
+            .map_err(|_| kapun_crypto_provider::VerificationProblem::SignatureInvalid)
+    }
+    // TODO: we should use a prehashed version here
+    fn kapun_verify_hash(
+        &self,
+        hash: Vec<u8>,
+        signature: Vec<u8>,
+    ) -> Result<(), kapun_crypto_provider::VerificationProblem> {
+        self.verify_prehashed(&hash, &signature)
+            .map_err(|_| kapun_crypto_provider::VerificationProblem::SignatureInvalid)
+    }
+}
+
+#[cfg(feature = "kapun-provider")]
+impl Metadata for RsassaJwsSigner {
+    fn kapun_jose_alg(&self) -> Option<String> {
+        Some(self.algorithm.name().to_string())
+    }
+}
+#[cfg(feature = "kapun-provider")]
+impl Metadata for RsassaJwsVerifier {
+    fn kapun_jose_alg(&self) -> Option<String> {
+        Some(self.algorithm.name().to_string())
     }
 }
 
@@ -522,9 +787,10 @@ mod tests {
             RsassaJwsAlgorithm::Rs512,
         ] {
             let key_pair = alg.generate_key_pair(2048)?;
-
+            println!("before");
             let signer = alg.signer_from_pem(&key_pair.to_pem_private_key())?;
             let signature = signer.sign(input)?;
+            println!("after");
 
             let verifier = alg.verifier_from_pem(&key_pair.to_pem_public_key())?;
             verifier.verify(input, &signature)?;

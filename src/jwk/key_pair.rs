@@ -2,6 +2,8 @@ use std::fmt::Debug;
 
 use crate::jwk::Jwk;
 
+// TODO: adjust this trait such that it is fallible, as some of the
+// encoding functions might fail
 pub trait KeyPair: Debug + Send + Sync {
     /// Return the applicatable algorithm.
     fn algorithm(&self) -> Option<&str>;
