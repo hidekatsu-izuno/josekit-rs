@@ -341,7 +341,7 @@ impl JweEncrypter for RsaesJweEncrypter {
         _cencryption: &dyn JweContentEncryption,
         _in_header: &JweHeader,
         _out_header: &mut JweHeader,
-    ) -> Result<Option<Cow<[u8]>>, JoseError> {
+    ) -> Result<Option<Cow<'_, [u8]>>, JoseError> {
         Ok(None)
     }
 
@@ -437,7 +437,7 @@ impl JweDecrypter for RsaesJweDecrypter {
         encrypted_key: Option<&[u8]>,
         _cencryption: &dyn JweContentEncryption,
         _header: &JweHeader,
-    ) -> Result<Cow<[u8]>, JoseError> {
+    ) -> Result<Cow<'_, [u8]>, JoseError> {
         (|| -> anyhow::Result<Cow<[u8]>> {
             let encrypted_key = match encrypted_key {
                 Some(val) => val,

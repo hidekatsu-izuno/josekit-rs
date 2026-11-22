@@ -736,7 +736,7 @@ impl JweEncrypter for EcdhEsJweEncrypter {
         cencryption: &dyn JweContentEncryption,
         _merged: &JweHeader,
         header: &mut JweHeader,
-    ) -> Result<Option<Cow<[u8]>>, JoseError> {
+    ) -> Result<Option<Cow<'_, [u8]>>, JoseError> {
         if let EcdhEsJweAlgorithm::EcdhEs = self.algorithm {
             let shared_key =
                 self.compute_shared_key(header, cencryption.name(), cencryption.key_len())?;
@@ -833,7 +833,7 @@ impl JweDecrypter for EcdhEsJweDecrypter {
         encrypted_key: Option<&[u8]>,
         cencryption: &dyn JweContentEncryption,
         header: &JweHeader,
-    ) -> Result<Cow<[u8]>, JoseError> {
+    ) -> Result<Cow<'_, [u8]>, JoseError> {
         (|| -> anyhow::Result<Cow<[u8]>> {
             match &self.algorithm {
                 EcdhEsJweAlgorithm::EcdhEs => {
