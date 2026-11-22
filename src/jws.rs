@@ -212,8 +212,11 @@ mod tests {
 
     use anyhow::Result;
 
-    use crate::jws::{self, EdDSA, JwsHeader, JwsHeaderSet, JwsVerifier, ES256, RS256};
+    use crate::jws::{
+        self, EdDSA, JwsContext, JwsHeader, JwsHeaderSet, JwsVerifier, ES256, HS256, RS256,
+    };
     use crate::Value;
+    use serde_json::json;
 
     #[test]
     fn test_jws_compact_serialization() -> Result<()> {
@@ -292,6 +295,57 @@ mod tests {
     }
 
     #[test]
+    fn test_jws_json_critical_headers() -> Result<()> {
+        let payload = b"test payload!";
+        let key = [0; 32];
+        let signer = HS256.signer_from_bytes(&key)?;
+        let verifier = HS256.verifier_from_bytes(&key)?;
+        let mut context = JwsContext::new();
+        context.add_acceptable_critical("example");
+
+        let mut header = JwsHeaderSet::new();
+        header.set_claim("example", Some(json!(true)), true)?;
+        for protected in [true, false] {
+            header.set_claim("crit", Some(json!(["example"])), protected)?;
+            for jws in [
+                jws::serialize_flattened_json(payload, &header, &signer)?,
+                jws::serialize_general_json(payload, &[(&header, &signer)])?,
+            ] {
+                assert!(jws::deserialize_json(&jws, &verifier).is_err());
+                let result = context.deserialize_json(&jws, &verifier);
+                if protected {
+                    assert_eq!(result?.0, payload);
+                } else {
+                    assert!(result.is_err());
+                }
+            }
+        }
+
+        header.set_critical(&vec!["b64"]);
+        header.set_base64url_encode_payload(false);
+        context.add_acceptable_critical("b64");
+        let unencoded_payload = b"test \"payload\"\n";
+        for jws in [
+            jws::serialize_flattened_json(unencoded_payload, &header, &signer)?,
+            jws::serialize_general_json(
+                unencoded_payload,
+                &[(&header, &signer), (&header, &signer)],
+            )?,
+        ] {
+            assert_eq!(
+                context.deserialize_json(&jws, &verifier)?.0,
+                unencoded_payload
+            );
+        }
+        let encoded = JwsHeaderSet::new();
+        assert!(
+            jws::serialize_general_json(payload, &[(&header, &signer), (&encoded, &signer)])
+                .is_err()
+        );
+        Ok(())
+    }
+
+    #[test]
     fn test_jws_general_json_serialization() -> Result<()> {
         let private_key_1 = load_file("pem/RSA_2048bit_private.pem")?;
         let private_key_2 = load_file("pem/EC_P-256_private.pem")?;
@@ -304,6 +358,8 @@ mod tests {
         let mut src_header_1 = JwsHeaderSet::new();
         src_header_1.set_key_id("xxx-1", true);
         src_header_1.set_token_type("JWT-1", false);
+        src_header_1.set_claim("example", Some(json!(true)), true)?;
+        src_header_1.set_critical(&vec!["example"]);
         let signer_1 = RS256.signer_from_pem(&private_key_1)?;
 
         let mut src_header_2 = JwsHeaderSet::new();

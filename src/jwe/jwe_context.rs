@@ -894,6 +894,13 @@ impl JweContext {
             let header = util::decode_base64_urlsafe_no_pad(header_b64)?;
             let merged: Map<String, Value> = serde_json::from_slice(&header)?;
             let merged = JweHeader::from_map(merged)?;
+            if let Some(names) = merged.critical() {
+                for name in names {
+                    if !self.is_acceptable_critical(name) {
+                        bail!("The critical name '{}' is not supported.", name);
+                    }
+                }
+            }
 
             let decrypter = match selector(&merged)? {
                 Some(val) => val,
@@ -1028,6 +1035,9 @@ impl JweContext {
             };
             let unprotected = match map.remove("unprotected") {
                 Some(Value::Object(val)) => {
+                    if val.contains_key("crit") {
+                        bail!("The JWE crit header claim must be in protected.");
+                    }
                     if val.len() == 0 {
                         bail!("The unprotected field must be empty.");
                     }
@@ -1172,6 +1182,9 @@ impl JweContext {
             };
 
             let merge_header = |header: &Map<String, Value>| -> anyhow::Result<JweHeader> {
+                if header.contains_key("crit") {
+                    bail!("The JWE crit header claim must be in protected.");
+                }
                 let mut merged = header.clone();
                 for shared in unprotected.iter().chain(protected.iter()) {
                     for (key, value) in shared {
@@ -1182,7 +1195,15 @@ impl JweContext {
                     }
                 }
 
-                Ok(JweHeader::from_map(merged)?)
+                let merged = JweHeader::from_map(merged)?;
+                if let Some(names) = merged.critical() {
+                    for name in names {
+                        if !self.is_acceptable_critical(name) {
+                            bail!("The critical name '{}' is not supported.", name);
+                        }
+                    }
+                }
+                Ok(merged)
             };
 
             let mut recipients_without_kid = Vec::new();
@@ -1247,10 +1268,11 @@ mod tests {
     use crate::jwe::{
         alg::direct::DirectJweAlgorithm, deserialize_compact, deserialize_json,
         deserialize_json_with_selector, serialize_compact, serialize_flattened_json,
-        serialize_general_json, JweHeader, JweHeaderSet, A256KW,
+        serialize_general_json, JweContext, JweHeader, JweHeaderSet, A256KW,
     };
     use crate::jwk::Jwk;
     use anyhow::Result;
+    use serde_json::json;
 
     const CONTENT_CIPHERS: [(&str, usize); 6] = [
         ("A128CBC-HS256", 32),
@@ -1260,6 +1282,56 @@ mod tests {
         ("A192GCM", 24),
         ("A256GCM", 32),
     ];
+
+    #[test]
+    fn critical_headers() -> Result<()> {
+        let payload = b"hello world";
+        let alg = DirectJweAlgorithm::Dir;
+        let key = [0; 16];
+        let encrypter = alg.encrypter_from_bytes(&key)?;
+        let decrypter = alg.decrypter_from_bytes(&key)?;
+
+        let mut header = JweHeaderSet::new();
+        header.set_content_encryption("A128GCM", true);
+        header.set_claim("example", Some(json!(true)), true)?;
+        header.set_critical(&vec!["example"]);
+        let compact_header = JweHeader::from_map(header.to_map())?;
+        let compact = serialize_compact(payload, &compact_header, &encrypter)?;
+        let flattened = serialize_flattened_json(payload, Some(&header), None, None, &encrypter)?;
+        let general = serialize_general_json(payload, Some(&header), &[(None, &encrypter)], None)?;
+        let decode = |context: &JweContext| {
+            [
+                context.deserialize_compact(&compact, &decrypter),
+                context.deserialize_json(&flattened, &decrypter),
+                context.deserialize_json(&general, &decrypter),
+            ]
+        };
+
+        let mut context = JweContext::new();
+        for result in decode(&context) {
+            assert!(result.is_err());
+        }
+        context.add_acceptable_critical("example");
+        for result in decode(&context) {
+            assert_eq!(result?.0, payload);
+        }
+
+        header.set_claim("crit", Some(json!(["example"])), false)?;
+        let unprotected = serialize_flattened_json(payload, Some(&header), None, None, &encrypter)?;
+        assert!(context.deserialize_json(&unprotected, &decrypter).is_err());
+
+        header.set_claim("crit", None, true)?;
+        let mut recipient = JweHeader::new();
+        recipient.set_critical(&vec!["example"]);
+        let unprotected = serialize_general_json(
+            payload,
+            Some(&header),
+            &[(Some(&recipient), &encrypter)],
+            None,
+        )?;
+        assert!(context.deserialize_json(&unprotected, &decrypter).is_err());
+        Ok(())
+    }
 
     #[test]
     fn general_json_recipient_key_ids() -> Result<()> {

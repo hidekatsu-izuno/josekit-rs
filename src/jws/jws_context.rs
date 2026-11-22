@@ -179,7 +179,23 @@ impl JwsContext {
         F: Fn(usize, &JwsHeader) -> Option<&'a dyn JwsSigner>,
     {
         (|| -> anyhow::Result<String> {
-            let payload_b64 = util::encode_base64_urlsafe_nopad(payload);
+            let mut payload_modes = headers.iter().map(|header| {
+                let protected = header.claims_set(true);
+                matches!(protected.get("b64"), Some(Value::Bool(false)))
+                    && matches!(protected.get("crit"), Some(Value::Array(names))
+                        if names.iter().any(|name| name == "b64"))
+            });
+            let unencoded = payload_modes.next().unwrap_or(false);
+            if payload_modes.any(|mode| mode != unencoded) {
+                bail!("The JWS b64 header claim must be the same for all signatures.");
+            }
+            let payload_b64;
+            let payload = if unencoded {
+                std::str::from_utf8(payload)?
+            } else {
+                payload_b64 = util::encode_base64_urlsafe_nopad(payload);
+                &payload_b64
+            };
 
             let mut result = String::new();
             result.push_str("{\"signatures\":[");
@@ -220,7 +236,7 @@ impl JwsContext {
 
                 let unprotected_map = header.claims_set(false);
 
-                let message = format!("{}.{}", &protected_b64, &payload_b64);
+                let message = format!("{}.{}", &protected_b64, payload);
                 let signature = signer.sign(message.as_bytes())?;
 
                 result.push_str("{\"protected\":\"");
@@ -238,9 +254,9 @@ impl JwsContext {
                 result.push_str("\"}");
             }
 
-            result.push_str("],\"payload\":\"");
-            result.push_str(&payload_b64);
-            result.push_str("\"}");
+            result.push_str("],\"payload\":");
+            result.push_str(&serde_json::to_string(payload)?);
+            result.push('}');
 
             Ok(result)
         })()
@@ -284,21 +300,6 @@ impl JwsContext {
     {
         (|| -> anyhow::Result<String> {
             let protected_map = header.claims_set(true);
-            let mut b64 = true;
-            match protected_map.get("crit") {
-                Some(Value::Array(vals)) => {
-                    if vals.iter().any(|val| match val {
-                        Value::String(val2) => val2 == "b64",
-                        _ => false,
-                    }) {
-                        b64 = match protected_map.get("b64") {
-                            Some(Value::Bool(val3)) => *val3,
-                            _ => false,
-                        };
-                    }
-                }
-                _ => {}
-            }
 
             let merged_map = header.to_map();
             let merged = JwsHeader::from_map(merged_map)?;
@@ -329,12 +330,15 @@ impl JwsContext {
             let protected_json = serde_json::to_string(&protected_map)?;
             let protected_b64 = util::encode_base64_urlsafe_nopad(protected_json);
 
+            let unencoded = matches!(protected_map.get("b64"), Some(Value::Bool(false)))
+                && matches!(protected_map.get("crit"), Some(Value::Array(names))
+                    if names.iter().any(|name| name == "b64"));
             let payload_b64;
-            let payload = if b64 {
+            let payload = if unencoded {
+                std::str::from_utf8(payload)?
+            } else {
                 payload_b64 = util::encode_base64_urlsafe_nopad(payload);
                 &payload_b64
-            } else {
-                std::str::from_utf8(payload)?
             };
 
             let message = format!("{}.{}", &protected_b64, payload);
@@ -352,9 +356,8 @@ impl JwsContext {
                 json.push_str(&unprotcted_json);
             }
 
-            json.push_str(",\"payload\":\"");
-            json.push_str(&payload);
-            json.push_str("\"");
+            json.push_str(",\"payload\":");
+            json.push_str(&serde_json::to_string(payload)?);
 
             json.push_str(",\"signature\":\"");
             util::encode_base64_urlsafe_nopad_buf(&signature, &mut json);
@@ -571,33 +574,13 @@ impl JwsContext {
 
                 let protected_vec = util::decode_base64_urlsafe_no_pad(&protected_b64)?;
                 let protected_map: Map<String, Value> = serde_json::from_slice(&protected_vec)?;
-
-                let mut b64 = true;
-                if let Some(Value::Array(vals)) = protected_map.get("critical") {
-                    for val in vals {
-                        match val {
-                            Value::String(name) => {
-                                if !self.is_acceptable_critical(name) {
-                                    bail!("The critical name '{}' is not supported.", name);
-                                }
-
-                                if name == "b64" {
-                                    match protected_map.get("b64") {
-                                        Some(Value::Bool(b64_val)) => {
-                                            b64 = *b64_val;
-                                        }
-                                        Some(_) => bail!("The JWS b64 header claim must be bool."),
-                                        None => {}
-                                    }
-                                }
-                            }
-                            _ => bail!("The JWS critical header claim must be a array of string."),
-                        }
-                    }
-                }
+                let protected_b64_flag = protected_map.get("b64").map(Value::as_bool);
 
                 let merged_map = match header {
                     Some(Value::Object(mut val)) => {
+                        if val.contains_key("crit") {
+                            bail!("The JWS crit header claim must be in protected.");
+                        }
                         for (key, value) in protected_map {
                             if val.contains_key(&key) {
                                 bail!("A duplicate key exists: {}", key);
@@ -645,6 +628,22 @@ impl JwsContext {
                         None => bail!("The JWS kid header claim is required."),
                     },
                     None => {}
+                }
+
+                let mut b64 = true;
+                if let Some(names) = merged.critical() {
+                    for name in names {
+                        if !self.is_acceptable_critical(name) {
+                            bail!("The critical name '{}' is not supported.", name);
+                        }
+                        if name == "b64" {
+                            b64 = match protected_b64_flag {
+                                Some(Some(value)) => value,
+                                Some(None) => bail!("The JWS b64 header claim must be bool."),
+                                None => true,
+                            };
+                        }
+                    }
                 }
 
                 let message = format!("{}.{}", &protected_b64, &payload_b64);
