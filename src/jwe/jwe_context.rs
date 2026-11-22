@@ -933,7 +933,7 @@ impl JweContext {
                 Some(expected) => match merged.key_id() {
                     Some(actual) if expected == actual => {}
                     Some(actual) => bail!("The JWE kid header claim is mismatched: {}", actual),
-                    None => bail!("The JWE kid header claim is required."),
+                    None => {}
                 },
                 None => {}
             }
@@ -986,7 +986,8 @@ impl JweContext {
             match decrypter.key_id() {
                 Some(expected) => match header.key_id() {
                     Some(actual) if expected == actual => {}
-                    _ => return Ok(None),
+                    Some(_) => return Ok(None),
+                    None => {}
                 },
                 None => {}
             }
@@ -1105,55 +1106,16 @@ impl JweContext {
                 }
             };
 
-            for mut recipient in recipients {
-                let header = recipient.remove("header");
+            let mut full_aad = protected_b64.unwrap_or_default();
+            if let Some(val) = aad_b64 {
+                full_aad.push('.');
+                full_aad.push_str(&val);
+            }
 
-                let encrypted_key_vec;
-                let encrypted_key = match recipient.get("encrypted_key") {
-                    Some(Value::String(val)) => {
-                        if val.len() == 0 {
-                            bail!("The encrypted_key field must be empty.");
-                        }
-                        encrypted_key_vec = util::decode_base64_urlsafe_no_pad(&val)?;
-                        Some(encrypted_key_vec.as_slice())
-                    }
-                    Some(_) => bail!("The encrypted_key field must be a string."),
-                    None => None,
-                };
-
-                let mut merged = match header {
-                    Some(Value::Object(val)) => val,
-                    Some(_) => bail!("The protected field must be a object."),
-                    None => Map::new(),
-                };
-
-                if let Some(val) = &unprotected {
-                    for (key, value) in val {
-                        if merged.contains_key(key) {
-                            bail!("A duplicate key exists: {}", key);
-                        } else {
-                            merged.insert(key.clone(), value.clone());
-                        }
-                    }
-                }
-
-                if let Some(val) = &protected {
-                    for (key, value) in val {
-                        if merged.contains_key(key) {
-                            bail!("A duplicate key exists: {}", key);
-                        } else {
-                            merged.insert(key.clone(), value.clone());
-                        }
-                    }
-                }
-
-                let merged = JweHeader::from_map(merged)?;
-
-                let decrypter = match selector(&merged)? {
-                    Some(val) => val,
-                    None => continue,
-                };
-
+            let decrypt_recipient = |decrypter: &dyn JweDecrypter,
+                                     encrypted_key: Option<&[u8]>,
+                                     merged: &JweHeader|
+             -> anyhow::Result<Vec<u8>> {
                 let cencryption = match merged.claim("enc") {
                     Some(Value::String(val)) => match self.get_content_encryption(val) {
                         Some(val2) => val2,
@@ -1186,21 +1148,12 @@ impl JweContext {
                     Some(expected) => match merged.key_id() {
                         Some(actual) if expected == actual => {}
                         Some(actual) => bail!("The JWE kid header claim is mismatched: {}", actual),
-                        None => bail!("The JWE kid header claim is required."),
+                        None => {}
                     },
                     None => {}
                 }
 
-                let mut full_aad = match protected_b64 {
-                    Some(val) => val,
-                    None => String::new(),
-                };
-                if let Some(val) = aad_b64 {
-                    full_aad.push_str(".");
-                    full_aad.push_str(&val);
-                }
-
-                let key = decrypter.decrypt(encrypted_key, cencryption, &merged)?;
+                let key = decrypter.decrypt(encrypted_key, cencryption, merged)?;
                 if key.len() != cencryption.key_len() {
                     bail!(
                         "The key size is expected to be {}: {}",
@@ -1215,10 +1168,71 @@ impl JweContext {
                     Some(val) => val.decompress(&content)?,
                     None => content,
                 };
+                Ok(content)
+            };
 
+            let merge_header = |header: &Map<String, Value>| -> anyhow::Result<JweHeader> {
+                let mut merged = header.clone();
+                for shared in unprotected.iter().chain(protected.iter()) {
+                    for (key, value) in shared {
+                        if merged.contains_key(key) {
+                            bail!("A duplicate key exists: {}", key);
+                        }
+                        merged.insert(key.clone(), value.clone());
+                    }
+                }
+
+                Ok(JweHeader::from_map(merged)?)
+            };
+
+            let mut recipients_without_kid = Vec::new();
+            for mut recipient in recipients {
+                let encrypted_key = match recipient.remove("encrypted_key") {
+                    Some(Value::String(val)) => {
+                        if val.len() == 0 {
+                            bail!("The encrypted_key field must be empty.");
+                        }
+                        Some(util::decode_base64_urlsafe_no_pad(&val)?)
+                    }
+                    Some(_) => bail!("The encrypted_key field must be a string."),
+                    None => None,
+                };
+
+                let recipient_header = match recipient.remove("header") {
+                    Some(Value::Object(val)) => val,
+                    Some(_) => bail!("The protected field must be a object."),
+                    None => Map::new(),
+                };
+                let merged = merge_header(&recipient_header)?;
+
+                let decrypter = match selector(&merged)? {
+                    Some(val) => val,
+                    None => continue,
+                };
+
+                // Give an explicit key ID precedence over an omitted one.
+                if decrypter.key_id().is_some() && merged.key_id().is_none() {
+                    recipients_without_kid.push((decrypter, encrypted_key, recipient_header));
+                    continue;
+                }
+
+                let content = decrypt_recipient(decrypter, encrypted_key.as_deref(), &merged)?;
                 return Ok((content, merged));
             }
 
+            let mut first_error = None;
+            for (decrypter, encrypted_key, recipient_header) in recipients_without_kid {
+                let header = merge_header(&recipient_header)?;
+                match decrypt_recipient(decrypter, encrypted_key.as_deref(), &header) {
+                    Ok(content) => return Ok((content, header)),
+                    Err(err) => {
+                        first_error.get_or_insert(err);
+                    }
+                }
+            }
+            if let Some(err) = first_error {
+                return Err(err);
+            }
             bail!("A recipient that matched the header claims is not found.");
         })()
         .map_err(|err| match err.downcast::<JoseError>() {
@@ -1231,9 +1245,11 @@ impl JweContext {
 #[cfg(test)]
 mod tests {
     use crate::jwe::{
-        alg::direct::DirectJweAlgorithm, deserialize_compact, deserialize_json, serialize_compact,
-        serialize_flattened_json, serialize_general_json, JweHeader, JweHeaderSet,
+        alg::direct::DirectJweAlgorithm, deserialize_compact, deserialize_json,
+        deserialize_json_with_selector, serialize_compact, serialize_flattened_json,
+        serialize_general_json, JweHeader, JweHeaderSet, A256KW,
     };
+    use crate::jwk::Jwk;
     use anyhow::Result;
 
     const CONTENT_CIPHERS: [(&str, usize); 6] = [
@@ -1244,6 +1260,37 @@ mod tests {
         ("A192GCM", 24),
         ("A256GCM", 32),
     ];
+
+    #[test]
+    fn general_json_recipient_key_ids() -> Result<()> {
+        let payload = b"hello world";
+        let mut jwk = Jwk::generate_oct_key(32)?;
+        let encrypter = A256KW.encrypter_from_jwk(&jwk)?;
+        jwk.set_key_id("recipient");
+        let decrypter = A256KW.decrypter_from_jwk(&jwk)?;
+        let other_encrypter = A256KW.encrypter_from_jwk(&Jwk::generate_oct_key(32)?)?;
+
+        let mut shared = JweHeaderSet::new();
+        shared.set_content_encryption("A128GCM", true);
+        let mut identified = JweHeader::new();
+        identified.set_key_id("recipient");
+
+        for recipient_header in [None, Some(&identified)] {
+            let recipients = [
+                (None, &*other_encrypter),
+                (None, &*encrypter),
+                (recipient_header, &*encrypter),
+            ];
+            let json = serialize_general_json(payload, Some(&shared), &recipients, None)?;
+            let (data, header) = deserialize_json(&json, &decrypter)?;
+            assert_eq!(data, payload);
+            assert_eq!(
+                header.key_id(),
+                recipient_header.and_then(JweHeader::key_id)
+            );
+        }
+        Ok(())
+    }
 
     #[test]
     fn compact_dir() -> Result<()> {
@@ -1257,9 +1304,14 @@ mod tests {
             let jwe = serialize_compact(payload, &header, &encrypter)?;
             println!("{}", jwe);
 
-            let decrypter = alg.decrypter_from_bytes(&key)?;
+            let mut decrypter = alg.decrypter_from_bytes(&key)?;
+            decrypter.set_key_id("recipient");
             let (data, _header) = deserialize_compact(&jwe, &decrypter)?;
             assert_eq!(data, payload);
+
+            header.set_key_id("other");
+            let jwe = serialize_compact(payload, &header, &encrypter)?;
+            assert!(deserialize_compact(&jwe, &decrypter).is_err());
         }
         Ok(())
     }
@@ -1276,9 +1328,17 @@ mod tests {
             let jwe = serialize_flattened_json(payload, Some(&hs), None, None, &encrypter)?;
             println!("{}", jwe);
 
-            let decrypter = alg.decrypter_from_bytes(&key)?;
+            let mut decrypter = alg.decrypter_from_bytes(&key)?;
+            decrypter.set_key_id("recipient");
             let (data, _header) = deserialize_json(&jwe, &decrypter)?;
             assert_eq!(data, payload);
+            let (data, _header) = deserialize_json_with_selector(&jwe, |_| Ok(Some(&decrypter)))?;
+            assert_eq!(data, payload);
+
+            hs.set_key_id("other", true);
+            let jwe = serialize_flattened_json(payload, Some(&hs), None, None, &encrypter)?;
+            assert!(deserialize_json(&jwe, &decrypter).is_err());
+            assert!(deserialize_json_with_selector(&jwe, |_| Ok(Some(&decrypter))).is_err());
         }
         Ok(())
     }
