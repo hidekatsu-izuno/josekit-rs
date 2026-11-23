@@ -109,7 +109,10 @@ impl JwtContext {
         header: &JweHeader,
         encrypter: &dyn JweEncrypter,
     ) -> Result<String, JoseError> {
-        let payload_bytes = serde_json::to_vec(payload.claims_set()).unwrap();
+        let payload_bytes = match payload.nested_jwt_bytes() {
+            Some(bytes) => bytes,
+            None => serde_json::to_vec(payload.claims_set()).unwrap(),
+        };
         let jwt = self
             .jwe_context
             .serialize_compact(&payload_bytes, header, encrypter)?;
@@ -293,8 +296,10 @@ impl JwtContext {
                         Ok(Some(decrypter))
                     })?;
 
-            let payload: Map<String, Value> = serde_json::from_slice(&payload)?;
-            let payload = JwtPayload::from_map(payload)?;
+            let payload = match serde_json::from_slice::<Map<String, Value>>(&payload) {
+                Ok(map) => JwtPayload::from_map(map)?,
+                Err(_) => JwtPayload::from_nested_jwt(&String::from_utf8(payload)?),
+            };
 
             Ok((payload, header))
         })()
