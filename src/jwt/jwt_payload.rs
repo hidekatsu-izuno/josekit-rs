@@ -111,6 +111,7 @@ impl JwtPayload {
         }
     }
 
+    #[cfg(feature = "claims-as-floats")]
     /// Set a system time for expires at payload claim (exp).
     ///
     /// # Arguments
@@ -140,6 +141,24 @@ impl JwtPayload {
         self.claims.insert(key.clone(), val);
     }
 
+    #[cfg(all(feature = "claims-as-ints", not(feature = "claims-as-floats")))]
+    /// Set a system time for expires at payload claim (exp).
+    ///
+    /// # Arguments
+    ///
+    /// * `value` - A expiration time on or after which the JWT must not be accepted for processing.
+    pub fn set_expires_at(&mut self, value: &SystemTime) {
+        let key = "exp".to_string();
+        let val = Number::from(
+            value
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap()
+                .as_secs(),
+        );
+        self.claims.insert(key.clone(), Value::Number(val));
+    }
+
+    #[cfg(feature = "claims-as-floats")]
     /// Return the system time for expires at payload claim (exp).
     pub fn expires_at(&self) -> Option<SystemTime> {
         match self.claims.get("exp") {
@@ -151,6 +170,19 @@ impl JwtPayload {
         }
     }
 
+    #[cfg(all(feature = "claims-as-ints", not(feature = "claims-as-floats")))]
+    /// Return the system time for expires at payload claim (exp).
+    pub fn expires_at(&self) -> Option<SystemTime> {
+        match self.claims.get("exp") {
+            Some(Value::Number(val)) => match val.as_u64() {
+                Some(val) => Some(SystemTime::UNIX_EPOCH + Duration::from_secs(val)),
+                None => None,
+            },
+            _ => None,
+        }
+    }
+
+    #[cfg(feature = "claims-as-floats")]
     /// Set a system time for not before payload claim (nbf).
     ///
     /// # Arguments
@@ -168,6 +200,24 @@ impl JwtPayload {
         self.claims.insert(key.clone(), Value::Number(val));
     }
 
+    #[cfg(all(feature = "claims-as-ints", not(feature = "claims-as-floats")))]
+    /// Set a system time for not before payload claim (nbf).
+    ///
+    /// # Arguments
+    ///
+    /// * `value` - A time before which the JWT must not be accepted for processing.
+    pub fn set_not_before(&mut self, value: &SystemTime) {
+        let key = "nbf".to_string();
+        let val = Number::from(
+            value
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap()
+                .as_secs(),
+        );
+        self.claims.insert(key.clone(), Value::Number(val));
+    }
+
+    #[cfg(feature = "claims-as-floats")]
     /// Return the system time for not before payload claim (nbf).
     pub fn not_before(&self) -> Option<SystemTime> {
         match self.claims.get("nbf") {
@@ -179,6 +229,19 @@ impl JwtPayload {
         }
     }
 
+    #[cfg(all(feature = "claims-as-ints", not(feature = "claims-as-floats")))]
+    /// Return the system time for not before payload claim (nbf).
+    pub fn not_before(&self) -> Option<SystemTime> {
+        match self.claims.get("nbf") {
+            Some(Value::Number(val)) => match val.as_u64() {
+                Some(val) => Some(SystemTime::UNIX_EPOCH + Duration::from_secs(val)),
+                None => None,
+            },
+            _ => None,
+        }
+    }
+
+    #[cfg(feature = "claims-as-floats")]
     /// Set a time for issued at payload claim (iat).
     ///
     /// # Arguments
@@ -196,11 +259,41 @@ impl JwtPayload {
         self.claims.insert(key.clone(), Value::Number(val));
     }
 
+    #[cfg(all(feature = "claims-as-ints", not(feature = "claims-as-floats")))]
+    /// Set a time for issued at payload claim (iat).
+    ///
+    /// # Arguments
+    ///
+    /// * `value` - a time at which the JWT was issued.
+    pub fn set_issued_at(&mut self, value: &SystemTime) {
+        let key = "iat".to_string();
+        let val = Number::from(
+            value
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap()
+                .as_secs(),
+        );
+        self.claims.insert(key.clone(), Value::Number(val));
+    }
+
+    #[cfg(feature = "claims-as-floats")]
     /// Return the time for a issued at payload claim (iat).
     pub fn issued_at(&self) -> Option<SystemTime> {
         match self.claims.get("iat") {
             Some(Value::Number(val)) => match val.as_f64() {
                 Some(val) => Some(SystemTime::UNIX_EPOCH + Duration::from_secs_f64(val)),
+                None => None,
+            },
+            _ => None,
+        }
+    }
+
+    #[cfg(all(feature = "claims-as-ints", not(feature = "claims-as-floats")))]
+    /// Return the time for a issued at payload claim (iat).
+    pub fn issued_at(&self) -> Option<SystemTime> {
+        match self.claims.get("iat") {
+            Some(Value::Number(val)) => match val.as_u64() {
+                Some(val) => Some(SystemTime::UNIX_EPOCH + Duration::from_secs(val)),
                 None => None,
             },
             _ => None,
@@ -262,6 +355,7 @@ impl JwtPayload {
         &self.claims
     }
 
+    #[cfg(feature = "claims-as-floats")]
     fn check_claim(key: &str, value: &Value) -> Result<(), JoseError> {
         (|| -> anyhow::Result<()> {
             match key {
@@ -300,6 +394,47 @@ impl JwtPayload {
         })()
         .map_err(|err| JoseError::InvalidJwtFormat(err))
     }
+
+    #[cfg(all(feature = "claims-as-ints", not(feature = "claims-as-floats")))]
+    fn check_claim(key: &str, value: &Value) -> Result<(), JoseError> {
+        (|| -> anyhow::Result<()> {
+            match key {
+                "iss" | "sub" | "jti" => match &value {
+                    Value::String(_) => {}
+                    _ => bail!("The JWT {} payload claim must be a string.", key),
+                },
+                "aud" => match &value {
+                    Value::String(_) => {}
+                    Value::Array(vals) => {
+                        for val in vals {
+                            match val {
+                                Value::String(_) => {}
+                                _ => bail!(
+                                    "An element of the JWT {} payload claim must be a string.",
+                                    key
+                                ),
+                            }
+                        }
+                    }
+                    _ => bail!("The JWT {} payload claim must be a string or array.", key),
+                },
+                "exp" | "nbf" | "iat" => match &value {
+                    Value::Number(val) => match val.as_u64() {
+                        Some(_) => {}
+                        None => bail!(
+                            "The JWT {} payload claim must be a positive integer within 64bit.",
+                            key
+                        ),
+                    },
+                    _ => bail!("The JWT {} header claim must be a string.", key),
+                },
+                _ => {}
+            }
+
+            Ok(())
+        })()
+        .map_err(|err| JoseError::InvalidJwtFormat(err))
+    }
 }
 
 impl AsRef<Map<String, Value>> for JwtPayload {
@@ -321,6 +456,7 @@ impl Display for JwtPayload {
     }
 }
 
+#[cfg(feature = "claims-as-floats")]
 fn is_negative(num: &Number) -> bool {
     if let Some(num) = num.as_i128() {
         num < 0
@@ -335,9 +471,15 @@ fn is_negative(num: &Number) -> bool {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(all(feature = "claims-as-ints", not(feature = "claims-as-floats")))]
+    use std::time::SystemTime;
+    #[cfg(feature = "claims-as-floats")]
     use std::time::{Duration, SystemTime};
 
     use anyhow::Result;
+    #[cfg(all(feature = "claims-as-ints", not(feature = "claims-as-floats")))]
+    use serde_json::json;
+    #[cfg(feature = "claims-as-floats")]
     use serde_json::{json, Number, Value};
 
     use super::JwtPayload;
@@ -370,6 +512,7 @@ mod tests {
         Ok(())
     }
 
+    #[cfg(feature = "claims-as-floats")]
     #[test]
     fn test_f64_time_payload() -> Result<()> {
         let mut payload = JwtPayload::new();

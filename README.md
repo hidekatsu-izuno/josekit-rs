@@ -18,6 +18,9 @@ sudo apt install build-essential pkg-config libssl-dev
 cd josekit-rs
 cargo build --release
 ```
+### Crate Features
+1. `claims-as-ints` [Default] - Claims are processed as integers
+1. `claims-as-floats` - Claims are processed as floats
 
 <!-- 
 ## Publish
