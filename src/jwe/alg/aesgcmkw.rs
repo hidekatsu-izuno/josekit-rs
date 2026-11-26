@@ -346,6 +346,7 @@ mod tests {
     use crate::jwe::JweHeader;
     use crate::jwk::Jwk;
     use crate::util;
+    use crate::JoseError;
 
     #[test]
     fn encrypt_and_decrypt_aes_gcm() -> Result<()> {
@@ -378,6 +379,16 @@ mod tests {
             let dst_key = decrypter.decrypt(encrypted_key.as_deref(), &enc, &out_header)?;
 
             assert_eq!(&src_key as &[u8], &dst_key as &[u8]);
+
+            for tag_len in [0, 1, 4, 15, 17] {
+                let invalid_tag = util::encode_base64_urlsafe_nopad(&[0; 17][..tag_len]);
+                out_header.set_claim("tag", Some(json!(invalid_tag)))?;
+                let result = decrypter.decrypt(encrypted_key.as_deref(), &enc, &out_header);
+                assert!(
+                    matches!(result, Err(JoseError::InvalidJweFormat(err)) if err.to_string() == "The AES-GCM tag must be 16 bytes."),
+                    "{alg} must reject a {tag_len}-byte tag before authentication"
+                );
+            }
         }
 
         Ok(())

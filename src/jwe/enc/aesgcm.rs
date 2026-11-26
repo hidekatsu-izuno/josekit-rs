@@ -157,6 +157,10 @@ pub(crate) fn decrypt_aead(
     ciphertext: &[u8],
     tag: &[u8],
 ) -> anyhow::Result<Vec<u8>> {
+    if tag.len() != 16 {
+        bail!("The AES-GCM tag must be 16 bytes.");
+    }
+
     #[cfg(feature = "aws-lc-rs")]
     return crate::aws_lc::decrypt_gcm(key, iv, aad, ciphertext, tag);
     #[cfg(not(any(feature = "aes-gcm-rustcrypto", feature = "aws-lc-rs")))]
@@ -220,6 +224,7 @@ mod tests {
 
     use super::AesgcmJweEncryption;
     use crate::util;
+    use crate::JoseError;
 
     #[test]
     fn encrypt_and_decrypt_aes_gcm() -> Result<()> {
@@ -244,6 +249,16 @@ mod tests {
             )?;
 
             assert_eq!(&message[..], &decrypted_message[..]);
+
+            for tag_len in [0, 1, 4, 15, 17] {
+                let invalid_tag = &[0; 17][..tag_len];
+                let result =
+                    enc.decrypt(&key, Some(&iv), &encrypted_message, aad, Some(invalid_tag));
+                assert!(
+                    matches!(result, Err(JoseError::InvalidJweFormat(err)) if err.to_string() == "The AES-GCM tag must be 16 bytes."),
+                    "{enc} must reject a {tag_len}-byte tag before authentication"
+                );
+            }
         }
 
         Ok(())
