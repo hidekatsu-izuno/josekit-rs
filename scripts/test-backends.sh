@@ -17,6 +17,11 @@ test_backend() {
         pure-rust)
             cargo test --target-dir "$target_dir" --no-default-features --features "$pure_rust_features" "$@"
             ;;
+        wasm-wasi)
+            CARGO_TARGET_WASM32_WASIP1_RUNNER="${CARGO_TARGET_WASM32_WASIP1_RUNNER:-node scripts/run-wasi-tests.mjs}" \
+                cargo test --target-dir "$target_dir" --target wasm32-wasip1 --no-default-features \
+                    --features "$pure_rust_features" "$@"
+            ;;
         aws-lc)
             cargo test --target-dir "$target_dir" --no-default-features --features aws-lc-rs "$@"
             ;;
@@ -50,19 +55,19 @@ fi
 case "$selection" in
     all)
         status=0
-        for backend in pure-rust openssl libressl aws-lc; do
+        for backend in pure-rust openssl libressl aws-lc wasm-wasi; do
             test_backend "$backend" "$@" || status=1
         done
         exit "$status"
         ;;
-    pure-rust|openssl|libressl|aws-lc)
+    pure-rust|openssl|libressl|aws-lc|wasm-wasi)
         test_backend "$selection" "$@"
         ;;
     aws-lc-rs)
         test_backend aws-lc "$@"
         ;;
     *)
-        printf 'Usage: %s [all|pure-rust|openssl|libressl|aws-lc] [cargo test arguments...]\n' "$0" >&2
+        printf 'Usage: %s [all|pure-rust|openssl|libressl|aws-lc|wasm-wasi] [cargo test arguments...]\n' "$0" >&2
         exit 2
         ;;
 esac

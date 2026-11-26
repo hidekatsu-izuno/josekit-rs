@@ -86,18 +86,25 @@ cargo build --release
 
 ## Test backends
 
-GitHub Actions runs `cargo test` for Pure Rust, OpenSSL, LibreSSL, and AWS-LC.
-Set `LIBRESSL_DIR` to the LibreSSL installation prefix to run all four locally.
+GitHub Actions runs `cargo test` for Pure Rust, OpenSSL, LibreSSL, AWS-LC, and WASI.
+To run all five locally, install Node.js 20 or later and the `wasm32-wasip1`
+Rust target, then set `LIBRESSL_DIR` to the LibreSSL installation prefix.
 
 ```sh
+rustup target add wasm32-wasip1
 LIBRESSL_DIR=/path/to/libressl ./scripts/test-backends.sh
 ```
 
-Pass `pure-rust`, `openssl`, `libressl`, or `aws-lc` to run one configuration.
+Pass `pure-rust`, `openssl`, `libressl`, `aws-lc`, or `wasm-wasi` to run one
+configuration.
 Additional arguments are forwarded to `cargo test`. The `aws-lc` configuration
 enables the `aws-lc-rs` Cargo feature. The Pure Rust configuration selects all
 Rust backends. The LibreSSL configuration uses the Rust implementations of
 Ed448 and X448.
+
+Run just the WASI tests with `./scripts/test-backends.sh wasm-wasi --release`.
+The Cargo runner uses Node.js WASI and maps `data/` for the test fixtures.
+It runs the existing unit tests and doctests as WebAssembly.
 
 <!-- 
 ## Publish
