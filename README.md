@@ -12,8 +12,9 @@ josekit = "0.10.4"
 The default `openssl` feature uses OpenSSL 1.1.1 or later through the
 [`openssl` crate](https://docs.rs/openssl/).
 
-Enabling any `*-rustcrypto` feature selects `rand::rngs::SysRng` for randomness.
-If none of those features is enabled, the build uses `openssl::rand`.
+Enabling any `*-rustcrypto` feature or `x448-goldilocks-plus` selects
+`rand::rngs::SysRng` for shared randomness. Other configurations use
+`openssl::rand`.
 
 ### Pure Rust build
 
@@ -29,6 +30,19 @@ cargo build --no-default-features --features \
 The `rsa-rustcrypto` backend accepts two-prime RSA private keys and RSA
 moduli from 1024 to 8192 bits. JOSE RSA algorithms require at least 2048 bits.
 
+### AWS-LC build
+
+The `aws-lc-rs` feature uses AWS-LC for AES-GCM, AES-CBC-HMAC, HMAC, PBKDF2,
+A128KW, A256KW, RSA signatures and encryption, ECDSA, Ed25519 signatures,
+and ECDH over NIST curves and X25519. Rust implementations handle A192KW,
+RSA1_5 decryption with implicit rejection, secp256k1 key agreement, Ed448,
+and X448. RustCrypto also handles RSA key generation for sizes outside
+AWS-LC's key generation API (2048, 3072, 4096, and 8192 bits).
+
+```sh
+cargo build --no-default-features --features aws-lc-rs
+```
+
 ### X448 and Ed448 backends
 
 OpenSSL provides both curves by default. To use their Rust implementations
@@ -39,8 +53,8 @@ cargo build --features ed448-goldilocks-plus,x448-goldilocks-plus
 ```
 
 Each feature can also be selected independently. `x448-goldilocks-plus` also
-selects RustCrypto's `sha2` for the ECDH-ES Concat KDF and `aes-kw-rustcrypto` for
-JWE key wrapping.
+selects RustCrypto's `sha2` for the ECDH-ES Concat KDF and `aes-kw` for JWE key
+wrapping.
 
 ## Build
 
@@ -49,6 +63,21 @@ sudo apt install build-essential pkg-config libssl-dev
 cd josekit-rs
 cargo build --release
 ```
+
+## Test backends
+
+GitHub Actions runs `cargo test` for Pure Rust, OpenSSL, LibreSSL, and AWS-LC.
+Set `LIBRESSL_DIR` to the LibreSSL installation prefix to run all four locally.
+
+```sh
+LIBRESSL_DIR=/path/to/libressl ./scripts/test-backends.sh
+```
+
+Pass `pure-rust`, `openssl`, `libressl`, or `aws-lc` to run one configuration.
+Additional arguments are forwarded to `cargo test`. The `aws-lc` configuration
+enables the `aws-lc-rs` Cargo feature. The Pure Rust configuration selects all
+Rust backends. The LibreSSL configuration uses the Rust implementations of
+Ed448 and X448.
 
 <!-- 
 ## Publish

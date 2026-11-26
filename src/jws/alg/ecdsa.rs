@@ -9,9 +9,9 @@ use crate::jwk::{
 };
 use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier};
 use crate::util;
-#[cfg(not(feature = "ec-rustcrypto"))]
+#[cfg(not(any(feature = "ec-rustcrypto", feature = "aws-lc-rs")))]
 use crate::util::der::{DerBuilder, DerReader, DerType};
-#[cfg(not(feature = "ec-rustcrypto"))]
+#[cfg(not(any(feature = "ec-rustcrypto", feature = "aws-lc-rs")))]
 use crate::util::HashAlgorithm;
 use crate::{JoseError, Value};
 
@@ -271,7 +271,7 @@ impl EcdsaJwsAlgorithm {
         }
     }
 
-    #[cfg(not(feature = "ec-rustcrypto"))]
+    #[cfg(not(any(feature = "ec-rustcrypto", feature = "aws-lc-rs")))]
     fn hash_algorithm(&self) -> HashAlgorithm {
         match self {
             Self::Es256 => HashAlgorithm::Sha256,
@@ -345,13 +345,13 @@ impl JwsSigner for EcdsaJwsSigner {
     }
 
     fn sign(&self, message: &[u8]) -> Result<Vec<u8>, JoseError> {
-        #[cfg(feature = "ec-rustcrypto")]
+        #[cfg(any(feature = "ec-rustcrypto", feature = "aws-lc-rs"))]
         return self
             .private_key
             .sign_ecdsa(message)
             .map_err(JoseError::InvalidSignature);
 
-        #[cfg(not(feature = "ec-rustcrypto"))]
+        #[cfg(not(any(feature = "ec-rustcrypto", feature = "aws-lc-rs")))]
         (|| -> anyhow::Result<Vec<u8>> {
             let md = self.algorithm.hash_algorithm().openssl();
             let mut signer = self.private_key.openssl_signer(md)?;
@@ -428,13 +428,13 @@ impl JwsVerifier for EcdsaJwsVerifier {
     }
 
     fn verify(&self, message: &[u8], signature: &[u8]) -> Result<(), JoseError> {
-        #[cfg(feature = "ec-rustcrypto")]
+        #[cfg(any(feature = "ec-rustcrypto", feature = "aws-lc-rs"))]
         return self
             .public_key
             .verify_ecdsa(message, signature)
             .map_err(JoseError::InvalidSignature);
 
-        #[cfg(not(feature = "ec-rustcrypto"))]
+        #[cfg(not(any(feature = "ec-rustcrypto", feature = "aws-lc-rs")))]
         (|| -> anyhow::Result<()> {
             let signature_len = self.algorithm.signature_len();
             if signature.len() != signature_len {

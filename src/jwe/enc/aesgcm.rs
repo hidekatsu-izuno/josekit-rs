@@ -2,7 +2,7 @@ use std::fmt::Display;
 use std::ops::Deref;
 
 use anyhow::bail;
-#[cfg(not(feature = "aes-gcm-rustcrypto"))]
+#[cfg(not(any(feature = "aes-gcm-rustcrypto", feature = "aws-lc-rs")))]
 use openssl::symm::{self, Cipher};
 
 use crate::jwe::JweContentEncryption;
@@ -95,7 +95,7 @@ impl JweContentEncryption for AesgcmJweEncryption {
     }
 }
 
-#[cfg(feature = "aes-gcm-rustcrypto")]
+#[cfg(all(feature = "aes-gcm-rustcrypto", not(feature = "aws-lc-rs")))]
 macro_rules! with_cipher {
     ($key:expr, |$cipher:ident| $operation:expr) => {{
         use aes_gcm::{aes, Aes128Gcm, Aes256Gcm, AesGcm, KeyInit};
@@ -125,13 +125,15 @@ pub(crate) fn encrypt_aead(
     aad: &[u8],
     message: &[u8],
 ) -> anyhow::Result<(Vec<u8>, [u8; 16])> {
-    #[cfg(not(feature = "aes-gcm-rustcrypto"))]
+    #[cfg(feature = "aws-lc-rs")]
+    return crate::aws_lc::encrypt_gcm(key, iv, aad, message);
+    #[cfg(not(any(feature = "aes-gcm-rustcrypto", feature = "aws-lc-rs")))]
     {
         let mut tag = [0; 16];
         let ciphertext = symm::encrypt_aead(cipher(key.len())?, key, iv, aad, message, &mut tag)?;
         Ok((ciphertext, tag))
     }
-    #[cfg(feature = "aes-gcm-rustcrypto")]
+    #[cfg(all(feature = "aes-gcm-rustcrypto", not(feature = "aws-lc-rs")))]
     {
         use aes_gcm::aead::AeadInOut;
 
@@ -155,7 +157,9 @@ pub(crate) fn decrypt_aead(
     ciphertext: &[u8],
     tag: &[u8],
 ) -> anyhow::Result<Vec<u8>> {
-    #[cfg(not(feature = "aes-gcm-rustcrypto"))]
+    #[cfg(feature = "aws-lc-rs")]
+    return crate::aws_lc::decrypt_gcm(key, iv, aad, ciphertext, tag);
+    #[cfg(not(any(feature = "aes-gcm-rustcrypto", feature = "aws-lc-rs")))]
     {
         Ok(symm::decrypt_aead(
             cipher(key.len())?,
@@ -166,7 +170,7 @@ pub(crate) fn decrypt_aead(
             tag,
         )?)
     }
-    #[cfg(feature = "aes-gcm-rustcrypto")]
+    #[cfg(all(feature = "aes-gcm-rustcrypto", not(feature = "aws-lc-rs")))]
     {
         use aes_gcm::aead::AeadInOut;
 
@@ -186,7 +190,7 @@ pub(crate) fn decrypt_aead(
     }
 }
 
-#[cfg(not(feature = "aes-gcm-rustcrypto"))]
+#[cfg(not(any(feature = "aes-gcm-rustcrypto", feature = "aws-lc-rs")))]
 fn cipher(key_len: usize) -> anyhow::Result<Cipher> {
     match key_len {
         16 => Ok(Cipher::aes_128_gcm()),

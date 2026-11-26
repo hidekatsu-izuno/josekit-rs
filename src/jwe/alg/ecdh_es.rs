@@ -4,15 +4,18 @@ use std::ops::Deref;
 
 use anyhow::{bail, Context};
 #[cfg(not(any(
-    feature = "ec-rustcrypto",
+    any(feature = "ec-rustcrypto", feature = "aws-lc-rs"),
     feature = "x25519-dalek",
     feature = "x448-goldilocks-plus"
 )))]
 use openssl::hash::{Hasher, MessageDigest};
-#[cfg(any(
-    feature = "ec-rustcrypto",
-    feature = "x25519-dalek",
-    feature = "x448-goldilocks-plus"
+#[cfg(all(
+    not(feature = "aws-lc-rs"),
+    any(
+        any(feature = "ec-rustcrypto", feature = "aws-lc-rs"),
+        feature = "x25519-dalek",
+        feature = "x448-goldilocks-plus"
+    )
 ))]
 use sha2::{Digest, Sha256};
 
@@ -543,10 +546,15 @@ impl EcdhEsJweAlgorithm {
                 apv,
                 &shared_key_len_bits.to_be_bytes(),
             ];
-            #[cfg(any(
-                feature = "ec-rustcrypto",
-                feature = "x25519-dalek",
-                feature = "x448-goldilocks-plus"
+            #[cfg(feature = "aws-lc-rs")]
+            shared_key.extend_from_slice(crate::aws_lc::sha256(&parts).as_ref());
+            #[cfg(all(
+                not(feature = "aws-lc-rs"),
+                any(
+                    any(feature = "ec-rustcrypto", feature = "aws-lc-rs"),
+                    feature = "x25519-dalek",
+                    feature = "x448-goldilocks-plus"
+                )
             ))]
             {
                 let mut hasher = Sha256::new();
@@ -556,7 +564,7 @@ impl EcdhEsJweAlgorithm {
                 shared_key.extend_from_slice(&hasher.finalize());
             }
             #[cfg(not(any(
-                feature = "ec-rustcrypto",
+                any(feature = "ec-rustcrypto", feature = "aws-lc-rs"),
                 feature = "x25519-dalek",
                 feature = "x448-goldilocks-plus"
             )))]

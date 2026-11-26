@@ -2,10 +2,17 @@ use std::borrow::Cow;
 use std::fmt::Display;
 use std::ops::Deref;
 
-#[cfg(feature = "aes-kw-rustcrypto")]
-use aes_kw::{KeyInit, KwAes128, KwAes192, KwAes256};
+#[cfg(any(feature = "aes-kw-rustcrypto", feature = "x448-goldilocks-plus"))]
+use aes_kw::{KeyInit, KwAes192};
+#[cfg(all(
+    any(feature = "aes-kw-rustcrypto", feature = "x448-goldilocks-plus"),
+    not(feature = "aws-lc-rs")
+))]
+use aes_kw::{KwAes128, KwAes256};
 use anyhow::{bail, Context};
-#[cfg(not(feature = "aes-kw-rustcrypto"))]
+#[cfg(feature = "aws-lc-rs")]
+use aws_lc_rs::key_wrap::KeyWrap;
+#[cfg(not(any(feature = "aes-kw-rustcrypto", feature = "x448-goldilocks-plus")))]
 use openssl::aes::{self, AesKey};
 
 use crate::jwe::{JweAlgorithm, JweContentEncryption, JweDecrypter, JweEncrypter, JweHeader};
@@ -20,14 +27,21 @@ pub(crate) fn wrap_key(kek: &[u8], key: &[u8]) -> anyhow::Result<Vec<u8>> {
     }
 
     let mut wrapped = vec![0; key.len() + IV_LEN];
-    #[cfg(feature = "aes-kw-rustcrypto")]
+    #[cfg(feature = "aws-lc-rs")]
+    if matches!(kek.len(), 16 | 32) {
+        crate::aws_lc::key_wrap_key(kek)?.wrap(key, &mut wrapped)?;
+        return Ok(wrapped);
+    }
+    #[cfg(any(feature = "aes-kw-rustcrypto", feature = "x448-goldilocks-plus"))]
     match kek.len() {
+        #[cfg(not(feature = "aws-lc-rs"))]
         16 => KwAes128::new_from_slice(kek)?.wrap_key(key, &mut wrapped)?,
         24 => KwAes192::new_from_slice(kek)?.wrap_key(key, &mut wrapped)?,
+        #[cfg(not(feature = "aws-lc-rs"))]
         32 => KwAes256::new_from_slice(kek)?.wrap_key(key, &mut wrapped)?,
         _ => bail!("Invalid AES Key Wrap key size."),
     };
-    #[cfg(not(feature = "aes-kw-rustcrypto"))]
+    #[cfg(not(any(feature = "aes-kw-rustcrypto", feature = "x448-goldilocks-plus")))]
     {
         let aes =
             AesKey::new_encrypt(kek).map_err(|_| anyhow::anyhow!("Failed to set encrypt key."))?;
@@ -45,14 +59,21 @@ pub(crate) fn unwrap_key(kek: &[u8], wrapped: &[u8]) -> anyhow::Result<Vec<u8>> 
         .filter(|&len| len != 0)
         .context("The wrapped key is too short.")?;
     let mut key = vec![0; key_len];
-    #[cfg(feature = "aes-kw-rustcrypto")]
+    #[cfg(feature = "aws-lc-rs")]
+    if matches!(kek.len(), 16 | 32) {
+        crate::aws_lc::key_wrap_key(kek)?.unwrap(wrapped, &mut key)?;
+        return Ok(key);
+    }
+    #[cfg(any(feature = "aes-kw-rustcrypto", feature = "x448-goldilocks-plus"))]
     match kek.len() {
+        #[cfg(not(feature = "aws-lc-rs"))]
         16 => KwAes128::new_from_slice(kek)?.unwrap_key(wrapped, &mut key)?,
         24 => KwAes192::new_from_slice(kek)?.unwrap_key(wrapped, &mut key)?,
+        #[cfg(not(feature = "aws-lc-rs"))]
         32 => KwAes256::new_from_slice(kek)?.unwrap_key(wrapped, &mut key)?,
         _ => bail!("Invalid AES Key Wrap key size."),
     };
-    #[cfg(not(feature = "aes-kw-rustcrypto"))]
+    #[cfg(not(any(feature = "aes-kw-rustcrypto", feature = "x448-goldilocks-plus")))]
     {
         let aes =
             AesKey::new_decrypt(kek).map_err(|_| anyhow::anyhow!("Failed to set decrypt key."))?;

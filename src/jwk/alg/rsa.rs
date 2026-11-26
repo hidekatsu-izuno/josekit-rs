@@ -222,14 +222,14 @@ impl RsaKeyPair {
     }
 
     pub fn to_traditional_pem_private_key(&self) -> Vec<u8> {
-        #[cfg(not(feature = "rsa-rustcrypto"))]
+        #[cfg(not(any(feature = "rsa-rustcrypto", feature = "aws-lc-rs")))]
         return self
             .private_key
             .openssl_rsa()
             .unwrap()
             .private_key_to_pem()
             .unwrap();
-        #[cfg(feature = "rsa-rustcrypto")]
+        #[cfg(any(feature = "rsa-rustcrypto", feature = "aws-lc-rs"))]
         util::encode_pem("RSA PRIVATE KEY", &self.to_raw_private_key())
     }
 
@@ -238,14 +238,14 @@ impl RsaKeyPair {
     }
 
     pub fn to_traditional_pem_public_key(&self) -> Vec<u8> {
-        #[cfg(not(feature = "rsa-rustcrypto"))]
+        #[cfg(not(any(feature = "rsa-rustcrypto", feature = "aws-lc-rs")))]
         return self
             .private_key
             .openssl_rsa()
             .unwrap()
             .public_key_to_pem_pkcs1()
             .unwrap();
-        #[cfg(feature = "rsa-rustcrypto")]
+        #[cfg(any(feature = "rsa-rustcrypto", feature = "aws-lc-rs"))]
         util::encode_pem("RSA PUBLIC KEY", &self.to_raw_public_key())
     }
 

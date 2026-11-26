@@ -318,10 +318,13 @@ impl JwsVerifier for HmacJwsVerifier {
             let expected = self
                 .private_key
                 .sign_hmac(self.algorithm.hash_algorithm(), &[message])?;
-            #[cfg(not(feature = "hmac-rustcrypto"))]
+            #[cfg(feature = "aws-lc-rs")]
+            let matches =
+                aws_lc_rs::constant_time::verify_slices_are_equal(&expected, signature).is_ok();
+            #[cfg(not(any(feature = "hmac-rustcrypto", feature = "aws-lc-rs")))]
             let matches =
                 expected.len() == signature.len() && openssl::memcmp::eq(&expected, signature);
-            #[cfg(feature = "hmac-rustcrypto")]
+            #[cfg(all(feature = "hmac-rustcrypto", not(feature = "aws-lc-rs")))]
             let matches = {
                 use subtle::ConstantTimeEq;
                 bool::from(expected.ct_eq(signature))

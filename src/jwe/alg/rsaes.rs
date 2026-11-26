@@ -2,10 +2,10 @@ use std::borrow::Cow;
 use std::fmt::Display;
 use std::ops::Deref;
 
-#[cfg(feature = "rsa-rustcrypto")]
+#[cfg(any(feature = "rsa-rustcrypto", feature = "aws-lc-rs"))]
 use crate::util::HashAlgorithm;
 use anyhow::bail;
-#[cfg(not(feature = "rsa-rustcrypto"))]
+#[cfg(not(any(feature = "rsa-rustcrypto", feature = "aws-lc-rs")))]
 use openssl::{hash::MessageDigest, rsa::Padding};
 
 use crate::jwe::{JweAlgorithm, JweContentEncryption, JweDecrypter, JweEncrypter, JweHeader};
@@ -35,7 +35,7 @@ impl RsaesJweAlgorithm {
     ///
     /// # Arguments
     /// * `bits` - RSA key length
-    #[cfg(feature = "rsa-rustcrypto")]
+    #[cfg(any(feature = "rsa-rustcrypto", feature = "aws-lc-rs"))]
     #[allow(deprecated)]
     fn oaep_hash(&self) -> Option<HashAlgorithm> {
         match self {
@@ -364,11 +364,11 @@ impl JweEncrypter for RsaesJweEncrypter {
         _out_header: &mut JweHeader,
     ) -> Result<Option<Vec<u8>>, JoseError> {
         (|| -> anyhow::Result<Option<Vec<u8>>> {
-            #[cfg(feature = "rsa-rustcrypto")]
+            #[cfg(any(feature = "rsa-rustcrypto", feature = "aws-lc-rs"))]
             let encrypted_key = self
                 .public_key
                 .rsa_encrypt(self.algorithm.oaep_hash(), key)?;
-            #[cfg(not(feature = "rsa-rustcrypto"))]
+            #[cfg(not(any(feature = "rsa-rustcrypto", feature = "aws-lc-rs")))]
             let encrypted_key = {
                 let rsa = self.public_key.openssl_rsa()?;
                 match self.algorithm {
@@ -457,13 +457,13 @@ impl JweDecrypter for RsaesJweDecrypter {
                 None => bail!("A encrypted_key is required."),
             };
 
-            #[cfg(feature = "rsa-rustcrypto")]
+            #[cfg(any(feature = "rsa-rustcrypto", feature = "aws-lc-rs"))]
             let key = self.private_key.rsa_decrypt(
                 self.algorithm.oaep_hash(),
                 encrypted_key,
                 _cencryption.key_len(),
             )?;
-            #[cfg(not(feature = "rsa-rustcrypto"))]
+            #[cfg(not(any(feature = "rsa-rustcrypto", feature = "aws-lc-rs")))]
             let key = {
                 let rsa = self.private_key.openssl_rsa()?;
                 match self.algorithm {
@@ -561,7 +561,7 @@ mod tests {
 
             assert_eq!(&src_key as &[u8], &dst_key as &[u8]);
 
-            #[cfg(feature = "rsa-rustcrypto")]
+            #[cfg(any(feature = "rsa-rustcrypto", feature = "aws-lc-rs"))]
             if matches!(alg, RsaesJweAlgorithm::Rsa1_5) {
                 let fallback = decrypter.decrypt(Some(&[]), &enc, &out_header)?;
                 assert_eq!(fallback.len(), enc.key_len());
@@ -581,7 +581,7 @@ mod tests {
     }
 }
 
-#[cfg(not(feature = "rsa-rustcrypto"))]
+#[cfg(not(any(feature = "rsa-rustcrypto", feature = "aws-lc-rs")))]
 mod openssl_rsa_oaep {
     use crate::jwk::{PrivateKey, PublicKey};
     use openssl::hash::MessageDigest;

@@ -1,10 +1,18 @@
-use anyhow::{bail, Context};
+use anyhow::bail;
+#[cfg(not(feature = "aws-lc-rs"))]
+use anyhow::Context;
 use rand::rngs::SysRng;
+#[cfg(not(feature = "aws-lc-rs"))]
 use rsa::pkcs1::{DecodeRsaPrivateKey, DecodeRsaPublicKey};
+#[cfg(not(feature = "aws-lc-rs"))]
 use rsa::pkcs8::{der::Decode, PrivateKeyInfoRef, SubjectPublicKeyInfoRef};
 
-use crate::util::{oid::ObjectIdentifier, HashAlgorithm};
+#[cfg(not(feature = "aws-lc-rs"))]
+use crate::util::oid::ObjectIdentifier;
+#[cfg(not(feature = "aws-lc-rs"))]
+use crate::util::HashAlgorithm;
 
+#[cfg(not(feature = "aws-lc-rs"))]
 pub(super) fn private_key_from_der(
     der: &[u8],
     oid: &ObjectIdentifier,
@@ -24,6 +32,7 @@ pub(super) fn private_key_from_der(
     )?)
 }
 
+#[cfg(not(feature = "aws-lc-rs"))]
 pub(super) fn public_key_from_der(
     der: &[u8],
     oid: &ObjectIdentifier,
@@ -45,6 +54,7 @@ pub(super) fn public_key_from_der(
     Ok(rsa::PublicKey::from_pkcs1_der(key)?)
 }
 
+#[cfg(not(feature = "aws-lc-rs"))]
 macro_rules! with_digest {
     ($hash:expr, |$digest:ident| $op:expr) => {
         match $hash {
@@ -68,6 +78,7 @@ macro_rules! with_digest {
     };
 }
 
+#[cfg(not(feature = "aws-lc-rs"))]
 pub(super) fn encrypt(
     key: &rsa::PublicKey,
     hash: Option<HashAlgorithm>,
@@ -81,29 +92,36 @@ pub(super) fn encrypt(
     })
 }
 
+#[cfg(not(feature = "aws-lc-rs"))]
 pub(super) fn decrypt(
     key: &rsa::PrivateKey,
     hash: Option<HashAlgorithm>,
     ciphertext: &[u8],
     key_len: usize,
 ) -> anyhow::Result<Vec<u8>> {
-    let mut rng = SysRng;
     match hash {
         Some(hash) => Ok(with_digest!(hash, |Digest| {
-            key.oaep_decrypt_with_rng::<Digest, _>(&mut rng, ciphertext)
+            key.oaep_decrypt_with_rng::<Digest, _>(&mut SysRng, ciphertext)
         })?),
-        None => {
-            // RFC 7516 §11.5 requires substituting a random CEK on RSA1_5 rejection.
-            let mut fallback = vec![0; key_len];
-            crate::util::fill_random_bytes!(&mut fallback)?;
-            match key.pkcs1v15_decrypt_with_rng(&mut rng, ciphertext) {
-                Ok(message) if message.len() == key_len => Ok(message),
-                _ => Ok(fallback),
-            }
-        }
+        None => decrypt_rsa1_5(key, ciphertext, key_len),
     }
 }
 
+pub(super) fn decrypt_rsa1_5(
+    key: &rsa::PrivateKey,
+    ciphertext: &[u8],
+    key_len: usize,
+) -> anyhow::Result<Vec<u8>> {
+    // RFC 7516 §11.5 requires substituting a random CEK on RSA1_5 rejection.
+    let mut fallback = vec![0; key_len];
+    crate::util::fill_random_bytes!(&mut fallback)?;
+    match key.pkcs1v15_decrypt_with_rng(&mut SysRng, ciphertext) {
+        Ok(message) if message.len() == key_len => Ok(message),
+        _ => Ok(fallback),
+    }
+}
+
+#[cfg(not(feature = "aws-lc-rs"))]
 pub(super) fn sign(
     key: &rsa::PrivateKey,
     hash: HashAlgorithm,
@@ -120,6 +138,7 @@ pub(super) fn sign(
     })?)
 }
 
+#[cfg(not(feature = "aws-lc-rs"))]
 pub(super) fn verify(
     key: &rsa::PublicKey,
     hash: HashAlgorithm,
@@ -134,4 +153,42 @@ pub(super) fn verify(
             key.pkcs1v15_verify::<Digest>(message, signature)
         }
     })?)
+}
+
+pub(crate) type Private = rsa::PrivateKey;
+#[cfg(not(feature = "aws-lc-rs"))]
+pub(crate) type Public = rsa::PublicKey;
+
+pub(super) fn generate(bits: usize) -> anyhow::Result<Private> {
+    if !(rsa::PublicKey::MIN_SIZE..=rsa::PublicKey::MAX_SIZE).contains(&bits) {
+        bail!("Unsupported RSA modulus length: {bits} bits.");
+    }
+    Ok(Private::new(&mut SysRng, bits)?)
+}
+
+pub(super) fn size(key: &Private) -> usize {
+    use rsa::traits::PublicKeyParts;
+    key.size()
+}
+
+#[cfg(not(feature = "aws-lc-rs"))]
+pub(super) fn public_size(key: &Public) -> usize {
+    use rsa::traits::PublicKeyParts;
+    key.size()
+}
+
+#[cfg(not(feature = "aws-lc-rs"))]
+pub(super) fn to_public(key: &Private) -> anyhow::Result<Public> {
+    Ok(key.to_public_key())
+}
+
+pub(super) fn export_private(key: &Private) -> anyhow::Result<Vec<u8>> {
+    use rsa::pkcs1::EncodeRsaPrivateKey;
+    Ok(key.to_pkcs1_der()?.as_bytes().to_vec())
+}
+
+#[cfg(not(feature = "aws-lc-rs"))]
+pub(super) fn export_public(key: &Public) -> anyhow::Result<Vec<u8>> {
+    use rsa::pkcs1::EncodeRsaPublicKey;
+    Ok(key.to_pkcs1_der()?.into_vec())
 }

@@ -1,10 +1,10 @@
 use std::{fmt::Display, ops::Deref};
 
 use anyhow::bail;
-#[cfg(not(feature = "aes-cbc-hmac-rustcrypto"))]
+#[cfg(not(any(feature = "aes-cbc-hmac-rustcrypto", feature = "aws-lc-rs")))]
 use openssl::symm::{self, Cipher};
 
-#[cfg(not(feature = "aes-cbc-hmac-rustcrypto"))]
+#[cfg(not(any(feature = "aes-cbc-hmac-rustcrypto", feature = "aws-lc-rs")))]
 use crate::jwk::PrivateKey;
 use crate::{jwe::JweContentEncryption, util::HashAlgorithm, JoseError};
 
@@ -34,9 +34,11 @@ impl AescbcHmacJweEncryption {
         let aad_bits = (u64::try_from(aad.len())? * 8).to_be_bytes();
         let parts = [aad, iv, ciphertext, &aad_bits];
 
-        #[cfg(not(feature = "aes-cbc-hmac-rustcrypto"))]
+        #[cfg(feature = "aws-lc-rs")]
+        let mut signature = crate::aws_lc::sign_hmac(hash, mac_key, &parts)?;
+        #[cfg(not(any(feature = "aes-cbc-hmac-rustcrypto", feature = "aws-lc-rs")))]
         let mut signature = PrivateKey::openssl_hmac(mac_key, hash, &parts)?;
-        #[cfg(feature = "aes-cbc-hmac-rustcrypto")]
+        #[cfg(all(feature = "aes-cbc-hmac-rustcrypto", not(feature = "aws-lc-rs")))]
         let mut signature = hash.hmac(mac_key, &parts)?;
 
         signature.truncate(self.key_len() / 2);
@@ -62,7 +64,7 @@ impl AescbcHmacJweEncryption {
         Ok((mac_key, enc_key, iv))
     }
 
-    #[cfg(not(feature = "aes-cbc-hmac-rustcrypto"))]
+    #[cfg(not(any(feature = "aes-cbc-hmac-rustcrypto", feature = "aws-lc-rs")))]
     fn cipher(&self) -> Cipher {
         match self {
             Self::A128cbcHs256 => Cipher::aes_128_cbc(),
@@ -71,7 +73,7 @@ impl AescbcHmacJweEncryption {
         }
     }
 
-    #[cfg(feature = "aes-cbc-hmac-rustcrypto")]
+    #[cfg(all(feature = "aes-cbc-hmac-rustcrypto", not(feature = "aws-lc-rs")))]
     fn encrypt_cbc(&self, key: &[u8], iv: &[u8], message: &[u8]) -> anyhow::Result<Vec<u8>> {
         use cbc::cipher::{block_padding::Pkcs7, BlockModeEncrypt, KeyIvInit};
 
@@ -86,7 +88,7 @@ impl AescbcHmacJweEncryption {
         Ok(ciphertext)
     }
 
-    #[cfg(feature = "aes-cbc-hmac-rustcrypto")]
+    #[cfg(all(feature = "aes-cbc-hmac-rustcrypto", not(feature = "aws-lc-rs")))]
     fn decrypt_cbc(&self, key: &[u8], iv: &[u8], ciphertext: &[u8]) -> anyhow::Result<Vec<u8>> {
         use cbc::cipher::{block_padding::Pkcs7, BlockModeDecrypt, KeyIvInit};
 
@@ -133,10 +135,12 @@ impl JweContentEncryption for AescbcHmacJweEncryption {
         let (mac_key, enc_key, iv) = self
             .parameters(key, iv)
             .map_err(JoseError::InvalidKeyFormat)?;
-        #[cfg(not(feature = "aes-cbc-hmac-rustcrypto"))]
+        #[cfg(feature = "aws-lc-rs")]
+        let ciphertext = crate::aws_lc::encrypt_cbc(enc_key, iv, message);
+        #[cfg(not(any(feature = "aes-cbc-hmac-rustcrypto", feature = "aws-lc-rs")))]
         let ciphertext =
             symm::encrypt(self.cipher(), enc_key, Some(iv), message).map_err(anyhow::Error::from);
-        #[cfg(feature = "aes-cbc-hmac-rustcrypto")]
+        #[cfg(all(feature = "aes-cbc-hmac-rustcrypto", not(feature = "aws-lc-rs")))]
         let ciphertext = self.encrypt_cbc(enc_key, iv, message);
         let ciphertext = ciphertext.map_err(JoseError::InvalidKeyFormat)?;
 
@@ -161,9 +165,11 @@ impl JweContentEncryption for AescbcHmacJweEncryption {
         (|| -> anyhow::Result<()> {
             let tag = tag.ok_or_else(|| anyhow::anyhow!("A tag value is required."))?;
             let expected = self.calculate_tag(aad, iv, encrypted_message, mac_key)?;
-            #[cfg(not(feature = "aes-cbc-hmac-rustcrypto"))]
+            #[cfg(feature = "aws-lc-rs")]
+            let matches = aws_lc_rs::constant_time::verify_slices_are_equal(&expected, tag).is_ok();
+            #[cfg(not(any(feature = "aes-cbc-hmac-rustcrypto", feature = "aws-lc-rs")))]
             let matches = expected.len() == tag.len() && openssl::memcmp::eq(&expected, tag);
-            #[cfg(feature = "aes-cbc-hmac-rustcrypto")]
+            #[cfg(all(feature = "aes-cbc-hmac-rustcrypto", not(feature = "aws-lc-rs")))]
             let matches = {
                 use subtle::ConstantTimeEq;
                 bool::from(expected.ct_eq(tag))
@@ -175,10 +181,12 @@ impl JweContentEncryption for AescbcHmacJweEncryption {
         })()
         .map_err(JoseError::InvalidSignature)?;
 
-        #[cfg(not(feature = "aes-cbc-hmac-rustcrypto"))]
+        #[cfg(feature = "aws-lc-rs")]
+        let message = crate::aws_lc::decrypt_cbc(enc_key, iv, encrypted_message);
+        #[cfg(not(any(feature = "aes-cbc-hmac-rustcrypto", feature = "aws-lc-rs")))]
         let message = symm::decrypt(self.cipher(), enc_key, Some(iv), encrypted_message)
             .map_err(anyhow::Error::from);
-        #[cfg(feature = "aes-cbc-hmac-rustcrypto")]
+        #[cfg(all(feature = "aes-cbc-hmac-rustcrypto", not(feature = "aws-lc-rs")))]
         let message = self.decrypt_cbc(enc_key, iv, encrypted_message);
         message.map_err(JoseError::InvalidKeyFormat)
     }

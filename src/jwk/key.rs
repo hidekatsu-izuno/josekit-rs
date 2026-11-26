@@ -6,26 +6,32 @@ use ed448_goldilocks_plus::{
 };
 #[cfg(feature = "ed448-goldilocks-plus")]
 use ed448_goldilocks_plus::{Signature, SigningKey, VerifyingKey, SECRET_KEY_LENGTH};
-#[cfg(feature = "hmac-rustcrypto")]
+#[cfg(all(feature = "hmac-rustcrypto", not(feature = "aws-lc-rs")))]
 use hmac::digest::zeroize::Zeroize;
 #[cfg(all(
     feature = "openssl",
     not(all(
-        feature = "ec-rustcrypto",
+        any(feature = "ec-rustcrypto", feature = "aws-lc-rs"),
         feature = "x25519-dalek",
         feature = "x448-goldilocks-plus"
     ))
 ))]
 use openssl::derive::Deriver;
-#[cfg(any(not(feature = "ec-rustcrypto"), not(feature = "rsa-rustcrypto")))]
+#[cfg(any(
+    not(any(feature = "ec-rustcrypto", feature = "aws-lc-rs")),
+    not(any(feature = "rsa-rustcrypto", feature = "aws-lc-rs"))
+))]
 use openssl::hash::MessageDigest;
-#[cfg(any(not(feature = "ec-rustcrypto"), not(feature = "rsa-rustcrypto")))]
+#[cfg(any(
+    not(any(feature = "ec-rustcrypto", feature = "aws-lc-rs")),
+    not(any(feature = "rsa-rustcrypto", feature = "aws-lc-rs"))
+))]
 use openssl::pkey::PKeyRef;
 #[cfg(all(
     feature = "openssl",
     not(all(
-        feature = "ec-rustcrypto",
-        feature = "rsa-rustcrypto",
+        any(feature = "ec-rustcrypto", feature = "aws-lc-rs"),
+        any(feature = "rsa-rustcrypto", feature = "aws-lc-rs"),
         feature = "ed25519-dalek",
         feature = "ed448-goldilocks-plus",
         feature = "x25519-dalek",
@@ -37,36 +43,39 @@ use openssl::pkey::Public;
 use openssl::pkey::{PKey, Private};
 #[cfg(all(
     feature = "openssl",
+    not(feature = "aws-lc-rs"),
     not(all(
         feature = "aes-cbc-hmac-rustcrypto",
-        feature = "ec-rustcrypto",
+        any(feature = "ec-rustcrypto", feature = "aws-lc-rs"),
         feature = "ed25519-dalek",
         feature = "ed448-goldilocks-plus",
         feature = "hmac-rustcrypto",
-        feature = "rsa-rustcrypto"
+        any(feature = "rsa-rustcrypto", feature = "aws-lc-rs")
     ))
 ))]
 use openssl::sign::Signer;
 #[cfg(all(
     feature = "openssl",
     not(all(
-        feature = "ec-rustcrypto",
+        any(feature = "ec-rustcrypto", feature = "aws-lc-rs"),
         feature = "ed25519-dalek",
         feature = "ed448-goldilocks-plus",
-        feature = "rsa-rustcrypto"
+        any(feature = "rsa-rustcrypto", feature = "aws-lc-rs")
     ))
 ))]
 use openssl::sign::Verifier;
-#[cfg(not(feature = "ec-rustcrypto"))]
+#[cfg(not(any(feature = "ec-rustcrypto", feature = "aws-lc-rs")))]
 use openssl::{
     ec::{EcGroup, EcKey},
     nid::Nid,
 };
-#[cfg(not(feature = "rsa-rustcrypto"))]
+#[cfg(not(any(feature = "rsa-rustcrypto", feature = "aws-lc-rs")))]
 use openssl::{
     encrypt::{Decrypter, Encrypter},
     rsa::Rsa,
 };
+#[cfg(feature = "aws-lc-rs")]
+use pkcs8::der::zeroize::Zeroize;
 
 #[cfg(any(
     feature = "ed25519-dalek",
@@ -88,24 +97,33 @@ use crate::util::HashAlgorithm;
 use crate::util::oid::OID_ED25519;
 #[cfg(feature = "x25519-dalek")]
 use crate::util::oid::OID_X25519;
-#[cfg(feature = "rsa-rustcrypto")]
+#[cfg(any(feature = "rsa-rustcrypto", feature = "aws-lc-rs"))]
 use crate::util::oid::{OID_RSASSA_PSS, OID_RSA_ENCRYPTION};
 
-#[cfg(feature = "ec-rustcrypto")]
+#[cfg(all(feature = "ec-rustcrypto", not(feature = "aws-lc-rs")))]
 mod ec;
-#[cfg(feature = "rsa-rustcrypto")]
+#[cfg(feature = "aws-lc-rs")]
+#[path = "key/ec_aws_lc.rs"]
+mod ec;
+
+#[cfg(any(feature = "rsa-rustcrypto", feature = "aws-lc-rs"))]
 #[path = "key/rsa.rs"]
+mod rsa_rustcrypto;
+#[cfg(all(feature = "rsa-rustcrypto", not(feature = "aws-lc-rs")))]
+use rsa_rustcrypto as rsa_backend;
+#[cfg(feature = "aws-lc-rs")]
+#[path = "key/rsa_aws_lc.rs"]
 mod rsa_backend;
 
 #[derive(Debug, Clone)]
 pub(crate) enum PrivateKey {
     #[cfg(feature = "openssl")]
     OpenSsl(PKey<Private>),
-    #[cfg(feature = "ec-rustcrypto")]
+    #[cfg(any(feature = "ec-rustcrypto", feature = "aws-lc-rs"))]
     Ec(Box<ec::EcPrivateKey>),
-    #[cfg(feature = "rsa-rustcrypto")]
-    Rsa(Box<rsa::PrivateKey>),
-    #[cfg(feature = "hmac-rustcrypto")]
+    #[cfg(any(feature = "rsa-rustcrypto", feature = "aws-lc-rs"))]
+    Rsa(Box<rsa_backend::Private>),
+    #[cfg(any(feature = "hmac-rustcrypto", feature = "aws-lc-rs"))]
     Hmac(HmacKey),
     #[cfg(feature = "ed25519-dalek")]
     Ed25519(Box<ed25519_dalek::SigningKey>),
@@ -117,18 +135,18 @@ pub(crate) enum PrivateKey {
     X448(X448Secret),
 }
 
-#[cfg(feature = "hmac-rustcrypto")]
+#[cfg(any(feature = "hmac-rustcrypto", feature = "aws-lc-rs"))]
 #[derive(Clone)]
 pub(crate) struct HmacKey(Box<[u8]>);
 
-#[cfg(feature = "hmac-rustcrypto")]
+#[cfg(any(feature = "hmac-rustcrypto", feature = "aws-lc-rs"))]
 impl Drop for HmacKey {
     fn drop(&mut self) {
         self.0.as_mut().zeroize();
     }
 }
 
-#[cfg(feature = "hmac-rustcrypto")]
+#[cfg(any(feature = "hmac-rustcrypto", feature = "aws-lc-rs"))]
 impl std::fmt::Debug for HmacKey {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("HmacKey").finish_non_exhaustive()
@@ -148,23 +166,14 @@ impl std::fmt::Debug for X25519Secret {
 
 impl PrivateKey {
     pub(crate) fn generate_rsa(bits: u32) -> anyhow::Result<Self> {
-        #[cfg(not(feature = "rsa-rustcrypto"))]
+        #[cfg(not(any(feature = "rsa-rustcrypto", feature = "aws-lc-rs")))]
         return Ok(Self::OpenSsl(PKey::from_rsa(Rsa::generate(bits)?)?));
-        #[cfg(feature = "rsa-rustcrypto")]
-        {
-            let bits = bits as usize;
-            if !(rsa::PublicKey::MIN_SIZE..=rsa::PublicKey::MAX_SIZE).contains(&bits) {
-                bail!("Unsupported RSA modulus length: {bits} bits.");
-            }
-            Ok(Self::Rsa(Box::new(rsa::PrivateKey::new(
-                &mut rand::rngs::SysRng,
-                bits,
-            )?)))
-        }
+        #[cfg(any(feature = "rsa-rustcrypto", feature = "aws-lc-rs"))]
+        Ok(Self::Rsa(Box::new(rsa_backend::generate(bits as usize)?)))
     }
 
     pub(crate) fn generate_ec(curve: EcCurve) -> anyhow::Result<Self> {
-        #[cfg(not(feature = "ec-rustcrypto"))]
+        #[cfg(not(any(feature = "ec-rustcrypto", feature = "aws-lc-rs")))]
         {
             let nid = match curve {
                 EcCurve::P256 => Nid::X9_62_PRIME256V1,
@@ -175,14 +184,14 @@ impl PrivateKey {
             let group = EcGroup::from_curve_name(nid)?;
             Ok(Self::OpenSsl(PKey::from_ec_key(EcKey::generate(&group)?)?))
         }
-        #[cfg(feature = "ec-rustcrypto")]
+        #[cfg(any(feature = "ec-rustcrypto", feature = "aws-lc-rs"))]
         Ok(Self::Ec(Box::new(ec::EcPrivateKey::generate(curve)?)))
     }
 
     pub(crate) fn hmac(secret: &[u8]) -> anyhow::Result<Self> {
-        #[cfg(not(feature = "hmac-rustcrypto"))]
+        #[cfg(not(any(feature = "hmac-rustcrypto", feature = "aws-lc-rs")))]
         return Ok(Self::OpenSsl(PKey::hmac(secret)?));
-        #[cfg(feature = "hmac-rustcrypto")]
+        #[cfg(any(feature = "hmac-rustcrypto", feature = "aws-lc-rs"))]
         Ok(Self::Hmac(HmacKey(secret.into())))
     }
 
@@ -192,16 +201,18 @@ impl PrivateKey {
         parts: &[&[u8]],
     ) -> anyhow::Result<Vec<u8>> {
         match self {
-            #[cfg(not(feature = "hmac-rustcrypto"))]
+            #[cfg(not(any(feature = "hmac-rustcrypto", feature = "aws-lc-rs")))]
             Self::OpenSsl(key) => Self::sign_openssl_hmac(key, hash, parts),
-            #[cfg(feature = "hmac-rustcrypto")]
+            #[cfg(all(feature = "hmac-rustcrypto", not(feature = "aws-lc-rs")))]
             Self::Hmac(key) => hash.hmac(&key.0, parts),
+            #[cfg(feature = "aws-lc-rs")]
+            Self::Hmac(key) => crate::aws_lc::sign_hmac(hash, &key.0, parts),
             #[allow(unreachable_patterns)]
             _ => bail!("Incompatible HMAC key."),
         }
     }
 
-    #[cfg(not(feature = "aes-cbc-hmac-rustcrypto"))]
+    #[cfg(not(any(feature = "aes-cbc-hmac-rustcrypto", feature = "aws-lc-rs")))]
     pub(crate) fn openssl_hmac(
         secret: &[u8],
         hash: HashAlgorithm,
@@ -210,9 +221,12 @@ impl PrivateKey {
         Self::sign_openssl_hmac(&PKey::hmac(secret)?, hash, parts)
     }
 
-    #[cfg(any(
-        not(feature = "aes-cbc-hmac-rustcrypto"),
-        not(feature = "hmac-rustcrypto")
+    #[cfg(all(
+        not(feature = "aws-lc-rs"),
+        any(
+            not(feature = "aes-cbc-hmac-rustcrypto"),
+            not(feature = "hmac-rustcrypto")
+        )
     ))]
     fn sign_openssl_hmac(
         key: &PKey<Private>,
@@ -269,7 +283,7 @@ impl PrivateKey {
     }
 
     pub(crate) fn from_der(der: &[u8], oid: &ObjectIdentifier) -> anyhow::Result<Self> {
-        #[cfg(feature = "ec-rustcrypto")]
+        #[cfg(any(feature = "ec-rustcrypto", feature = "aws-lc-rs"))]
         if let Some(curve) = EcCurve::from_oid(oid) {
             return Ok(Self::Ec(Box::new(ec::EcPrivateKey::from_der(der, curve)?)));
         }
@@ -289,7 +303,7 @@ impl PrivateKey {
                     x25519_dalek::StaticSecret::from(bytes),
                 )))
             }
-            #[cfg(feature = "rsa-rustcrypto")]
+            #[cfg(any(feature = "rsa-rustcrypto", feature = "aws-lc-rs"))]
             oid if oid == &*OID_RSA_ENCRYPTION || oid == &*OID_RSASSA_PSS => Ok(Self::Rsa(
                 Box::new(rsa_backend::private_key_from_der(der, oid)?),
             )),
@@ -316,7 +330,10 @@ impl PrivateKey {
         Ok(Self::Ed448(Box::new(key)))
     }
 
-    #[cfg(any(not(feature = "ec-rustcrypto"), not(feature = "rsa-rustcrypto")))]
+    #[cfg(any(
+        not(any(feature = "ec-rustcrypto", feature = "aws-lc-rs")),
+        not(any(feature = "rsa-rustcrypto", feature = "aws-lc-rs"))
+    ))]
     fn as_openssl(&self) -> anyhow::Result<&PKeyRef<Private>> {
         match self {
             Self::OpenSsl(key) => Ok(key.as_ref()),
@@ -326,34 +343,31 @@ impl PrivateKey {
     }
 
     pub(crate) fn rsa_size(&self) -> anyhow::Result<usize> {
-        #[cfg(not(feature = "rsa-rustcrypto"))]
+        #[cfg(not(any(feature = "rsa-rustcrypto", feature = "aws-lc-rs")))]
         return Ok(self.as_openssl()?.size());
-        #[cfg(feature = "rsa-rustcrypto")]
-        {
-            use rsa::traits::PublicKeyParts;
-            Ok(self.rsa()?.size())
-        }
+        #[cfg(any(feature = "rsa-rustcrypto", feature = "aws-lc-rs"))]
+        Ok(rsa_backend::size(self.rsa()?))
     }
 
-    #[cfg(not(feature = "rsa-rustcrypto"))]
+    #[cfg(not(any(feature = "rsa-rustcrypto", feature = "aws-lc-rs")))]
     pub(crate) fn openssl_rsa(&self) -> anyhow::Result<Rsa<Private>> {
         Ok(self.as_openssl()?.rsa()?)
     }
 
-    #[cfg(feature = "rsa-rustcrypto")]
-    fn rsa(&self) -> anyhow::Result<&rsa::PrivateKey> {
+    #[cfg(any(feature = "rsa-rustcrypto", feature = "aws-lc-rs"))]
+    fn rsa(&self) -> anyhow::Result<&rsa_backend::Private> {
         match self {
             Self::Rsa(key) => Ok(key),
             _ => bail!("Incompatible RSA private key."),
         }
     }
 
-    #[cfg(not(feature = "ec-rustcrypto"))]
+    #[cfg(not(any(feature = "ec-rustcrypto", feature = "aws-lc-rs")))]
     pub(crate) fn openssl_ec_key(&self) -> anyhow::Result<EcKey<Private>> {
         Ok(self.as_openssl()?.ec_key()?)
     }
 
-    #[cfg(feature = "ec-rustcrypto")]
+    #[cfg(any(feature = "ec-rustcrypto", feature = "aws-lc-rs"))]
     fn ec(&self) -> &ec::EcPrivateKey {
         match self {
             Self::Ec(key) => key,
@@ -361,66 +375,53 @@ impl PrivateKey {
         }
     }
 
-    #[cfg(feature = "ec-rustcrypto")]
+    #[cfg(any(feature = "ec-rustcrypto", feature = "aws-lc-rs"))]
     pub(crate) fn ec_scalar(&self) -> Vec<u8> {
         self.ec().scalar()
     }
 
-    #[cfg(feature = "ec-rustcrypto")]
+    #[cfg(any(feature = "ec-rustcrypto", feature = "aws-lc-rs"))]
     pub(crate) fn ec_coordinates(&self) -> (Vec<u8>, Vec<u8>) {
         self.ec().coordinates()
     }
 
-    #[cfg(feature = "ec-rustcrypto")]
+    #[cfg(any(feature = "ec-rustcrypto", feature = "aws-lc-rs"))]
     pub(crate) fn sign_ecdsa(&self, message: &[u8]) -> anyhow::Result<Vec<u8>> {
         self.ec().sign(message)
     }
 
-    #[cfg(any(not(feature = "ec-rustcrypto"), not(feature = "rsa-rustcrypto")))]
+    #[cfg(any(
+        not(any(feature = "ec-rustcrypto", feature = "aws-lc-rs")),
+        not(any(feature = "rsa-rustcrypto", feature = "aws-lc-rs"))
+    ))]
     pub(crate) fn openssl_signer(&self, digest: MessageDigest) -> anyhow::Result<Signer<'_>> {
         Ok(Signer::new(digest, self.as_openssl()?)?)
     }
 
-    #[cfg(not(feature = "rsa-rustcrypto"))]
+    #[cfg(not(any(feature = "rsa-rustcrypto", feature = "aws-lc-rs")))]
     pub(crate) fn openssl_decrypter(&self) -> anyhow::Result<Decrypter<'_>> {
         Ok(Decrypter::new(self.as_openssl()?)?)
     }
 
     pub(crate) fn rsa_private_der(&self) -> Vec<u8> {
-        #[cfg(not(feature = "rsa-rustcrypto"))]
+        #[cfg(not(any(feature = "rsa-rustcrypto", feature = "aws-lc-rs")))]
         return self.openssl_rsa().unwrap().private_key_to_der().unwrap();
-        #[cfg(feature = "rsa-rustcrypto")]
-        {
-            use rsa::pkcs1::EncodeRsaPrivateKey;
-            self.rsa()
-                .unwrap()
-                .to_pkcs1_der()
-                .unwrap()
-                .as_bytes()
-                .to_vec()
-        }
+        #[cfg(any(feature = "rsa-rustcrypto", feature = "aws-lc-rs"))]
+        rsa_backend::export_private(self.rsa().unwrap()).unwrap()
     }
 
     pub(crate) fn rsa_public_der(&self) -> Vec<u8> {
-        #[cfg(not(feature = "rsa-rustcrypto"))]
+        #[cfg(not(any(feature = "rsa-rustcrypto", feature = "aws-lc-rs")))]
         return self
             .openssl_rsa()
             .unwrap()
             .public_key_to_der_pkcs1()
             .unwrap();
-        #[cfg(feature = "rsa-rustcrypto")]
-        {
-            use rsa::pkcs1::EncodeRsaPublicKey;
-            self.rsa()
-                .unwrap()
-                .to_public_key()
-                .to_pkcs1_der()
-                .unwrap()
-                .into_vec()
-        }
+        #[cfg(any(feature = "rsa-rustcrypto", feature = "aws-lc-rs"))]
+        rsa_backend::export_public(&rsa_backend::to_public(self.rsa().unwrap()).unwrap()).unwrap()
     }
 
-    #[cfg(feature = "rsa-rustcrypto")]
+    #[cfg(any(feature = "rsa-rustcrypto", feature = "aws-lc-rs"))]
     pub(crate) fn rsa_sign(
         &self,
         hash: HashAlgorithm,
@@ -430,7 +431,7 @@ impl PrivateKey {
         rsa_backend::sign(self.rsa()?, hash, pss, message)
     }
 
-    #[cfg(feature = "rsa-rustcrypto")]
+    #[cfg(any(feature = "rsa-rustcrypto", feature = "aws-lc-rs"))]
     pub(crate) fn rsa_decrypt(
         &self,
         hash: Option<HashAlgorithm>,
@@ -444,15 +445,15 @@ impl PrivateKey {
         match self {
             #[cfg(feature = "openssl")]
             Self::OpenSsl(key) => key.private_key_to_der().unwrap(),
-            #[cfg(feature = "ec-rustcrypto")]
+            #[cfg(any(feature = "ec-rustcrypto", feature = "aws-lc-rs"))]
             Self::Ec(key) => key.private_der(),
-            #[cfg(feature = "rsa-rustcrypto")]
+            #[cfg(any(feature = "rsa-rustcrypto", feature = "aws-lc-rs"))]
             Self::Rsa(_) => self.rsa_private_der(),
             #[cfg(feature = "ed25519-dalek")]
             Self::Ed25519(key) => encode_okp_private_key(&OID_ED25519, key.as_bytes()),
             #[cfg(feature = "x25519-dalek")]
             Self::X25519(key) => encode_okp_private_key(&OID_X25519, key.0.as_bytes()),
-            #[cfg(feature = "hmac-rustcrypto")]
+            #[cfg(any(feature = "hmac-rustcrypto", feature = "aws-lc-rs"))]
             Self::Hmac(_) => unreachable!("HMAC secrets are not DER keys."),
             #[cfg(feature = "ed448-goldilocks-plus")]
             Self::Ed448(key) => encode_okp_private_key(&OID_ED448, key.as_bytes().as_slice()),
@@ -465,9 +466,9 @@ impl PrivateKey {
         match self {
             #[cfg(feature = "openssl")]
             Self::OpenSsl(key) => key.public_key_to_der().unwrap(),
-            #[cfg(feature = "ec-rustcrypto")]
+            #[cfg(any(feature = "ec-rustcrypto", feature = "aws-lc-rs"))]
             Self::Ec(key) => key.public_der(),
-            #[cfg(feature = "rsa-rustcrypto")]
+            #[cfg(any(feature = "rsa-rustcrypto", feature = "aws-lc-rs"))]
             Self::Rsa(_) => {
                 crate::jwk::alg::rsa::RsaKeyPair::to_pkcs8(&self.rsa_public_der(), true)
             }
@@ -480,7 +481,7 @@ impl PrivateKey {
                 &OID_X25519,
                 x25519_dalek::PublicKey::from(&key.0).as_bytes(),
             ),
-            #[cfg(feature = "hmac-rustcrypto")]
+            #[cfg(any(feature = "hmac-rustcrypto", feature = "aws-lc-rs"))]
             Self::Hmac(_) => unreachable!("HMAC secrets have no public keys."),
             #[cfg(feature = "ed448-goldilocks-plus")]
             Self::Ed448(key) => encode_okp_public_key(&OID_ED448, key.verifying_key().as_bytes()),
@@ -495,15 +496,15 @@ impl PrivateKey {
         match self {
             #[cfg(feature = "openssl")]
             Self::OpenSsl(key) => key.private_key_to_pem_pkcs8().unwrap(),
-            #[cfg(feature = "ec-rustcrypto")]
+            #[cfg(any(feature = "ec-rustcrypto", feature = "aws-lc-rs"))]
             Self::Ec(key) => crate::util::encode_pem("PRIVATE KEY", &key.pkcs8_der()),
-            #[cfg(feature = "rsa-rustcrypto")]
+            #[cfg(any(feature = "rsa-rustcrypto", feature = "aws-lc-rs"))]
             Self::Rsa(_) => {
                 let pkcs8 =
                     crate::jwk::alg::rsa::RsaKeyPair::to_pkcs8(&self.rsa_private_der(), false);
                 crate::util::encode_pem("PRIVATE KEY", &pkcs8)
             }
-            #[cfg(feature = "hmac-rustcrypto")]
+            #[cfg(any(feature = "hmac-rustcrypto", feature = "aws-lc-rs"))]
             Self::Hmac(_) => unreachable!("HMAC secrets are not PEM keys."),
             #[cfg(any(
                 feature = "ed25519-dalek",
@@ -519,15 +520,15 @@ impl PrivateKey {
         match self {
             #[cfg(feature = "openssl")]
             Self::OpenSsl(key) => key.public_key_to_pem().unwrap(),
-            #[cfg(feature = "hmac-rustcrypto")]
+            #[cfg(any(feature = "hmac-rustcrypto", feature = "aws-lc-rs"))]
             Self::Hmac(_) => unreachable!("HMAC secrets have no public keys."),
             #[cfg(any(
                 feature = "ed25519-dalek",
                 feature = "ed448-goldilocks-plus",
                 feature = "x25519-dalek",
                 feature = "x448-goldilocks-plus",
-                feature = "ec-rustcrypto",
-                feature = "rsa-rustcrypto"
+                any(feature = "ec-rustcrypto", feature = "aws-lc-rs"),
+                any(feature = "rsa-rustcrypto", feature = "aws-lc-rs")
             ))]
             _ => crate::util::encode_pem("PUBLIC KEY", &self.to_der_public_key()),
         }
@@ -549,8 +550,17 @@ impl PrivateKey {
             Self::Ed448(key) => Ok(key.sign_raw(message).to_bytes().to_vec()),
             #[cfg(feature = "ed25519-dalek")]
             Self::Ed25519(key) => {
-                use ed25519_dalek::Signer;
-                Ok(key.try_sign(message)?.to_bytes().to_vec())
+                #[cfg(feature = "aws-lc-rs")]
+                {
+                    let key =
+                        aws_lc_rs::signature::Ed25519KeyPair::from_seed_unchecked(key.as_bytes())?;
+                    Ok(key.sign(message).as_ref().to_vec())
+                }
+                #[cfg(not(feature = "aws-lc-rs"))]
+                {
+                    use ed25519_dalek::Signer;
+                    Ok(key.try_sign(message)?.to_bytes().to_vec())
+                }
             }
             #[allow(unreachable_patterns)]
             _ => bail!("Incompatible EdDSA private key."),
@@ -562,7 +572,7 @@ impl PrivateKey {
             #[cfg(all(
                 feature = "openssl",
                 not(all(
-                    feature = "ec-rustcrypto",
+                    any(feature = "ec-rustcrypto", feature = "aws-lc-rs"),
                     feature = "x25519-dalek",
                     feature = "x448-goldilocks-plus"
                 ))
@@ -580,15 +590,26 @@ impl PrivateKey {
                 }
                 Ok(shared.as_bytes().to_vec())
             }
-            #[cfg(feature = "ec-rustcrypto")]
+            #[cfg(any(feature = "ec-rustcrypto", feature = "aws-lc-rs"))]
             (Self::Ec(key), PublicKey::Ec(peer)) => key.derive(peer),
             #[cfg(feature = "x25519-dalek")]
             (Self::X25519(key), PublicKey::X25519(peer)) => {
-                let shared = key.0.diffie_hellman(peer);
-                if !shared.was_contributory() {
-                    bail!("Invalid X25519 shared secret.");
+                #[cfg(feature = "aws-lc-rs")]
+                {
+                    crate::aws_lc::derive(
+                        &aws_lc_rs::agreement::X25519,
+                        key.0.as_bytes(),
+                        peer.as_bytes(),
+                    )
                 }
-                Ok(shared.as_bytes().to_vec())
+                #[cfg(not(feature = "aws-lc-rs"))]
+                {
+                    let shared = key.0.diffie_hellman(peer);
+                    if !shared.was_contributory() {
+                        bail!("Invalid X25519 shared secret.");
+                    }
+                    Ok(shared.as_bytes().to_vec())
+                }
             }
             #[allow(unreachable_patterns)]
             _ => bail!("Incompatible ECDH keys."),
@@ -601,8 +622,8 @@ pub(crate) enum PublicKey {
     #[cfg(all(
         feature = "openssl",
         not(all(
-            feature = "ec-rustcrypto",
-            feature = "rsa-rustcrypto",
+            any(feature = "ec-rustcrypto", feature = "aws-lc-rs"),
+            any(feature = "rsa-rustcrypto", feature = "aws-lc-rs"),
             feature = "ed25519-dalek",
             feature = "ed448-goldilocks-plus",
             feature = "x25519-dalek",
@@ -610,10 +631,10 @@ pub(crate) enum PublicKey {
         ))
     ))]
     OpenSsl(PKey<Public>),
-    #[cfg(feature = "ec-rustcrypto")]
+    #[cfg(any(feature = "ec-rustcrypto", feature = "aws-lc-rs"))]
     Ec(Box<ec::EcPublicKey>),
-    #[cfg(feature = "rsa-rustcrypto")]
-    Rsa(Box<rsa::PublicKey>),
+    #[cfg(any(feature = "rsa-rustcrypto", feature = "aws-lc-rs"))]
+    Rsa(Box<rsa_backend::Public>),
     #[cfg(feature = "ed25519-dalek")]
     Ed25519(ed25519_dalek::VerifyingKey),
     #[cfg(feature = "x25519-dalek")]
@@ -626,7 +647,7 @@ pub(crate) enum PublicKey {
 
 impl PublicKey {
     pub(crate) fn from_der(der: &[u8], oid: &ObjectIdentifier) -> anyhow::Result<Self> {
-        #[cfg(feature = "ec-rustcrypto")]
+        #[cfg(any(feature = "ec-rustcrypto", feature = "aws-lc-rs"))]
         if let Some(curve) = EcCurve::from_oid(oid) {
             return Ok(Self::Ec(Box::new(ec::EcPublicKey::from_der(der, curve)?)));
         }
@@ -644,7 +665,7 @@ impl PublicKey {
                 let bytes: [u8; 32] = okp::public_key_bytes(der, okp::X25519_OID)?.try_into()?;
                 Ok(Self::X25519(x25519_dalek::PublicKey::from(bytes)))
             }
-            #[cfg(feature = "rsa-rustcrypto")]
+            #[cfg(any(feature = "rsa-rustcrypto", feature = "aws-lc-rs"))]
             oid if oid == &*OID_RSA_ENCRYPTION || oid == &*OID_RSASSA_PSS => Ok(Self::Rsa(
                 Box::new(rsa_backend::public_key_from_der(der, oid)?),
             )),
@@ -663,8 +684,8 @@ impl PublicKey {
                 #[cfg(all(
                     feature = "openssl",
                     not(all(
-                        feature = "ec-rustcrypto",
-                        feature = "rsa-rustcrypto",
+                        any(feature = "ec-rustcrypto", feature = "aws-lc-rs"),
+                        any(feature = "rsa-rustcrypto", feature = "aws-lc-rs"),
                         feature = "ed25519-dalek",
                         feature = "ed448-goldilocks-plus",
                         feature = "x25519-dalek",
@@ -675,8 +696,8 @@ impl PublicKey {
                 #[cfg(not(all(
                     feature = "openssl",
                     not(all(
-                        feature = "ec-rustcrypto",
-                        feature = "rsa-rustcrypto",
+                        any(feature = "ec-rustcrypto", feature = "aws-lc-rs"),
+                        any(feature = "rsa-rustcrypto", feature = "aws-lc-rs"),
                         feature = "ed25519-dalek",
                         feature = "ed448-goldilocks-plus",
                         feature = "x25519-dalek",
@@ -688,7 +709,10 @@ impl PublicKey {
         }
     }
 
-    #[cfg(any(not(feature = "ec-rustcrypto"), not(feature = "rsa-rustcrypto")))]
+    #[cfg(any(
+        not(any(feature = "ec-rustcrypto", feature = "aws-lc-rs")),
+        not(any(feature = "rsa-rustcrypto", feature = "aws-lc-rs"))
+    ))]
     fn as_openssl(&self) -> anyhow::Result<&PKeyRef<Public>> {
         match self {
             Self::OpenSsl(key) => Ok(key.as_ref()),
@@ -698,22 +722,19 @@ impl PublicKey {
     }
 
     pub(crate) fn rsa_size(&self) -> anyhow::Result<usize> {
-        #[cfg(not(feature = "rsa-rustcrypto"))]
+        #[cfg(not(any(feature = "rsa-rustcrypto", feature = "aws-lc-rs")))]
         return Ok(self.openssl_rsa()?.size() as usize);
-        #[cfg(feature = "rsa-rustcrypto")]
-        {
-            use rsa::traits::PublicKeyParts;
-            Ok(self.rsa()?.size())
-        }
+        #[cfg(any(feature = "rsa-rustcrypto", feature = "aws-lc-rs"))]
+        Ok(rsa_backend::public_size(self.rsa()?))
     }
 
-    #[cfg(not(feature = "rsa-rustcrypto"))]
+    #[cfg(not(any(feature = "rsa-rustcrypto", feature = "aws-lc-rs")))]
     pub(crate) fn openssl_rsa(&self) -> anyhow::Result<Rsa<Public>> {
         Ok(self.as_openssl()?.rsa()?)
     }
 
-    #[cfg(feature = "rsa-rustcrypto")]
-    fn rsa(&self) -> anyhow::Result<&rsa::PublicKey> {
+    #[cfg(any(feature = "rsa-rustcrypto", feature = "aws-lc-rs"))]
+    fn rsa(&self) -> anyhow::Result<&rsa_backend::Public> {
         match self {
             Self::Rsa(key) => Ok(key),
             _ => bail!("Incompatible RSA public key."),
@@ -721,16 +742,13 @@ impl PublicKey {
     }
 
     pub(crate) fn rsa_public_der(&self) -> anyhow::Result<Vec<u8>> {
-        #[cfg(not(feature = "rsa-rustcrypto"))]
+        #[cfg(not(any(feature = "rsa-rustcrypto", feature = "aws-lc-rs")))]
         return Ok(self.openssl_rsa()?.public_key_to_der_pkcs1()?);
-        #[cfg(feature = "rsa-rustcrypto")]
-        {
-            use rsa::pkcs1::EncodeRsaPublicKey;
-            Ok(self.rsa()?.to_pkcs1_der()?.into_vec())
-        }
+        #[cfg(any(feature = "rsa-rustcrypto", feature = "aws-lc-rs"))]
+        rsa_backend::export_public(self.rsa()?)
     }
 
-    #[cfg(feature = "rsa-rustcrypto")]
+    #[cfg(any(feature = "rsa-rustcrypto", feature = "aws-lc-rs"))]
     pub(crate) fn rsa_verify(
         &self,
         hash: HashAlgorithm,
@@ -741,7 +759,7 @@ impl PublicKey {
         rsa_backend::verify(self.rsa()?, hash, pss, message, signature)
     }
 
-    #[cfg(feature = "rsa-rustcrypto")]
+    #[cfg(any(feature = "rsa-rustcrypto", feature = "aws-lc-rs"))]
     pub(crate) fn rsa_encrypt(
         &self,
         hash: Option<HashAlgorithm>,
@@ -750,7 +768,7 @@ impl PublicKey {
         rsa_backend::encrypt(self.rsa()?, hash, message)
     }
 
-    #[cfg(feature = "ec-rustcrypto")]
+    #[cfg(any(feature = "ec-rustcrypto", feature = "aws-lc-rs"))]
     pub(crate) fn verify_ecdsa(&self, message: &[u8], signature: &[u8]) -> anyhow::Result<()> {
         match self {
             Self::Ec(key) => key.verify(message, signature),
@@ -758,12 +776,15 @@ impl PublicKey {
         }
     }
 
-    #[cfg(any(not(feature = "ec-rustcrypto"), not(feature = "rsa-rustcrypto")))]
+    #[cfg(any(
+        not(any(feature = "ec-rustcrypto", feature = "aws-lc-rs")),
+        not(any(feature = "rsa-rustcrypto", feature = "aws-lc-rs"))
+    ))]
     pub(crate) fn openssl_verifier(&self, digest: MessageDigest) -> anyhow::Result<Verifier<'_>> {
         Ok(Verifier::new(digest, self.as_openssl()?)?)
     }
 
-    #[cfg(not(feature = "rsa-rustcrypto"))]
+    #[cfg(not(any(feature = "rsa-rustcrypto", feature = "aws-lc-rs")))]
     pub(crate) fn openssl_encrypter(&self) -> anyhow::Result<Encrypter<'_>> {
         Ok(Encrypter::new(self.as_openssl()?)?)
     }
@@ -788,8 +809,16 @@ impl PublicKey {
             }
             #[cfg(feature = "ed25519-dalek")]
             Self::Ed25519(key) => {
-                let signature = ed25519_dalek::Signature::try_from(signature)?;
-                key.verify_strict(message, &signature)?;
+                #[cfg(feature = "aws-lc-rs")]
+                {
+                    use aws_lc_rs::signature::{UnparsedPublicKey, ED25519};
+                    UnparsedPublicKey::new(&ED25519, key.as_bytes()).verify(message, signature)?;
+                }
+                #[cfg(not(feature = "aws-lc-rs"))]
+                {
+                    let signature = ed25519_dalek::Signature::try_from(signature)?;
+                    key.verify_strict(message, &signature)?;
+                }
             }
             #[allow(unreachable_patterns)]
             _ => bail!("Incompatible EdDSA public key."),

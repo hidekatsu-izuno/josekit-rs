@@ -18,12 +18,24 @@ openssl = ["dep:openssl"]
 aes-kw-rustcrypto = ["dep:aes-kw", "dep:rand"]
 aes-cbc-hmac-rustcrypto = ["dep:aes", "dep:cbc", "dep:hmac", "dep:rand", "dep:sha2", "dep:subtle"]
 aes-gcm-rustcrypto = ["dep:aes-gcm", "dep:rand"]
-ec-rustcrypto = ["dep:k256", "dep:p256", "dep:p384", "dep:p521", "dep:rand", "dep:sha2"]
+ec-rustcrypto = [
+    "dep:k256", "k256/ecdsa", "k256/pkcs8", "k256/precomputed-tables", "k256/std",
+    "dep:p256", "dep:p384", "dep:p521", "dep:rand", "dep:sha2",
+]
 ed25519-dalek = ["dep:ed25519-dalek", "dep:pkcs8"]
 hmac-rustcrypto = ["dep:hmac", "hmac/zeroize", "dep:rand", "dep:sha2", "dep:subtle"]
 pbkdf2-rustcrypto = ["dep:pbkdf2", "dep:rand", "dep:sha2"]
 rsa-rustcrypto = ["dep:rand", "dep:rsa", "dep:sha1", "dep:sha2"]
 x25519-dalek = ["dep:x25519-dalek", "dep:pkcs8", "dep:sha2"]
+aws-lc-rs = [
+    "dep:aws-lc-rs",
+    "dep:k256",
+    "dep:rsa",
+    "ed25519-dalek",
+    "ed448-goldilocks-plus",
+    "x25519-dalek",
+    "x448-goldilocks-plus",
+]
 
 ed448-goldilocks-plus = [
     "dep:ed448-goldilocks-plus",
@@ -34,7 +46,8 @@ x448-goldilocks-plus = [
     "dep:ed448-goldilocks-plus",
     "ed448-goldilocks-plus/kex",
     "dep:pkcs8",
-    "aes-kw-rustcrypto",
+    "dep:aes-kw",
+    "dep:rand",
     "dep:sha2",
 ]
 vendored = ["openssl", "openssl/vendored"]
@@ -52,11 +65,12 @@ openssl = { version = "0.10.68", optional = true }
 aes = { version = "0.9", optional = true }
 aes-gcm = { version = "0.11", default-features = false, features = ["aes"], optional = true }
 aes-kw = { version = "0.3.1", optional = true }
+aws-lc-rs = { version = "1.19", default-features = false, features = ["non-fips"], optional = true }
 cbc = { version = "0.2", features = ["alloc"], optional = true }
 ed25519-dalek = { version = "3", optional = true }
 ed448-goldilocks-plus = { version = "0.18.1", default-features = false, optional = true }
 hmac = { version = "0.13", optional = true }
-k256 = { version = "0.14", default-features = false, features = ["ecdh", "ecdsa", "pkcs8", "precomputed-tables", "std"], optional = true }
+k256 = { version = "0.14", default-features = false, features = ["ecdh"], optional = true }
 p256 = { version = "0.14", default-features = false, features = ["ecdh", "ecdsa", "pkcs8", "precomputed-tables", "std"], optional = true }
 p384 = { version = "0.14", default-features = false, features = ["ecdh", "ecdsa", "pkcs8", "precomputed-tables", "std"], optional = true }
 p521 = { version = "0.14", default-features = false, features = ["ecdh", "ecdsa", "pkcs8", "precomputed-tables", "std"], optional = true }

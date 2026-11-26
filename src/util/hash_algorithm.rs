@@ -29,6 +29,7 @@ impl HashAlgorithm {
 
     #[cfg(all(
         feature = "openssl",
+        not(feature = "aws-lc-rs"),
         not(all(
             feature = "aes-cbc-hmac-rustcrypto",
             feature = "ec-rustcrypto",
@@ -48,7 +49,10 @@ impl HashAlgorithm {
         }
     }
 
-    #[cfg(any(feature = "aes-cbc-hmac-rustcrypto", feature = "hmac-rustcrypto"))]
+    #[cfg(all(
+        not(feature = "aws-lc-rs"),
+        any(feature = "aes-cbc-hmac-rustcrypto", feature = "hmac-rustcrypto")
+    ))]
     pub(crate) fn hmac(self, key: &[u8], parts: &[&[u8]]) -> anyhow::Result<Vec<u8>> {
         use hmac::{Hmac, KeyInit, Mac};
         use sha2::{Sha256, Sha384, Sha512};

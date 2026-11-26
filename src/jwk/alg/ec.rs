@@ -2,7 +2,7 @@ use std::fmt::Display;
 use std::ops::Deref;
 
 use anyhow::bail;
-#[cfg(not(feature = "ec-rustcrypto"))]
+#[cfg(not(any(feature = "ec-rustcrypto", feature = "aws-lc-rs")))]
 use openssl::bn::{BigNum, BigNumContext, BigNumRef};
 
 use crate::jwk::{Jwk, KeyPair, PrivateKey};
@@ -41,14 +41,14 @@ impl EcCurve {
         }
     }
 
-    #[cfg(feature = "ec-rustcrypto")]
+    #[cfg(any(feature = "ec-rustcrypto", feature = "aws-lc-rs"))]
     pub(crate) fn from_oid(oid: &ObjectIdentifier) -> Option<Self> {
         [Self::P256, Self::P384, Self::P521, Self::Secp256k1]
             .into_iter()
             .find(|curve| curve.oid() == oid)
     }
 
-    #[cfg(not(feature = "ec-rustcrypto"))]
+    #[cfg(not(any(feature = "ec-rustcrypto", feature = "aws-lc-rs")))]
     fn coordinate_size(&self) -> usize {
         match self {
             Self::P256 | Self::Secp256k1 => 32,
@@ -308,19 +308,19 @@ impl EcKeyPair {
     }
 
     pub fn to_traditional_pem_private_key(&self) -> Vec<u8> {
-        #[cfg(not(feature = "ec-rustcrypto"))]
+        #[cfg(not(any(feature = "ec-rustcrypto", feature = "aws-lc-rs")))]
         return self
             .private_key
             .openssl_ec_key()
             .unwrap()
             .private_key_to_pem()
             .unwrap();
-        #[cfg(feature = "ec-rustcrypto")]
+        #[cfg(any(feature = "ec-rustcrypto", feature = "aws-lc-rs"))]
         util::encode_pem("EC PRIVATE KEY", &self.to_raw_private_key())
     }
 
     fn to_jwk(&self, private: bool, public: bool) -> Jwk {
-        #[cfg(not(feature = "ec-rustcrypto"))]
+        #[cfg(not(any(feature = "ec-rustcrypto", feature = "aws-lc-rs")))]
         let ec_key = self.private_key.openssl_ec_key().unwrap();
 
         let mut jwk = Jwk::new("EC");
@@ -333,16 +333,16 @@ impl EcKeyPair {
         jwk.set_parameter("crv", Some(Value::String(self.curve.to_string())))
             .unwrap();
         if private {
-            #[cfg(not(feature = "ec-rustcrypto"))]
+            #[cfg(not(any(feature = "ec-rustcrypto", feature = "aws-lc-rs")))]
             let d = Self::num_to_vec(ec_key.private_key(), self.curve.coordinate_size());
-            #[cfg(feature = "ec-rustcrypto")]
+            #[cfg(any(feature = "ec-rustcrypto", feature = "aws-lc-rs"))]
             let d = self.private_key.ec_scalar();
             let d = util::encode_base64_urlsafe_nopad(&d);
 
             jwk.set_parameter("d", Some(Value::String(d))).unwrap();
         }
         if public {
-            #[cfg(not(feature = "ec-rustcrypto"))]
+            #[cfg(not(any(feature = "ec-rustcrypto", feature = "aws-lc-rs")))]
             let (x, y) = {
                 let mut x = BigNum::new().unwrap();
                 let mut y = BigNum::new().unwrap();
@@ -354,7 +354,7 @@ impl EcKeyPair {
                 let size = self.curve.coordinate_size();
                 (Self::num_to_vec(&x, size), Self::num_to_vec(&y, size))
             };
-            #[cfg(feature = "ec-rustcrypto")]
+            #[cfg(any(feature = "ec-rustcrypto", feature = "aws-lc-rs"))]
             let (x, y) = self.private_key.ec_coordinates();
             let x = util::encode_base64_urlsafe_nopad(&x);
             let y = util::encode_base64_urlsafe_nopad(&y);
@@ -495,7 +495,7 @@ impl EcKeyPair {
         builder.build()
     }
 
-    #[cfg(not(feature = "ec-rustcrypto"))]
+    #[cfg(not(any(feature = "ec-rustcrypto", feature = "aws-lc-rs")))]
     fn num_to_vec(num: &BigNumRef, len: usize) -> Vec<u8> {
         let vec = num.to_vec();
         if vec.len() < len {

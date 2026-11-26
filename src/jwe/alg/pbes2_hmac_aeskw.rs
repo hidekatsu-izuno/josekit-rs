@@ -4,14 +4,14 @@ use std::fmt::Display;
 use std::ops::Deref;
 
 use anyhow::bail;
-#[cfg(not(feature = "pbkdf2-rustcrypto"))]
+#[cfg(not(any(feature = "pbkdf2-rustcrypto", feature = "aws-lc-rs")))]
 use openssl::pkcs5;
 
 use crate::jwe::alg::aeskw::{unwrap_key, wrap_key};
 use crate::jwe::{JweAlgorithm, JweContentEncryption, JweDecrypter, JweEncrypter, JweHeader};
 use crate::jwk::Jwk;
 use crate::util;
-#[cfg(not(feature = "pbkdf2-rustcrypto"))]
+#[cfg(any(not(feature = "pbkdf2-rustcrypto"), feature = "aws-lc-rs"))]
 use crate::util::HashAlgorithm;
 use crate::{JoseError, JoseHeader, Number, Value};
 
@@ -151,7 +151,7 @@ impl Pbes2HmacAeskwJweAlgorithm {
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
-    #[cfg(not(feature = "pbkdf2-rustcrypto"))]
+    #[cfg(any(not(feature = "pbkdf2-rustcrypto"), feature = "aws-lc-rs"))]
     fn hash_algorithm(&self) -> HashAlgorithm {
         match self {
             Self::Pbes2Hs256A128kw => HashAlgorithm::Sha256,
@@ -165,7 +165,9 @@ impl Pbes2HmacAeskwJweAlgorithm {
         if rounds == 0 {
             bail!("The p2c value must be positive.");
         }
-        #[cfg(not(feature = "pbkdf2-rustcrypto"))]
+        #[cfg(feature = "aws-lc-rs")]
+        crate::aws_lc::derive_pbkdf2(self.hash_algorithm(), password, salt, rounds, &mut key)?;
+        #[cfg(not(any(feature = "pbkdf2-rustcrypto", feature = "aws-lc-rs")))]
         pkcs5::pbkdf2_hmac(
             password,
             salt,
@@ -173,7 +175,7 @@ impl Pbes2HmacAeskwJweAlgorithm {
             self.hash_algorithm().openssl(),
             &mut key,
         )?;
-        #[cfg(feature = "pbkdf2-rustcrypto")]
+        #[cfg(all(feature = "pbkdf2-rustcrypto", not(feature = "aws-lc-rs")))]
         {
             use pbkdf2::pbkdf2_hmac;
             use sha2::{Sha256, Sha384, Sha512};

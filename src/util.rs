@@ -40,6 +40,7 @@ select_rng!(
     "hmac-rustcrypto",
     "pbkdf2-rustcrypto",
     "rsa-rustcrypto",
+    "x448-goldilocks-plus",
 );
 
 #[cfg(any(

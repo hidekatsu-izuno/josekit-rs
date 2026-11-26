@@ -452,13 +452,13 @@ impl JwsSigner for RsassaPssJwsSigner {
     }
 
     fn sign(&self, message: &[u8]) -> Result<Vec<u8>, JoseError> {
-        #[cfg(feature = "rsa-rustcrypto")]
+        #[cfg(any(feature = "rsa-rustcrypto", feature = "aws-lc-rs"))]
         return self
             .private_key
             .rsa_sign(self.algorithm.hash_algorithm(), true, message)
             .map_err(JoseError::InvalidSignature);
 
-        #[cfg(not(feature = "rsa-rustcrypto"))]
+        #[cfg(not(any(feature = "rsa-rustcrypto", feature = "aws-lc-rs")))]
         (|| -> anyhow::Result<Vec<u8>> {
             let md = self.algorithm.hash_algorithm().openssl();
             let mut signer = self.private_key.openssl_signer(md)?;
@@ -512,13 +512,13 @@ impl JwsVerifier for RsassaPssJwsVerifier {
     }
 
     fn verify(&self, message: &[u8], signature: &[u8]) -> Result<(), JoseError> {
-        #[cfg(feature = "rsa-rustcrypto")]
+        #[cfg(any(feature = "rsa-rustcrypto", feature = "aws-lc-rs"))]
         return self
             .public_key
             .rsa_verify(self.algorithm.hash_algorithm(), true, message, signature)
             .map_err(JoseError::InvalidSignature);
 
-        #[cfg(not(feature = "rsa-rustcrypto"))]
+        #[cfg(not(any(feature = "rsa-rustcrypto", feature = "aws-lc-rs")))]
         (|| -> anyhow::Result<()> {
             let md = self.algorithm.hash_algorithm().openssl();
             let mut verifier = self.public_key.openssl_verifier(md)?;

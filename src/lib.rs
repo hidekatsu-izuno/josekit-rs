@@ -4,6 +4,7 @@
 
 #[cfg(all(
     not(feature = "openssl"),
+    not(feature = "aws-lc-rs"),
     not(all(
         feature = "aes-cbc-hmac-rustcrypto",
         feature = "aes-gcm-rustcrypto",
@@ -26,6 +27,8 @@ pub mod jws;
 pub mod jwt;
 pub mod util;
 
+#[cfg(feature = "aws-lc-rs")]
+mod aws_lc;
 mod jose_error;
 mod jose_header;
 
