@@ -6,6 +6,8 @@ use ed448_goldilocks_plus::{
 };
 #[cfg(feature = "ed448-goldilocks-plus")]
 use ed448_goldilocks_plus::{Signature, SigningKey, VerifyingKey, SECRET_KEY_LENGTH};
+#[cfg(feature = "hmac-rustcrypto")]
+use hmac::digest::zeroize::Zeroize;
 #[cfg(all(
     feature = "openssl",
     not(all(
@@ -117,7 +119,14 @@ pub(crate) enum PrivateKey {
 
 #[cfg(feature = "hmac-rustcrypto")]
 #[derive(Clone)]
-pub(crate) struct HmacKey(zeroize::Zeroizing<Vec<u8>>);
+pub(crate) struct HmacKey(Box<[u8]>);
+
+#[cfg(feature = "hmac-rustcrypto")]
+impl Drop for HmacKey {
+    fn drop(&mut self) {
+        self.0.as_mut().zeroize();
+    }
+}
 
 #[cfg(feature = "hmac-rustcrypto")]
 impl std::fmt::Debug for HmacKey {
@@ -174,9 +183,7 @@ impl PrivateKey {
         #[cfg(not(feature = "hmac-rustcrypto"))]
         return Ok(Self::OpenSsl(PKey::hmac(secret)?));
         #[cfg(feature = "hmac-rustcrypto")]
-        Ok(Self::Hmac(HmacKey(zeroize::Zeroizing::new(
-            secret.to_vec(),
-        ))))
+        Ok(Self::Hmac(HmacKey(secret.into())))
     }
 
     pub(crate) fn sign_hmac(

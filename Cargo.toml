@@ -19,17 +19,16 @@ aes-kw-rustcrypto = ["dep:aes-kw", "dep:rand"]
 aes-cbc-hmac-rustcrypto = ["dep:aes", "dep:cbc", "dep:hmac", "dep:rand", "dep:sha2", "dep:subtle"]
 aes-gcm-rustcrypto = ["dep:aes-gcm", "dep:rand"]
 ec-rustcrypto = ["dep:k256", "dep:p256", "dep:p384", "dep:p521", "dep:rand", "dep:sha2"]
-ed25519-dalek = ["dep:ed25519-dalek", "dep:pkcs8", "dep:zeroize"]
-hmac-rustcrypto = ["dep:hmac", "dep:rand", "dep:sha2", "dep:subtle", "dep:zeroize"]
+ed25519-dalek = ["dep:ed25519-dalek", "dep:pkcs8"]
+hmac-rustcrypto = ["dep:hmac", "hmac/zeroize", "dep:rand", "dep:sha2", "dep:subtle"]
 pbkdf2-rustcrypto = ["dep:pbkdf2", "dep:rand", "dep:sha2"]
 rsa-rustcrypto = ["dep:rand", "dep:rsa", "dep:sha1", "dep:sha2"]
-x25519-dalek = ["dep:x25519-dalek", "dep:pkcs8", "dep:sha2", "dep:zeroize"]
+x25519-dalek = ["dep:x25519-dalek", "dep:pkcs8", "dep:sha2"]
 
 ed448-goldilocks-plus = [
     "dep:ed448-goldilocks-plus",
     "ed448-goldilocks-plus/signing",
     "dep:pkcs8",
-    "dep:zeroize",
 ]
 x448-goldilocks-plus = [
     "dep:ed448-goldilocks-plus",
@@ -37,7 +36,6 @@ x448-goldilocks-plus = [
     "dep:pkcs8",
     "aes-kw-rustcrypto",
     "dep:sha2",
-    "dep:zeroize",
 ]
 vendored = ["openssl", "openssl/vendored"]
 
@@ -63,14 +61,13 @@ p256 = { version = "0.14", default-features = false, features = ["ecdh", "ecdsa"
 p384 = { version = "0.14", default-features = false, features = ["ecdh", "ecdsa", "pkcs8", "precomputed-tables", "std"], optional = true }
 p521 = { version = "0.14", default-features = false, features = ["ecdh", "ecdsa", "pkcs8", "precomputed-tables", "std"], optional = true }
 pbkdf2 = { version = "0.13", optional = true }
-pkcs8 = { version = "0.11", default-features = false, optional = true }
+pkcs8 = { version = "0.11", default-features = false, features = ["alloc"], optional = true }
 rand = { version = "0.10", default-features = false, features = ["std", "sys_rng"], optional = true }
 rsa = { version = "0.10", default-features = false, features = ["encoding", "pkcs1v15"], optional = true }
 sha1 = { version = "0.11", optional = true }
 sha2 = { version = "0.11", optional = true }
 subtle = { version = "2", optional = true }
 x25519-dalek = { version = "3", features = ["static_secrets"], optional = true }
-zeroize = { version = "1", optional = true }
 
 [dev-dependencies]
 doc-comment = "0.3.3"

@@ -1,7 +1,6 @@
 use anyhow::{bail, Context};
-use pkcs8::der::{asn1::OctetStringRef, Decode};
+use pkcs8::der::{asn1::OctetStringRef, zeroize::Zeroizing, Decode};
 use pkcs8::{ObjectIdentifier, PrivateKeyInfoRef, SubjectPublicKeyInfoRef};
-use zeroize::Zeroizing;
 
 use crate::util;
 
