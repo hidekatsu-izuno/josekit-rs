@@ -30,6 +30,26 @@ cargo build --no-default-features --features \
 The `rsa-rustcrypto` backend accepts two-prime RSA private keys and RSA
 moduli from 1024 to 8192 bits. JOSE RSA algorithms require at least 2048 bits.
 
+### WebAssembly
+
+Wasm applications can use the Rust API with the Pure Rust backends.
+The `wasm32-wasip1` target uses WASI for randomness and time. For browsers and
+JavaScript runtimes, use `wasm32-unknown-unknown` with the `wasm-js` feature.
+It enables Web Crypto randomness and the JavaScript clock for JWT validation.
+
+```sh
+rustup target add wasm32-wasip1 wasm32-unknown-unknown
+features=aes-cbc-hmac-rustcrypto,aes-gcm-rustcrypto,aes-kw-rustcrypto,ec-rustcrypto
+features="$features,ed25519-dalek,ed448-goldilocks-plus,hmac-rustcrypto,pbkdf2-rustcrypto"
+features="$features,rsa-rustcrypto,x25519-dalek,x448-goldilocks-plus"
+
+cargo build --target wasm32-wasip1 --no-default-features --features "$features"
+cargo build --target wasm32-unknown-unknown --no-default-features --features "$features,wasm-js"
+```
+
+To call Rust code from JavaScript, export your application's functions with
+[`wasm-bindgen`](https://wasm-bindgen.github.io/wasm-bindgen/).
+
 ### AWS-LC build
 
 The `aws-lc-rs` feature uses AWS-LC for AES-GCM, AES-CBC-HMAC, HMAC, PBKDF2,

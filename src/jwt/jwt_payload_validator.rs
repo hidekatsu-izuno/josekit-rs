@@ -168,6 +168,9 @@ impl JwtPayloadValidator {
     /// * `payload` - a decoded JWT payload.
     pub fn validate(&self, payload: &JwtPayload) -> Result<(), JoseError> {
         (|| -> anyhow::Result<()> {
+            #[cfg(all(target_arch = "wasm32", target_os = "unknown", feature = "wasm-js"))]
+            let now = SystemTime::from(time::OffsetDateTime::now_utc());
+            #[cfg(not(all(target_arch = "wasm32", target_os = "unknown", feature = "wasm-js")))]
             let now = SystemTime::now();
             let current_time = self.base_time().unwrap_or(&now);
             let min_issued_time = self.min_issued_time().unwrap_or(&SystemTime::UNIX_EPOCH);
