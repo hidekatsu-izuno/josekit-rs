@@ -1,14 +1,12 @@
 use std::{fmt::Display, ops::Deref};
 
 use anyhow::bail;
-use openssl::{
-    hash::MessageDigest,
-    pkey::{PKey, Private},
-    sign::Signer,
-    symm::{self, Cipher},
-};
+#[cfg(not(feature = "aes-cbc-hmac-rustcrypto"))]
+use openssl::symm::{self, Cipher};
 
-use crate::{jwe::JweContentEncryption, JoseError};
+#[cfg(not(feature = "aes-cbc-hmac-rustcrypto"))]
+use crate::jwk::PrivateKey;
+use crate::{jwe::JweContentEncryption, util::HashAlgorithm, JoseError};
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum AescbcHmacJweEncryption {
@@ -21,42 +19,86 @@ pub enum AescbcHmacJweEncryption {
 }
 
 impl AescbcHmacJweEncryption {
-    fn calcurate_tag(
+    fn calculate_tag(
         &self,
         aad: &[u8],
-        iv: Option<&[u8]>,
+        iv: &[u8],
         ciphertext: &[u8],
         mac_key: &[u8],
-    ) -> Result<Vec<u8>, JoseError> {
-        let (message_digest, tlen) = match self {
-            Self::A128cbcHs256 => (MessageDigest::sha256(), 16),
-            Self::A192cbcHs384 => (MessageDigest::sha384(), 24),
-            Self::A256cbcHs512 => (MessageDigest::sha512(), 32),
+    ) -> anyhow::Result<Vec<u8>> {
+        let hash = match self {
+            Self::A128cbcHs256 => HashAlgorithm::Sha256,
+            Self::A192cbcHs384 => HashAlgorithm::Sha384,
+            Self::A256cbcHs512 => HashAlgorithm::Sha512,
         };
+        let aad_bits = (u64::try_from(aad.len())? * 8).to_be_bytes();
+        let parts = [aad, iv, ciphertext, &aad_bits];
 
-        let pkey = (|| -> anyhow::Result<PKey<Private>> {
-            let pkey = PKey::hmac(mac_key)?;
-            Ok(pkey)
-        })()
-        .map_err(|err| JoseError::InvalidKeyFormat(err))?;
+        #[cfg(not(feature = "aes-cbc-hmac-rustcrypto"))]
+        let mut signature = PrivateKey::openssl_hmac(mac_key, hash, &parts)?;
+        #[cfg(feature = "aes-cbc-hmac-rustcrypto")]
+        let mut signature = hash.hmac(mac_key, &parts)?;
 
-        let signature = (|| -> anyhow::Result<Vec<u8>> {
-            let aad_bits = ((aad.len() * 8) as u64).to_be_bytes();
-
-            let mut signer = Signer::new(message_digest, &pkey)?;
-            signer.update(aad)?;
-            if let Some(val) = iv {
-                signer.update(val)?;
-            }
-            signer.update(ciphertext)?;
-            signer.update(&aad_bits)?;
-            let mut signature = signer.sign_to_vec()?;
-            signature.truncate(tlen);
-            Ok(signature)
-        })()
-        .map_err(|err| JoseError::InvalidSignature(err))?;
-
+        signature.truncate(self.key_len() / 2);
         Ok(signature)
+    }
+
+    fn parameters<'a, 'b>(
+        &self,
+        key: &'a [u8],
+        iv: Option<&'b [u8]>,
+    ) -> anyhow::Result<(&'a [u8], &'a [u8], &'b [u8])> {
+        if key.len() != self.key_len() {
+            bail!(
+                "The length of content encryption key must be {}: {}",
+                self.key_len(),
+                key.len()
+            );
+        }
+        let iv = iv
+            .filter(|iv| iv.len() == self.iv_len())
+            .ok_or_else(|| anyhow::anyhow!("The AES-CBC IV must be 16 bytes."))?;
+        let (mac_key, enc_key) = key.split_at(key.len() / 2);
+        Ok((mac_key, enc_key, iv))
+    }
+
+    #[cfg(not(feature = "aes-cbc-hmac-rustcrypto"))]
+    fn cipher(&self) -> Cipher {
+        match self {
+            Self::A128cbcHs256 => Cipher::aes_128_cbc(),
+            Self::A192cbcHs384 => Cipher::aes_192_cbc(),
+            Self::A256cbcHs512 => Cipher::aes_256_cbc(),
+        }
+    }
+
+    #[cfg(feature = "aes-cbc-hmac-rustcrypto")]
+    fn encrypt_cbc(&self, key: &[u8], iv: &[u8], message: &[u8]) -> anyhow::Result<Vec<u8>> {
+        use cbc::cipher::{block_padding::Pkcs7, BlockModeEncrypt, KeyIvInit};
+
+        let ciphertext = match self {
+            Self::A128cbcHs256 => cbc::Encryptor::<aes::Aes128>::new_from_slices(key, iv)?
+                .encrypt_padded_vec::<Pkcs7>(message),
+            Self::A192cbcHs384 => cbc::Encryptor::<aes::Aes192>::new_from_slices(key, iv)?
+                .encrypt_padded_vec::<Pkcs7>(message),
+            Self::A256cbcHs512 => cbc::Encryptor::<aes::Aes256>::new_from_slices(key, iv)?
+                .encrypt_padded_vec::<Pkcs7>(message),
+        };
+        Ok(ciphertext)
+    }
+
+    #[cfg(feature = "aes-cbc-hmac-rustcrypto")]
+    fn decrypt_cbc(&self, key: &[u8], iv: &[u8], ciphertext: &[u8]) -> anyhow::Result<Vec<u8>> {
+        use cbc::cipher::{block_padding::Pkcs7, BlockModeDecrypt, KeyIvInit};
+
+        let message = match self {
+            Self::A128cbcHs256 => cbc::Decryptor::<aes::Aes128>::new_from_slices(key, iv)?
+                .decrypt_padded_vec::<Pkcs7>(ciphertext),
+            Self::A192cbcHs384 => cbc::Decryptor::<aes::Aes192>::new_from_slices(key, iv)?
+                .decrypt_padded_vec::<Pkcs7>(ciphertext),
+            Self::A256cbcHs512 => cbc::Decryptor::<aes::Aes256>::new_from_slices(key, iv)?
+                .decrypt_padded_vec::<Pkcs7>(ciphertext),
+        };
+        message.map_err(|_| anyhow::anyhow!("Invalid AES-CBC padding."))
     }
 }
 
@@ -88,32 +130,20 @@ impl JweContentEncryption for AescbcHmacJweEncryption {
         message: &[u8],
         aad: &[u8],
     ) -> Result<(Vec<u8>, Option<Vec<u8>>), JoseError> {
-        let (encrypted_message, mac_key) = (|| -> anyhow::Result<(Vec<u8>, &[u8])> {
-            let expected_len = self.key_len();
-            if key.len() != expected_len {
-                bail!(
-                    "The length of content encryption key must be {}: {}",
-                    expected_len,
-                    key.len()
-                );
-            }
+        let (mac_key, enc_key, iv) = self
+            .parameters(key, iv)
+            .map_err(JoseError::InvalidKeyFormat)?;
+        #[cfg(not(feature = "aes-cbc-hmac-rustcrypto"))]
+        let ciphertext =
+            symm::encrypt(self.cipher(), enc_key, Some(iv), message).map_err(anyhow::Error::from);
+        #[cfg(feature = "aes-cbc-hmac-rustcrypto")]
+        let ciphertext = self.encrypt_cbc(enc_key, iv, message);
+        let ciphertext = ciphertext.map_err(JoseError::InvalidKeyFormat)?;
 
-            let mac_key_len = expected_len / 2;
-            let mac_key = &key[0..mac_key_len];
-            let enc_key = &key[mac_key_len..];
-            let cipher = match self {
-                AescbcHmacJweEncryption::A128cbcHs256 => Cipher::aes_128_cbc(),
-                AescbcHmacJweEncryption::A192cbcHs384 => Cipher::aes_192_cbc(),
-                AescbcHmacJweEncryption::A256cbcHs512 => Cipher::aes_256_cbc(),
-            };
-            let encrypted_message = symm::encrypt(cipher, enc_key, iv, message)?;
-            Ok((encrypted_message, mac_key))
-        })()
-        .map_err(|err| JoseError::InvalidKeyFormat(err))?;
-
-        let tag = self.calcurate_tag(aad, iv, &encrypted_message, mac_key)?;
-
-        Ok((encrypted_message, Some(tag)))
+        let tag = self
+            .calculate_tag(aad, iv, &ciphertext, mac_key)
+            .map_err(JoseError::InvalidSignature)?;
+        Ok((ciphertext, Some(tag)))
     }
 
     fn decrypt(
@@ -124,45 +154,33 @@ impl JweContentEncryption for AescbcHmacJweEncryption {
         aad: &[u8],
         tag: Option<&[u8]>,
     ) -> Result<Vec<u8>, JoseError> {
-        let (message, mac_key) = (|| -> anyhow::Result<(Vec<u8>, &[u8])> {
-            let expected_len = self.key_len();
-            if key.len() != expected_len {
-                bail!(
-                    "The length of content encryption key must be {}: {}",
-                    expected_len,
-                    key.len()
-                );
-            }
-
-            let mac_key_len = expected_len / 2;
-            let mac_key = &key[0..mac_key_len];
-            let enc_key = &key[mac_key_len..];
-            let cipher = match self {
-                AescbcHmacJweEncryption::A128cbcHs256 => Cipher::aes_128_cbc(),
-                AescbcHmacJweEncryption::A192cbcHs384 => Cipher::aes_192_cbc(),
-                AescbcHmacJweEncryption::A256cbcHs512 => Cipher::aes_256_cbc(),
-            };
-            let message = symm::decrypt(cipher, enc_key, iv, encrypted_message)?;
-            Ok((message, mac_key))
-        })()
-        .map_err(|err| JoseError::InvalidKeyFormat(err))?;
+        let (mac_key, enc_key, iv) = self
+            .parameters(key, iv)
+            .map_err(JoseError::InvalidKeyFormat)?;
 
         (|| -> anyhow::Result<()> {
-            let tag = match tag {
-                Some(val) => val,
-                None => bail!("A tag value is required."),
+            let tag = tag.ok_or_else(|| anyhow::anyhow!("A tag value is required."))?;
+            let expected = self.calculate_tag(aad, iv, encrypted_message, mac_key)?;
+            #[cfg(not(feature = "aes-cbc-hmac-rustcrypto"))]
+            let matches = expected.len() == tag.len() && openssl::memcmp::eq(&expected, tag);
+            #[cfg(feature = "aes-cbc-hmac-rustcrypto")]
+            let matches = {
+                use subtle::ConstantTimeEq;
+                bool::from(expected.ct_eq(tag))
             };
-
-            let calc_tag = self.calcurate_tag(aad, iv, &encrypted_message, mac_key)?;
-            if calc_tag.as_slice() != tag {
+            if !matches {
                 bail!("The tag doesn't match.");
             }
-
             Ok(())
         })()
-        .map_err(|err| JoseError::InvalidSignature(err))?;
+        .map_err(JoseError::InvalidSignature)?;
 
-        Ok(message)
+        #[cfg(not(feature = "aes-cbc-hmac-rustcrypto"))]
+        let message = symm::decrypt(self.cipher(), enc_key, Some(iv), encrypted_message)
+            .map_err(anyhow::Error::from);
+        #[cfg(feature = "aes-cbc-hmac-rustcrypto")]
+        let message = self.decrypt_cbc(enc_key, iv, encrypted_message);
+        message.map_err(JoseError::InvalidKeyFormat)
     }
 
     fn box_clone(&self) -> Box<dyn JweContentEncryption> {
@@ -214,6 +232,19 @@ mod tests {
             )?;
 
             assert_eq!(&message[..], &decrypted_message[..]);
+
+            let mut bad_tag = tag.unwrap();
+            bad_tag[0] ^= 1;
+            assert!(matches!(
+                enc.decrypt(
+                    &key,
+                    Some(&iv),
+                    &encrypted_message[..1],
+                    aad,
+                    Some(&bad_tag)
+                ),
+                Err(crate::JoseError::InvalidSignature(_))
+            ));
         }
 
         Ok(())

@@ -7,7 +7,6 @@ use std::sync::LazyLock;
 use anyhow::bail;
 use base64::DecodeError;
 use base64::Engine as _;
-use openssl::rand;
 use regex;
 
 pub use crate::util::hash_algorithm::HashAlgorithm;
@@ -17,10 +16,64 @@ pub use HashAlgorithm::Sha256 as SHA_256;
 pub use HashAlgorithm::Sha384 as SHA_384;
 pub use HashAlgorithm::Sha512 as SHA_512;
 
+macro_rules! select_rng {
+    ($($feature:literal),+ $(,)?) => {
+        macro_rules! fill_random_bytes {
+            ($bytes:expr) => {{
+                #[cfg(any($(feature = $feature),+))]
+                let result = ::rand::TryRng::try_fill_bytes(&mut ::rand::rngs::SysRng, $bytes);
+
+                #[cfg(not(any($(feature = $feature),+)))]
+                let result = ::openssl::rand::rand_bytes($bytes);
+
+                result
+            }};
+        }
+    };
+}
+
+select_rng!(
+    "aes-cbc-hmac-rustcrypto",
+    "aes-gcm-rustcrypto",
+    "aes-kw-rustcrypto",
+    "ec-rustcrypto",
+    "hmac-rustcrypto",
+    "pbkdf2-rustcrypto",
+    "rsa-rustcrypto",
+);
+
+#[cfg(any(
+    feature = "rsa-rustcrypto",
+    feature = "ed25519-dalek",
+    feature = "ed448-goldilocks-plus",
+    feature = "x25519-dalek",
+    feature = "x448-goldilocks-plus"
+))]
+pub(crate) use fill_random_bytes;
+
 pub fn random_bytes(len: usize) -> Vec<u8> {
     let mut vec = vec![0; len];
-    rand::rand_bytes(&mut vec).unwrap();
+    fill_random_bytes!(&mut vec).unwrap();
     vec
+}
+
+#[cfg(any(
+    feature = "ed25519-dalek",
+    feature = "ed448-goldilocks-plus",
+    feature = "x25519-dalek",
+    feature = "x448-goldilocks-plus",
+    feature = "ec-rustcrypto",
+    feature = "rsa-rustcrypto"
+))]
+pub(crate) fn encode_pem(label: &str, der: &[u8]) -> Vec<u8> {
+    let encoded = encode_base64_standard(der);
+    let mut pem = format!("-----BEGIN {label}-----\n").into_bytes();
+    for line in encoded.as_bytes().chunks(64) {
+        pem.extend_from_slice(line);
+        pem.push(b'\n');
+    }
+    pem.extend_from_slice(format!("-----END {label}-----\n").as_bytes());
+    pem
 }
 
 pub(crate) fn ceiling(len: usize, div: usize) -> usize {

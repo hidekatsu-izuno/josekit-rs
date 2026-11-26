@@ -2,12 +2,10 @@ use std::fmt::Display;
 use std::ops::Deref;
 
 use anyhow::bail;
-use openssl::pkey::{PKey, Private, Public};
-use openssl::sign::{Signer, Verifier};
 
 use crate::jwk::{
     alg::ed::{EdCurve, EdKeyPair},
-    Jwk,
+    encode_okp_public_key, Jwk, PrivateKey, PublicKey,
 };
 use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier};
 use crate::util;
@@ -134,12 +132,12 @@ impl EddsaJwsAlgorithm {
         input: impl AsRef<[u8]>,
     ) -> Result<EddsaJwsVerifier, JoseError> {
         (|| -> anyhow::Result<EddsaJwsVerifier> {
-            let spki_der = match EdKeyPair::detect_pkcs8(input.as_ref(), true) {
-                Some(_) => input.as_ref(),
+            let curve = match EdKeyPair::detect_pkcs8(input.as_ref(), true) {
+                Some(curve) => curve,
                 None => bail!("The EdDSA public key must be wrapped by PKCS#8 format."),
             };
 
-            let public_key = PKey::public_key_from_der(spki_der)?;
+            let public_key = PublicKey::from_der(input.as_ref(), curve.oid())?;
 
             Ok(EddsaJwsVerifier {
                 algorithm: self.clone(),
@@ -163,9 +161,9 @@ impl EddsaJwsAlgorithm {
     ) -> Result<EddsaJwsVerifier, JoseError> {
         (|| -> anyhow::Result<EddsaJwsVerifier> {
             let (alg, data) = util::parse_pem(input.as_ref())?;
-            let spki_der = match alg.as_str() {
+            let curve = match alg.as_str() {
                 "PUBLIC KEY" => match EdKeyPair::detect_pkcs8(&data, true) {
-                    Some(_) => data.as_slice(),
+                    Some(curve) => curve,
                     None => bail!(
                         "The EdDSA public key must be wrapped by SubjectPublicKeyInfo format."
                     ),
@@ -173,7 +171,7 @@ impl EddsaJwsAlgorithm {
                 alg => bail!("Unacceptable algorithm: {}", alg),
             };
 
-            let public_key = PKey::public_key_from_der(spki_der)?;
+            let public_key = PublicKey::from_der(&data, curve.oid())?;
 
             Ok(EddsaJwsVerifier {
                 algorithm: self.clone(),
@@ -220,8 +218,8 @@ impl EddsaJwsAlgorithm {
                 None => bail!("A parameter x is required."),
             };
 
-            let pkcs8 = EdKeyPair::to_pkcs8(&x, true, curve);
-            let public_key = PKey::public_key_from_der(&pkcs8)?;
+            let pkcs8 = encode_okp_public_key(curve.oid(), &x);
+            let public_key = PublicKey::from_der(&pkcs8, curve.oid())?;
             let key_id = jwk.key_id().map(|val| val.to_string());
 
             Ok(EddsaJwsVerifier {
@@ -262,7 +260,7 @@ impl Deref for EddsaJwsAlgorithm {
 pub struct EddsaJwsSigner {
     algorithm: EddsaJwsAlgorithm,
     curve: EdCurve,
-    private_key: PKey<Private>,
+    private_key: PrivateKey,
     key_id: Option<String>,
 }
 
@@ -296,13 +294,9 @@ impl JwsSigner for EddsaJwsSigner {
     }
 
     fn sign(&self, message: &[u8]) -> Result<Vec<u8>, JoseError> {
-        (|| -> anyhow::Result<Vec<u8>> {
-            let mut signer = Signer::new_without_digest(&self.private_key)?;
-            let mut signature = vec![0; signer.len()?];
-            signer.sign_oneshot(&mut signature, message)?;
-            Ok(signature)
-        })()
-        .map_err(|err| JoseError::InvalidSignature(err))
+        self.private_key
+            .sign_eddsa(message)
+            .map_err(JoseError::InvalidSignature)
     }
 
     fn box_clone(&self) -> Box<dyn JwsSigner> {
@@ -321,7 +315,7 @@ impl Deref for EddsaJwsSigner {
 #[derive(Debug, Clone)]
 pub struct EddsaJwsVerifier {
     algorithm: EddsaJwsAlgorithm,
-    public_key: PKey<Public>,
+    public_key: PublicKey,
     key_id: Option<String>,
 }
 
@@ -348,14 +342,9 @@ impl JwsVerifier for EddsaJwsVerifier {
     }
 
     fn verify(&self, message: &[u8], signature: &[u8]) -> Result<(), JoseError> {
-        (|| -> anyhow::Result<()> {
-            let mut verifier = Verifier::new_without_digest(&self.public_key)?;
-            if !verifier.verify_oneshot(signature, message)? {
-                bail!("The signature does not match.")
-            }
-            Ok(())
-        })()
-        .map_err(|err| JoseError::InvalidSignature(err))
+        self.public_key
+            .verify_eddsa(message, signature)
+            .map_err(JoseError::InvalidSignature)
     }
 
     fn box_clone(&self) -> Box<dyn JwsVerifier> {
@@ -378,6 +367,37 @@ mod tests {
     use anyhow::Result;
     use std::fs;
     use std::path::PathBuf;
+
+    #[test]
+    fn ed448_matches_rfc8032_signature() -> Result<()> {
+        // RFC 8032 section 7.4, empty message and context.
+        let mut key = Jwk::new("OKP");
+        key.set_curve("Ed448");
+        key.set_parameter(
+            "d",
+            Some(Value::String(
+                "bIKlYsuAjRDWMr6JyFE-v2ySnzTd-oyfY8mWDvbjSKNSjIo_zC8ETjmj_FuUSS-PAy51SaIAmPlb"
+                    .into(),
+            )),
+        )?;
+        key.set_parameter(
+            "x",
+            Some(Value::String(
+                "X9dEm1m0Yf0s54fsYWrUah2hNCSFpw4fig6nXYDpZ3jt8SR2m0bHBhvWeD3x5Q9s0foavq_oJWGA"
+                    .into(),
+            )),
+        )?;
+        let expected = util::decode_base64_urlsafe_no_pad(concat!(
+            "Uzo39rvkVyUfAjwNiPl2ri37UEqEPjTSB0_YI9QaWR8rIz8DT2KCgfL9eiLd1H14KMWb0KIb_TmA",
+            "_w0gKNSxip32PgBsXRwtNFuSXY3AC0EEhS25msXHzdqFMKEToPTbthFJ8FpzYyaMcdlYCP8uZSYA",
+        ))?;
+        let alg = EddsaJwsAlgorithm::Eddsa;
+        assert_eq!(alg.signer_from_jwk(&key)?.sign(b"")?, expected);
+        let verifier = alg.verifier_from_jwk(&key.to_public_key()?)?;
+        verifier.verify(b"", &expected)?;
+        assert!(verifier.verify(b"modified", &expected).is_err());
+        Ok(())
+    }
 
     #[test]
     fn sign_and_verify_eddsa_generated_der() -> Result<()> {

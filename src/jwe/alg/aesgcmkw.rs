@@ -2,8 +2,8 @@ use std::borrow::Cow;
 use std::fmt::Display;
 use std::ops::Deref;
 
+use crate::jwe::enc::aesgcm::{decrypt_aead, encrypt_aead};
 use anyhow::bail;
-use openssl::symm::{self, Cipher};
 
 use crate::jwe::{JweAlgorithm, JweContentEncryption, JweDecrypter, JweEncrypter, JweHeader};
 use crate::jwk::Jwk;
@@ -157,14 +157,6 @@ impl AesgcmkwJweAlgorithm {
             Self::A256gcmkw => 32,
         }
     }
-
-    fn cipher(&self) -> Cipher {
-        match self {
-            Self::A128gcmkw => Cipher::aes_128_gcm(),
-            Self::A192gcmkw => Cipher::aes_192_gcm(),
-            Self::A256gcmkw => Cipher::aes_256_gcm(),
-        }
-    }
 }
 
 impl JweAlgorithm for AesgcmkwJweAlgorithm {
@@ -242,10 +234,7 @@ impl JweEncrypter for AesgcmkwJweEncrypter {
         (|| -> anyhow::Result<Option<Vec<u8>>> {
             let iv = util::random_bytes(12);
 
-            let cipher = self.algorithm.cipher();
-            let mut tag = [0; 16];
-            let encrypted_key =
-                symm::encrypt_aead(cipher, &self.private_key, Some(&iv), b"", &key, &mut tag)?;
+            let (encrypted_key, tag) = encrypt_aead(&self.private_key, Some(&iv), b"", key)?;
 
             let iv = util::encode_base64_urlsafe_nopad(&iv);
             out_header.set_claim("iv", Some(Value::String(iv)))?;
@@ -327,15 +316,7 @@ impl JweDecrypter for AesgcmkwJweDecrypter {
                 None => bail!("The tag header claim is required."),
             };
 
-            let cipher = self.algorithm.cipher();
-            let key = symm::decrypt_aead(
-                cipher,
-                &self.private_key,
-                Some(&iv),
-                b"",
-                encrypted_key,
-                &tag,
-            )?;
+            let key = decrypt_aead(&self.private_key, Some(&iv), b"", encrypted_key, &tag)?;
 
             Ok(Cow::Owned(key))
         })()

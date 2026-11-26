@@ -4,13 +4,15 @@ use std::fmt::Display;
 use std::ops::Deref;
 
 use anyhow::bail;
-use openssl::aes::{self, AesKey};
-use openssl::hash::MessageDigest;
+#[cfg(not(feature = "pbkdf2-rustcrypto"))]
 use openssl::pkcs5;
 
+use crate::jwe::alg::aeskw::{unwrap_key, wrap_key};
 use crate::jwe::{JweAlgorithm, JweContentEncryption, JweDecrypter, JweEncrypter, JweHeader};
 use crate::jwk::Jwk;
-use crate::util::{self, HashAlgorithm};
+use crate::util;
+#[cfg(not(feature = "pbkdf2-rustcrypto"))]
+use crate::util::HashAlgorithm;
 use crate::{JoseError, JoseHeader, Number, Value};
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
@@ -149,12 +151,41 @@ impl Pbes2HmacAeskwJweAlgorithm {
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
 
+    #[cfg(not(feature = "pbkdf2-rustcrypto"))]
     fn hash_algorithm(&self) -> HashAlgorithm {
         match self {
             Self::Pbes2Hs256A128kw => HashAlgorithm::Sha256,
             Self::Pbes2Hs384A192kw => HashAlgorithm::Sha384,
             Self::Pbes2Hs512A256kw => HashAlgorithm::Sha512,
         }
+    }
+
+    fn derive_key(&self, password: &[u8], salt: &[u8], rounds: usize) -> anyhow::Result<Vec<u8>> {
+        let mut key = vec![0; self.derived_key_len()];
+        if rounds == 0 {
+            bail!("The p2c value must be positive.");
+        }
+        #[cfg(not(feature = "pbkdf2-rustcrypto"))]
+        pkcs5::pbkdf2_hmac(
+            password,
+            salt,
+            rounds,
+            self.hash_algorithm().openssl(),
+            &mut key,
+        )?;
+        #[cfg(feature = "pbkdf2-rustcrypto")]
+        {
+            use pbkdf2::pbkdf2_hmac;
+            use sha2::{Sha256, Sha384, Sha512};
+
+            let rounds = i32::try_from(rounds)? as u32;
+            match self {
+                Self::Pbes2Hs256A128kw => pbkdf2_hmac::<Sha256>(password, salt, rounds, &mut key),
+                Self::Pbes2Hs384A192kw => pbkdf2_hmac::<Sha384>(password, salt, rounds, &mut key),
+                Self::Pbes2Hs512A256kw => pbkdf2_hmac::<Sha512>(password, salt, rounds, &mut key),
+            }
+        }
+        Ok(key)
     }
 
     fn derived_key_len(&self) -> usize {
@@ -289,31 +320,9 @@ impl JweEncrypter for Pbes2HmacAeskwJweEncrypter {
             salt.push(0);
             salt.extend_from_slice(&p2s);
 
-            let md = match &self.algorithm.hash_algorithm() {
-                HashAlgorithm::Sha1 => MessageDigest::sha1(),
-                HashAlgorithm::Sha256 => MessageDigest::sha256(),
-                HashAlgorithm::Sha384 => MessageDigest::sha384(),
-                HashAlgorithm::Sha512 => MessageDigest::sha512(),
-            };
-            let mut derived_key = vec![0; self.algorithm.derived_key_len()];
-            pkcs5::pbkdf2_hmac(&self.private_key, &salt, p2c, md, &mut derived_key)?;
+            let derived_key = self.algorithm.derive_key(&self.private_key, &salt, p2c)?;
 
-            let aes = match AesKey::new_encrypt(&derived_key) {
-                Ok(val) => val,
-                Err(_) => bail!("Failed to set a encryption key."),
-            };
-
-            let mut encrypted_key = vec![0; key.len() + 8];
-            match aes::wrap_key(&aes, None, &mut encrypted_key, &key) {
-                Ok(val) => {
-                    if val < encrypted_key.len() {
-                        encrypted_key.truncate(val);
-                    }
-                }
-                Err(_) => bail!("Failed to wrap a key."),
-            }
-
-            Ok(Some(encrypted_key))
+            Ok(Some(wrap_key(&derived_key, key)?))
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
     }
@@ -404,31 +413,9 @@ impl JweDecrypter for Pbes2HmacAeskwJweDecrypter {
             salt.push(0);
             salt.extend_from_slice(&p2s);
 
-            let md = match &self.algorithm.hash_algorithm() {
-                HashAlgorithm::Sha1 => MessageDigest::sha1(),
-                HashAlgorithm::Sha256 => MessageDigest::sha256(),
-                HashAlgorithm::Sha384 => MessageDigest::sha384(),
-                HashAlgorithm::Sha512 => MessageDigest::sha512(),
-            };
-            let mut derived_key = vec![0; self.algorithm.derived_key_len()];
-            pkcs5::pbkdf2_hmac(&self.private_key, &salt, p2c, md, &mut derived_key)?;
+            let derived_key = self.algorithm.derive_key(&self.private_key, &salt, p2c)?;
 
-            let aes = match AesKey::new_decrypt(&derived_key) {
-                Ok(val) => val,
-                Err(_) => bail!("Failed to set a decryption key."),
-            };
-
-            let mut key = vec![0; encrypted_key.len() - 8];
-            match aes::unwrap_key(&aes, None, &mut key, &encrypted_key) {
-                Ok(val) => {
-                    if val < key.len() {
-                        key.truncate(val);
-                    }
-                }
-                Err(_) => bail!("Failed to unwrap a key."),
-            }
-
-            Ok(Cow::Owned(key))
+            Ok(Cow::Owned(unwrap_key(&derived_key, encrypted_key)?))
         })()
         .map_err(|err| JoseError::InvalidJweFormat(err))
     }

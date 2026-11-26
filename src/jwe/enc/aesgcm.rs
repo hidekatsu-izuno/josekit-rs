@@ -2,6 +2,7 @@ use std::fmt::Display;
 use std::ops::Deref;
 
 use anyhow::bail;
+#[cfg(not(feature = "aes-gcm-rustcrypto"))]
 use openssl::symm::{self, Cipher};
 
 use crate::jwe::JweContentEncryption;
@@ -55,13 +56,7 @@ impl JweContentEncryption for AesgcmJweEncryption {
                 );
             }
 
-            let cipher = match self {
-                AesgcmJweEncryption::A128gcm => Cipher::aes_128_gcm(),
-                AesgcmJweEncryption::A192gcm => Cipher::aes_192_gcm(),
-                AesgcmJweEncryption::A256gcm => Cipher::aes_256_gcm(),
-            };
-            let mut tag = [0; 16];
-            let encrypted_message = symm::encrypt_aead(cipher, key, iv, aad, message, &mut tag)?;
+            let (encrypted_message, tag) = encrypt_aead(key, iv, aad, message)?;
             Ok((encrypted_message, Some(tag.to_vec())))
         })()
         .map_err(|err| JoseError::InvalidKeyFormat(err))
@@ -90,19 +85,114 @@ impl JweContentEncryption for AesgcmJweEncryption {
                 None => bail!("A tag value is required."),
             };
 
-            let cipher = match self {
-                AesgcmJweEncryption::A128gcm => Cipher::aes_128_gcm(),
-                AesgcmJweEncryption::A192gcm => Cipher::aes_192_gcm(),
-                AesgcmJweEncryption::A256gcm => Cipher::aes_256_gcm(),
-            };
-            let message = symm::decrypt_aead(cipher, key, iv, aad, encrypted_message, tag)?;
-            Ok(message)
+            decrypt_aead(key, iv, aad, encrypted_message, tag)
         })()
         .map_err(|err| JoseError::InvalidJweFormat(err))
     }
 
     fn box_clone(&self) -> Box<dyn JweContentEncryption> {
         Box::new(self.clone())
+    }
+}
+
+#[cfg(feature = "aes-gcm-rustcrypto")]
+macro_rules! with_cipher {
+    ($key:expr, |$cipher:ident| $operation:expr) => {{
+        use aes_gcm::{aes, Aes128Gcm, Aes256Gcm, AesGcm, KeyInit};
+        type Aes192Gcm = AesGcm<aes::Aes192, aes::cipher::consts::U12>;
+
+        match $key.len() {
+            16 => {
+                let $cipher = Aes128Gcm::new_from_slice($key).unwrap();
+                $operation
+            }
+            24 => {
+                let $cipher = Aes192Gcm::new_from_slice($key).unwrap();
+                $operation
+            }
+            32 => {
+                let $cipher = Aes256Gcm::new_from_slice($key).unwrap();
+                $operation
+            }
+            _ => bail!("Invalid AES-GCM key length."),
+        }
+    }};
+}
+
+pub(crate) fn encrypt_aead(
+    key: &[u8],
+    iv: Option<&[u8]>,
+    aad: &[u8],
+    message: &[u8],
+) -> anyhow::Result<(Vec<u8>, [u8; 16])> {
+    #[cfg(not(feature = "aes-gcm-rustcrypto"))]
+    {
+        let mut tag = [0; 16];
+        let ciphertext = symm::encrypt_aead(cipher(key.len())?, key, iv, aad, message, &mut tag)?;
+        Ok((ciphertext, tag))
+    }
+    #[cfg(feature = "aes-gcm-rustcrypto")]
+    {
+        use aes_gcm::aead::AeadInOut;
+
+        let nonce = iv
+            .unwrap_or_default()
+            .try_into()
+            .map_err(|_| anyhow::anyhow!("The AES-GCM IV must be 12 bytes."))?;
+        let mut ciphertext = message.to_vec();
+        let tag = with_cipher!(key, |cipher| {
+            cipher.encrypt_inout_detached(nonce, aad, ciphertext.as_mut_slice().into())
+        })
+        .map_err(|_| anyhow::anyhow!("AES-GCM encryption failed."))?;
+        Ok((ciphertext, tag.into()))
+    }
+}
+
+pub(crate) fn decrypt_aead(
+    key: &[u8],
+    iv: Option<&[u8]>,
+    aad: &[u8],
+    ciphertext: &[u8],
+    tag: &[u8],
+) -> anyhow::Result<Vec<u8>> {
+    #[cfg(not(feature = "aes-gcm-rustcrypto"))]
+    {
+        Ok(symm::decrypt_aead(
+            cipher(key.len())?,
+            key,
+            iv,
+            aad,
+            ciphertext,
+            tag,
+        )?)
+    }
+    #[cfg(feature = "aes-gcm-rustcrypto")]
+    {
+        use aes_gcm::aead::AeadInOut;
+
+        let nonce = iv
+            .unwrap_or_default()
+            .try_into()
+            .map_err(|_| anyhow::anyhow!("The AES-GCM IV must be 12 bytes."))?;
+        let tag = tag
+            .try_into()
+            .map_err(|_| anyhow::anyhow!("The AES-GCM tag must be 16 bytes."))?;
+        let mut message = ciphertext.to_vec();
+        with_cipher!(key, |cipher| {
+            cipher.decrypt_inout_detached(nonce, aad, message.as_mut_slice().into(), tag)
+        })
+        .map_err(|_| anyhow::anyhow!("AES-GCM authentication failed."))?;
+        Ok(message)
+    }
+}
+
+#[cfg(not(feature = "aes-gcm-rustcrypto"))]
+fn cipher(key_len: usize) -> anyhow::Result<Cipher> {
+    match key_len {
+        16 => Ok(Cipher::aes_128_gcm()),
+        24 => Ok(Cipher::aes_192_gcm()),
+        32 => Ok(Cipher::aes_256_gcm()),
+        _ => bail!("Invalid AES-GCM key length."),
     }
 }
 

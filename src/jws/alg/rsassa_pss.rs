@@ -2,14 +2,11 @@ use std::fmt::Display;
 use std::ops::Deref;
 
 use anyhow::bail;
-use openssl::hash::MessageDigest;
-use openssl::pkey::{PKey, Private, Public};
-use openssl::rsa::Rsa;
-use openssl::sign::{Signer, Verifier};
 
-use crate::jwk::{alg::rsa::RsaKeyPair, alg::rsapss::RsaPssKeyPair, Jwk};
+use crate::jwk::{alg::rsa::RsaKeyPair, alg::rsapss::RsaPssKeyPair, Jwk, PrivateKey, PublicKey};
 use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier};
 use crate::util::der::{DerBuilder, DerType};
+use crate::util::oid::OID_RSASSA_PSS;
 use crate::util::{self, HashAlgorithm};
 use crate::{JoseError, Value};
 
@@ -217,8 +214,9 @@ impl RsassaPssJwsAlgorithm {
                     let rsa_der_vec;
                     let rsa_der = match RsaKeyPair::detect_pkcs8(input, true) {
                         Some(_) => {
-                            let rsa = Rsa::public_key_from_der(input)?;
-                            rsa_der_vec = rsa.public_key_to_der_pkcs1()?;
+                            let rsa =
+                                PublicKey::from_der(input, &crate::util::oid::OID_RSA_ENCRYPTION)?;
+                            rsa_der_vec = rsa.rsa_public_der()?;
                             &rsa_der_vec
                         }
                         None => input,
@@ -235,10 +233,9 @@ impl RsassaPssJwsAlgorithm {
                 }
             };
 
-            let public_key = PKey::public_key_from_der(spki_der)?;
+            let public_key = PublicKey::from_der(spki_der, &OID_RSASSA_PSS)?;
 
-            let rsa = public_key.rsa()?;
-            if rsa.size() * 8 < 2048 {
+            if public_key.rsa_size()? * 8 < 2048 {
                 bail!("key length must be 2048 or more.");
             }
 
@@ -281,7 +278,7 @@ impl RsassaPssJwsAlgorithm {
                             bail!("The salt size is mismatched: {}", salt_len);
                         }
 
-                        PKey::public_key_from_der(&data)?
+                        PublicKey::from_der(&data, &OID_RSASSA_PSS)?
                     }
                     None => bail!("Invalid PEM contents."),
                 },
@@ -293,13 +290,12 @@ impl RsassaPssJwsAlgorithm {
                         self.hash_algorithm(),
                         self.salt_len(),
                     );
-                    PKey::public_key_from_der(&pkcs8)?
+                    PublicKey::from_der(&pkcs8, &OID_RSASSA_PSS)?
                 }
                 alg => bail!("Inappropriate algorithm: {}", alg),
             };
 
-            let rsa = public_key.rsa()?;
-            if rsa.size() * 8 < 2048 {
+            if public_key.rsa_size()? * 8 < 2048 {
                 bail!("key length must be 2048 or more.");
             }
 
@@ -361,11 +357,10 @@ impl RsassaPssJwsAlgorithm {
                 self.hash_algorithm(),
                 self.salt_len(),
             );
-            let public_key = PKey::public_key_from_der(&pkcs8)?;
+            let public_key = PublicKey::from_der(&pkcs8, &OID_RSASSA_PSS)?;
             let key_id = jwk.key_id().map(|val| val.to_string());
 
-            let rsa = public_key.rsa()?;
-            if rsa.size() * 8 < 2048 {
+            if public_key.rsa_size()? * 8 < 2048 {
                 bail!("key length must be 2048 or more.");
             }
 
@@ -426,7 +421,7 @@ impl Deref for RsassaPssJwsAlgorithm {
 #[derive(Debug, Clone)]
 pub struct RsassaPssJwsSigner {
     algorithm: RsassaPssJwsAlgorithm,
-    private_key: PKey<Private>,
+    private_key: PrivateKey,
     key_id: Option<String>,
 }
 
@@ -446,7 +441,7 @@ impl JwsSigner for RsassaPssJwsSigner {
     }
 
     fn signature_len(&self) -> usize {
-        256
+        self.private_key.rsa_size().unwrap()
     }
 
     fn key_id(&self) -> Option<&str> {
@@ -457,14 +452,16 @@ impl JwsSigner for RsassaPssJwsSigner {
     }
 
     fn sign(&self, message: &[u8]) -> Result<Vec<u8>, JoseError> {
+        #[cfg(feature = "rsa-rustcrypto")]
+        return self
+            .private_key
+            .rsa_sign(self.algorithm.hash_algorithm(), true, message)
+            .map_err(JoseError::InvalidSignature);
+
+        #[cfg(not(feature = "rsa-rustcrypto"))]
         (|| -> anyhow::Result<Vec<u8>> {
-            let md = match &self.algorithm.hash_algorithm() {
-                HashAlgorithm::Sha1 => MessageDigest::sha1(),
-                HashAlgorithm::Sha256 => MessageDigest::sha256(),
-                HashAlgorithm::Sha384 => MessageDigest::sha384(),
-                HashAlgorithm::Sha512 => MessageDigest::sha512(),
-            };
-            let mut signer = Signer::new(md, &self.private_key)?;
+            let md = self.algorithm.hash_algorithm().openssl();
+            let mut signer = self.private_key.openssl_signer(md)?;
             signer.update(message)?;
             let signature = signer.sign_to_vec()?;
             Ok(signature)
@@ -488,7 +485,7 @@ impl Deref for RsassaPssJwsSigner {
 #[derive(Debug, Clone)]
 pub struct RsassaPssJwsVerifier {
     algorithm: RsassaPssJwsAlgorithm,
-    public_key: PKey<Public>,
+    public_key: PublicKey,
     key_id: Option<String>,
 }
 
@@ -515,14 +512,16 @@ impl JwsVerifier for RsassaPssJwsVerifier {
     }
 
     fn verify(&self, message: &[u8], signature: &[u8]) -> Result<(), JoseError> {
+        #[cfg(feature = "rsa-rustcrypto")]
+        return self
+            .public_key
+            .rsa_verify(self.algorithm.hash_algorithm(), true, message, signature)
+            .map_err(JoseError::InvalidSignature);
+
+        #[cfg(not(feature = "rsa-rustcrypto"))]
         (|| -> anyhow::Result<()> {
-            let md = match &self.algorithm.hash_algorithm() {
-                HashAlgorithm::Sha1 => MessageDigest::sha1(),
-                HashAlgorithm::Sha256 => MessageDigest::sha256(),
-                HashAlgorithm::Sha384 => MessageDigest::sha384(),
-                HashAlgorithm::Sha512 => MessageDigest::sha512(),
-            };
-            let mut verifier = Verifier::new(md, &self.public_key)?;
+            let md = self.algorithm.hash_algorithm().openssl();
+            let mut verifier = self.public_key.openssl_verifier(md)?;
             verifier.update(message)?;
             if !verifier.verify(signature)? {
                 bail!("The signature does not match.");

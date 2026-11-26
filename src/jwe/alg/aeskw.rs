@@ -2,12 +2,66 @@ use std::borrow::Cow;
 use std::fmt::Display;
 use std::ops::Deref;
 
-use anyhow::bail;
+#[cfg(feature = "aes-kw-rustcrypto")]
+use aes_kw::{KeyInit, KwAes128, KwAes192, KwAes256};
+use anyhow::{bail, Context};
+#[cfg(not(feature = "aes-kw-rustcrypto"))]
 use openssl::aes::{self, AesKey};
 
 use crate::jwe::{JweAlgorithm, JweContentEncryption, JweDecrypter, JweEncrypter, JweHeader};
 use crate::jwk::Jwk;
 use crate::{util, JoseError, Value};
+
+const IV_LEN: usize = 8;
+
+pub(crate) fn wrap_key(kek: &[u8], key: &[u8]) -> anyhow::Result<Vec<u8>> {
+    if key.is_empty() {
+        bail!("The key to wrap must not be empty.");
+    }
+
+    let mut wrapped = vec![0; key.len() + IV_LEN];
+    #[cfg(feature = "aes-kw-rustcrypto")]
+    match kek.len() {
+        16 => KwAes128::new_from_slice(kek)?.wrap_key(key, &mut wrapped)?,
+        24 => KwAes192::new_from_slice(kek)?.wrap_key(key, &mut wrapped)?,
+        32 => KwAes256::new_from_slice(kek)?.wrap_key(key, &mut wrapped)?,
+        _ => bail!("Invalid AES Key Wrap key size."),
+    };
+    #[cfg(not(feature = "aes-kw-rustcrypto"))]
+    {
+        let aes =
+            AesKey::new_encrypt(kek).map_err(|_| anyhow::anyhow!("Failed to set encrypt key."))?;
+        let len = aes::wrap_key(&aes, None, &mut wrapped, key)
+            .map_err(|_| anyhow::anyhow!("Failed to wrap key."))?;
+        wrapped.truncate(len);
+    }
+    Ok(wrapped)
+}
+
+pub(crate) fn unwrap_key(kek: &[u8], wrapped: &[u8]) -> anyhow::Result<Vec<u8>> {
+    let key_len = wrapped
+        .len()
+        .checked_sub(IV_LEN)
+        .filter(|&len| len != 0)
+        .context("The wrapped key is too short.")?;
+    let mut key = vec![0; key_len];
+    #[cfg(feature = "aes-kw-rustcrypto")]
+    match kek.len() {
+        16 => KwAes128::new_from_slice(kek)?.unwrap_key(wrapped, &mut key)?,
+        24 => KwAes192::new_from_slice(kek)?.unwrap_key(wrapped, &mut key)?,
+        32 => KwAes256::new_from_slice(kek)?.unwrap_key(wrapped, &mut key)?,
+        _ => bail!("Invalid AES Key Wrap key size."),
+    };
+    #[cfg(not(feature = "aes-kw-rustcrypto"))]
+    {
+        let aes =
+            AesKey::new_decrypt(kek).map_err(|_| anyhow::anyhow!("Failed to set decrypt key."))?;
+        let len = aes::unwrap_key(&aes, None, &mut key, wrapped)
+            .map_err(|_| anyhow::anyhow!("Failed to unwrap key."))?;
+        key.truncate(len);
+    }
+    Ok(key)
+}
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum AeskwJweAlgorithm {
@@ -230,25 +284,9 @@ impl JweEncrypter for AeskwJweEncrypter {
         _in_header: &JweHeader,
         _out_header: &mut JweHeader,
     ) -> Result<Option<Vec<u8>>, JoseError> {
-        (|| -> anyhow::Result<Option<Vec<u8>>> {
-            let aes = match AesKey::new_encrypt(&self.private_key) {
-                Ok(val) => val,
-                Err(_) => bail!("Failed to set encrypt key."),
-            };
-
-            let mut encrypted_key = vec![0; key.len() + 8];
-            match aes::wrap_key(&aes, None, &mut encrypted_key, &key) {
-                Ok(val) => {
-                    if val < encrypted_key.len() {
-                        encrypted_key.truncate(val);
-                    }
-                }
-                Err(_) => bail!("Failed to wrap key."),
-            }
-
-            Ok(Some(encrypted_key))
-        })()
-        .map_err(|err| JoseError::InvalidKeyFormat(err))
+        wrap_key(&self.private_key, key)
+            .map(Some)
+            .map_err(JoseError::InvalidKeyFormat)
     }
 
     fn box_clone(&self) -> Box<dyn JweEncrypter> {
@@ -305,22 +343,7 @@ impl JweDecrypter for AeskwJweDecrypter {
                 None => bail!("A encrypted_key is required."),
             };
 
-            let aes = match AesKey::new_decrypt(&self.private_key) {
-                Ok(val) => val,
-                Err(_) => bail!("Failed to set decrypt key."),
-            };
-
-            let mut key = vec![0; encrypted_key.len() - 8];
-            match aes::unwrap_key(&aes, None, &mut key, encrypted_key) {
-                Ok(val) => {
-                    if val < key.len() {
-                        key.truncate(val);
-                    }
-                }
-                Err(_) => bail!("Failed to unwrap key."),
-            };
-
-            Ok(Cow::Owned(key))
+            Ok(Cow::Owned(unwrap_key(&self.private_key, encrypted_key)?))
         })()
         .map_err(|err| JoseError::InvalidJweFormat(err))
     }
@@ -343,11 +366,30 @@ mod tests {
     use anyhow::Result;
     use serde_json::json;
 
-    use super::AeskwJweAlgorithm;
+    use super::{unwrap_key, wrap_key, AeskwJweAlgorithm};
     use crate::jwe::enc::aescbc_hmac::AescbcHmacJweEncryption;
     use crate::jwe::JweHeader;
     use crate::jwk::Jwk;
     use crate::util;
+
+    #[test]
+    fn aes_key_wrap_matches_rfc3394() -> Result<()> {
+        // RFC 3394 section 4.1.
+        let kek = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
+        let key = [
+            0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd,
+            0xee, 0xff,
+        ];
+        let wrapped = [
+            0x1f, 0xa6, 0x8b, 0x0a, 0x81, 0x12, 0xb4, 0x47, 0xae, 0xf3, 0x4b, 0xd8, 0xfb, 0x5a,
+            0x7b, 0x82, 0x9d, 0x3e, 0x86, 0x23, 0x71, 0xd2, 0xcf, 0xe5,
+        ];
+
+        assert_eq!(wrap_key(&kek, &key)?, wrapped);
+        assert_eq!(unwrap_key(&kek, &wrapped)?, key);
+        assert!(unwrap_key(&kek, &wrapped[..7]).is_err());
+        Ok(())
+    }
 
     #[test]
     fn encrypt_and_decrypt_aes() -> Result<()> {

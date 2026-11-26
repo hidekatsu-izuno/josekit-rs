@@ -2,17 +2,17 @@ use std::fmt::Display;
 use std::ops::Deref;
 
 use anyhow::bail;
-use openssl::hash::MessageDigest;
-use openssl::pkey::{PKey, Private, Public};
-use openssl::sign::{Signer, Verifier};
 
 use crate::jwk::{
     alg::ec::{EcCurve, EcKeyPair},
-    Jwk,
+    Jwk, PrivateKey, PublicKey,
 };
 use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier};
+use crate::util;
+#[cfg(not(feature = "ec-rustcrypto"))]
 use crate::util::der::{DerBuilder, DerReader, DerType};
-use crate::util::{self, HashAlgorithm};
+#[cfg(not(feature = "ec-rustcrypto"))]
+use crate::util::HashAlgorithm;
 use crate::{JoseError, Value};
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
@@ -148,7 +148,7 @@ impl EcdsaJwsAlgorithm {
                 }
             };
 
-            let public_key = PKey::public_key_from_der(spki_der)?;
+            let public_key = PublicKey::from_der(spki_der, self.curve().oid())?;
 
             Ok(EcdsaJwsVerifier {
                 algorithm: self.clone(),
@@ -173,17 +173,15 @@ impl EcdsaJwsAlgorithm {
         (|| -> anyhow::Result<EcdsaJwsVerifier> {
             let (alg, data) = util::parse_pem(input.as_ref())?;
 
-            let spki = match alg.as_str() {
-                "PUBLIC KEY" => {
-                    if let None = EcKeyPair::detect_pkcs8(&data, true) {
-                        bail!("PEM contents is expected SubjectPublicKeyInfo wrapped key.");
-                    }
-                    &data
-                }
+            let curve = match alg.as_str() {
+                "PUBLIC KEY" => match EcKeyPair::detect_pkcs8(&data, true) {
+                    Some(curve) => curve,
+                    None => bail!("PEM contents is expected SubjectPublicKeyInfo wrapped key."),
+                },
                 alg => bail!("Inappropriate algorithm: {}", alg),
             };
 
-            let public_key = PKey::public_key_from_der(spki)?;
+            let public_key = PublicKey::from_der(&data, curve.oid())?;
 
             Ok(EcdsaJwsVerifier {
                 algorithm: self.clone(),
@@ -244,7 +242,7 @@ impl EcdsaJwsAlgorithm {
             vec.extend_from_slice(&y);
 
             let pkcs8 = EcKeyPair::to_pkcs8(&vec, true, self.curve());
-            let public_key = PKey::public_key_from_der(&pkcs8)?;
+            let public_key = PublicKey::from_der(&pkcs8, self.curve().oid())?;
             let key_id = jwk.key_id().map(|val| val.to_string());
 
             Ok(EcdsaJwsVerifier {
@@ -273,6 +271,7 @@ impl EcdsaJwsAlgorithm {
         }
     }
 
+    #[cfg(not(feature = "ec-rustcrypto"))]
     fn hash_algorithm(&self) -> HashAlgorithm {
         match self {
             Self::Es256 => HashAlgorithm::Sha256,
@@ -315,7 +314,7 @@ impl Deref for EcdsaJwsAlgorithm {
 #[derive(Debug, Clone)]
 pub struct EcdsaJwsSigner {
     algorithm: EcdsaJwsAlgorithm,
-    private_key: PKey<Private>,
+    private_key: PrivateKey,
     key_id: Option<String>,
 }
 
@@ -346,14 +345,16 @@ impl JwsSigner for EcdsaJwsSigner {
     }
 
     fn sign(&self, message: &[u8]) -> Result<Vec<u8>, JoseError> {
+        #[cfg(feature = "ec-rustcrypto")]
+        return self
+            .private_key
+            .sign_ecdsa(message)
+            .map_err(JoseError::InvalidSignature);
+
+        #[cfg(not(feature = "ec-rustcrypto"))]
         (|| -> anyhow::Result<Vec<u8>> {
-            let md = match &self.algorithm.hash_algorithm() {
-                HashAlgorithm::Sha1 => MessageDigest::sha1(),
-                HashAlgorithm::Sha256 => MessageDigest::sha256(),
-                HashAlgorithm::Sha384 => MessageDigest::sha384(),
-                HashAlgorithm::Sha512 => MessageDigest::sha512(),
-            };
-            let mut signer = Signer::new(md, &self.private_key)?;
+            let md = self.algorithm.hash_algorithm().openssl();
+            let mut signer = self.private_key.openssl_signer(md)?;
             signer.update(message)?;
             let der_signature = signer.sign_to_vec()?;
 
@@ -400,7 +401,7 @@ impl Deref for EcdsaJwsSigner {
 #[derive(Debug, Clone)]
 pub struct EcdsaJwsVerifier {
     algorithm: EcdsaJwsAlgorithm,
-    public_key: PKey<Public>,
+    public_key: PublicKey,
     key_id: Option<String>,
 }
 
@@ -427,6 +428,13 @@ impl JwsVerifier for EcdsaJwsVerifier {
     }
 
     fn verify(&self, message: &[u8], signature: &[u8]) -> Result<(), JoseError> {
+        #[cfg(feature = "ec-rustcrypto")]
+        return self
+            .public_key
+            .verify_ecdsa(message, signature)
+            .map_err(JoseError::InvalidSignature);
+
+        #[cfg(not(feature = "ec-rustcrypto"))]
         (|| -> anyhow::Result<()> {
             let signature_len = self.algorithm.signature_len();
             if signature.len() != signature_len {
@@ -450,13 +458,8 @@ impl JwsVerifier for EcdsaJwsVerifier {
             der_builder.end();
             let der_signature = der_builder.build();
 
-            let md = match &self.algorithm.hash_algorithm() {
-                HashAlgorithm::Sha1 => MessageDigest::sha1(),
-                HashAlgorithm::Sha256 => MessageDigest::sha256(),
-                HashAlgorithm::Sha384 => MessageDigest::sha384(),
-                HashAlgorithm::Sha512 => MessageDigest::sha512(),
-            };
-            let mut verifier = Verifier::new(md, &self.public_key)?;
+            let md = self.algorithm.hash_algorithm().openssl();
+            let mut verifier = self.public_key.openssl_verifier(md)?;
             verifier.update(message)?;
             if !verifier.verify(&der_signature)? {
                 bail!("The signature does not match.");

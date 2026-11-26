@@ -1,10 +1,8 @@
 use std::ops::Deref;
 
 use anyhow::bail;
-use openssl::pkey::{PKey, Private};
-use openssl::rsa::Rsa;
 
-use crate::jwk::{alg::rsa::RsaKeyPair, Jwk, KeyPair};
+use crate::jwk::{alg::rsa::RsaKeyPair, Jwk, KeyPair, PrivateKey};
 use crate::util::der::{DerBuilder, DerClass, DerReader, DerType};
 use crate::util::oid::{OID_MGF1, OID_RSASSA_PSS, OID_SHA1, OID_SHA256, OID_SHA384, OID_SHA512};
 use crate::util::{self, HashAlgorithm};
@@ -12,7 +10,7 @@ use crate::{JoseError, Value};
 
 #[derive(Debug, Clone)]
 pub struct RsaPssKeyPair {
-    private_key: PKey<Private>,
+    private_key: PrivateKey,
     hash: HashAlgorithm,
     mgf1_hash: HashAlgorithm,
     salt_len: u8,
@@ -22,7 +20,7 @@ pub struct RsaPssKeyPair {
 
 impl RsaPssKeyPair {
     pub fn key_len(&self) -> u32 {
-        self.private_key.size().try_into().unwrap()
+        self.private_key.rsa_size().unwrap().try_into().unwrap()
     }
 
     pub fn set_algorithm(&mut self, value: Option<&str>) {
@@ -45,7 +43,7 @@ impl RsaPssKeyPair {
     }
 
     pub(crate) fn from_private_key(
-        private_key: PKey<Private>,
+        private_key: PrivateKey,
         hash: HashAlgorithm,
         mgf1_hash: HashAlgorithm,
         salt_len: u8,
@@ -60,7 +58,7 @@ impl RsaPssKeyPair {
         }
     }
 
-    pub(crate) fn into_private_key(self) -> PKey<Private> {
+    pub(crate) fn into_private_key(self) -> PrivateKey {
         self.private_key
     }
 
@@ -75,8 +73,7 @@ impl RsaPssKeyPair {
         salt_len: u8,
     ) -> Result<RsaPssKeyPair, JoseError> {
         (|| -> anyhow::Result<RsaPssKeyPair> {
-            let rsa = Rsa::generate(bits)?;
-            let private_key = PKey::from_rsa(rsa)?;
+            let private_key = PrivateKey::generate_rsa(bits)?;
 
             Ok(RsaPssKeyPair {
                 private_key,
@@ -159,7 +156,7 @@ impl RsaPssKeyPair {
                 }
             };
 
-            let private_key = PKey::private_key_from_der(pkcs8_der)?;
+            let private_key = PrivateKey::from_der(pkcs8_der, &OID_RSASSA_PSS)?;
 
             Ok(RsaPssKeyPair {
                 private_key,
@@ -249,7 +246,7 @@ impl RsaPssKeyPair {
                 alg => bail!("Inappropriate algorithm: {}", alg),
             };
 
-            let private_key = PKey::private_key_from_der(pkcs8_der)?;
+            let private_key = PrivateKey::from_der(pkcs8_der, &OID_RSASSA_PSS)?;
 
             Ok(RsaPssKeyPair {
                 private_key,
@@ -338,7 +335,7 @@ impl RsaPssKeyPair {
             builder.end();
 
             let pkcs8 = RsaPssKeyPair::to_pkcs8(&builder.build(), false, hash, mgf1_hash, salt_len);
-            let private_key = PKey::private_key_from_der(&pkcs8)?;
+            let private_key = PrivateKey::from_der(&pkcs8, &OID_RSASSA_PSS)?;
             let algorithm = jwk.algorithm().map(|val| val.to_string());
             let key_id = jwk.key_id().map(|val| val.to_string());
 
@@ -355,13 +352,11 @@ impl RsaPssKeyPair {
     }
 
     pub fn to_raw_private_key(&self) -> Vec<u8> {
-        let rsa = self.private_key.rsa().unwrap();
-        rsa.private_key_to_der().unwrap()
+        self.private_key.rsa_private_der()
     }
 
     pub fn to_raw_public_key(&self) -> Vec<u8> {
-        let rsa = self.private_key.rsa().unwrap();
-        rsa.public_key_to_der_pkcs1().unwrap()
+        self.private_key.rsa_public_der()
     }
 
     pub fn to_traditional_pem_private_key(&self) -> Vec<u8> {
@@ -379,8 +374,6 @@ impl RsaPssKeyPair {
     }
 
     fn to_jwk(&self, private: bool, _public: bool) -> Jwk {
-        let rsa = self.private_key.rsa().unwrap();
-
         let mut jwk = Jwk::new("RSA");
         if let Some(val) = &self.algorithm {
             jwk.set_algorithm(val);
@@ -388,39 +381,12 @@ impl RsaPssKeyPair {
         if let Some(val) = &self.key_id {
             jwk.set_key_id(val);
         }
-        let n = rsa.n().to_vec();
-        let n = util::encode_base64_urlsafe_nopad(n);
-        jwk.set_parameter("n", Some(Value::String(n))).unwrap();
-
-        let e = rsa.e().to_vec();
-        let e = util::encode_base64_urlsafe_nopad(e);
-        jwk.set_parameter("e", Some(Value::String(e))).unwrap();
-
-        if private {
-            let d = rsa.d().to_vec();
-            let d = util::encode_base64_urlsafe_nopad(d);
-            jwk.set_parameter("d", Some(Value::String(d))).unwrap();
-
-            let p = rsa.p().unwrap().to_vec();
-            let p = util::encode_base64_urlsafe_nopad(p);
-            jwk.set_parameter("p", Some(Value::String(p))).unwrap();
-
-            let q = rsa.q().unwrap().to_vec();
-            let q = util::encode_base64_urlsafe_nopad(q);
-            jwk.set_parameter("q", Some(Value::String(q))).unwrap();
-
-            let dp = rsa.dmp1().unwrap().to_vec();
-            let dp = util::encode_base64_urlsafe_nopad(dp);
-            jwk.set_parameter("dp", Some(Value::String(dp))).unwrap();
-
-            let dq = rsa.dmq1().unwrap().to_vec();
-            let dq = util::encode_base64_urlsafe_nopad(dq);
-            jwk.set_parameter("dq", Some(Value::String(dq))).unwrap();
-
-            let qi = rsa.iqmp().unwrap().to_vec();
-            let qi = util::encode_base64_urlsafe_nopad(qi);
-            jwk.set_parameter("qi", Some(Value::String(qi))).unwrap();
-        }
+        let der = if private {
+            self.to_raw_private_key()
+        } else {
+            self.to_raw_public_key()
+        };
+        super::rsa::set_rsa_jwk_parameters(&mut jwk, &der, private);
 
         jwk
     }
@@ -499,7 +465,7 @@ impl RsaPssKeyPair {
                                 Ok(Some(DerType::Null)) => match reader.next() {
                                     Ok(Some(DerType::EndOfContents)) => {}
                                     _ => break,
-                                }
+                                },
                                 Ok(Some(DerType::EndOfContents)) => {}
                                 _ => break,
                             }
@@ -552,7 +518,7 @@ impl RsaPssKeyPair {
                                 Ok(Some(DerType::Null)) => match reader.next() {
                                     Ok(Some(DerType::EndOfContents)) => {}
                                     _ => break,
-                                }
+                                },
                                 Ok(Some(DerType::EndOfContents)) => {}
                                 _ => break,
                             }

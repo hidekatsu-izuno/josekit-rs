@@ -2,23 +2,32 @@ use std::borrow::Cow;
 use std::fmt::Display;
 use std::ops::Deref;
 
-use anyhow::bail;
-use openssl::aes::{self, AesKey};
-use openssl::derive::Deriver;
+use anyhow::{bail, Context};
+#[cfg(not(any(
+    feature = "ec-rustcrypto",
+    feature = "x25519-dalek",
+    feature = "x448-goldilocks-plus"
+)))]
 use openssl::hash::{Hasher, MessageDigest};
-use openssl::pkey::{PKey, Private, Public};
+#[cfg(any(
+    feature = "ec-rustcrypto",
+    feature = "x25519-dalek",
+    feature = "x448-goldilocks-plus"
+))]
+use sha2::{Digest, Sha256};
 
+use crate::jwe::alg::aeskw::{unwrap_key, wrap_key};
 use crate::jwe::{JweAlgorithm, JweContentEncryption, JweDecrypter, JweEncrypter, JweHeader};
 use crate::jwk::alg::{
     ec::{EcCurve, EcKeyPair},
     ecx::{EcxCurve, EcxKeyPair},
 };
-use crate::jwk::Jwk;
+use crate::jwk::{encode_okp_public_key, Jwk, PrivateKey, PublicKey};
 use crate::util;
 use crate::util::der::{DerReader, DerType};
 use crate::util::oid::{
-    OID_ID_EC_PUBLIC_KEY, OID_PRIME256V1, OID_SECP256K1, OID_SECP384R1, OID_SECP521R1, OID_X25519,
-    OID_X448,
+    ObjectIdentifier, OID_ID_EC_PUBLIC_KEY, OID_PRIME256V1, OID_SECP256K1, OID_SECP384R1,
+    OID_SECP521R1, OID_X25519, OID_X448,
 };
 use crate::{JoseError, JoseHeader, Map, Value};
 
@@ -40,6 +49,13 @@ impl EcdhEsKeyType {
         match self {
             Self::Ec(val) => val.name(),
             Self::Ecx(val) => val.name(),
+        }
+    }
+
+    fn oid(&self) -> &ObjectIdentifier {
+        match self {
+            Self::Ec(curve) => curve.oid(),
+            Self::Ecx(curve) => curve.oid(),
         }
     }
 }
@@ -143,7 +159,7 @@ impl EcdhEsJweAlgorithm {
                 None => bail!("The public key must be wrapped by SubjectPublicKeyInfo."),
             };
 
-            let public_key = PKey::public_key_from_der(spki)?;
+            let public_key = PublicKey::from_der(spki, key_type.oid())?;
 
             Ok(EcdhEsJweEncrypter {
                 algorithm: self.clone(),
@@ -172,7 +188,7 @@ impl EcdhEsJweAlgorithm {
                 alg => bail!("Inappropriate algorithm: {}", alg),
             };
 
-            let public_key = PKey::public_key_from_der(spki)?;
+            let public_key = PublicKey::from_der(spki, key_type.oid())?;
 
             Ok(EcdhEsJweEncrypter {
                 algorithm: self.clone(),
@@ -232,9 +248,10 @@ impl EcdhEsJweAlgorithm {
                         vec.extend_from_slice(&y);
 
                         let pkcs8 = EcKeyPair::to_pkcs8(&vec, true, curve);
-                        let public_key = PKey::public_key_from_der(&pkcs8)?;
+                        let key_type = EcdhEsKeyType::Ec(curve);
+                        let public_key = PublicKey::from_der(&pkcs8, key_type.oid())?;
 
-                        (public_key, EcdhEsKeyType::Ec(curve))
+                        (public_key, key_type)
                     }
                     "OKP" => {
                         let curve = match val.as_str() {
@@ -248,10 +265,11 @@ impl EcdhEsJweAlgorithm {
                             None => bail!("A parameter x is required."),
                         };
 
-                        let pkcs8 = EcxKeyPair::to_pkcs8(&x, true, curve);
-                        let public_key = PKey::public_key_from_der(&pkcs8)?;
+                        let pkcs8 = encode_okp_public_key(curve.oid(), &x);
+                        let key_type = EcdhEsKeyType::Ecx(curve);
+                        let public_key = PublicKey::from_der(&pkcs8, key_type.oid())?;
 
-                        (public_key, EcdhEsKeyType::Ecx(curve))
+                        (public_key, key_type)
                     }
                     _ => unreachable!(),
                 },
@@ -289,7 +307,7 @@ impl EcdhEsJweAlgorithm {
                 },
             };
 
-            let private_key = PKey::private_key_from_der(pkcs8_der)?;
+            let private_key = PrivateKey::from_der(pkcs8_der, key_type.oid())?;
 
             Ok(EcdhEsJweDecrypter {
                 algorithm: self.clone(),
@@ -334,7 +352,7 @@ impl EcdhEsJweAlgorithm {
                 alg => bail!("Inappropriate algorithm: {}", alg),
             };
 
-            let private_key = PKey::private_key_from_der(pkcs8_der)?;
+            let private_key = PrivateKey::from_der(pkcs8_der, key_type.oid())?;
 
             Ok(EcdhEsJweDecrypter {
                 algorithm: self.clone(),
@@ -502,48 +520,56 @@ impl EcdhEsJweAlgorithm {
         apu: Option<&[u8]>,
         apv: Option<&[u8]>,
     ) -> anyhow::Result<Vec<u8>> {
-        let shared_key_len_bytes = ((shared_key_len * 8) as u32).to_be_bytes();
-        let alg_len_bytes = (alg.len() as u32).to_be_bytes();
-        let apu_len_bytes = (match apu {
-            Some(val) => val.len(),
-            None => 0,
-        } as u32)
-            .to_be_bytes();
-        let apv_len_bytes = (match apv {
-            Some(val) => val.len(),
-            None => 0,
-        } as u32)
-            .to_be_bytes();
+        let shared_key_len_bits = u32::try_from(shared_key_len)?
+            .checked_mul(8)
+            .context("The ECDH-ES derived key is too long.")?;
+        let apu = apu.unwrap_or_default();
+        let apv = apv.unwrap_or_default();
+        let alg_len_bytes = u32::try_from(alg.len())?.to_be_bytes();
+        let apu_len_bytes = u32::try_from(apu.len())?.to_be_bytes();
+        let apv_len_bytes = u32::try_from(apv.len())?.to_be_bytes();
 
+        let count = util::ceiling(shared_key_len, 32);
         let mut shared_key = Vec::new();
-        let md = MessageDigest::sha256();
-        let count = util::ceiling(shared_key_len, md.size());
-        for i in 0..count {
-            let mut hasher = Hasher::new(md)?;
-            hasher.update(&((i + 1) as u32).to_be_bytes())?;
-            hasher.update(&derived_key)?;
-            hasher.update(&alg_len_bytes)?;
-            hasher.update(alg.as_bytes())?;
-            hasher.update(&apu_len_bytes)?;
-            if let Some(val) = apu {
-                hasher.update(val)?;
+        for counter in 1..=u32::try_from(count)? {
+            let parts: [&[u8]; 9] = [
+                &counter.to_be_bytes(),
+                derived_key,
+                &alg_len_bytes,
+                alg.as_bytes(),
+                &apu_len_bytes,
+                apu,
+                &apv_len_bytes,
+                apv,
+                &shared_key_len_bits.to_be_bytes(),
+            ];
+            #[cfg(any(
+                feature = "ec-rustcrypto",
+                feature = "x25519-dalek",
+                feature = "x448-goldilocks-plus"
+            ))]
+            {
+                let mut hasher = Sha256::new();
+                for part in parts {
+                    hasher.update(part);
+                }
+                shared_key.extend_from_slice(&hasher.finalize());
             }
-            hasher.update(&apv_len_bytes)?;
-            if let Some(val) = apv {
-                hasher.update(val)?;
+            #[cfg(not(any(
+                feature = "ec-rustcrypto",
+                feature = "x25519-dalek",
+                feature = "x448-goldilocks-plus"
+            )))]
+            {
+                let mut hasher = Hasher::new(MessageDigest::sha256())?;
+                for part in parts {
+                    hasher.update(part)?;
+                }
+                shared_key.extend_from_slice(&hasher.finish()?);
             }
-            hasher.update(&shared_key_len_bytes)?;
-
-            let digest = hasher.finish()?;
-            shared_key.extend(digest.to_vec());
         }
 
-        if shared_key.len() > shared_key_len {
-            shared_key.truncate(shared_key_len);
-        } else if shared_key.len() < shared_key_len {
-            unreachable!();
-        }
-
+        shared_key.truncate(shared_key_len);
         Ok(shared_key)
     }
 }
@@ -581,7 +607,7 @@ impl Deref for EcdhEsJweAlgorithm {
 pub struct EcdhEsJweEncrypter {
     algorithm: EcdhEsJweAlgorithm,
     key_type: EcdhEsKeyType,
-    public_key: PKey<Public>,
+    public_key: PublicKey,
     agreement_partyuinfo: Option<Vec<u8>>,
     agreement_partyvinfo: Option<Vec<u8>>,
     key_id: Option<String>,
@@ -698,9 +724,7 @@ impl EcdhEsJweEncrypter {
 
             header.set_claim("epk", Some(Value::Object(map)))?;
 
-            let mut deriver = Deriver::new(&private_key)?;
-            deriver.set_peer(&self.public_key)?;
-            let derived_key = deriver.derive_to_vec()?;
+            let derived_key = private_key.derive(&self.public_key)?;
 
             let shared_key = self.algorithm.concat_kdf(
                 alg,
@@ -761,22 +785,7 @@ impl JweEncrypter for EcdhEsJweEncrypter {
                     self.algorithm().name(),
                     self.algorithm.key_len(),
                 )?;
-                let aes = match AesKey::new_encrypt(&shared_key) {
-                    Ok(val) => val,
-                    Err(_) => bail!("Failed to set encrypt key."),
-                };
-
-                let mut encrypted_key = vec![0; key.len() + 8];
-                match aes::wrap_key(&aes, None, &mut encrypted_key, &key) {
-                    Ok(len) => {
-                        if len < encrypted_key.len() {
-                            encrypted_key.truncate(len);
-                        }
-                    }
-                    Err(_) => bail!("Failed to wrap key."),
-                }
-
-                Ok(Some(encrypted_key))
+                Ok(Some(wrap_key(&shared_key, key)?))
             }
         })()
         .map_err(|err| match err.downcast::<JoseError>() {
@@ -801,7 +810,7 @@ impl Deref for EcdhEsJweEncrypter {
 #[derive(Debug, Clone)]
 pub struct EcdhEsJweDecrypter {
     algorithm: EcdhEsJweAlgorithm,
-    private_key: PKey<Private>,
+    private_key: PrivateKey,
     key_type: EcdhEsKeyType,
     key_id: Option<String>,
 }
@@ -914,7 +923,7 @@ impl JweDecrypter for EcdhEsJweDecrypter {
                             vec.extend_from_slice(&y);
 
                             let pkcs8 = EcKeyPair::to_pkcs8(&vec, true, *curve);
-                            PKey::public_key_from_der(&pkcs8)?
+                            PublicKey::from_der(&pkcs8, self.key_type.oid())?
                         }
                         EcdhEsKeyType::Ecx(curve) => {
                             let x = match map.get("x") {
@@ -927,8 +936,8 @@ impl JweDecrypter for EcdhEsJweDecrypter {
                                 None => bail!("The x parameter in epk header claim is required."),
                             };
 
-                            let pkcs8 = EcxKeyPair::to_pkcs8(&x, true, *curve);
-                            PKey::public_key_from_der(&pkcs8)?
+                            let pkcs8 = encode_okp_public_key(curve.oid(), &x);
+                            PublicKey::from_der(&pkcs8, self.key_type.oid())?
                         }
                     }
                 }
@@ -936,9 +945,7 @@ impl JweDecrypter for EcdhEsJweDecrypter {
                 None => bail!("This algorithm must have epk header claim."),
             };
 
-            let mut deriver = Deriver::new(&self.private_key)?;
-            deriver.set_peer(&public_key)?;
-            let derived_key = deriver.derive_to_vec()?;
+            let derived_key = self.private_key.derive(&public_key)?;
 
             // concat KDF
             if let EcdhEsJweAlgorithm::EcdhEs = self.algorithm {
@@ -959,27 +966,11 @@ impl JweDecrypter for EcdhEsJweDecrypter {
                     apv.as_deref(),
                 )?;
 
-                let aes = match AesKey::new_decrypt(&shared_key) {
-                    Ok(val) => val,
-                    Err(_) => bail!("Failed to set encrypt key."),
-                };
-
                 let encrypted_key = match encrypted_key {
                     Some(val) => val,
                     None => unreachable!(),
                 };
-
-                let mut key = vec![0; encrypted_key.len() - 8];
-                match aes::unwrap_key(&aes, None, &mut key, &encrypted_key) {
-                    Ok(len) => {
-                        if len < key.len() {
-                            key.truncate(len);
-                        }
-                    }
-                    Err(_) => bail!("Failed to unwrap key."),
-                };
-
-                Ok(Cow::Owned(key))
+                Ok(Cow::Owned(unwrap_key(&shared_key, encrypted_key)?))
             }
         })()
         .map_err(|err| JoseError::InvalidJweFormat(err))
@@ -1012,6 +1003,28 @@ mod tests {
     use crate::jwk::alg::{ec::EcCurve, ecx::EcxCurve};
     use crate::jwk::Jwk;
     use crate::util;
+
+    #[test]
+    fn concat_kdf_matches_rfc7518() -> Result<()> {
+        // RFC 7518 appendix C.
+        let shared_secret = [
+            158, 86, 217, 29, 129, 113, 53, 211, 114, 131, 66, 131, 191, 132, 38, 156, 251, 49,
+            110, 163, 218, 128, 106, 72, 246, 218, 167, 121, 140, 254, 144, 196,
+        ];
+        let key = EcdhEsJweAlgorithm::EcdhEs.concat_kdf(
+            "A128GCM",
+            16,
+            &shared_secret,
+            Some(b"Alice"),
+            Some(b"Bob"),
+        )?;
+
+        assert_eq!(
+            util::encode_base64_urlsafe_nopad(key),
+            "VqqN6vgjbSBcIijNcacQGg"
+        );
+        Ok(())
+    }
 
     #[test]
     fn encrypt_and_decrypt_ecdh_es_with_pkcs8_der() -> Result<()> {

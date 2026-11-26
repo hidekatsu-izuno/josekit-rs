@@ -4,11 +4,13 @@ pub mod alg;
 
 mod jwk;
 mod jwk_set;
+mod key;
 mod key_info;
 mod key_pair;
 
 pub use crate::jwk::jwk::Jwk;
 pub use crate::jwk::jwk_set::JwkSet;
+pub(crate) use crate::jwk::key::{encode_okp_public_key, PrivateKey, PublicKey};
 pub use crate::jwk::key_info::KeyAlg;
 pub use crate::jwk::key_info::KeyFormat;
 pub use crate::jwk::key_info::KeyInfo;

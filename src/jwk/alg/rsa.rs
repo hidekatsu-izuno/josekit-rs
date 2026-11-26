@@ -1,10 +1,8 @@
 use std::ops::Deref;
 
 use anyhow::bail;
-use openssl::pkey::{PKey, Private};
-use openssl::rsa::Rsa;
 
-use crate::jwk::{alg::rsapss::RsaPssKeyPair, Jwk, KeyPair};
+use crate::jwk::{alg::rsapss::RsaPssKeyPair, Jwk, KeyPair, PrivateKey};
 use crate::util::der::{DerBuilder, DerReader, DerType};
 use crate::util::oid::OID_RSA_ENCRYPTION;
 use crate::util::{self, HashAlgorithm};
@@ -12,14 +10,14 @@ use crate::{JoseError, Value};
 
 #[derive(Debug, Clone)]
 pub struct RsaKeyPair {
-    private_key: PKey<Private>,
+    private_key: PrivateKey,
     algorithm: Option<String>,
     key_id: Option<String>,
 }
 
 impl RsaKeyPair {
     pub fn key_len(&self) -> u32 {
-        self.private_key.size().try_into().unwrap()
+        self.private_key.rsa_size().unwrap().try_into().unwrap()
     }
 
     pub fn set_algorithm(&mut self, value: Option<&str>) {
@@ -46,7 +44,7 @@ impl RsaKeyPair {
         RsaPssKeyPair::from_private_key(self.private_key, hash, mgf1_hash, salt_len)
     }
 
-    pub(crate) fn from_private_key(private_key: PKey<Private>) -> Self {
+    pub(crate) fn from_private_key(private_key: PrivateKey) -> Self {
         Self {
             private_key,
             algorithm: None,
@@ -54,7 +52,7 @@ impl RsaKeyPair {
         }
     }
 
-    pub(crate) fn into_private_key(self) -> PKey<Private> {
+    pub(crate) fn into_private_key(self) -> PrivateKey {
         self.private_key
     }
 
@@ -64,8 +62,7 @@ impl RsaKeyPair {
     /// * `bits` - RSA key length
     pub fn generate(bits: u32) -> Result<RsaKeyPair, JoseError> {
         (|| -> anyhow::Result<RsaKeyPair> {
-            let rsa = Rsa::generate(bits)?;
-            let private_key = PKey::from_rsa(rsa)?;
+            let private_key = PrivateKey::generate_rsa(bits)?;
 
             Ok(RsaKeyPair {
                 private_key,
@@ -91,7 +88,7 @@ impl RsaKeyPair {
                 }
             };
 
-            let private_key = PKey::private_key_from_der(pkcs8_der)?;
+            let private_key = PrivateKey::from_der(pkcs8_der, &OID_RSA_ENCRYPTION)?;
 
             Ok(Self {
                 private_key,
@@ -129,7 +126,7 @@ impl RsaKeyPair {
                 alg => bail!("Inappropriate algorithm: {}", alg),
             };
 
-            let private_key = PKey::private_key_from_der(&pkcs8_der)?;
+            let private_key = PrivateKey::from_der(&pkcs8_der, &OID_RSA_ENCRYPTION)?;
 
             Ok(Self {
                 private_key,
@@ -207,7 +204,7 @@ impl RsaKeyPair {
             builder.end();
 
             let pkcs8 = Self::to_pkcs8(&builder.build(), false);
-            let private_key = PKey::private_key_from_der(&pkcs8)?;
+            let private_key = PrivateKey::from_der(&pkcs8, &OID_RSA_ENCRYPTION)?;
             let algorithm = jwk.algorithm().map(|val| val.to_string());
             let key_id = jwk.key_id().map(|val| val.to_string());
 
@@ -221,28 +218,38 @@ impl RsaKeyPair {
     }
 
     pub fn to_raw_private_key(&self) -> Vec<u8> {
-        let rsa = self.private_key.rsa().unwrap();
-        rsa.private_key_to_der().unwrap()
+        self.private_key.rsa_private_der()
     }
 
     pub fn to_traditional_pem_private_key(&self) -> Vec<u8> {
-        let rsa = self.private_key.rsa().unwrap();
-        rsa.private_key_to_pem().unwrap()
+        #[cfg(not(feature = "rsa-rustcrypto"))]
+        return self
+            .private_key
+            .openssl_rsa()
+            .unwrap()
+            .private_key_to_pem()
+            .unwrap();
+        #[cfg(feature = "rsa-rustcrypto")]
+        util::encode_pem("RSA PRIVATE KEY", &self.to_raw_private_key())
     }
 
     pub fn to_raw_public_key(&self) -> Vec<u8> {
-        let rsa = self.private_key.rsa().unwrap();
-        rsa.public_key_to_der_pkcs1().unwrap()
+        self.private_key.rsa_public_der()
     }
 
     pub fn to_traditional_pem_public_key(&self) -> Vec<u8> {
-        let rsa = self.private_key.rsa().unwrap();
-        rsa.public_key_to_pem_pkcs1().unwrap()
+        #[cfg(not(feature = "rsa-rustcrypto"))]
+        return self
+            .private_key
+            .openssl_rsa()
+            .unwrap()
+            .public_key_to_pem_pkcs1()
+            .unwrap();
+        #[cfg(feature = "rsa-rustcrypto")]
+        util::encode_pem("RSA PUBLIC KEY", &self.to_raw_public_key())
     }
 
     fn to_jwk(&self, private: bool, _public: bool) -> Jwk {
-        let rsa = self.private_key.rsa().unwrap();
-
         let mut jwk = Jwk::new("RSA");
         if let Some(val) = &self.algorithm {
             jwk.set_algorithm(val);
@@ -250,39 +257,12 @@ impl RsaKeyPair {
         if let Some(val) = &self.key_id {
             jwk.set_key_id(val);
         }
-        let n = rsa.n().to_vec();
-        let n = util::encode_base64_urlsafe_nopad(n);
-        jwk.set_parameter("n", Some(Value::String(n))).unwrap();
-
-        let e = rsa.e().to_vec();
-        let e = util::encode_base64_urlsafe_nopad(e);
-        jwk.set_parameter("e", Some(Value::String(e))).unwrap();
-
-        if private {
-            let d = rsa.d().to_vec();
-            let d = util::encode_base64_urlsafe_nopad(d);
-            jwk.set_parameter("d", Some(Value::String(d))).unwrap();
-
-            let p = rsa.p().unwrap().to_vec();
-            let p = util::encode_base64_urlsafe_nopad(p);
-            jwk.set_parameter("p", Some(Value::String(p))).unwrap();
-
-            let q = rsa.q().unwrap().to_vec();
-            let q = util::encode_base64_urlsafe_nopad(q);
-            jwk.set_parameter("q", Some(Value::String(q))).unwrap();
-
-            let dp = rsa.dmp1().unwrap().to_vec();
-            let dp = util::encode_base64_urlsafe_nopad(dp);
-            jwk.set_parameter("dp", Some(Value::String(dp))).unwrap();
-
-            let dq = rsa.dmq1().unwrap().to_vec();
-            let dq = util::encode_base64_urlsafe_nopad(dq);
-            jwk.set_parameter("dq", Some(Value::String(dq))).unwrap();
-
-            let qi = rsa.iqmp().unwrap().to_vec();
-            let qi = util::encode_base64_urlsafe_nopad(qi);
-            jwk.set_parameter("qi", Some(Value::String(qi))).unwrap();
-        }
+        let der = if private {
+            self.to_raw_private_key()
+        } else {
+            self.to_raw_public_key()
+        };
+        set_rsa_jwk_parameters(&mut jwk, &der, private);
 
         jwk
     }
@@ -366,6 +346,25 @@ impl RsaKeyPair {
     }
 }
 
+pub(super) fn set_rsa_jwk_parameters(jwk: &mut Jwk, der: &[u8], private: bool) {
+    let mut reader = DerReader::from_reader(der);
+    assert_eq!(reader.next().unwrap(), Some(DerType::Sequence));
+    let mut parameters: &[&str] = &["n", "e"];
+    if private {
+        assert_eq!(reader.next().unwrap(), Some(DerType::Integer)); // Version
+        parameters = &["n", "e", "d", "p", "q", "dp", "dq", "qi"];
+    }
+    for &name in parameters {
+        assert_eq!(reader.next().unwrap(), Some(DerType::Integer));
+        let bytes = reader.to_be_bytes(false, 0);
+        jwk.set_parameter(
+            name,
+            Some(Value::String(util::encode_base64_urlsafe_nopad(bytes))),
+        )
+        .unwrap();
+    }
+}
+
 impl KeyPair for RsaKeyPair {
     fn algorithm(&self) -> Option<&str> {
         match &self.algorithm {
@@ -386,15 +385,15 @@ impl KeyPair for RsaKeyPair {
     }
 
     fn to_der_public_key(&self) -> Vec<u8> {
-        self.private_key.public_key_to_der().unwrap()
+        self.private_key.to_der_public_key()
     }
 
     fn to_pem_private_key(&self) -> Vec<u8> {
-        self.private_key.private_key_to_pem_pkcs8().unwrap()
+        self.private_key.to_pem_private_key()
     }
 
     fn to_pem_public_key(&self) -> Vec<u8> {
-        self.private_key.public_key_to_pem().unwrap()
+        self.private_key.to_pem_public_key()
     }
 
     fn to_jwk_private_key(&self) -> Jwk {

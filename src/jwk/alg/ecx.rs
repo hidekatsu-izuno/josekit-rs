@@ -2,11 +2,11 @@ use std::fmt::Display;
 use std::ops::Deref;
 
 use anyhow::bail;
-use openssl::pkey::{PKey, Private};
 
-use crate::jwk::{Jwk, KeyPair};
+use crate::jwk::key::encode_okp_private_key;
+use crate::jwk::{Jwk, KeyPair, PrivateKey};
 use crate::util;
-use crate::util::der::{DerBuilder, DerReader, DerType};
+use crate::util::der::{DerReader, DerType};
 use crate::util::oid::{ObjectIdentifier, OID_X25519, OID_X448};
 use crate::{JoseError, Value};
 
@@ -40,7 +40,7 @@ impl Display for EcxCurve {
 
 #[derive(Debug, Clone)]
 pub struct EcxKeyPair {
-    private_key: PKey<Private>,
+    private_key: PrivateKey,
     curve: EcxCurve,
     algorithm: Option<String>,
     key_id: Option<String>,
@@ -62,7 +62,7 @@ impl EcxKeyPair {
         }
     }
 
-    pub(crate) fn into_private_key(self) -> PKey<Private> {
+    pub(crate) fn into_private_key(self) -> PrivateKey {
         self.private_key
     }
 
@@ -76,10 +76,7 @@ impl EcxKeyPair {
     /// * `curve` - Montgomery curve curve algorithm
     pub fn generate(curve: EcxCurve) -> Result<EcxKeyPair, JoseError> {
         (|| -> anyhow::Result<EcxKeyPair> {
-            let private_key = match curve {
-                EcxCurve::X25519 => PKey::generate_x25519()?,
-                EcxCurve::X448 => PKey::generate_x448()?,
-            };
+            let private_key = PrivateKey::generate_ecx(curve)?;
 
             Ok(EcxKeyPair {
                 curve,
@@ -103,7 +100,7 @@ impl EcxKeyPair {
                 None => bail!("The Montgomery curve private key must be wrapped by PKCS#8 format."),
             };
 
-            let private_key = PKey::private_key_from_der(pkcs8_der)?;
+            let private_key = PrivateKey::from_der(pkcs8_der, curve.oid())?;
 
             Ok(EcxKeyPair {
                 private_key,
@@ -155,7 +152,7 @@ impl EcxKeyPair {
                 alg => bail!("Inappropriate algorithm: {}", alg),
             };
 
-            let private_key = PKey::private_key_from_der(pkcs8_der)?;
+            let private_key = PrivateKey::from_der(pkcs8_der, curve.oid())?;
 
             Ok(EcxKeyPair {
                 private_key,
@@ -192,11 +189,8 @@ impl EcxKeyPair {
                 None => bail!("A parameter d is required."),
             };
 
-            let mut builder = DerBuilder::new();
-            builder.append_octed_string_from_bytes(&d);
-
-            let pkcs8 = Self::to_pkcs8(&builder.build(), false, curve);
-            let private_key = PKey::private_key_from_der(&pkcs8)?;
+            let pkcs8 = encode_okp_private_key(curve.oid(), &d);
+            let private_key = PrivateKey::from_der(&pkcs8, curve.oid())?;
             let algorithm = jwk.algorithm().map(|val| val.to_string());
             let key_id = jwk.key_id().map(|val| val.to_string());
 
@@ -211,7 +205,7 @@ impl EcxKeyPair {
     }
 
     pub fn to_traditional_pem_private_key(&self) -> Vec<u8> {
-        let der = self.private_key.private_key_to_der().unwrap();
+        let der = self.to_der_private_key();
         let der = util::encode_base64_standard(&der);
         let alg = match self.curve {
             EcxCurve::X25519 => "X25519 PRIVATE KEY",
@@ -240,7 +234,7 @@ impl EcxKeyPair {
             .unwrap();
 
         if private {
-            let private_der = self.private_key.private_key_to_der().unwrap();
+            let private_der = self.to_der_private_key();
 
             let mut reader = DerReader::from_bytes(&private_der);
 
@@ -295,7 +289,7 @@ impl EcxKeyPair {
             jwk.set_parameter("d", Some(Value::String(d))).unwrap();
         }
         if public {
-            let public_der = self.private_key.public_key_to_der().unwrap();
+            let public_der = self.to_der_public_key();
             let mut reader = DerReader::from_bytes(&public_der);
 
             match reader.next() {
@@ -383,31 +377,6 @@ impl EcxKeyPair {
 
         Some(curve)
     }
-
-    pub(crate) fn to_pkcs8(input: &[u8], is_public: bool, curve: EcxCurve) -> Vec<u8> {
-        let mut builder = DerBuilder::new();
-        builder.begin(DerType::Sequence);
-        {
-            if !is_public {
-                builder.append_integer_from_u8(0);
-            }
-
-            builder.begin(DerType::Sequence);
-            {
-                builder.append_object_identifier(curve.oid());
-            }
-            builder.end();
-
-            if is_public {
-                builder.append_bit_string_from_bytes(input, 0);
-            } else {
-                builder.append_octed_string_from_bytes(input);
-            }
-        }
-        builder.end();
-
-        builder.build()
-    }
 }
 
 impl KeyPair for EcxKeyPair {
@@ -426,19 +395,19 @@ impl KeyPair for EcxKeyPair {
     }
 
     fn to_der_private_key(&self) -> Vec<u8> {
-        self.private_key.private_key_to_der().unwrap()
+        self.private_key.to_der_private_key()
     }
 
     fn to_der_public_key(&self) -> Vec<u8> {
-        self.private_key.public_key_to_der().unwrap()
+        self.private_key.to_der_public_key()
     }
 
     fn to_pem_private_key(&self) -> Vec<u8> {
-        self.private_key.private_key_to_pem_pkcs8().unwrap()
+        self.private_key.to_pem_private_key()
     }
 
     fn to_pem_public_key(&self) -> Vec<u8> {
-        self.private_key.public_key_to_pem().unwrap()
+        self.private_key.to_pem_public_key()
     }
 
     fn to_jwk_private_key(&self) -> Jwk {
@@ -473,6 +442,37 @@ mod tests {
     use std::path::PathBuf;
 
     use super::{EcxCurve, EcxKeyPair};
+    use crate::jwk::{encode_okp_public_key, Jwk, PublicKey};
+    use crate::{util, Value};
+
+    #[test]
+    fn x448_matches_rfc7748_shared_secret() -> Result<()> {
+        // RFC 7748 section 6.2, encoded as base64url.
+        let mut alice = Jwk::new("OKP");
+        alice.set_curve("X448");
+        alice.set_parameter(
+            "d",
+            Some(Value::String(
+                "mo9JJdFRn1d1z0awS1gA1O6e6LrovFVl1JjCjdnJuvV0qUGXRIlzkQBjgqbxJ6sdmsLYwKWYcms"
+                    .into(),
+            )),
+        )?;
+        let alice_key = EcxKeyPair::from_jwk(&alice)?.into_private_key();
+        let bob_public = util::decode_base64_urlsafe_no_pad(
+            "PreoKbDNIPW8_AtZm2_sz22kYnEHvbDU80W0MCfYuXL8PjT7QjKhPKcG3LV67D2uB73BxnvzNgk",
+        )?;
+        let bob_der = encode_okp_public_key(EcxCurve::X448.oid(), &bob_public);
+        let bob_key = PublicKey::from_der(&bob_der, EcxCurve::X448.oid())?;
+        let shared = util::decode_base64_urlsafe_no_pad(
+            "B__0GBrGzJXsHBapSg900S2iMs5Ap3VSKB0oK7YMC1b9JGTDNVQ5NlIcJEAwhdWaRJpQN1FKh50",
+        )?;
+        assert_eq!(alice_key.derive(&bob_key)?, shared);
+
+        let low_order_der = encode_okp_public_key(EcxCurve::X448.oid(), &[0; 56]);
+        let low_order = PublicKey::from_der(&low_order_der, EcxCurve::X448.oid())?;
+        assert!(alice_key.derive(&low_order).is_err());
+        Ok(())
+    }
 
     #[test]
     fn test_generate_ecx() -> Result<()> {

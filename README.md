@@ -1,6 +1,6 @@
 # josekit
 
-JOSE (Javascript Object Signing and Encryption: JWT, JWS, JWE, JWA, JWK) library based on OpenSSL for Rust.
+JOSE (Javascript Object Signing and Encryption: JWT, JWS, JWE, JWA, JWK) library for Rust with OpenSSL and pure Rust backends.
 
 ## Install
 
@@ -9,7 +9,38 @@ JOSE (Javascript Object Signing and Encryption: JWT, JWS, JWE, JWA, JWK) library
 josekit = "0.10.4"
 ```
 
-This library depends on OpenSSL 1.1.1 or above DLL. Read more about [Crate openssl](https://docs.rs/openssl/). 
+The default `openssl` feature uses OpenSSL 1.1.1 or later through the
+[`openssl` crate](https://docs.rs/openssl/).
+
+Enabling any `*-rustcrypto` feature selects `rand::rngs::SysRng` for randomness.
+If none of those features is enabled, the build uses `openssl::rand`.
+
+### Pure Rust build
+
+Each backend feature can be enabled individually alongside the default
+`openssl` feature. To build without OpenSSL, disable default features and
+select a Rust backend for every algorithm:
+
+```sh
+cargo build --no-default-features --features \
+  aes-cbc-hmac-rustcrypto,aes-gcm-rustcrypto,aes-kw-rustcrypto,ec-rustcrypto,ed25519-dalek,ed448-goldilocks-plus,hmac-rustcrypto,pbkdf2-rustcrypto,rsa-rustcrypto,x25519-dalek,x448-goldilocks-plus
+```
+
+The `rsa-rustcrypto` backend accepts two-prime RSA private keys and RSA
+moduli from 1024 to 8192 bits. JOSE RSA algorithms require at least 2048 bits.
+
+### X448 and Ed448 backends
+
+OpenSSL provides both curves by default. To use their Rust implementations
+from `ed448-goldilocks-plus` with LibreSSL, enable both backend features:
+
+```sh
+cargo build --features ed448-goldilocks-plus,x448-goldilocks-plus
+```
+
+Each feature can also be selected independently. `x448-goldilocks-plus` also
+selects RustCrypto's `sha2` for the ECDH-ES Concat KDF and `aes-kw-rustcrypto` for
+JWE key wrapping.
 
 ## Build
 
@@ -63,7 +94,7 @@ cargo publish
     <tr>
         <td>RS256</td>
         <td>RSASSA-PKCS1-v1_5 using SHA-256</td>
-        <td rowspan="6">RSA (size: 1024 bits or more)</td>
+        <td rowspan="6">RSA (size: 2048 bits or more)</td>
     </tr>
     <tr>
         <td>RS384</td>
@@ -207,7 +238,7 @@ cargo publish
     <tr>
         <td>RSA1_5</td>
         <td>RSAES-PKCS1-v1_5</td>
-        <td rowspan="5">RSA (size: 1024 bits or more)</td>
+        <td rowspan="5">RSA (size: 2048 bits or more)</td>
     </tr>
     <tr>
         <td>RSA-OAEP</td>

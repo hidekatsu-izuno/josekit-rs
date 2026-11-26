@@ -2,11 +2,8 @@ use std::fmt::Display;
 use std::ops::Deref;
 
 use anyhow::bail;
-use openssl::hash::MessageDigest;
-use openssl::pkey::{PKey, Private};
-use openssl::sign::Signer;
 
-use crate::jwk::Jwk;
+use crate::jwk::{Jwk, PrivateKey};
 use crate::jws::{JwsAlgorithm, JwsSigner, JwsVerifier};
 use crate::util::{self, HashAlgorithm};
 use crate::{JoseError, Value};
@@ -55,7 +52,7 @@ impl HmacJwsAlgorithm {
                 );
             }
 
-            let private_key = PKey::hmac(input)?;
+            let private_key = PrivateKey::hmac(input)?;
 
             Ok(HmacJwsSigner {
                 algorithm: self.clone(),
@@ -104,7 +101,7 @@ impl HmacJwsAlgorithm {
                 );
             }
 
-            let private_key = PKey::hmac(&k)?;
+            let private_key = PrivateKey::hmac(&k)?;
             let key_id = jwk.key_id().map(|val| val.to_string());
 
             Ok(HmacJwsSigner {
@@ -136,7 +133,7 @@ impl HmacJwsAlgorithm {
                 );
             }
 
-            let private_key = PKey::hmac(input)?;
+            let private_key = PrivateKey::hmac(input)?;
 
             Ok(HmacJwsVerifier {
                 algorithm: self.clone(),
@@ -186,7 +183,7 @@ impl HmacJwsAlgorithm {
                 );
             }
 
-            let private_key = PKey::hmac(&k)?;
+            let private_key = PrivateKey::hmac(&k)?;
             let key_id = jwk.key_id().map(|val| val.to_string());
 
             Ok(HmacJwsVerifier {
@@ -238,7 +235,7 @@ impl Deref for HmacJwsAlgorithm {
 #[derive(Debug, Clone)]
 pub struct HmacJwsSigner {
     algorithm: HmacJwsAlgorithm,
-    private_key: PKey<Private>,
+    private_key: PrivateKey,
     key_id: Option<String>,
 }
 
@@ -269,19 +266,9 @@ impl JwsSigner for HmacJwsSigner {
     }
 
     fn sign(&self, message: &[u8]) -> Result<Vec<u8>, JoseError> {
-        (|| -> anyhow::Result<Vec<u8>> {
-            let md = match &self.algorithm.hash_algorithm() {
-                HashAlgorithm::Sha1 => MessageDigest::sha1(),
-                HashAlgorithm::Sha256 => MessageDigest::sha256(),
-                HashAlgorithm::Sha384 => MessageDigest::sha384(),
-                HashAlgorithm::Sha512 => MessageDigest::sha512(),
-            };
-            let mut signer = Signer::new(md, &self.private_key)?;
-            signer.update(message)?;
-            let signature = signer.sign_to_vec()?;
-            Ok(signature)
-        })()
-        .map_err(|err| JoseError::InvalidSignature(err))
+        self.private_key
+            .sign_hmac(self.algorithm.hash_algorithm(), &[message])
+            .map_err(JoseError::InvalidSignature)
     }
 
     fn box_clone(&self) -> Box<dyn JwsSigner> {
@@ -300,7 +287,7 @@ impl Deref for HmacJwsSigner {
 #[derive(Debug, Clone)]
 pub struct HmacJwsVerifier {
     algorithm: HmacJwsAlgorithm,
-    private_key: PKey<Private>,
+    private_key: PrivateKey,
     key_id: Option<String>,
 }
 
@@ -328,16 +315,18 @@ impl JwsVerifier for HmacJwsVerifier {
 
     fn verify(&self, message: &[u8], signature: &[u8]) -> Result<(), JoseError> {
         (|| -> anyhow::Result<()> {
-            let md = match &self.algorithm.hash_algorithm() {
-                HashAlgorithm::Sha1 => MessageDigest::sha1(),
-                HashAlgorithm::Sha256 => MessageDigest::sha256(),
-                HashAlgorithm::Sha384 => MessageDigest::sha384(),
-                HashAlgorithm::Sha512 => MessageDigest::sha512(),
+            let expected = self
+                .private_key
+                .sign_hmac(self.algorithm.hash_algorithm(), &[message])?;
+            #[cfg(not(feature = "hmac-rustcrypto"))]
+            let matches =
+                expected.len() == signature.len() && openssl::memcmp::eq(&expected, signature);
+            #[cfg(feature = "hmac-rustcrypto")]
+            let matches = {
+                use subtle::ConstantTimeEq;
+                bool::from(expected.ct_eq(signature))
             };
-            let mut signer = Signer::new(md, &self.private_key)?;
-            signer.update(message)?;
-            let new_signature = signer.sign_to_vec()?;
-            if new_signature.as_slice() != signature {
+            if !matches {
                 bail!("Failed to verify.");
             }
             Ok(())
