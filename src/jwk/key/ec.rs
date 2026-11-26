@@ -1,4 +1,5 @@
 use anyhow::bail;
+use getrandom::SysRng;
 use p256::ecdsa::signature::{Signer, Verifier};
 use p256::elliptic_curve::{
     ecdh::diffie_hellman,
@@ -6,7 +7,6 @@ use p256::elliptic_curve::{
     sec1::ToSec1Point,
     Generate,
 };
-use rand::rngs::SysRng;
 
 use crate::jwk::alg::ec::{EcCurve, EcKeyPair};
 

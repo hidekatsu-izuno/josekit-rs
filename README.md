@@ -13,7 +13,7 @@ The default `openssl` feature uses OpenSSL 1.1.1 or later through the
 [`openssl` crate](https://docs.rs/openssl/).
 
 Enabling any `*-rustcrypto` feature or `x448-goldilocks-plus` selects
-`rand::rngs::SysRng` for shared randomness. Other configurations use
+`getrandom` for shared randomness. Other configurations use
 `openssl::rand`.
 
 ### Pure Rust build

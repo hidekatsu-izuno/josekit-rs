@@ -15,17 +15,17 @@ edition = "2021"
 [features]
 default = ["openssl"]
 openssl = ["dep:openssl"]
-aes-kw-rustcrypto = ["dep:aes-kw", "dep:rand"]
-aes-cbc-hmac-rustcrypto = ["dep:aes", "dep:cbc", "dep:hmac", "dep:rand", "dep:sha2", "dep:subtle"]
-aes-gcm-rustcrypto = ["dep:aes-gcm", "dep:rand"]
+aes-kw-rustcrypto = ["dep:aes-kw", "dep:getrandom"]
+aes-cbc-hmac-rustcrypto = ["dep:aes", "dep:cbc", "dep:hmac", "dep:getrandom", "dep:sha2", "dep:subtle"]
+aes-gcm-rustcrypto = ["dep:aes-gcm", "dep:getrandom"]
 ec-rustcrypto = [
     "dep:k256", "k256/ecdsa", "k256/pkcs8", "k256/precomputed-tables", "k256/std",
-    "dep:p256", "dep:p384", "dep:p521", "dep:rand", "dep:sha2",
+    "dep:p256", "dep:p384", "dep:p521", "dep:getrandom", "dep:sha2",
 ]
 ed25519-dalek = ["dep:ed25519-dalek", "dep:pkcs8"]
-hmac-rustcrypto = ["dep:hmac", "hmac/zeroize", "dep:rand", "dep:sha2", "dep:subtle"]
-pbkdf2-rustcrypto = ["dep:pbkdf2", "dep:rand", "dep:sha2"]
-rsa-rustcrypto = ["dep:rand", "dep:rsa", "dep:sha1", "dep:sha2"]
+hmac-rustcrypto = ["dep:hmac", "hmac/zeroize", "dep:getrandom", "dep:sha2", "dep:subtle"]
+pbkdf2-rustcrypto = ["dep:pbkdf2", "dep:getrandom", "dep:sha2"]
+rsa-rustcrypto = ["dep:getrandom", "dep:rsa", "dep:sha1", "dep:sha2"]
 x25519-dalek = ["dep:x25519-dalek", "dep:pkcs8", "dep:sha2"]
 aws-lc-rs = [
     "dep:aws-lc-rs",
@@ -47,11 +47,11 @@ x448-goldilocks-plus = [
     "ed448-goldilocks-plus/kex",
     "dep:pkcs8",
     "dep:aes-kw",
-    "dep:rand",
+    "dep:getrandom",
     "dep:sha2",
 ]
 vendored = ["openssl", "openssl/vendored"]
-wasm-js = ["dep:getrandom", "time/wasm-bindgen"]
+wasm-js = ["getrandom?/wasm_js", "time/wasm-bindgen"]
 
 [dependencies]
 thiserror = "2"
@@ -70,6 +70,7 @@ aws-lc-rs = { version = "1.19", default-features = false, features = ["non-fips"
 cbc = { version = "0.2", features = ["alloc"], optional = true }
 ed25519-dalek = { version = "3", optional = true }
 ed448-goldilocks-plus = { version = "0.18.1", default-features = false, optional = true }
+getrandom = { version = "0.4", default-features = false, features = ["std", "sys_rng"], optional = true }
 hmac = { version = "0.13", optional = true }
 k256 = { version = "0.14", default-features = false, features = ["ecdh"], optional = true }
 p256 = { version = "0.14", default-features = false, features = ["ecdh", "ecdsa", "pkcs8", "precomputed-tables", "std"], optional = true }
@@ -77,15 +78,11 @@ p384 = { version = "0.14", default-features = false, features = ["ecdh", "ecdsa"
 p521 = { version = "0.14", default-features = false, features = ["ecdh", "ecdsa", "pkcs8", "precomputed-tables", "std"], optional = true }
 pbkdf2 = { version = "0.13", optional = true }
 pkcs8 = { version = "0.11", default-features = false, features = ["alloc"], optional = true }
-rand = { version = "0.10", default-features = false, features = ["std", "sys_rng"], optional = true }
 rsa = { version = "0.10", default-features = false, features = ["encoding", "pkcs1v15"], optional = true }
 sha1 = { version = "0.11", optional = true }
 sha2 = { version = "0.11", optional = true }
 subtle = { version = "2", optional = true }
 x25519-dalek = { version = "3", features = ["static_secrets"], optional = true }
-
-[target.'cfg(all(target_arch = "wasm32", target_os = "unknown"))'.dependencies]
-getrandom = { version = "0.4", default-features = false, features = ["wasm_js"], optional = true }
 
 [dev-dependencies]
 doc-comment = "0.3.3"

@@ -21,7 +21,7 @@ macro_rules! select_rng {
         macro_rules! fill_random_bytes {
             ($bytes:expr) => {{
                 #[cfg(any($(feature = $feature),+))]
-                let result = ::rand::TryRng::try_fill_bytes(&mut ::rand::rngs::SysRng, $bytes);
+                let result = ::getrandom::fill($bytes);
 
                 #[cfg(not(any($(feature = $feature),+)))]
                 let result = ::openssl::rand::rand_bytes($bytes);

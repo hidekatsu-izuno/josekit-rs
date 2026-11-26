@@ -1,7 +1,7 @@
 use anyhow::bail;
 #[cfg(not(feature = "aws-lc-rs"))]
 use anyhow::Context;
-use rand::rngs::SysRng;
+use getrandom::SysRng;
 #[cfg(not(feature = "aws-lc-rs"))]
 use rsa::pkcs1::{DecodeRsaPrivateKey, DecodeRsaPublicKey};
 #[cfg(not(feature = "aws-lc-rs"))]
