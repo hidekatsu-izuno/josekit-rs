@@ -1,0 +1,9 @@
+[package]
+name = "josekit-rust-extract"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+quote = "=1.0.47"
+syn = { version = "=2.0.119", features = ["full", "visit"] }

@@ -1,7 +1,6 @@
-use std::collections::BTreeMap;
+use std::collections::{btree_map::Entry, BTreeMap};
 use std::fmt::Display;
 use std::io::Read;
-use std::ops::Bound::Included;
 use std::string::ToString;
 use std::sync::Arc;
 
@@ -15,7 +14,7 @@ use crate::{JoseError, Map, Value};
 pub struct JwkSet {
     keys: Vec<Arc<Jwk>>,
     params: Map<String, Value>,
-    kid_map: BTreeMap<(String, usize), Arc<Jwk>>,
+    kid_map: BTreeMap<String, Vec<Arc<Jwk>>>,
 }
 
 impl JwkSet {
@@ -33,16 +32,19 @@ impl JwkSet {
 
     pub fn from_map(map: Map<String, Value>) -> Result<Self, JoseError> {
         (|| -> anyhow::Result<Self> {
-            let mut kid_map = BTreeMap::new();
+            let mut kid_map: BTreeMap<String, Vec<Arc<Jwk>>> = BTreeMap::new();
             let keys = match map.get("keys") {
                 Some(Value::Array(vals)) => {
                     let mut vec = Vec::new();
-                    for (i, val) in vals.iter().enumerate() {
+                    for val in vals {
                         match val {
                             Value::Object(val) => {
                                 let jwk = Arc::new(Jwk::from_map(val.clone())?);
                                 if let Some(kid) = jwk.key_id() {
-                                    kid_map.insert((kid.to_string(), i), Arc::clone(&jwk));
+                                    kid_map
+                                        .entry(kid.to_string())
+                                        .or_default()
+                                        .push(Arc::clone(&jwk));
                                 }
                                 vec.push(jwk);
                             }
@@ -92,15 +94,10 @@ impl JwkSet {
     }
 
     pub fn get(&self, key_id: &str) -> Vec<&Jwk> {
-        let mut vec = Vec::new();
-        for (_, val) in self.kid_map.range((
-            Included((key_id.to_string(), 0)),
-            Included((key_id.to_string(), usize::MAX)),
-        )) {
-            let jwk: &Jwk = &val;
-            vec.push(jwk);
+        match self.kid_map.get(key_id) {
+            Some(keys) => keys.iter().map(Arc::as_ref).collect(),
+            None => Vec::new(),
         }
-        vec
     }
 
     pub fn keys(&self) -> Vec<&Jwk> {
@@ -118,7 +115,9 @@ impl JwkSet {
         let jwk = Arc::new(jwk);
         if let Some(kid) = jwk.key_id() {
             self.kid_map
-                .insert((kid.to_string(), self.keys.len()), Arc::clone(&jwk));
+                .entry(kid.to_string())
+                .or_default()
+                .push(Arc::clone(&jwk));
         }
         self.keys.push(jwk);
     }
@@ -132,7 +131,15 @@ impl JwkSet {
                 }
                 _ => unreachable!(),
             }
-            self.keys.remove(index);
+            let removed = self.keys.remove(index);
+            if let Some(kid) = removed.key_id() {
+                if let Entry::Occupied(mut entry) = self.kid_map.entry(kid.to_string()) {
+                    entry.get_mut().retain(|key| !Arc::ptr_eq(key, &removed));
+                    if entry.get().is_empty() {
+                        entry.remove();
+                    }
+                }
+            }
         }
     }
 }
@@ -187,6 +194,13 @@ mod tests {
             jwks.push_key(jwk.clone());
         }
         assert_eq!(jwks.keys().len(), 2);
+
+        let key = tmp_jwks.get("1")[0];
+        jwks.push_key(key.clone());
+        jwks.remove_key(key);
+        assert_eq!(jwks.get("1"), vec![key]);
+        jwks.push_key(key.clone());
+        assert_eq!(jwks.get("1"), vec![key, key]);
 
         Ok(())
     }

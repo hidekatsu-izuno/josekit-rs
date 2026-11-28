@@ -17,6 +17,8 @@ impl JwtPayload {
     }
 
     /// Return the JWT payload from map.
+    /// The `exp`, `nbf`, and `iat` claims must represent nonnegative times
+    /// within the target's `SystemTime` range.
     ///
     /// # Arguments
     ///
@@ -142,13 +144,7 @@ impl JwtPayload {
 
     /// Return the system time for expires at payload claim (exp).
     pub fn expires_at(&self) -> Option<SystemTime> {
-        match self.claims.get("exp") {
-            Some(Value::Number(val)) => match val.as_f64() {
-                Some(val) => Some(SystemTime::UNIX_EPOCH + Duration::from_secs_f64(val)),
-                None => None,
-            },
-            _ => None,
-        }
+        self.time_claim("exp").ok().flatten()
     }
 
     /// Set a system time for not before payload claim (nbf).
@@ -170,13 +166,7 @@ impl JwtPayload {
 
     /// Return the system time for not before payload claim (nbf).
     pub fn not_before(&self) -> Option<SystemTime> {
-        match self.claims.get("nbf") {
-            Some(Value::Number(val)) => match val.as_f64() {
-                Some(val) => Some(SystemTime::UNIX_EPOCH + Duration::from_secs_f64(val)),
-                None => None,
-            },
-            _ => None,
-        }
+        self.time_claim("nbf").ok().flatten()
     }
 
     /// Set a time for issued at payload claim (iat).
@@ -198,13 +188,7 @@ impl JwtPayload {
 
     /// Return the time for a issued at payload claim (iat).
     pub fn issued_at(&self) -> Option<SystemTime> {
-        match self.claims.get("iat") {
-            Some(Value::Number(val)) => match val.as_f64() {
-                Some(val) => Some(SystemTime::UNIX_EPOCH + Duration::from_secs_f64(val)),
-                None => None,
-            },
-            _ => None,
-        }
+        self.time_claim("iat").ok().flatten()
     }
 
     /// Set a value for JWT ID payload claim (jti).
@@ -262,6 +246,12 @@ impl JwtPayload {
         &self.claims
     }
 
+    pub(super) fn time_claim(&self, key: &str) -> anyhow::Result<Option<SystemTime>> {
+        self.claim(key)
+            .map(|value| numeric_date(key, value))
+            .transpose()
+    }
+
     fn check_claim(key: &str, value: &Value) -> Result<(), JoseError> {
         (|| -> anyhow::Result<()> {
             match key {
@@ -284,15 +274,9 @@ impl JwtPayload {
                     }
                     _ => bail!("The JWT {} payload claim must be a string or array.", key),
                 },
-                "exp" | "nbf" | "iat" => match &value {
-                    Value::Number(val) if !is_negative(val) => {}
-                    Value::Number(val) => bail!(
-                        "The JWT {} payload claim must be a 64bit positive integer or floating point: {}",
-                        key,
-                        val,
-                    ),
-                    _ => bail!("The JWT {} header claim must be a number.", key),
-                },
+                "exp" | "nbf" | "iat" => {
+                    numeric_date(key, value)?;
+                }
                 _ => {}
             }
 
@@ -321,16 +305,23 @@ impl Display for JwtPayload {
     }
 }
 
-fn is_negative(num: &Number) -> bool {
-    if let Some(num) = num.as_i128() {
-        num < 0
-    } else if let Some(num) = num.as_i64() {
-        num < 0
-    } else if let Some(num) = num.as_f64() {
-        num < 0.0
-    } else {
-        false
-    }
+fn numeric_date(key: &str, value: &Value) -> anyhow::Result<SystemTime> {
+    let number = value
+        .as_number()
+        .ok_or_else(|| anyhow::anyhow!("The JWT {key} payload claim must be a number."))?;
+    let duration = match number.as_u64() {
+        Some(seconds) => Some(Duration::from_secs(seconds)),
+        None => number
+            .as_f64()
+            .and_then(|seconds| Duration::try_from_secs_f64(seconds).ok()),
+    };
+    duration
+        .and_then(|duration| SystemTime::UNIX_EPOCH.checked_add(duration))
+        .ok_or_else(|| {
+            anyhow::anyhow!(
+                "The JWT {key} payload claim must be a nonnegative time representable as SystemTime: {number}"
+            )
+        })
 }
 
 #[cfg(test)]
@@ -341,6 +332,7 @@ mod tests {
     use serde_json::{json, Number, Value};
 
     use super::JwtPayload;
+    use crate::{jwt::JwtPayloadValidator, JoseError, Map};
 
     #[test]
     fn test_new_payload() -> Result<()> {
@@ -422,6 +414,49 @@ mod tests {
             matches!(payload.claim("payload_claim"), Some(val) if val == &json!("payload_claim"))
         );
 
+        Ok(())
+    }
+
+    #[test]
+    fn test_invalid_numeric_dates() -> Result<()> {
+        let mut invalid = vec![json!(-1), json!(-0.125), json!(1e100), json!("10")];
+        if SystemTime::UNIX_EPOCH
+            .checked_add(Duration::from_secs(u64::MAX))
+            .is_none()
+        {
+            invalid.push(json!(u64::MAX));
+        }
+        for key in ["exp", "nbf", "iat"] {
+            let mut payload = JwtPayload::new();
+            payload.set_claim(key, Some(json!(10)))?;
+            for value in &invalid {
+                let claims = Map::from_iter([(key.to_owned(), value.clone())]);
+                assert!(matches!(
+                    JwtPayload::from_map(claims.clone()),
+                    Err(JoseError::InvalidJwtFormat(_))
+                ));
+                assert!(matches!(
+                    payload.set_claim(key, Some(value.clone())),
+                    Err(JoseError::InvalidJwtFormat(_))
+                ));
+                assert_eq!(payload.claim(key), Some(&json!(10)));
+                assert!(matches!(
+                    JwtPayloadValidator::new().validate(&JwtPayload { claims }),
+                    Err(JoseError::InvalidClaim(_))
+                ));
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_integral_numeric_date_above_f64_precision() -> Result<()> {
+        let seconds = (1u64 << 53) + 1;
+        if let Some(expected) = SystemTime::UNIX_EPOCH.checked_add(Duration::from_secs(seconds)) {
+            let mut payload = JwtPayload::new();
+            payload.set_claim("exp", Some(json!(seconds)))?;
+            assert_eq!(payload.expires_at(), Some(expected));
+        }
         Ok(())
     }
 }

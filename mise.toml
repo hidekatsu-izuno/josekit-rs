@@ -1,0 +1,3 @@
+[tools]
+"github:leanprover/lean4" = "4"
+rust = "latest"

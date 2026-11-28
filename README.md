@@ -106,6 +106,12 @@ Run just the WASI tests with `./scripts/test-backends.sh wasm-wasi --release`.
 The Cargo runner uses Node.js WASI and maps `data/` for the test fixtures.
 It runs the existing unit tests and doctests as WebAssembly.
 
+## Lean 4 specification
+
+The executable [JOSE specification](verification/README.md) includes Lean proofs
+and conformance tests against the Rust public API. Run `./verification/check.sh`
+with the Lean toolchain pinned in `verification/lean-toolchain`.
+
 <!-- 
 ## Publish
 

@@ -176,36 +176,33 @@ impl JwtPayloadValidator {
             let min_issued_time = self.min_issued_time().unwrap_or(&SystemTime::UNIX_EPOCH);
             let max_issued_time = self.max_issued_time().unwrap_or(&now);
 
-            if let Some(not_before) = payload.not_before() {
+            if let Some(not_before) = payload.time_claim("nbf")? {
                 if &not_before > current_time {
                     bail!(
                         "The token is not yet valid: {}",
-                        time::OffsetDateTime::from(not_before),
+                        format_claim_time(not_before),
                     );
                 }
             }
 
-            if let Some(expires_at) = payload.expires_at() {
+            if let Some(expires_at) = payload.time_claim("exp")? {
                 if &expires_at <= current_time {
-                    bail!(
-                        "The token has expired: {}",
-                        time::OffsetDateTime::from(expires_at),
-                    );
+                    bail!("The token has expired: {}", format_claim_time(expires_at),);
                 }
             }
 
-            if let Some(issued_at) = payload.issued_at() {
+            if let Some(issued_at) = payload.time_claim("iat")? {
                 if &issued_at < min_issued_time {
                     bail!(
                         "The issued time is too old: {}",
-                        time::OffsetDateTime::from(issued_at),
+                        format_claim_time(issued_at),
                     );
                 }
 
                 if &issued_at > max_issued_time {
                     bail!(
                         "The issued time is too new: {}",
-                        time::OffsetDateTime::from(issued_at),
+                        format_claim_time(issued_at),
                     );
                 }
             }
@@ -237,6 +234,19 @@ impl JwtPayloadValidator {
     }
 }
 
+fn format_claim_time(time: SystemTime) -> String {
+    let calendar_time = time
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .ok()
+        .and_then(|elapsed| {
+            time::OffsetDateTime::from_unix_timestamp_nanos(elapsed.as_nanos() as i128).ok()
+        });
+    match calendar_time {
+        Some(date) => date.to_string(),
+        None => format!("{time:?}"),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::time::{Duration, SystemTime};
@@ -245,6 +255,7 @@ mod tests {
     use serde_json::json;
 
     use crate::jwt::{JwtPayload, JwtPayloadValidator};
+    use crate::JoseError;
 
     #[test]
     fn test_jwt_payload_validate() -> Result<()> {
@@ -265,6 +276,36 @@ mod tests {
         validator.set_claim("payload_claim", json!("payload_claim"));
         validator.validate(&payload)?;
 
+        Ok(())
+    }
+
+    #[test]
+    fn test_outside_calendar_range_returns_validation_error() -> Result<()> {
+        let seconds = 253_402_300_800u64;
+        let epoch = SystemTime::UNIX_EPOCH;
+        let Some(far_future) = epoch.checked_add(Duration::from_secs(seconds)) else {
+            return Ok(());
+        };
+        let mut validator = JwtPayloadValidator::new();
+        validator.set_max_issued_time(epoch);
+        validator.set_base_time(epoch);
+        for key in ["nbf", "iat"] {
+            let mut payload = JwtPayload::new();
+            payload.set_claim(key, Some(json!(seconds)))?;
+            assert!(matches!(
+                validator.validate(&payload),
+                Err(JoseError::InvalidClaim(_))
+            ));
+        }
+
+        let mut payload = JwtPayload::new();
+        payload.set_claim("exp", Some(json!(seconds)))?;
+        validator.validate(&payload)?;
+        validator.set_base_time(far_future);
+        assert!(matches!(
+            validator.validate(&payload),
+            Err(JoseError::InvalidClaim(_))
+        ));
         Ok(())
     }
 }

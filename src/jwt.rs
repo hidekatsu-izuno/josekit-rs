@@ -242,6 +242,15 @@ mod tests {
         assert_eq!(src_header, dst_header);
         assert_eq!(src_payload, dst_payload);
 
+        let mut context = jwt::JwtContext::new();
+        context.add_acceptable_critical("b64");
+        assert_eq!(context.decode_unsecured(&jwt_string)?.0, src_payload);
+        src_header.set_critical(&vec!["b64"]);
+        src_header.set_base64url_encode_payload(false);
+        let jws = crate::jws::serialize_compact(b"{}", &src_header, &jwt::None.signer())?;
+        assert!(context.decode_unsecured(&jws).is_err());
+        assert!(context.encode_unsecured(&src_payload, &src_header).is_err());
+
         Ok(())
     }
 

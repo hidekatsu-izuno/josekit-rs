@@ -19,12 +19,12 @@ fn gcm_key(key: &[u8]) -> anyhow::Result<aead::LessSafeKey> {
 
 pub(crate) fn encrypt_gcm(
     key: &[u8],
-    iv: Option<&[u8]>,
+    iv: &[u8; 12],
     aad: &[u8],
     message: &[u8],
 ) -> anyhow::Result<(Vec<u8>, [u8; 16])> {
     let key = gcm_key(key)?;
-    let nonce = aead::Nonce::try_assume_unique_for_key(iv.unwrap_or_default())?;
+    let nonce = aead::Nonce::assume_unique_for_key(*iv);
     let mut ciphertext = message.to_vec();
     let tag = key.seal_in_place_separate_tag(nonce, aead::Aad::from(aad), &mut ciphertext)?;
     Ok((ciphertext, tag.as_ref().try_into()?))
@@ -32,7 +32,7 @@ pub(crate) fn encrypt_gcm(
 
 pub(crate) fn decrypt_gcm(
     key: &[u8],
-    iv: Option<&[u8]>,
+    iv: &[u8; 12],
     aad: &[u8],
     ciphertext: &[u8],
     tag: &[u8],
@@ -41,7 +41,7 @@ pub(crate) fn decrypt_gcm(
         bail!("The AES-GCM tag must be 16 bytes.");
     }
     let key = gcm_key(key)?;
-    let nonce = aead::Nonce::try_assume_unique_for_key(iv.unwrap_or_default())?;
+    let nonce = aead::Nonce::assume_unique_for_key(*iv);
     let mut message = Vec::with_capacity(ciphertext.len() + tag.len());
     message.extend_from_slice(ciphertext);
     message.extend_from_slice(tag);

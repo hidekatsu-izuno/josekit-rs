@@ -77,23 +77,23 @@ impl JwtContext {
         header: &JwsHeader,
         signer: &dyn JwsSigner,
     ) -> Result<String, JoseError> {
-        (|| -> anyhow::Result<String> {
-            if let Some(vals) = header.critical() {
-                if vals.contains(&"b64") {
-                    bail!("JWT is not support b64 header claim.");
-                }
-            }
+        Self::check_jws_header(header)?;
+        let payload_bytes = serde_json::to_vec(payload.claims_set())
+            .map_err(|err| JoseError::InvalidJwtFormat(err.into()))?;
+        self.jws_context
+            .serialize_compact(&payload_bytes, header, signer)
+    }
 
-            let payload_bytes = serde_json::to_vec(payload.claims_set()).unwrap();
-            let jwt = self
-                .jws_context
-                .serialize_compact(&payload_bytes, header, signer)?;
-            Ok(jwt)
-        })()
-        .map_err(|err| match err.downcast::<JoseError>() {
-            Ok(err) => err,
-            Err(err) => JoseError::InvalidJwtFormat(err),
-        })
+    fn check_jws_header(header: &JwsHeader) -> Result<(), JoseError> {
+        if header
+            .critical()
+            .is_some_and(|names| names.contains(&"b64"))
+        {
+            return Err(JoseError::InvalidJwtFormat(anyhow::anyhow!(
+                "JWT does not support the b64 critical header parameter."
+            )));
+        }
+        Ok(())
     }
 
     /// Return the string repsentation of the JWT with the encrypting algorithm.
@@ -191,24 +191,11 @@ impl JwtContext {
             let (payload, header) =
                 self.jws_context
                     .deserialize_compact_with_selector(input, |header| {
-                        (|| -> anyhow::Result<Option<&'a dyn JwsVerifier>> {
-                            let verifier = match selector(&header)? {
-                                Some(val) => val,
-                                None => return Ok(None),
-                            };
-
-                            if self.is_acceptable_critical("b64") {
-                                bail!("JWT is not supported b64 header claim.");
-                            }
-
-                            Ok(Some(verifier))
-                        })()
-                        .map_err(|err| {
-                            match err.downcast::<JoseError>() {
-                                Ok(err) => err,
-                                Err(err) => JoseError::InvalidJwtFormat(err),
-                            }
-                        })
+                        let verifier = selector(header)?;
+                        if verifier.is_some() {
+                            Self::check_jws_header(header)?;
+                        }
+                        Ok(verifier)
                     })?;
 
             let payload: Map<String, Value> = serde_json::from_slice(&payload)?;

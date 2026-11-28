@@ -1,0 +1,10 @@
+name = "josekit-spec"
+defaultTargets = ["JosekitSpec", "josekit-check"]
+moreLeanArgs = ["-DwarningAsError=true"]
+
+[[lean_lib]]
+name = "JosekitSpec"
+
+[[lean_exe]]
+name = "josekit-check"
+root = "Main"
