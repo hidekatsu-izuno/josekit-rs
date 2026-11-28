@@ -149,7 +149,7 @@ def PreparedJwe.read (aad key iv ciphertext tag : String) : Option PreparedJwe :
 
 theorem PreparedJwe.read_aad {aad key iv ciphertext tag packet}
     (h : read aad key iv ciphertext tag = some packet) : packet.aad = aad := by
-  simp only [read, Option.bind_eq_some, Option.map_eq_bind, Function.comp_apply] at h
+  simp only [read, Option.bind_eq_some_iff, Option.map_eq_bind, Function.comp_apply] at h
   obtain ⟨_, _, _, _, _, _, _, _, heq⟩ := h
   cases heq
   rfl
@@ -174,7 +174,7 @@ theorem PreparedJwe.hasParameters_iff (packet : PreparedJwe) (policy : Decryptio
     ∀ lengths ∈ contentParameterSizes header.enc,
       packet.iv.size = lengths.1 ∧ packet.tag.size = lengths.2 := by
   by_cases direct : policy.alg = "dir" <;> cases h : contentParameterSizes header.enc <;>
-    simp [hasParameters, direct, h, Option.all, and_assoc]
+    simp [hasParameters, direct, h, Option.all]
 
 theorem PreparedJwe.gcm_requires_iv_and_tag {packet : PreparedJwe} {policy : DecryptionPolicy}
     {header : Header}
@@ -195,14 +195,14 @@ theorem prepareJwe_original_aad {wire policy packet}
     ∃ header key iv ciphertext tag, Compact.parse wire = some (.jwe header key iv ciphertext tag) ∧
       packet.aad = header := by
   change (Compact.parse wire).bind _ = some packet at h
-  obtain ⟨token, ht, h⟩ := Option.bind_eq_some.mp h
+  obtain ⟨token, ht, h⟩ := Option.bind_eq_some_iff.mp h
   cases token with
   | jws => simp at h
   | jwe header key iv ciphertext tag =>
     refine ⟨header, key, iv, ciphertext, tag, ht, ?_⟩
     change (Header.decode true header).bind _ = some packet at h
-    obtain ⟨_, _, h⟩ := Option.bind_eq_some.mp h
-    obtain ⟨_, prepared, h⟩ := Option.bind_eq_some.mp h
+    obtain ⟨_, _, h⟩ := Option.bind_eq_some_iff.mp h
+    obtain ⟨_, prepared, h⟩ := Option.bind_eq_some_iff.mp h
     split at h
     · cases h
       exact PreparedJwe.read_aad prepared

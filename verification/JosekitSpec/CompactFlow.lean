@@ -7,11 +7,11 @@ structure Outcome (Event : Type) where
   payload : Option ByteArray
 
 def jwsInputBytes (header payload : ByteArray) : ByteArray :=
-  ⟨header.data ++ #[46] ++ payload.data⟩
+  header ++ ⟨#[46]⟩ ++ payload
 
 theorem jwsInputBytes_text (header payload : String) :
     jwsInputBytes header.toUTF8 payload.toUTF8 = (header ++ "." ++ payload).toUTF8 := by
-  simp [jwsInputBytes, String.toUTF8, List.flatMap_append]
+  simp only [jwsInputBytes, String.toUTF8, String.toByteArray_append]
   rfl
 
 /-- The raw byte form also covers unencoded payloads that are not UTF-8. -/
@@ -60,13 +60,11 @@ theorem jws_refines {wire policy jwt protectedHeader payload signature header ve
   have permitted : (jwt && header.crit.contains "b64") = false := by
     cases jwt <;> simp_all
   unfold verifyJws prepareJws jws
-  simp only [framed, decoded, allowed, permitted, Bool.not_true, Bool.false_or, if_false,
+  simp only [framed, decoded, allowed, permitted, Bool.not_true, Bool.false_or,
     Bind.bind, Option.bind]
   cases raw : (header.crit.contains "b64" && header.b64 == some false)
-  · simp only [raw, Bool.not_false, if_true, Bool.false_eq_true, if_false]
-    cases hs : base64url signature <;> cases hp : base64url payload <;> simp [hs, hp]
-  · simp only [raw, Bool.not_true, if_true, Bool.false_eq_true, if_false]
-    cases hs : base64url signature <;> simp [hs]
+  · cases hs : base64url signature <;> cases hp : base64url payload <;> simp [*]
+  · cases hs : base64url signature <;> simp [*]
 
 inductive JweCall where
   | unwrapKey (encryptedKey : Option ByteArray)

@@ -11,15 +11,12 @@ theorem disjointNames_iff (left right : List String) :
     disjointNames left right = true ↔ ∀ name ∈ right, name ∉ left := by
   simp [disjointNames]
 
-private def names (obj : RBNode String (fun _ => Json)) : List String :=
-  obj.fold (fun fields name _ => name :: fields) []
-
 /-- JOSE header objects may be combined only when their member names are disjoint. -/
 def mergeHeaders (left right : Json) : Option Json := do
   let first ← left.getObj?.toOption
   let second ← right.getObj?.toOption
-  if disjointNames (names first) (names second) then
-    return .obj (second.fold (init := first) (fun acc name value => acc.insert compare name value))
+  if disjointNames (first.toList.map Prod.fst) (second.toList.map Prod.fst) then
+    return .obj (second.foldl (fun acc name value => acc.insert name value) first)
   else none
 
 def jsonAad (protectedHeader external : Option String) : String :=
@@ -72,9 +69,7 @@ private def nonemptyText (value : Json) : Option String := do
 
 private def nonemptyObj (value : Json) : Option Json := do
   let fields ← value.getObj?.toOption
-  match fields with
-  | .leaf => none
-  | .node .. => some value
+  if fields.isEmpty then none else some value
 
 /-- Parse the recipient candidates using the original encoded protected header and AAD. -/
 def prepareJsonJwe (value : Json) (policy : DecryptionPolicy) :

@@ -110,26 +110,23 @@ def Claims.accepts (claims : Claims) (policy : ClaimsPolicy) : Bool :=
   claims.times.accepts policy.toTimePolicy &&
     policy.audience.all (fun expected => claims.audience.all (·.contains expected)) &&
     (match policy.required.getObj? with
-    | .ok fields => fields.all fun key value =>
+    | .ok fields => fields.toList.all fun (key, value) =>
       (claims.value.getObjVal? key).toOption == some value
     | .error _ => false)
 
-private def MatchingClaims (actual : Json) : RBNode String (fun _ => Json) → Prop
-  | .leaf => True
-  | .node _ left name expected right =>
-    (actual.getObjVal? name).toOption == some expected ∧
-      MatchingClaims actual left ∧ MatchingClaims actual right
+private def MatchingClaims (actual : Json) (fields : List (String × Json)) : Prop :=
+  ∀ claim ∈ fields, (actual.getObjVal? claim.1).toOption == some claim.2
 
-private theorem matchingClaims_iff (actual : Json) (fields : RBNode String (fun _ => Json)) :
-    fields.all (fun key value => (actual.getObjVal? key).toOption == some value) = true ↔
+private theorem matchingClaims_iff (actual : Json) (fields : List (String × Json)) :
+    fields.all (fun claim => (actual.getObjVal? claim.1).toOption == some claim.2) = true ↔
       MatchingClaims actual fields := by
-  induction fields <;> simp [RBNode.all, MatchingClaims, *, and_assoc]
+  simp [MatchingClaims]
 
 def Claims.Valid (claims : Claims) (policy : ClaimsPolicy) : Prop :=
   claims.times.valid policy.toTimePolicy ∧
   (∀ expected ∈ policy.audience, ∀ audiences ∈ claims.audience, expected ∈ audiences) ∧
   match policy.required.getObj? with
-  | .ok fields => MatchingClaims claims.value fields
+  | .ok fields => MatchingClaims claims.value fields.toList
   | .error _ => False
 
 theorem Claims.accepts_iff (claims : Claims) (policy : ClaimsPolicy) :

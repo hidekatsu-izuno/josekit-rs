@@ -52,7 +52,7 @@ theorem State.empty_valid : State.empty.Valid := by
 theorem State.push_valid {state : State} {entry : Entry} (h : state.Valid) (fresh : state.Fresh entry) :
     (state.push entry).Valid := by
   refine ⟨?_, ?_⟩
-  · simpa [push, List.pairwise_append] using And.intro h.1 fresh
+  · simpa [push, List.pairwise_append, Fresh] using And.intro h.1 fresh
   · intro kid
     by_cases hm : matchesKid kid entry <;> simp [push, h.2, hm]
 
@@ -89,9 +89,9 @@ theorem State.remove_valid {state : State} (h : state.Valid) (key : Jwk) : (stat
     rw [h.2 kid, erased, entries]
     simp only [List.filter_append]
     by_cases matched : matchesKid kid removed
-    · simp [List.filter_cons, matched, retain_other_ids (kid := kid) left,
+    · simp [matched, retain_other_ids (kid := kid) left,
         retain_other_ids (kid := kid) right]
-    · simp [List.filter_cons, matched]
+    · simp [matched]
 
 theorem State.get_refines {state : State} (h : state.Valid) (kid : String) :
     state.get kid = state.keys.get kid := by

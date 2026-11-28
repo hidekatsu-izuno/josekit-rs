@@ -9,10 +9,11 @@ package dependencies.
 ./verification/check.sh
 ```
 
-Mise can provide the pinned Lean and Lake release for the source proofs.
+The repository's `mise.toml` pins the same Lean and Lake release.
 
 ```sh
-mise exec github:leanprover/lean4@4.19.0 -- ./verification/check-source.sh
+mise install github:leanprover/lean4
+mise exec -- ./verification/check-source.sh
 ```
 
 Run `(cd verification && lake build JosekitSpec)` to check the specification

@@ -112,11 +112,11 @@ theorem base64url_canonical (encoded : String) :
       ∃ values, encoded.toList.mapM base64urlSextet = some values ∧ CanonicalSextets values := by
   unfold base64url
   cases hs : encoded.toList.mapM base64urlSextet with
-  | none => simp [hs]
+  | none => simp
   | some values =>
     simp only [Option.some.injEq, exists_eq_left']
     rw [← decodeSextets_canonical values]
-    cases hd : decodeSextets values <;> simp [hs, hd]
+    cases hd : decodeSextets values <;> simp [hd]
 
 private theorem base64urlChars_of_sextets {chars : List Char} {values : List Nat}
     (h : chars.mapM base64urlSextet = some values) : ∀ c ∈ chars, Base64urlChar c := by
@@ -141,7 +141,7 @@ def standardBase64 (encoded : String) : Option ByteArray := do
         | '/' => some '_'
         | '-' | '_' => none
         | _ => some c
-      base64url (String.mk (← url))
+      base64url (String.ofList (← url))
 
 def jsonBytes (bytes : ByteArray) : Option Json := do
   let text ← String.fromUTF8? bytes

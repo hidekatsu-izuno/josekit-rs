@@ -23,9 +23,9 @@ private theorem find_eq_index {α : Type} (values : List α) (p : α → Bool) :
   | nil => rfl
   | cons head tail ih =>
     by_cases matchHead : p head
-    · simp [List.find?_cons, List.findIdx?_cons, matchHead]
+    · simp [List.findIdx?_cons, matchHead]
     · cases found : tail.findIdx? p <;>
-        simp [List.find?_cons, List.findIdx?_cons, matchHead, found, ih]
+        simp [List.findIdx?_cons, matchHead, found, ih]
 
 theorem jwk_remove (state : State) (key : Jwk) :
     jwkRemove state key = state.remove key := by
@@ -48,7 +48,7 @@ theorem jwk_remove (state : State) (key : Jwk) :
   | none => rfl
   | some index =>
     have inBounds := (List.findIdx?_eq_some_iff_findIdx_eq.mp found).1
-    simp only [Option.some_bind, getElem?_pos state.entries index inBounds,
+    simp only [Option.bind_some, getElem?_pos state.entries index inBounds,
       retainOtherEntries, eraseEntry]
 
 inductive SourceReachable : State → Prop where
@@ -80,8 +80,7 @@ theorem jws_tail (header payload signature : ByteArray) (encoded : Bool)
   | some bytes =>
     cases verified : verify (CompactFlow.jwsInputBytes header payload) bytes <;>
       cases encoded <;> cases decoded : decode payload <;>
-      simp [sig, verified, decoded, Bind.bind, Pure.pure, Trace.bind, Trace.pure,
-        liftOption, event, Trace.outcome]
+      simp [verified, Bind.bind, Trace.bind, liftOption, event, Trace.outcome]
 
 theorem jws_tail_refines_text (header payload signature : String) (encoded : Bool)
     (decode : ByteArray → Option ByteArray) (verify : ByteArray → ByteArray → Bool)
@@ -95,8 +94,13 @@ theorem jws_tail_refines_text (header payload signature : String) (encoded : Boo
     (jwsTail header.toUTF8 payload.toUTF8 signature.toUTF8 encoded decode verify).outcome.payload
     from rfl, trace]
   unfold CompactFlow.jwsBytes CompactFlow.jws
-  cases encoded <;> simp [decodeSig, decodePayload, CompactFlow.jwsInputBytes_text] <;>
-    split <;> rfl
+  rw [decodeSig]
+  simp only [CompactFlow.jwsInputBytes_text]
+  cases encoded with
+  | false => cases base64url signature <;> rfl
+  | true =>
+    rw [decodePayload rfl]
+    cases base64url signature <;> rfl
 
 theorem jwe_tail (header encrypted iv ciphertext tag : String) (keySize : Nat)
     (unwrap : Option ByteArray → Option ByteArray)
@@ -110,15 +114,15 @@ theorem jwe_tail (header encrypted iv ciphertext tag : String) (keySize : Nat)
   | none => rfl
   | some packet =>
     cases key : unwrap (CompactFlow.optionalSegment packet.encryptedKey) with
-    | none => simp [parsed, key, Bind.bind, Trace.bind, liftOption, event, Trace.outcome]
+    | none => simp [key, Bind.bind, Trace.bind, liftOption, event, Trace.outcome]
     | some cek =>
       by_cases size : cek.size = keySize
       · cases auth : authenticate cek (CompactFlow.optionalSegment packet.iv) packet.ciphertext
           packet.aad (CompactFlow.optionalSegment packet.tag) <;>
-          cases decompress <;> simp [parsed, key, size, auth, Bind.bind, Pure.pure,
+          cases decompress <;> simp [key, size, auth, Bind.bind, Pure.pure,
             Trace.bind, Trace.pure, liftOption, event, Trace.outcome]
         split <;> simp_all
-      · simp [parsed, key, size, Bind.bind, Trace.bind, liftOption, event, Trace.outcome]
+      · simp [key, size, Bind.bind, Trace.bind, liftOption, event, Trace.outcome]
 
 theorem gcm_guards (iv : Option ByteArray) (tag : ByteArray) :
     (gcmGuards iv tag).isSome = true ↔
@@ -143,7 +147,7 @@ theorem numeric_date_iff (number : Option (Option Nat × Option Nat))
           checkedAdd nanos = some value := by
   change (number.bind fun (wholeSeconds, floatDuration) =>
     ((wholeSeconds.map (1000000000 * ·)).or floatDuration).bind checkedAdd) = some value ↔ _
-  simp only [Option.bind_eq_some]
+  simp only [Option.bind_eq_some_iff]
   constructor
   · rintro ⟨⟨wholeSeconds, floatDuration⟩, found, nanos, duration, added⟩
     exact ⟨wholeSeconds, floatDuration, nanos, found, duration, added⟩
@@ -156,11 +160,11 @@ theorem numeric_date_integer_refines (maxDateNanos seconds : Nat) (floatDuration
       readNumericDate maxDateNanos (.num (Lean.JsonNumber.fromNat seconds)) := by
   have rounded : numericDateNanos (Lean.JsonNumber.fromNat seconds) =
       ((1000000000 * seconds : Nat) : Int) := by
-    simp only [numericDateNanos, Lean.JsonNumber.fromNat, if_pos rfl, Int.ofNat_mul] <;> rfl
+    simp only [numericDateNanos, Lean.JsonNumber.fromNat, Int.natCast_mul] <;> rfl
   change (if 1000000000 * seconds ≤ maxDateNanos then
       some ((1000000000 * seconds : Nat) : Int) else none) = (if
         0 ≤ (seconds : Int) ∧ numericDateNanos (Lean.JsonNumber.fromNat seconds) ≤ (maxDateNanos : Int)
         then some (numericDateNanos (Lean.JsonNumber.fromNat seconds)) else none)
-  simp only [rounded, Int.ofNat_zero_le, true_and, Int.ofNat_le]
+  simp only [rounded, Int.natCast_nonneg, true_and, Int.ofNat_le]
 
 end JosekitSpec.Source
