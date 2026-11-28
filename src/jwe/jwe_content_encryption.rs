@@ -34,7 +34,9 @@ pub trait JweContentEncryption: Debug + Send + Sync {
 
 impl PartialEq for Box<dyn JweContentEncryption> {
     fn eq(&self, other: &Self) -> bool {
-        self == other
+        self.name() == other.name()
+            && self.key_len() == other.key_len()
+            && self.iv_len() == other.iv_len()
     }
 }
 

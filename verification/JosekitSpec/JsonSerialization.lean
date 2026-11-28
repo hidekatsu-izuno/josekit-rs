@@ -84,7 +84,7 @@ def prepareJsonJwe (value : Json) (policy : DecryptionPolicy) :
     let _ ← external.mapM base64url
     let candidates ← members value "recipients"
     let iv ← optionalField value "iv" nonemptyText
-    let ciphertext ← (value.getObjVal? "ciphertext").toOption >>= nonemptyText
+    let ciphertext ← (value.getObjVal? "ciphertext").toOption >>= text
     let tag ← optionalField value "tag" nonemptyText
     candidates.mapM fun recipient => do
       let header ← optionalField recipient "header" readObj

@@ -13,6 +13,10 @@ use crate::jwe::{
 use crate::util;
 use crate::{JoseError, JoseHeader, Map, Value};
 
+/// Configures JWE serialization and deserialization.
+///
+/// Equality compares accepted critical names and the registered algorithm
+/// names, including key and IV lengths for content encryption.
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct JweContext {
     acceptable_criticals: BTreeSet<String>,
@@ -466,10 +470,9 @@ impl JweContext {
                 _ => None,
             };
 
-            let aad_b64 = match aad {
-                Some(val) => Some(util::encode_base64_urlsafe_nopad(val)),
-                None => None,
-            };
+            let aad_b64 = aad
+                .filter(|bytes| !bytes.is_empty())
+                .map(util::encode_base64_urlsafe_nopad);
 
             let mut full_aad = String::with_capacity({
                 let mut full_aad_capacity = 1;
@@ -528,20 +531,24 @@ impl JweContext {
                 }
 
                 let merged = &merged_list[i];
-                let mut header = &mut recipient_header_list[i];
+                let header = &mut recipient_header_list[i];
                 let encrypter = encrypter_list[i];
 
-                let encrypted_key = encrypter.encrypt(&key, &merged, &mut header)?;
+                let encrypted_key = encrypter.encrypt(&key, merged, header)?;
 
-                if header.len() == 0 {
-                    bail!("The per-recipient header must not be empty");
+                json.push('{');
+                let has_header = header.len() > 0;
+                if has_header {
+                    let header_json = serde_json::to_string(header.claims_set())?;
+                    json.push_str("\"header\":");
+                    json.push_str(&header_json);
                 }
-                let header_json = serde_json::to_string(header.claims_set())?;
-                json.push_str("{\"header\":");
-                json.push_str(&header_json);
 
                 if let Some(val) = encrypted_key {
-                    json.push_str(",\"encrypted_key\":\"");
+                    if has_header {
+                        json.push(',');
+                    }
+                    json.push_str("\"encrypted_key\":\"");
                     util::encode_base64_urlsafe_nopad_buf(&val, &mut json);
                     json.push_str("\"");
                 }
@@ -718,10 +725,9 @@ impl JweContext {
                 None
             };
 
-            let aad_b64 = match aad {
-                Some(val) => Some(util::encode_base64_urlsafe_nopad(val)),
-                None => None,
-            };
+            let aad_b64 = aad
+                .filter(|bytes| !bytes.is_empty())
+                .map(util::encode_base64_urlsafe_nopad);
 
             let mut full_aad = String::with_capacity({
                 let mut full_aad_capacity = 1;
@@ -1071,12 +1077,7 @@ impl JweContext {
                 None => None,
             };
             let ciphertext = match map.remove("ciphertext") {
-                Some(Value::String(val)) => {
-                    if val.len() == 0 {
-                        bail!("The ciphertext field must be empty.");
-                    }
-                    util::decode_base64_urlsafe_no_pad(&val)?
-                }
+                Some(Value::String(val)) => util::decode_base64_urlsafe_no_pad(&val)?,
                 Some(_) => bail!("The ciphertext field must be string."),
                 None => bail!("The ciphertext field is required."),
             };
@@ -1268,9 +1269,11 @@ mod tests {
     use crate::jwe::{
         alg::direct::DirectJweAlgorithm, deserialize_compact, deserialize_json,
         deserialize_json_with_selector, serialize_compact, serialize_flattened_json,
-        serialize_general_json, JweContext, JweHeader, JweHeaderSet, A256KW,
+        serialize_general_json, JweContext, JweDecrypter, JweEncrypter, JweHeader, JweHeaderSet,
+        A128KW, A256KW,
     };
     use crate::jwk::Jwk;
+    use crate::{jwt::JwtContext, Value};
     use anyhow::Result;
     use serde_json::json;
 
@@ -1282,6 +1285,85 @@ mod tests {
         ("A192GCM", 24),
         ("A256GCM", 32),
     ];
+
+    #[test]
+    fn context_equality() {
+        let context = JweContext::new();
+        assert_eq!(context, context.clone());
+        assert_eq!(context, JweContext::new());
+        for (remove, name) in [
+            (
+                JweContext::remove_compression as fn(&mut JweContext, &str),
+                "DEF",
+            ),
+            (JweContext::remove_content_encryption, "A128GCM"),
+        ] {
+            let mut other = context.clone();
+            remove(&mut other, name);
+            assert_ne!(context, other);
+        }
+
+        let jwt = JwtContext::new();
+        assert_eq!(jwt, jwt.clone());
+        let mut other = jwt.clone();
+        other.add_acceptable_critical("example");
+        assert_ne!(jwt, other);
+    }
+
+    #[test]
+    fn json_gcm_empty_plaintext_and_aad() -> Result<()> {
+        let mut shared = JweHeaderSet::new();
+        shared.set_content_encryption("A128GCM", true);
+        let key = [0; 16];
+        let encrypter = DirectJweAlgorithm::Dir.encrypter_from_bytes(key)?;
+        let decrypter = DirectJweAlgorithm::Dir.decrypter_from_bytes(key)?;
+        for payload in [&b""[..], &b"payload"[..]] {
+            for aad in [None, Some(&b""[..]), Some(&b"external data"[..])] {
+                let flattened =
+                    serialize_flattened_json(payload, Some(&shared), None, aad, &encrypter)?;
+                let general =
+                    serialize_general_json(payload, Some(&shared), &[(None, &encrypter)], aad)?;
+                for token in [flattened, general] {
+                    let wire: Value = serde_json::from_str(&token)?;
+                    assert_eq!(
+                        wire.get("aad").is_some(),
+                        aad.is_some_and(|data| !data.is_empty())
+                    );
+                    if payload.is_empty() {
+                        assert_eq!(wire.get("ciphertext"), Some(&json!("")));
+                    }
+                    assert_eq!(deserialize_json(&token, &decrypter)?.0, payload);
+                }
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn general_json_with_shared_alg_and_no_recipient_header() -> Result<()> {
+        let key = [0; 16];
+        let direct = DirectJweAlgorithm::Dir.encrypter_from_bytes(key)?;
+        let direct_decrypter = DirectJweAlgorithm::Dir.decrypter_from_bytes(key)?;
+        let wrapped = A128KW.encrypter_from_bytes(key)?;
+        let wrapped_decrypter = A128KW.decrypter_from_bytes(key)?;
+        let recipients: [(&str, &dyn JweEncrypter, &dyn JweDecrypter, bool); 2] = [
+            ("dir", &direct, &direct_decrypter, false),
+            ("A128KW", &wrapped, &wrapped_decrypter, true),
+        ];
+        let mut shared = JweHeaderSet::new();
+        shared.set_content_encryption("A128GCM", true);
+        let payload = b"payload";
+        for (algorithm, encrypter, decrypter, has_encrypted_key) in recipients {
+            shared.set_algorithm(algorithm, true);
+            let token = serialize_general_json(payload, Some(&shared), &[(None, encrypter)], None)?;
+            let wire: Value = serde_json::from_str(&token)?;
+            let recipient = &wire["recipients"][0];
+            assert!(recipient.get("header").is_none());
+            assert_eq!(recipient.get("encrypted_key").is_some(), has_encrypted_key);
+            assert_eq!(deserialize_json(&token, decrypter)?.0, payload);
+        }
+        Ok(())
+    }
 
     #[test]
     fn critical_headers() -> Result<()> {

@@ -119,27 +119,7 @@ impl JwtPayload {
     ///
     /// * `value` - A expiration time on or after which the JWT must not be accepted for processing.
     pub fn set_expires_at(&mut self, value: &SystemTime) {
-        let key = "exp".to_string();
-        let duration = value.duration_since(SystemTime::UNIX_EPOCH).unwrap();
-        let val = if duration.subsec_nanos() != 0 {
-            Value::Number(
-                Number::from_f64(
-                    value
-                        .duration_since(SystemTime::UNIX_EPOCH)
-                        .unwrap()
-                        .as_secs_f64(),
-                )
-                .unwrap(),
-            )
-        } else {
-            Value::Number(Number::from(
-                value
-                    .duration_since(SystemTime::UNIX_EPOCH)
-                    .unwrap()
-                    .as_secs(),
-            ))
-        };
-        self.claims.insert(key.clone(), val);
+        self.set_time_claim("exp", value, true);
     }
 
     /// Return the system time for expires at payload claim (exp).
@@ -153,15 +133,7 @@ impl JwtPayload {
     ///
     /// * `value` - A time before which the JWT must not be accepted for processing.
     pub fn set_not_before(&mut self, value: &SystemTime) {
-        let key = "nbf".to_string();
-        let val = Number::from_f64(
-            value
-                .duration_since(SystemTime::UNIX_EPOCH)
-                .unwrap()
-                .as_secs_f64(),
-        )
-        .unwrap();
-        self.claims.insert(key.clone(), Value::Number(val));
+        self.set_time_claim("nbf", value, false);
     }
 
     /// Return the system time for not before payload claim (nbf).
@@ -175,15 +147,7 @@ impl JwtPayload {
     ///
     /// * `value` - a time at which the JWT was issued.
     pub fn set_issued_at(&mut self, value: &SystemTime) {
-        let key = "iat".to_string();
-        let val = Number::from_f64(
-            value
-                .duration_since(SystemTime::UNIX_EPOCH)
-                .unwrap()
-                .as_secs_f64(),
-        )
-        .unwrap();
-        self.claims.insert(key.clone(), Value::Number(val));
+        self.set_time_claim("iat", value, false);
     }
 
     /// Return the time for a issued at payload claim (iat).
@@ -244,6 +208,23 @@ impl JwtPayload {
     /// Return values for payload claims set
     pub fn claims_set(&self) -> &Map<String, Value> {
         &self.claims
+    }
+
+    fn set_time_claim(&mut self, key: &str, value: &SystemTime, prefer_integer: bool) {
+        // The JSON float parser can accumulate a trailing .0 before scaling
+        // the mantissa, so both the integer seconds and ten times that value
+        // must fit exactly in an f64 to guarantee a round trip.
+        const MAX_EXACT_JSON_FLOAT_SECONDS: u64 = (1u64 << f64::MANTISSA_DIGITS) / 10;
+        let duration = value.duration_since(SystemTime::UNIX_EPOCH).unwrap();
+        let seconds = duration.as_secs();
+        let number = if duration.subsec_nanos() == 0
+            && (prefer_integer || seconds > MAX_EXACT_JSON_FLOAT_SECONDS)
+        {
+            Number::from(seconds)
+        } else {
+            Number::from_f64(duration.as_secs_f64()).unwrap()
+        };
+        self.claims.insert(key.to_owned(), Value::Number(number));
     }
 
     pub(super) fn time_claim(&self, key: &str) -> anyhow::Result<Option<SystemTime>> {
@@ -456,6 +437,32 @@ mod tests {
             let mut payload = JwtPayload::new();
             payload.set_claim("exp", Some(json!(seconds)))?;
             assert_eq!(payload.expires_at(), Some(expected));
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_typed_numeric_date_setters_preserve_integer_seconds() -> Result<()> {
+        let setters: [(&str, fn(&mut JwtPayload, &SystemTime)); 2] = [
+            ("nbf", JwtPayload::set_not_before),
+            ("iat", JwtPayload::set_issued_at),
+        ];
+        let epoch = SystemTime::UNIX_EPOCH;
+        for (key, setter) in setters {
+            let mut payload = JwtPayload::new();
+            let ordinary = epoch + Duration::from_secs(10);
+            setter(&mut payload, &ordinary);
+            assert_eq!(payload.claim(key), Some(&json!(10.0)));
+            for seconds in [9_007_199_254_740_993, 900_719_925_474_102_272] {
+                if let Some(far_future) = epoch.checked_add(Duration::from_secs(seconds)) {
+                    setter(&mut payload, &far_future);
+                    assert_eq!(payload.claim(key), Some(&json!(seconds)));
+                    assert_eq!(payload.time_claim(key)?, Some(far_future));
+                    let claims: Map<String, Value> = serde_json::from_str(&payload.to_string())?;
+                    let decoded = JwtPayload::from_map(claims)?;
+                    assert_eq!(decoded.time_claim(key)?, Some(far_future));
+                }
+            }
         }
         Ok(())
     }

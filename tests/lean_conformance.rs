@@ -657,6 +657,23 @@ fn json_serializations(cases: &mut Vec<Value>) -> Result<()> {
         .as_object_mut()
         .expect("JWE JSON object")
         .remove("iv");
+    let mut record = |name: &str,
+                      wire: &Value,
+                      reference: &Value,
+                      plaintext: &[u8]|
+     -> Result<()> {
+        let actual = jwe::deserialize_json(&serde_json::to_string(wire)?, &decrypter)
+            .ok()
+            .map(|(payload, _)| payload);
+        observe(
+            cases,
+            format!("JWE JSON {name}"),
+            json!({"kind":"jsonJwe","wire":wire,
+            "reference":reference,"plaintext":plaintext,"policy":{"alg":"dir","kid":null,"critical":[]}}),
+            json!(actual),
+        );
+        Ok(())
+    };
     for (name, wire, reference) in [
         ("flattened", &flattened, &flattened),
         ("general", &general, &general),
@@ -665,17 +682,51 @@ fn json_serializations(cases: &mut Vec<Value>) -> Result<()> {
         ("changed AAD", &changed_aad, &flattened),
         ("missing IV", &missing_iv, &flattened),
     ] {
-        let actual = jwe::deserialize_json(&serde_json::to_string(wire)?, &decrypter)
-            .ok()
-            .map(|(payload, _)| payload);
-        observe(
-            cases,
-            format!("JWE JSON {name}"),
-            json!({"kind":"jsonJwe","wire":wire,
-            "reference":reference,"plaintext":payload,"policy":{"alg":"dir","kid":null,"critical":[]}}),
-            json!(actual),
-        );
+        record(name, wire, reference, payload)?;
     }
+    for (description, plaintext, aad) in [
+        ("empty ciphertext", &b""[..], None),
+        ("empty external AAD", &payload[..], Some(&b""[..])),
+    ] {
+        let flattened: Value = serde_json::from_str(&jwe::serialize_flattened_json(
+            plaintext,
+            Some(&shared),
+            Some(&recipient),
+            aad,
+            &encrypter,
+        )?)?;
+        let general: Value = serde_json::from_str(&jwe::serialize_general_json(
+            plaintext,
+            Some(&shared),
+            &[(Some(&recipient), &encrypter)],
+            aad,
+        )?)?;
+        record(
+            &format!("flattened {description}"),
+            &flattened,
+            &flattened,
+            plaintext,
+        )?;
+        record(
+            &format!("general {description}"),
+            &general,
+            &general,
+            plaintext,
+        )?;
+    }
+    shared.set_algorithm("dir", true);
+    let general: Value = serde_json::from_str(&jwe::serialize_general_json(
+        payload,
+        Some(&shared),
+        &[(None, &encrypter)],
+        None,
+    )?)?;
+    record(
+        "general with an empty recipient",
+        &general,
+        &general,
+        payload,
+    )?;
     Ok(())
 }
 
