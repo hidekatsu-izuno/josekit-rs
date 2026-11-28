@@ -1,3 +1,8 @@
 [tools]
 "github:leanprover/lean4" = "4.36.0"
 rust = "latest"
+
+[tasks.test-ephyra]
+description = "Run the Ephyra property tests for josekit"
+raw = true
+run = "cargo test --locked --manifest-path verification/ephyra/Cargo.toml"

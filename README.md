@@ -106,6 +106,24 @@ Run just the WASI tests with `./scripts/test-backends.sh wasm-wasi --release`.
 The Cargo runner uses Node.js WASI and maps `data/` for the test fixtures.
 It runs the existing unit tests and doctests as WebAssembly.
 
+## Ephyra property tests
+
+Run the property tests from the repository root:
+
+```sh
+mise run test-ephyra
+```
+
+With Cargo installed, you can also run the suite directly:
+
+```sh
+cargo test --locked --manifest-path verification/ephyra/Cargo.toml
+```
+
+The tests use the default OpenSSL backend. Set `EPHYRA_SEED=784031` before
+either command for reproducible generated inputs. Set
+`EPHYRA_REPORT_JSON` to an absolute file path to append a JSON report per property.
+
 ## Lean 4 specification
 
 The executable [JOSE specification](verification/README.md) includes Lean proofs

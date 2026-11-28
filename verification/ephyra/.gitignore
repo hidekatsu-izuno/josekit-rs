@@ -1,0 +1,3 @@
+/.ephyra/
+/target/
+!/Cargo.lock

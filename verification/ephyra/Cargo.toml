@@ -1,0 +1,10 @@
+[package]
+name = "josekit-ephyra-tests"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[dev-dependencies]
+ephyra = "=0.0.1"
+josekit = { path = "../.." }
+serde_json = "1"
